@@ -18,63 +18,63 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] `lib/env.ts` env validation on startup (zod)
 
 ## Recipe CRUD
-- [ ] Recipe list page (`/recipes`) — card grid, search, filter by cuisine/tag
-- [ ] Recipe detail page (`/recipes/[id]`) — full view with ingredients and steps
-- [ ] Create recipe form (`/recipes/new`) — structured ingredient rows, step builder
-- [ ] Edit recipe form (`/recipes/[id]/edit`)
-- [ ] Delete recipe (with confirmation)
-- [ ] Recipe image upload (to MinIO/S3)
-- [ ] Favourite toggle
-- [ ] Cuisine and tag filtering
+- [x] Recipe list page (`/recipes`) — card grid, search, filter by cuisine/tag
+- [x] Recipe detail page (`/recipes/[id]`) — full view with ingredients and steps
+- [x] Create recipe form (`/recipes/new`) — structured ingredient rows, step builder
+- [x] Edit recipe form (`/recipes/[id]/edit`)
+- [x] Delete recipe (with confirmation)
+- [x] Recipe image upload (to MinIO/S3)
+- [x] Favourite toggle
+- [x] Cuisine and tag filtering
 
 ## Cooking Mode
-- [ ] Cooking mode page (`/recipes/[id]/cook`) — fullscreen, large text
-- [ ] Step-by-step navigation (prev/next)
-- [ ] Embedded countdown timers (per step, with label)
-- [ ] Ingredient highlighting: active step cross-references ingredient IDs
-- [ ] Wake lock API (prevents screen sleep on mobile)
-- [ ] Recipe scaling UI (change serving count → recalculate all amounts)
+- [x] Cooking mode page (`/recipes/[id]/cook`) — fullscreen, large text
+- [x] Step-by-step navigation (prev/next)
+- [x] Embedded countdown timers (per step, with label)
+- [x] Ingredient highlighting: active step cross-references ingredient IDs
+- [x] Wake lock API (prevents screen sleep on mobile)
+- [x] Recipe scaling UI (change serving count → recalculate all amounts)
 
 ## Shopping Lists
-- [ ] Shopping list page (`/shopping`) — active list with check-off items
-- [ ] Generate list from recipe(s) — consolidates duplicate ingredients
-- [ ] Manual item addition
-- [ ] Check/uncheck items
-- [ ] Clear checked items
-- [ ] Archive/complete a list
-- [ ] Category grouping (produce, dairy, etc.)
+- [x] Shopping list page (`/shopping`) — active list with check-off items
+- [x] Generate list from recipe(s) — consolidates duplicate ingredients
+- [x] Manual item addition
+- [x] Check/uncheck items
+- [x] Clear checked items
+- [x] Archive/complete a list
+- [x] Category grouping (produce, dairy, etc.)
 
 ## Meal Planner
-- [ ] Meal plan week view (`/meal-plan`) — 7-day grid, meal slots
-- [ ] Add recipe to a meal slot
-- [ ] Remove/swap recipe in a slot
-- [ ] Generate shopping list from current week's meal plan
-- [ ] Navigate between weeks
+- [x] Meal plan week view (`/meal-plan`) — day tabs + meal list per day
+- [x] Add recipe to a meal slot
+- [x] Remove/swap recipe in a slot
+- [x] Generate shopping list from current week's meal plan
+- [x] Navigate between weeks
 
 ## AI — Recipe Generation (Concierge Flow)
-- [ ] AI config settings page (`/settings/ai`) — store encrypted API key per household
-- [ ] Concierge step 1: user describes preferences → AI returns 5 concept cards
-- [ ] Concierge step 2: user picks a concept
-- [ ] Concierge step 3: AI generates full structured recipe (ingredients + steps)
-- [ ] Save generated recipe to the library
-- [ ] Handle OpenAI errors gracefully (quota, key invalid, timeout)
+- [x] AI config settings page (`/settings/ai`) — store encrypted API key per household
+- [x] Concierge step 1: user describes preferences → AI returns 5 concept cards
+- [x] Concierge step 2: user picks a concept
+- [x] Concierge step 3: AI generates full structured recipe (ingredients + steps)
+- [x] Save generated recipe to the library
+- [x] Handle OpenAI errors gracefully (quota, key invalid, timeout)
 
 ## Household & Settings
-- [ ] Household settings page (`/settings`) — name, members
-- [ ] Invite / add member (links Authelia username to household)
-- [ ] Member role management (admin/adult/child)
-- [ ] Remove member
+- [x] Household settings page (`/settings`) — name, members
+- [x] Invite / add member (links Authelia username to household)
+- [x] Member role management (admin/adult/child)
+- [x] Remove member
 
 ## Integration API
-- [ ] `GET /api/integrations/today` — today's meals
-- [ ] `GET /api/integrations/meal-plan/week` — full week plan
-- [ ] `GET /api/integrations/shopping-list` — active list
-- [ ] `POST /api/integrations/shopping-list/items` — add item
-- [ ] `POST /api/integrations/meal-plan/generate` — trigger AI generation
-- [ ] Token management UI (`/settings/integrations`) — create/revoke tokens with scopes
-- [ ] Redis rate limiting middleware for integration routes
+- [x] `GET /api/integrations/today` — today's meals
+- [x] `GET /api/integrations/meal-plan/week` — full week plan
+- [x] `GET /api/integrations/shopping-list` — active list
+- [x] `POST /api/integrations/shopping-list/items` — add item
+- [x] `POST /api/integrations/meal-plan/generate` — trigger AI generation
+- [x] Token management UI (`/settings/integrations`) — create/revoke tokens with scopes
+- [x] Redis rate limiting middleware for integration routes (100 req/min per token, gracefully skipped if Redis unavailable)
 
 ## Infrastructure / DevX
 - [x] `.env.local` validation on startup (zod, fail fast)
-- [ ] Error boundary + 404/500 pages
-- [ ] `README.md` — local dev setup, Docker deploy instructions
+- [x] Error boundary + 404/500 pages
+- [x] `README.md` — local dev setup, Docker deploy instructions

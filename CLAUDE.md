@@ -108,6 +108,16 @@ The family profile picker (Phase 2) is a household-level UX feature — switchin
 - Tailwind for all styling — no CSS modules or styled-components
 - All database queries scoped to household — this is not optional
 
+## Keeping Docs Updated
+
+Whenever you add, change, or remove something user-facing, update these files as part of the same task:
+
+- **`README.md`** — update if you: add a new feature to the app, add or change environment variables, change deployment steps, or fix anything in the MinIO/S3 setup section. The env var reference table and the Features list must stay accurate.
+- **`TODO.md`** — tick items off as they are completed. Add new items if scope expands.
+- **`API.md`** — update if you add, change, or remove any integration API endpoints or token scopes.
+
+Do not leave docs stale. A one-line feature entry or a new row in the env var table takes seconds and saves confusion later.
+
 ---
 
 ## Self-Hosting Context

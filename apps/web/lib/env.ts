@@ -13,6 +13,12 @@ const envSchema = z.object({
   AUTHELIA_USER_HEADER: z.string().default("Remote-User"),
   AUTHELIA_NAME_HEADER: z.string().default("Remote-Name"),
   AUTHELIA_GROUPS_HEADER: z.string().default("Remote-Groups"),
+  // S3 / MinIO — optional; image upload is disabled when absent
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY: z.string().optional(),
+  S3_SECRET_KEY: z.string().optional(),
+  S3_PUBLIC_URL: z.string().url().optional(),
 });
 
 function validateEnv() {

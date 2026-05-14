@@ -1,0 +1,212 @@
+"use server";
+
+import { db } from "@/lib/db";
+import {
+  mealPlans,
+  mealPlanEntries,
+  recipes,
+  recipeIngredients,
+  shoppingLists,
+  shoppingListItems,
+} from "@dishes/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { getAutheliaUser } from "@/lib/auth";
+import { requireHousehold } from "@/lib/household";
+
+type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+
+async function getOrCreatePlan(
+  householdId: string,
+  memberId: string,
+  weekStartDate: string
+) {
+  const [existing] = await db
+    .select({ id: mealPlans.id })
+    .from(mealPlans)
+    .where(
+      and(
+        eq(mealPlans.householdId, householdId),
+        eq(mealPlans.weekStartDate, weekStartDate)
+      )
+    )
+    .limit(1);
+
+  if (existing) return existing;
+
+  const [created] = await db
+    .insert(mealPlans)
+    .values({
+      householdId,
+      createdById: memberId,
+      weekStartDate,
+      status: "active",
+    })
+    .returning({ id: mealPlans.id });
+
+  return created!;
+}
+
+export async function addMealEntry(
+  weekStartDate: string,
+  recipeId: string,
+  dayOfWeek: number,
+  mealType: MealType
+) {
+  const user = await getAutheliaUser();
+  const { householdId, memberId } = await requireHousehold(user);
+
+  const [recipe] = await db
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+    .limit(1);
+
+  if (!recipe) throw new Error("Recipe not found");
+
+  const plan = await getOrCreatePlan(householdId, memberId, weekStartDate);
+
+  await db
+    .insert(mealPlanEntries)
+    .values({ mealPlanId: plan.id, recipeId, dayOfWeek, mealType });
+
+  revalidatePath("/meal-plan");
+}
+
+export async function removeMealEntry(entryId: string) {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const [entry] = await db
+    .select({ mealPlanId: mealPlanEntries.mealPlanId })
+    .from(mealPlanEntries)
+    .where(eq(mealPlanEntries.id, entryId))
+    .limit(1);
+
+  if (!entry) return;
+
+  const [plan] = await db
+    .select({ id: mealPlans.id })
+    .from(mealPlans)
+    .where(
+      and(
+        eq(mealPlans.id, entry.mealPlanId),
+        eq(mealPlans.householdId, householdId)
+      )
+    )
+    .limit(1);
+
+  if (!plan) return;
+
+  await db.delete(mealPlanEntries).where(eq(mealPlanEntries.id, entryId));
+
+  revalidatePath("/meal-plan");
+}
+
+export async function generateShoppingFromWeek(mealPlanId: string) {
+  const user = await getAutheliaUser();
+  const { householdId, memberId } = await requireHousehold(user);
+
+  const [plan] = await db
+    .select({ id: mealPlans.id })
+    .from(mealPlans)
+    .where(
+      and(
+        eq(mealPlans.id, mealPlanId),
+        eq(mealPlans.householdId, householdId)
+      )
+    )
+    .limit(1);
+
+  if (!plan) throw new Error("Meal plan not found");
+
+  const entries = await db
+    .select({ recipeId: mealPlanEntries.recipeId })
+    .from(mealPlanEntries)
+    .where(eq(mealPlanEntries.mealPlanId, mealPlanId));
+
+  if (!entries.length) return;
+
+  const recipeIds = [...new Set(entries.map((e) => e.recipeId))];
+
+  const ingredients = await db
+    .select({
+      ingredientName: recipeIngredients.ingredientName,
+      amount: recipeIngredients.amount,
+      unit: recipeIngredients.unit,
+    })
+    .from(recipeIngredients)
+    .where(inArray(recipeIngredients.recipeId, recipeIds));
+
+  const [existingList] = await db
+    .select({ id: shoppingLists.id })
+    .from(shoppingLists)
+    .where(
+      and(
+        eq(shoppingLists.householdId, householdId),
+        eq(shoppingLists.status, "active")
+      )
+    )
+    .limit(1);
+
+  let listId: string;
+  if (existingList) {
+    listId = existingList.id;
+  } else {
+    const name = `Shopping – ${new Date().toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    })}`;
+    const [newList] = await db
+      .insert(shoppingLists)
+      .values({ householdId, createdById: memberId, name })
+      .returning({ id: shoppingLists.id });
+    listId = newList!.id;
+  }
+
+  const existing = await db
+    .select({
+      id: shoppingListItems.id,
+      ingredientName: shoppingListItems.ingredientName,
+      amount: shoppingListItems.amount,
+      unit: shoppingListItems.unit,
+      position: shoppingListItems.position,
+    })
+    .from(shoppingListItems)
+    .where(eq(shoppingListItems.listId, listId));
+
+  const maxPos = existing.length
+    ? Math.max(...existing.map((i) => i.position))
+    : -1;
+  let posCounter = maxPos + 1;
+
+  for (const ing of ingredients) {
+    const normalName = ing.ingredientName.toLowerCase().trim();
+    const match = existing.find(
+      (e) =>
+        e.ingredientName.toLowerCase().trim() === normalName &&
+        e.unit === ing.unit
+    );
+
+    if (match && match.amount !== null && ing.amount !== null) {
+      const newAmount = (
+        parseFloat(match.amount) + parseFloat(ing.amount)
+      ).toString();
+      await db
+        .update(shoppingListItems)
+        .set({ amount: newAmount })
+        .where(eq(shoppingListItems.id, match.id));
+    } else {
+      await db.insert(shoppingListItems).values({
+        listId,
+        ingredientName: ing.ingredientName,
+        amount: ing.amount,
+        unit: ing.unit,
+        position: posCounter++,
+      });
+    }
+  }
+
+  revalidatePath("/shopping");
+  revalidatePath("/meal-plan");
+}
