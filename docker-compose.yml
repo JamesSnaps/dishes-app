@@ -9,7 +9,6 @@ services:
     env_file: .env
     environment:
       NODE_ENV: production
-      APP_VERSION: "0.1.1"
       DATABASE_URL: postgresql://dishes:${POSTGRES_PASSWORD:-dishes}@db:5432/dishes
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000

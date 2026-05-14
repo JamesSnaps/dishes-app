@@ -28,6 +28,7 @@ ENV NEXT_OUTPUT=standalone
 ENV DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
 ENV ENCRYPTION_KEY=buildsecretbuildsecretbuildsecret
 RUN pnpm --filter @dishes/web build
+RUN node -e "process.stdout.write(require('./apps/web/package.json').version)" > /tmp/VERSION
 
 # ─── Migrator ────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS migrator
@@ -45,6 +46,7 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
+COPY --from=builder /tmp/VERSION ./VERSION
 COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
