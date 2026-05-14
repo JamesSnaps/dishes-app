@@ -42,10 +42,17 @@ COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 
+# Migration runner — uses node_modules already present in the standalone bundle
+COPY --from=builder --chown=nextjs:nodejs /app/packages/db/migrate.mjs ./migrate.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/packages/db/drizzle ./drizzle
+
+COPY --chown=nextjs:nodejs apps/web/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 USER nextjs
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "apps/web/server.js"]
+CMD ["./entrypoint.sh"]
