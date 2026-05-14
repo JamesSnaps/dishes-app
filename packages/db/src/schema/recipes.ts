@@ -50,7 +50,7 @@ export const recipeIngredients = pgTable("recipe_ingredients", {
     .references(() => recipes.id, { onDelete: "cascade" }),
   position: integer("position").notNull().default(0),
   ingredientName: varchar("ingredient_name", { length: 255 }).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 3 }),
+  amount: text("amount"),
   unit: varchar("unit", { length: 50 }),
   preparation: varchar("preparation", { length: 255 }),
   isOptional: boolean("is_optional").notNull().default(false),

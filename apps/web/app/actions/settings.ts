@@ -122,6 +122,8 @@ export async function saveAiConfig(formData: FormData) {
   const model = (formData.get("model") as string)?.trim() || "gpt-4.1-nano";
   const imageModel = (formData.get("imageModel") as string)?.trim() || "gpt-image-2";
   const monthlyLimit = (formData.get("monthlyLimit") as string)?.trim() || "20.00";
+  const defaultPrompt = (formData.get("defaultPrompt") as string)?.trim() || null;
+  const measurementSystem = (formData.get("measurementSystem") as string)?.trim() || "metric";
 
   const existing = await db
     .select({ id: aiConfigurations.id, encryptedApiKey: aiConfigurations.encryptedApiKey })
@@ -142,7 +144,7 @@ export async function saveAiConfig(formData: FormData) {
   if (existing.length) {
     await db
       .update(aiConfigurations)
-      .set({ encryptedApiKey, model, imageModel, monthlyLimitUsd: monthlyLimit })
+      .set({ encryptedApiKey, model, imageModel, monthlyLimitUsd: monthlyLimit, defaultPrompt, measurementSystem })
       .where(eq(aiConfigurations.id, existing[0]!.id));
   } else {
     await db.insert(aiConfigurations).values({
@@ -151,6 +153,8 @@ export async function saveAiConfig(formData: FormData) {
       model,
       imageModel,
       monthlyLimitUsd: monthlyLimit,
+      defaultPrompt,
+      measurementSystem,
     });
   }
 
@@ -194,6 +198,8 @@ export async function getAiConfig(householdId: string) {
       model: aiConfigurations.model,
       imageModel: aiConfigurations.imageModel,
       monthlyLimitUsd: aiConfigurations.monthlyLimitUsd,
+      defaultPrompt: aiConfigurations.defaultPrompt,
+      measurementSystem: aiConfigurations.measurementSystem,
       encryptedApiKey: aiConfigurations.encryptedApiKey,
     })
     .from(aiConfigurations)
@@ -208,6 +214,8 @@ export async function getAiConfig(householdId: string) {
     model: config.model,
     imageModel: config.imageModel,
     monthlyLimitUsd: config.monthlyLimitUsd,
+    defaultPrompt: config.defaultPrompt,
+    measurementSystem: config.measurementSystem,
     hasKey: true,
     // Partial reveal so user knows the key they stored (first/last 4 chars)
     keyHint: (() => {

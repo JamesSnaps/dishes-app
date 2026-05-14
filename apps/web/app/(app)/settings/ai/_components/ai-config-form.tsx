@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@dishes/ui";
 import { Input } from "@dishes/ui";
+import { Textarea } from "@dishes/ui";
 import { saveAiConfig } from "@/app/actions/settings";
 
 type Props = {
@@ -10,6 +11,8 @@ type Props = {
     model: string;
     imageModel: string;
     monthlyLimitUsd: string | null;
+    defaultPrompt: string | null;
+    measurementSystem: string;
     hasKey: boolean;
     keyHint: string;
   } | null;
@@ -106,6 +109,39 @@ export function AiConfigForm({ config, isAdmin }: Props) {
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>
+      </div>
+
+      {/* Measurement system */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Measurement system</label>
+        <p className="text-xs text-muted-foreground">
+          AI-generated recipes will use this unit system for all quantities.
+        </p>
+        <select
+          name="measurementSystem"
+          defaultValue={config?.measurementSystem ?? "metric"}
+          disabled={isPending}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+        >
+          <option value="metric">Metric (g, ml, kg, l)</option>
+          <option value="imperial">Imperial (cups, oz, lbs, tbsp)</option>
+        </select>
+      </div>
+
+      {/* Default prompt */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Default recipe preferences</label>
+        <p className="text-xs text-muted-foreground">
+          Applied to every AI recipe generation. Use this to set household-wide requirements, e.g. "Always make recipes kid-friendly and nut-free."
+        </p>
+        <Textarea
+          name="defaultPrompt"
+          rows={3}
+          defaultValue={config?.defaultPrompt ?? ""}
+          placeholder='e.g. "Always make recipes suitable for children. Avoid nuts and shellfish."'
+          disabled={isPending}
+          className="text-sm resize-none"
+        />
       </div>
 
       {/* Monthly limit */}

@@ -34,6 +34,7 @@ export function NewRecipeClient({ hasAi }: NewRecipeClientProps) {
         action={createRecipe}
         defaults={defaults}
         submitLabel="Create Recipe"
+        mode="create"
       />
     </div>
   );

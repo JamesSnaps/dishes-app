@@ -21,7 +21,9 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Badge, Button, Separator } from "@dishes/ui";
 import { DeleteRecipeButton } from "./_components/delete-recipe-button";
+import { GenerateImageButton } from "./_components/generate-image-button";
 import { toggleFavourite } from "@/app/actions/recipes";
+import { getAiConfig } from "@/app/actions/settings";
 
 export const metadata = { title: "Recipe" };
 
@@ -34,7 +36,7 @@ export default async function RecipeDetailPage({ params }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps, tags] = await Promise.all([
+  const [recipe, ingredients, steps, tags, aiConfig] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -55,6 +57,7 @@ export default async function RecipeDetailPage({ params }: Props) {
       .select()
       .from(recipeTags)
       .where(eq(recipeTags.recipeId, id)),
+    getAiConfig(householdId),
   ]);
 
   if (!recipe) notFound();
@@ -83,7 +86,7 @@ export default async function RecipeDetailPage({ params }: Props) {
       </Link>
 
       {/* Hero image */}
-      {recipe.imageUrl && (
+      {recipe.imageUrl ? (
         <div className="mb-6 aspect-video overflow-hidden rounded-xl bg-muted">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -92,7 +95,9 @@ export default async function RecipeDetailPage({ params }: Props) {
             className="h-full w-full object-cover"
           />
         </div>
-      )}
+      ) : aiConfig?.hasKey ? (
+        <GenerateImageButton recipeId={id} />
+      ) : null}
 
       {/* Title + actions */}
       <div className="mb-4 flex items-start justify-between gap-4">

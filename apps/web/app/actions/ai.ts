@@ -1,12 +1,15 @@
 "use server";
 
 import OpenAI from "openai";
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { aiConfigurations } from "@dishes/db/schema";
-import { eq } from "drizzle-orm";
+import { aiConfigurations, recipes } from "@dishes/db/schema";
+import { eq, and } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { uploadFile, isStorageAvailable } from "@/lib/storage";
+import { revalidatePath } from "next/cache";
 
 // ── Shared types ───────────────────────────────────────────────────────────────
 
@@ -46,13 +49,22 @@ export type GeneratedRecipe = {
 
 // ── Internal helpers ───────────────────────────────────────────────────────────
 
-async function getOpenAiClient(
-  householdId: string
-): Promise<{ client: OpenAI; model: string }> {
+type AiConfig = {
+  client: OpenAI;
+  model: string;
+  imageModel: string;
+  defaultPrompt: string | null;
+  measurementSystem: string;
+};
+
+async function getOpenAiClient(householdId: string): Promise<AiConfig> {
   const [config] = await db
     .select({
       encryptedApiKey: aiConfigurations.encryptedApiKey,
       model: aiConfigurations.model,
+      imageModel: aiConfigurations.imageModel,
+      defaultPrompt: aiConfigurations.defaultPrompt,
+      measurementSystem: aiConfigurations.measurementSystem,
     })
     .from(aiConfigurations)
     .where(eq(aiConfigurations.householdId, householdId))
@@ -62,7 +74,13 @@ async function getOpenAiClient(
     throw new Error("AI not configured. Add your API key in Settings → AI.");
 
   const apiKey = decrypt(config.encryptedApiKey);
-  return { client: new OpenAI({ apiKey }), model: config.model };
+  return {
+    client: new OpenAI({ apiKey }),
+    model: config.model,
+    imageModel: config.imageModel,
+    defaultPrompt: config.defaultPrompt,
+    measurementSystem: config.measurementSystem,
+  };
 }
 
 function classifyError(err: unknown): string {
@@ -76,6 +94,19 @@ function classifyError(err: unknown): string {
   return `AI error: ${msg}`;
 }
 
+function buildSystemAddendum(defaultPrompt: string | null, measurementSystem: string): string {
+  const parts: string[] = [];
+  if (measurementSystem === "metric") {
+    parts.push(
+      "Always use metric measurements only: grams (g), millilitres (ml), kilograms (kg), litres (l). Never use cups, tablespoons, teaspoons, fluid ounces, pounds, or any other imperial or US customary units."
+    );
+  }
+  if (defaultPrompt?.trim()) {
+    parts.push(defaultPrompt.trim());
+  }
+  return parts.length ? `\n\nAdditional requirements: ${parts.join(" ")}` : "";
+}
+
 // ── Step 1: Generate 5 concept cards ──────────────────────────────────────────
 
 export async function generateConcepts(
@@ -87,7 +118,9 @@ export async function generateConcepts(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model } = await getOpenAiClient(householdId);
+    const { client, model, defaultPrompt, measurementSystem } = await getOpenAiClient(householdId);
+
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
 
     const completion = await client.chat.completions.create({
       model,
@@ -98,7 +131,7 @@ export async function generateConcepts(
           role: "system",
           content: `You are a creative chef helping a family choose what to cook. Return exactly 5 distinct recipe concepts as JSON.
 Format: {"concepts": [{"title": "...", "description": "1-2 sentences", "cuisine": "...", "tags": ["..."], "difficulty": "easy"|"medium"|"hard"}]}
-Make the 5 concepts meaningfully different from each other in style, cuisine, or complexity.`,
+Make the 5 concepts meaningfully different from each other in style, cuisine, or complexity.${addendum}`,
         },
         { role: "user", content: prompt },
       ],
@@ -127,7 +160,9 @@ export async function improveRecipe(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model } = await getOpenAiClient(householdId);
+    const { client, model, defaultPrompt, measurementSystem } = await getOpenAiClient(householdId);
+
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
 
     const completion = await client.chat.completions.create({
       model,
@@ -155,7 +190,7 @@ export async function improveRecipe(
   ],
   "notes": string|null
 }
-Only change what is necessary to satisfy the user's request. Preserve everything else exactly. Return the full recipe even for fields you did not change.`,
+Only change what is necessary to satisfy the user's request. Preserve everything else exactly. Return the full recipe even for fields you did not change.${addendum}`,
         },
         {
           role: "user",
@@ -189,7 +224,9 @@ export async function generateFullRecipe(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model } = await getOpenAiClient(householdId);
+    const { client, model, defaultPrompt, measurementSystem } = await getOpenAiClient(householdId);
+
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
 
     const completion = await client.chat.completions.create({
       model,
@@ -217,7 +254,7 @@ export async function generateFullRecipe(
   ],
   "notes": string|null
 }
-Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.g. "Sauce", "Marinade") to group related ingredients; leave empty string for ungrouped.`,
+Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.g. "Sauce", "Marinade") to group related ingredients; leave empty string for ungrouped.${addendum}`,
         },
         {
           role: "user",
@@ -238,6 +275,76 @@ Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.
     }
 
     return { recipe };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Generate recipe image (returns URL only, does not save to DB) ──────────────
+// Used by the edit form so the URL is included in the form submission.
+
+export async function generateRecipeImageUrl(
+  title: string,
+  description: string | null
+): Promise<{ url?: string; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+    const { client, imageModel } = await getOpenAiClient(householdId);
+
+    if (!isStorageAvailable()) {
+      return { error: "Image storage is not configured — add S3 settings to enable AI image generation." };
+    }
+
+    const prompt = `Professional food photography of "${title}". ${description ? description + " " : ""}Beautifully plated, appetising, clean background, natural lighting. No text, no labels, no watermarks.`;
+
+    const response = await client.images.generate({
+      model: imageModel,
+      prompt,
+      n: 1,
+      size: "1024x1024",
+      response_format: "b64_json",
+    });
+
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) throw new Error("No image data returned from AI.");
+
+    const buffer = Buffer.from(b64, "base64");
+    const key = `recipes/${householdId}/${randomUUID()}.png`;
+    const url = await uploadFile(key, buffer, "image/png");
+
+    return { url };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Generate and save recipe image (updates DB directly) ──────────────────────
+// Used by the recipe detail page button.
+
+export async function generateAndSaveRecipeImage(
+  recipeId: string
+): Promise<{ imageUrl?: string; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+
+    const [recipe] = await db
+      .select({ title: recipes.title, description: recipes.description })
+      .from(recipes)
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+      .limit(1);
+
+    if (!recipe) return { error: "Recipe not found." };
+
+    const { url, error } = await generateRecipeImageUrl(recipe.title, recipe.description);
+    if (error || !url) return { error: error ?? "Image generation failed." };
+
+    await db.update(recipes).set({ imageUrl: url }).where(eq(recipes.id, recipeId));
+    revalidatePath(`/recipes/${recipeId}`);
+    revalidatePath("/recipes");
+
+    return { imageUrl: url };
   } catch (err) {
     return { error: classifyError(err) };
   }

@@ -121,6 +121,30 @@ Do not leave docs stale. A one-line feature entry or a new row in the env var ta
 
 ---
 
+## Database Migrations
+
+SQL migration files go in `packages/db/drizzle/` and are applied automatically on container start. However, **automatic migrations do not reliably run on deploy** — James must apply them manually.
+
+**Whenever you write a migration file, you must also provide the equivalent `docker exec` commands in your response** so James can run them immediately. Use `IF NOT EXISTS` / `IF EXISTS` guards so commands are safe to re-run.
+
+Format to follow:
+
+```bash
+docker exec -it dishes-db psql -U dishes -d dishes -c \
+  "ALTER TABLE example ADD COLUMN IF NOT EXISTS new_col text;"
+```
+
+For multi-statement migrations, either chain multiple `-c` flags or use a heredoc:
+
+```bash
+docker exec -it dishes-db psql -U dishes -d dishes \
+  -c "ALTER TABLE recipe_ingredients ALTER COLUMN amount TYPE text USING amount::text;" \
+  -c "ALTER TABLE ai_configurations ADD COLUMN IF NOT EXISTS default_prompt text;" \
+  -c "ALTER TABLE ai_configurations ADD COLUMN IF NOT EXISTS measurement_system varchar(20) NOT NULL DEFAULT 'metric';"
+```
+
+---
+
 ## Self-Hosting Context
 
 - Runs alongside James's existing Docker Compose services

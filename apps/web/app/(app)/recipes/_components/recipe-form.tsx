@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2 } from "lucide-react";
 import {
   Button,
   Input,
@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dishes/ui";
-import { improveRecipe, type GeneratedRecipe } from "@/app/actions/ai";
+import { improveRecipe, generateRecipeImageUrl, type GeneratedRecipe } from "@/app/actions/ai";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -85,12 +85,14 @@ interface RecipeFormProps {
   action: (formData: FormData) => Promise<void>;
   defaults?: RecipeFormDefaults;
   submitLabel?: string;
+  mode?: "create" | "edit";
 }
 
 export function RecipeForm({
   action,
   defaults = {},
   submitLabel = "Save Recipe",
+  mode = "edit",
 }: RecipeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +134,7 @@ export function RecipeForm({
 
   const [imageUrl, setImageUrl] = useState<string>(defaults.imageUrl ?? "");
   const [imageUploading, setImageUploading] = useState(false);
+  const [imageGenerating, setImageGenerating] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
   // ── AI improve state ────────────────────────────────────────────────────────
@@ -210,6 +213,18 @@ export function RecipeForm({
       setImageUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  async function handleGenerateImage() {
+    setImageError(null);
+    setImageGenerating(true);
+    const result = await generateRecipeImageUrl(title || "Recipe", description || null);
+    setImageGenerating(false);
+    if (result.error) {
+      setImageError(result.error);
+      return;
+    }
+    setImageUrl(result.url!);
   }
 
   // ── Ingredient helpers ──────────────────────────────────────────────────────
@@ -291,8 +306,8 @@ export function RecipeForm({
       onSubmit={handleSubmit}
       className="space-y-8 pb-20 lg:pb-8"
     >
-      {/* ── AI Improve ── */}
-      <section className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+      {/* ── AI Improve (edit mode only) ── */}
+      {mode === "edit" && <section className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary shrink-0" />
           <h2 className="text-sm font-semibold">Improve with AI</h2>
@@ -334,7 +349,7 @@ export function RecipeForm({
             Recipe updated — review the changes below and save when ready.
           </p>
         )}
-      </section>
+      </section>}
 
       {/* ── Photo ── */}
       <section className="space-y-3">
@@ -354,15 +369,28 @@ export function RecipeForm({
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={imageUploading}
-            className="flex h-32 w-full max-w-sm items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input bg-muted/30 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <ImagePlus className="h-5 w-5" />
-            {imageUploading ? "Uploading…" : "Add a photo"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={imageUploading || imageGenerating}
+              className="flex h-32 w-40 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input bg-muted/30 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              <ImagePlus className="h-5 w-5" />
+              {imageUploading ? "Uploading…" : "Upload photo"}
+            </button>
+            {mode === "edit" && (
+              <button
+                type="button"
+                onClick={() => void handleGenerateImage()}
+                disabled={imageUploading || imageGenerating}
+                className="flex h-32 w-40 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input bg-muted/30 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                <Wand2 className="h-5 w-5" />
+                {imageGenerating ? "Generating…" : "Generate with AI"}
+              </button>
+            )}
+          </div>
         )}
 
         {imageUrl && !imageUploading && (
