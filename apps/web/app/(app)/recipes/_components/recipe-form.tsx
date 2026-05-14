@@ -795,24 +795,22 @@ export function RecipeForm({
         </section>
       )}
 
-      {/* ── 3-column desktop layout ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr_300px] lg:items-start">
-
-        {/* Left: Photo */}
+      {/* ── Photo + Details row ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr] lg:items-start">
         <div className="space-y-4 lg:sticky lg:top-6">
           <h2 className="text-base font-semibold">Photo</h2>
           {photoSection}
         </div>
-
-        {/* Centre: Details + Ingredients */}
-        <div className="space-y-6">
+        <div>
           {detailsSection}
-          <div className="border-t border-border pt-6">
-            {ingredientsSection}
-          </div>
         </div>
+      </div>
 
-        {/* Right: Steps + Notes + Tags */}
+      {/* ── Ingredients + Steps row ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px] lg:items-start border-t border-border pt-6">
+        <div>
+          {ingredientsSection}
+        </div>
         <div className="space-y-6">
           {stepsSection}
           <div className="border-t border-border pt-6">
@@ -822,7 +820,6 @@ export function RecipeForm({
             {tagsSection}
           </div>
         </div>
-
       </div>
 
       {/* ── Submit (mobile only — desktop uses header buttons) ── */}

@@ -3,16 +3,46 @@
 import { useState, useTransition } from "react";
 import { ShoppingCart, Check, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@dishes/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  Input,
+  Label,
+} from "@dishes/ui";
 import { generateFromRecipe } from "@/app/actions/shopping";
 
-export function AddToShoppingButton({ recipeId }: { recipeId: string }) {
+interface Props {
+  recipeId: string;
+  recipeServings: number | null;
+  servingsUnit: string;
+}
+
+export function AddToShoppingButton({
+  recipeId,
+  recipeServings,
+  servingsUnit,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [servings, setServings] = useState<string>(
+    recipeServings ? String(recipeServings) : ""
+  );
   const [done, setDone] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  function handleClick() {
+  function handleOpenChange(val: boolean) {
+    if (!val) setServings(recipeServings ? String(recipeServings) : "");
+    setOpen(val);
+  }
+
+  function handleConfirm() {
+    const parsed = parseFloat(servings);
     startTransition(async () => {
-      await generateFromRecipe(recipeId);
+      await generateFromRecipe(recipeId, isNaN(parsed) ? undefined : parsed);
+      setOpen(false);
       setDone(true);
     });
   }
@@ -32,18 +62,44 @@ export function AddToShoppingButton({ recipeId }: { recipeId: string }) {
   }
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleClick}
-      disabled={pending}
-    >
-      {pending ? (
-        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-      ) : (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <ShoppingCart className="mr-1.5 h-4 w-4" />
-      )}
-      {pending ? "Adding…" : "Add to shopping list"}
-    </Button>
+        Add to shopping list
+      </Button>
+
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>How many servings?</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-3">
+            <Input
+              id="servings-input"
+              type="number"
+              min="0.5"
+              step="0.5"
+              value={servings}
+              onChange={(e) => setServings(e.target.value)}
+              className="w-24"
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+            />
+            <Label htmlFor="servings-input" className="text-sm text-muted-foreground">
+              {servingsUnit || "servings"}
+            </Label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirm} disabled={pending}>
+              {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Add to list
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

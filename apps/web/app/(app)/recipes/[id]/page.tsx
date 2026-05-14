@@ -73,7 +73,7 @@ export default async function RecipeDetailPage({ params }: Props) {
   const toggleAction = toggleFavourite.bind(null, id);
 
   return (
-    <div className="mx-auto max-w-2xl p-4 lg:p-8">
+    <div className="mx-auto max-w-5xl p-4 lg:p-8">
       {/* Back link */}
       <Link
         href="/recipes"
@@ -202,69 +202,78 @@ export default async function RecipeDetailPage({ params }: Props) {
 
       <Separator className="mb-6" />
 
-      {/* Ingredients */}
-      {ingredients.length > 0 && (
-        <section className="mb-8">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold">Ingredients</h2>
-            <AddToShoppingButton recipeId={id} />
-          </div>
-          <ul className="space-y-2">
-            {ingredients.map((ing) => (
-              <li key={ing.id} className="flex items-baseline gap-2 text-sm">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-1.5" />
-                <span>
-                  {ing.amount && (
-                    <span className="font-medium">
-                      {ing.amount}
-                      {ing.unit ? ` ${ing.unit}` : ""}{" "}
-                    </span>
-                  )}
-                  {ing.ingredientName}
-                  {ing.preparation && (
-                    <span className="text-muted-foreground">
-                      , {ing.preparation}
-                    </span>
-                  )}
-                  {ing.isOptional && (
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      (optional)
-                    </span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* Ingredients + Steps — side by side on desktop */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_1fr] lg:items-start mb-8">
 
-      {/* Steps */}
-      {steps.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold">Method</h2>
-          <ol className="space-y-6">
-            {steps.map((step, idx) => (
-              <li key={step.id} className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                  {idx + 1}
-                </span>
-                <div className="flex-1 pt-0.5">
-                  <p className="leading-relaxed">{step.instruction}</p>
-                  {step.durationMinutes && (
-                    <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {step.timerLabel
-                        ? `${step.timerLabel} — `
-                        : ""}
-                      {formatTime(step.durationMinutes)}
-                    </p>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
+        {/* Ingredients */}
+        {ingredients.length > 0 && (
+          <section>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold">Ingredients</h2>
+              <AddToShoppingButton
+                recipeId={id}
+                recipeServings={recipe.servings ? parseFloat(recipe.servings) : null}
+                servingsUnit={recipe.servingsUnit ?? "servings"}
+              />
+            </div>
+            <ul className="space-y-2">
+              {ingredients.map((ing) => (
+                <li key={ing.id} className="flex items-baseline gap-2 text-sm">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-1.5" />
+                  <span>
+                    {ing.amount && (
+                      <span className="font-medium">
+                        {ing.amount}
+                        {ing.unit ? ` ${ing.unit}` : ""}{" "}
+                      </span>
+                    )}
+                    {ing.ingredientName}
+                    {ing.preparation && (
+                      <span className="text-muted-foreground">
+                        , {ing.preparation}
+                      </span>
+                    )}
+                    {ing.isOptional && (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        (optional)
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Steps */}
+        {steps.length > 0 && (
+          <section>
+            <h2 className="mb-4 text-lg font-semibold">Method</h2>
+            <ol className="space-y-8">
+              {steps.map((step, idx) => (
+                <li key={step.id} className="flex gap-4">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                    {idx + 1}
+                  </span>
+                  <div className="flex-1 pt-1">
+                    <p className="leading-relaxed">{step.instruction}</p>
+                    {step.durationMinutes && (
+                      <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {step.timerLabel
+                          ? `${step.timerLabel} — `
+                          : ""}
+                        {formatTime(step.durationMinutes)}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+      </div>
 
       {/* Notes */}
       {recipe.notes && (

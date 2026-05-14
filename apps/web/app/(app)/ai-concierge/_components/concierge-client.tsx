@@ -16,11 +16,12 @@ import {
   Coffee,
   Package,
   ChevronDown,
-  ChevronUp,
   CalendarDays,
   Utensils,
-  Timer,
   BadgeCheck,
+  Globe,
+  Flame,
+  Tag,
 } from "lucide-react";
 import { Button, Textarea, cn } from "@dishes/ui";
 import {
@@ -94,30 +95,50 @@ const QUICK_PROMPTS = [
   },
 ] as const;
 
+const CUISINE_OPTIONS = [
+  { label: "Italian", value: "Italian" },
+  { label: "Asian", value: "Asian" },
+  { label: "Mexican", value: "Mexican" },
+  { label: "Mediterranean", value: "Mediterranean" },
+  { label: "Indian", value: "Indian" },
+  { label: "French", value: "French" },
+  { label: "American", value: "American" },
+  { label: "Middle Eastern", value: "Middle Eastern" },
+];
+
+const DIETARY_OPTIONS = [
+  { label: "Vegetarian", value: "vegetarian" },
+  { label: "Vegan", value: "vegan" },
+  { label: "Gluten-free", value: "gluten-free" },
+  { label: "Dairy-free", value: "dairy-free" },
+  { label: "Nut-free", value: "nut-free" },
+];
+
 const COOK_TIME_OPTIONS = [
   { label: "Under 15 min", value: "under 15 minutes" },
   { label: "Under 30 min", value: "under 30 minutes" },
   { label: "Under 1 hour", value: "under 1 hour" },
-] as const;
+  { label: "Over 1 hour", value: "over 1 hour, slow-cooked" },
+];
 
-const SERVINGS_OPTIONS = [
-  { label: "1–2", value: "serves 1-2 people" },
-  { label: "3–4", value: "serves 3-4 people" },
-  { label: "5+", value: "serves 5 or more people" },
-] as const;
+const SPICE_OPTIONS = [
+  { label: "Mild", value: "mild, not spicy" },
+  { label: "Medium", value: "medium spice" },
+  { label: "Spicy", value: "spicy" },
+];
 
 const BUDGET_OPTIONS = [
-  { label: "Low", value: "budget-friendly, low cost" },
+  { label: "Low", value: "budget-friendly" },
   { label: "Medium", value: "moderate budget" },
   { label: "High", value: "premium ingredients" },
-] as const;
+];
 
-const FREE_FROM_OPTIONS = [
-  { label: "Gluten-free", value: "gluten-free" },
-  { label: "Dairy-free", value: "dairy-free" },
-  { label: "Nut-free", value: "nut-free" },
-  { label: "Vegan", value: "vegan" },
-] as const;
+const SERVINGS_OPTIONS = [
+  { label: "1", value: "serves 1" },
+  { label: "2", value: "serves 2" },
+  { label: "3–4", value: "serves 3-4" },
+  { label: "5+", value: "serves 5 or more" },
+];
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
@@ -264,6 +285,55 @@ function QuickPromptButton({
         <div className="text-xs text-muted-foreground">{description}</div>
       </div>
     </button>
+  );
+}
+
+function FilterChip({
+  icon: Icon,
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  options: { label: string; value: string }[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const display = options.find((o) => o.value === value)?.label ?? "Any";
+  return (
+    <div
+      className={cn(
+        "relative flex flex-col gap-0.5 rounded-xl border bg-background px-3 py-2 cursor-pointer min-w-[110px] transition-colors",
+        value ? "border-primary/40 bg-primary/5" : "hover:border-muted-foreground/40",
+        disabled && "opacity-50 pointer-events-none"
+      )}
+    >
+      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Icon className="h-3 w-3 shrink-0" />
+        {label}
+      </div>
+      <div className="flex items-center justify-between gap-1">
+        <span className={cn("text-sm font-medium truncate", value ? "text-foreground" : "text-muted-foreground")}>
+          {display}
+        </span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+      </div>
+      <select
+        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      >
+        <option value="">Any</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -516,22 +586,25 @@ function FindRecipeTab() {
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Refine preferences state
-  const [showRefine, setShowRefine] = useState(false);
-  const [cookTime, setCookTime] = useState<string | null>(null);
-  const [servings, setServings] = useState<string | null>(null);
-  const [budget, setBudget] = useState<string | null>(null);
-  const [freeFrom, setFreeFrom] = useState<Set<string>>(new Set());
+  // Refine preferences state (filter chips)
+  const [cuisine, setCuisine] = useState("");
+  const [dietary, setDietary] = useState("");
+  const [cookTime, setCookTime] = useState("");
+  const [spiceLevel, setSpiceLevel] = useState("");
+  const [budget, setBudget] = useState("");
+  const [servings, setServings] = useState("");
 
   function buildPrompt(basePrompt?: string) {
     const parts: string[] = [];
     if (selectedPrefs.size > 0) parts.push(Array.from(selectedPrefs).join(", "));
     const text = (basePrompt ?? promptText).trim();
     if (text) parts.push(text);
+    if (cuisine) parts.push(`${cuisine} cuisine`);
+    if (dietary) parts.push(dietary);
     if (cookTime) parts.push(cookTime);
+    if (spiceLevel) parts.push(spiceLevel);
+    if (budget) parts.push(`${budget} budget`);
     if (servings) parts.push(servings);
-    if (budget) parts.push(budget);
-    if (freeFrom.size > 0) parts.push(Array.from(freeFrom).join(", "));
     return parts.join(". ");
   }
 
@@ -564,14 +637,6 @@ function FindRecipeTab() {
     });
   }
 
-  function toggleFreeFrom(val: string) {
-    setFreeFrom((prev) => {
-      const next = new Set(prev);
-      if (next.has(val)) next.delete(val); else next.add(val);
-      return next;
-    });
-  }
-
   function handleSelectConcept(concept: ConceptCard, idx: number) {
     setError(null);
     setGeneratingIdx(idx);
@@ -584,17 +649,10 @@ function FindRecipeTab() {
     });
   }
 
-  const canGenerate =
-    promptText.trim().length > 0 ||
-    selectedPrefs.size > 0 ||
-    cookTime !== null ||
-    servings !== null ||
-    budget !== null ||
-    freeFrom.size > 0;
+  const hasFilter = !!(cuisine || dietary || cookTime || spiceLevel || budget || servings);
+  const canGenerate = promptText.trim().length > 0 || selectedPrefs.size > 0 || hasFilter;
   const isConceptLoading = isPending && generatingIdx === null;
   const isRecipeLoading = isPending && generatingIdx !== null;
-
-  const refineActive = cookTime !== null || servings !== null || budget !== null || freeFrom.size > 0;
 
   return (
     <div>
@@ -667,160 +725,45 @@ function FindRecipeTab() {
             ))}
           </div>
 
+          {/* Refine your preferences */}
+          <div className="space-y-2 border-t pt-4">
+            <div>
+              <p className="text-sm font-medium">Refine your preferences</p>
+              <p className="text-xs text-muted-foreground">The more details you add, the better I can tailor the suggestions.</p>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              <FilterChip icon={Globe} label="Cuisine" value={cuisine} options={CUISINE_OPTIONS} onChange={setCuisine} disabled={isPending} />
+              <FilterChip icon={Leaf} label="Dietary" value={dietary} options={DIETARY_OPTIONS} onChange={setDietary} disabled={isPending} />
+              <FilterChip icon={Clock} label="Cook time" value={cookTime} options={COOK_TIME_OPTIONS} onChange={setCookTime} disabled={isPending} />
+              <FilterChip icon={Flame} label="Spice level" value={spiceLevel} options={SPICE_OPTIONS} onChange={setSpiceLevel} disabled={isPending} />
+              <FilterChip icon={Tag} label="Budget" value={budget} options={BUDGET_OPTIONS} onChange={setBudget} disabled={isPending} />
+              <FilterChip icon={Users} label="Servings" value={servings} options={SERVINGS_OPTIONS} onChange={setServings} disabled={isPending} />
+            </div>
+            {hasFilter && (
+              <button
+                type="button"
+                onClick={() => { setCuisine(""); setDietary(""); setCookTime(""); setSpiceLevel(""); setBudget(""); setServings(""); }}
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+
           {error && <ErrorBanner message={error} />}
 
-          <div className="flex items-center justify-between gap-3">
-            <Button
-              onClick={() => runGenerate()}
-              disabled={isPending || !canGenerate}
-              className="gap-2 flex-1 sm:flex-none bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
-              size="lg"
-            >
-              {isConceptLoading ? (
-                <><Loader2 className="h-4 w-4 animate-spin" />Thinking…</>
-              ) : (
-                <><Sparkles className="h-4 w-4" />Generate Ideas</>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Refine preferences */}
-        <div className="rounded-xl border bg-card overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowRefine((v) => !v)}
-            className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors"
+          <Button
+            onClick={() => runGenerate()}
+            disabled={isPending || !canGenerate}
+            className="gap-2 w-full bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+            size="lg"
           >
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Refine your preferences</span>
-              {refineActive && (
-                <span className="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                  Active
-                </span>
-              )}
-              <span className="text-xs text-muted-foreground">(optional)</span>
-            </div>
-            {showRefine ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            {isConceptLoading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />Thinking…</>
             ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              <><Sparkles className="h-4 w-4" />Generate Ideas</>
             )}
-          </button>
-
-          {showRefine && (
-            <div className="border-t px-5 py-4 space-y-4">
-              {/* Cook time */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Timer className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cook time</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {COOK_TIME_OPTIONS.map(({ label, value }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => setCookTime(cookTime === value ? null : value)}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-medium transition-all",
-                        cookTime === value
-                          ? "border-orange-400 bg-orange-500 text-white"
-                          : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Servings */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Serves</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {SERVINGS_OPTIONS.map(({ label, value }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => setServings(servings === value ? null : value)}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-medium transition-all",
-                        servings === value
-                          ? "border-blue-400 bg-blue-500 text-white"
-                          : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Budget */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <PiggyBank className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Budget</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {BUDGET_OPTIONS.map(({ label, value }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => setBudget(budget === value ? null : value)}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-medium transition-all",
-                        budget === value
-                          ? "border-violet-400 bg-violet-500 text-white"
-                          : "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Free from */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Leaf className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Free from</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {FREE_FROM_OPTIONS.map(({ label, value }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => toggleFreeFrom(value)}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-medium transition-all",
-                        freeFrom.has(value)
-                          ? "border-emerald-400 bg-emerald-500 text-white"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {refineActive && (
-                <button
-                  type="button"
-                  onClick={() => { setCookTime(null); setServings(null); setBudget(null); setFreeFrom(new Set()); }}
-                  className="text-xs text-muted-foreground hover:text-foreground underline"
-                >
-                  Clear all refinements
-                </button>
-              )}
-            </div>
-          )}
+          </Button>
         </div>
 
         {/* Recipe generation overlay banner */}

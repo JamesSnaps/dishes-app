@@ -12,7 +12,6 @@ import {
   Minus,
   Plus,
   CheckCircle2,
-  Circle,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import type { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
@@ -58,10 +57,117 @@ function formatAmount(amount: string | null, scale: number): string {
   return fracSymbol ? `${whole}${fracSymbol}` : parseFloat(scaled.toFixed(2)).toString();
 }
 
+function formatIngredientAmount(ing: Ingredient, scale: number): string {
+  const parts: string[] = [];
+  if (ing.amount) {
+    const amt = formatAmount(ing.amount, scale);
+    if (amt) parts.push(amt);
+  }
+  if (ing.unit) parts.push(ing.unit);
+  return parts.join(" ");
+}
+
 function formatTimer(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// ─── Ingredient chip (inline in step text) ───────────────────────────────────
+
+interface IngredientChipProps {
+  name: string;
+  label: string;
+  amount: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+}
+
+function IngredientChip({ name, label, amount, isOpen, onToggle, onMouseEnter, onMouseLeave }: IngredientChipProps) {
+  return (
+    <span className="relative inline-block">
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggle(); }}
+        className="cursor-pointer font-semibold text-orange-600 dark:text-orange-400 underline decoration-dotted underline-offset-2 hover:text-orange-700 dark:hover:text-orange-300 transition-colors"
+        aria-label={`${name}: ${amount || label}`}
+      >
+        {label}
+      </span>
+      {isOpen && amount && (
+        <span
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 whitespace-nowrap rounded-lg bg-gray-900 dark:bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-white dark:text-gray-900 shadow-lg pointer-events-none"
+          role="tooltip"
+        >
+          {amount}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-100" />
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ─── Step text with ingredient highlighting ───────────────────────────────────
+
+interface StepTextProps {
+  instruction: string;
+  ingredients: Ingredient[];
+  scale: number;
+}
+
+function StepText({ instruction, ingredients, scale }: StepTextProps) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  // Build a sorted list: longest names first to avoid partial matches
+  const namedIngredients = ingredients
+    .filter((ing) => ing.ingredientName)
+    .sort((a, b) => b.ingredientName.length - a.ingredientName.length);
+
+  if (namedIngredients.length === 0) {
+    return <p className="text-xl lg:text-3xl leading-relaxed">{instruction}</p>;
+  }
+
+  // Build regex from all ingredient names (escape special chars, word-boundary aware)
+  const escaped = namedIngredients.map((ing) =>
+    ing.ingredientName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  );
+  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+
+  const parts = instruction.split(pattern);
+
+  const ingByNameLower = new Map(namedIngredients.map((ing) => [ing.ingredientName.toLowerCase(), ing]));
+
+  return (
+    <p className="text-xl lg:text-3xl leading-relaxed">
+      {parts.map((part, i) => {
+        const ing = ingByNameLower.get(part.toLowerCase());
+        if (!ing) return part;
+
+        const amount = formatIngredientAmount(ing, scale);
+        const tooltipKey = `${ing.id}-${i}`;
+        const isOpen = openId === tooltipKey;
+
+        return (
+          <IngredientChip
+            key={tooltipKey}
+            name={ing.ingredientName}
+            label={part}
+            amount={amount}
+            isOpen={isOpen}
+            onToggle={() => setOpenId(isOpen ? null : tooltipKey)}
+            onMouseEnter={() => setOpenId(tooltipKey)}
+            onMouseLeave={() => setOpenId(null)}
+          />
+        );
+      })}
+    </p>
+  );
 }
 
 // ─── Timer sub-component ──────────────────────────────────────────────────────
@@ -195,7 +301,7 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 
 export function CookingMode({ recipe, ingredients, steps }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [isComplete, setIsComplete] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   const originalServings = recipe.servings ? parseFloat(recipe.servings) : null;
   const [currentServings, setCurrentServings] = useState(originalServings ?? 4);
@@ -204,9 +310,6 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
   const currentStep = steps[stepIndex];
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === steps.length - 1;
-
-  const completedCount = completedSteps.size;
-  const progress = Math.round((completedCount / steps.length) * 100);
 
   const activeIngredientIds = new Set((currentStep?.ingredientIds as string[] | null) ?? []);
   const stepIngredients = ingredients.filter((ing) => activeIngredientIds.has(ing.id));
@@ -224,14 +327,6 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
 
   const goNext = useCallback(() => { if (!isLast) setStepIndex((i) => i + 1); }, [isLast]);
   const goPrev = useCallback(() => { if (!isFirst) setStepIndex((i) => i - 1); }, [isFirst]);
-
-  const toggleComplete = (idx: number) => {
-    setCompletedSteps((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx); else next.add(idx);
-      return next;
-    });
-  };
 
   const toggleIngredient = (id: string) => {
     setCheckedIngredients((prev) => {
@@ -271,11 +366,11 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
       {isLast ? (
         <Button
           size="lg"
-          onClick={() => toggleComplete(stepIndex)}
-          className={`flex-1 ${completedSteps.has(stepIndex) ? "bg-green-600 hover:bg-green-700" : ""}`}
+          onClick={() => setIsComplete(true)}
+          className={`flex-1 ${isComplete ? "bg-green-600 hover:bg-green-700" : ""}`}
         >
           <CheckCircle2 className="mr-1.5 h-5 w-5" />
-          {completedSteps.has(stepIndex) ? "Finished!" : "Done"}
+          {isComplete ? "Finished!" : "Done"}
         </Button>
       ) : (
         <Button size="lg" onClick={goNext} className="flex-1">
@@ -306,12 +401,12 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
             <h1 className="text-sm font-semibold truncate">{recipe.title}</h1>
           </div>
 
-          <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+          <span className="shrink-0 text-sm font-semibold tabular-nums">
             {stepIndex + 1} / {steps.length}
           </span>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar — tracks current step position */}
         <div className="h-1 bg-border">
           <div
             className="h-full bg-primary transition-all duration-300"
@@ -321,7 +416,7 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
       </header>
 
       {/* ── Body ───────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
         {/* ── Main content ─────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto">
@@ -345,11 +440,7 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                   key={i}
                   onClick={() => setStepIndex(i)}
                   className={`h-1.5 rounded-full transition-all ${
-                    i === stepIndex
-                      ? "w-6 bg-primary"
-                      : completedSteps.has(i)
-                      ? "w-1.5 bg-primary/40"
-                      : "w-1.5 bg-border"
+                    i === stepIndex ? "w-6 bg-primary" : "w-1.5 bg-border"
                   }`}
                   aria-label={`Go to step ${i + 1}`}
                 />
@@ -363,22 +454,11 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                   {stepIndex + 1}
                 </span>
                 <div className="flex-1 min-w-0 pt-1 lg:pt-2">
-                  <p className="text-xl lg:text-3xl leading-relaxed">
-                    {currentStep.instruction}
-                  </p>
-                  <button
-                    onClick={() => toggleComplete(stepIndex)}
-                    className={`mt-4 flex items-center gap-2 text-sm transition-colors ${
-                      completedSteps.has(stepIndex)
-                        ? "text-green-500"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <CheckCircle2
-                      className={`h-5 w-5 ${completedSteps.has(stepIndex) ? "fill-green-500/20" : ""}`}
-                    />
-                    {completedSteps.has(stepIndex) ? "Done" : "Mark as done"}
-                  </button>
+                  <StepText
+                    instruction={currentStep.instruction}
+                    ingredients={ingredients}
+                    scale={scale}
+                  />
                 </div>
               </div>
             )}
@@ -390,8 +470,8 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
 
             {/* Active ingredients — mobile only (sidebar handles desktop) */}
             {stepIngredients.length > 0 && (
-              <div className="mt-6 rounded-xl border bg-muted/40 p-4 lg:hidden">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="mt-6 rounded-xl border bg-orange-500/5 border-orange-500/20 p-4 lg:hidden">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">
                   Used in this step
                 </p>
                 <ul className="space-y-1.5">
@@ -400,7 +480,7 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500 mt-[5px]" />
                       <span>
                         {ing.amount && (
-                          <span className="font-medium">
+                          <span className="font-semibold">
                             {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
                           </span>
                         )}
@@ -427,36 +507,39 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                   )}
                 </summary>
                 <ul className="space-y-1.5 px-4 pb-4 pt-2">
-                  {ingredients.map((ing) => (
-                    <li
-                      key={ing.id}
-                      className={`flex items-baseline gap-2 text-sm transition-colors ${
-                        activeIngredientIds.has(ing.id) ? "text-foreground" : "text-muted-foreground"
-                      }`}
-                    >
-                      <span
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
-                          activeIngredientIds.has(ing.id) ? "bg-orange-500" : "bg-muted-foreground/40"
+                  {ingredients.map((ing) => {
+                    const isActive = activeIngredientIds.has(ing.id);
+                    return (
+                      <li
+                        key={ing.id}
+                        className={`flex items-baseline gap-2 text-sm transition-colors ${
+                          isActive ? "text-foreground font-medium" : "text-muted-foreground"
                         }`}
-                      />
-                      <span>
-                        {ing.amount && (
-                          <span className="font-medium">
-                            {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
-                          </span>
-                        )}
-                        {ing.ingredientName}
-                        {ing.preparation && <span>, {ing.preparation}</span>}
-                        {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
-                      </span>
-                    </li>
-                  ))}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
+                            isActive ? "bg-orange-500" : "bg-muted-foreground/40"
+                          }`}
+                        />
+                        <span>
+                          {ing.amount && (
+                            <span className={isActive ? "font-semibold" : "font-medium"}>
+                              {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                            </span>
+                          )}
+                          {ing.ingredientName}
+                          {ing.preparation && <span>, {ing.preparation}</span>}
+                          {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </details>
             )}
 
             {/* Done state */}
-            {isLast && completedSteps.has(stepIndex) && (
+            {isLast && isComplete && (
               <div className="mt-8 rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
                 <p className="text-lg font-semibold text-green-600 dark:text-green-400">
                   All done! Enjoy your meal.
@@ -473,22 +556,18 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
         </main>
 
         {/* ── Sidebar (desktop only) ────────────────────────────────── */}
-        <aside className="hidden lg:flex lg:w-[340px] xl:w-[380px] shrink-0 flex-col border-l overflow-hidden">
-          {/* Progress */}
+        <aside className="hidden lg:flex lg:w-[340px] xl:w-[380px] shrink-0 flex-col border-l h-full overflow-hidden">
+          {/* Step progress */}
           <div className="shrink-0 px-6 py-5 border-b">
             <div className="flex items-center justify-between mb-2.5">
-              <span className="font-semibold text-sm">Your Progress</span>
-              <span className="text-sm text-muted-foreground tabular-nums">{progress}%</span>
+              <span className="font-semibold text-sm">Step {stepIndex + 1} of {steps.length}</span>
             </div>
             <div className="h-2 rounded-full bg-border overflow-hidden">
               <div
                 className="h-full rounded-full bg-primary transition-all duration-300"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
               />
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {completedCount} of {steps.length} steps complete
-            </p>
           </div>
 
           {/* Scaling */}
@@ -513,12 +592,17 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                 </span>
               )}
             </p>
-            <ul className="space-y-3">
+            <ul className="space-y-2.5">
               {ingredients.map((ing) => {
                 const isActive = activeIngredientIds.has(ing.id);
                 const isChecked = checkedIngredients.has(ing.id);
                 return (
-                  <li key={ing.id} className="flex items-start gap-3">
+                  <li
+                    key={ing.id}
+                    className={`flex items-start gap-3 rounded-lg px-2 py-1.5 -mx-2 transition-colors ${
+                      isActive && !isChecked ? "bg-orange-500/10" : ""
+                    }`}
+                  >
                     <button
                       onClick={() => toggleIngredient(ing.id)}
                       className={`mt-0.5 shrink-0 transition-colors ${
@@ -530,23 +614,21 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                       }`}
                       aria-label={isChecked ? `Uncheck ${ing.ingredientName}` : `Check ${ing.ingredientName}`}
                     >
-                      {isChecked ? (
-                        <CheckCircle2 className="h-5 w-5 fill-green-500/20" />
-                      ) : (
-                        <Circle className="h-5 w-5" />
-                      )}
+                      <CheckCircle2
+                        className={`h-5 w-5 ${isChecked ? "fill-green-500/20" : isActive ? "fill-orange-500/10" : ""}`}
+                      />
                     </button>
                     <span
                       className={`text-sm leading-relaxed transition-colors ${
                         isChecked
                           ? "text-muted-foreground/50 line-through"
                           : isActive
-                          ? "text-foreground"
+                          ? "text-foreground font-medium"
                           : "text-muted-foreground"
                       }`}
                     >
                       {ing.amount && (
-                        <span className={isActive && !isChecked ? "font-semibold" : "font-medium"}>
+                        <span className={isActive && !isChecked ? "font-bold" : "font-medium"}>
                           {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
                         </span>
                       )}
@@ -554,6 +636,9 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                       {ing.preparation && <span className="font-normal">, {ing.preparation}</span>}
                       {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
                     </span>
+                    {isActive && !isChecked && (
+                      <span className="ml-auto shrink-0 mt-0.5 h-1.5 w-1.5 rounded-full bg-orange-500" />
+                    )}
                   </li>
                 );
               })}

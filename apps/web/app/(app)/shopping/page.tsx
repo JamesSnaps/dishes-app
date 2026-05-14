@@ -67,6 +67,8 @@ export default async function ShoppingPage() {
         id: recipes.id,
         title: recipes.title,
         cuisine: recipes.cuisine,
+        servings: recipes.servings,
+        servingsUnit: recipes.servingsUnit,
       })
       .from(recipes)
       .where(eq(recipes.householdId, householdId))

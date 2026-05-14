@@ -199,12 +199,12 @@ export async function deleteItem(itemId: string) {
   revalidatePath("/shopping");
 }
 
-export async function generateFromRecipe(recipeId: string) {
+export async function generateFromRecipe(recipeId: string, servings?: number) {
   const user = await getAutheliaUser();
   const { householdId, memberId } = await requireHousehold(user);
 
   const [recipe] = await db
-    .select({ id: recipes.id })
+    .select({ id: recipes.id, servings: recipes.servings })
     .from(recipes)
     .where(
       and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId))
@@ -212,6 +212,12 @@ export async function generateFromRecipe(recipeId: string) {
     .limit(1);
 
   if (!recipe) throw new Error("Recipe not found");
+
+  const baseServings = recipe.servings ? parseFloat(recipe.servings) : null;
+  const scale =
+    servings && baseServings && baseServings > 0
+      ? servings / baseServings
+      : 1;
 
   const ingredients = await db
     .select({
@@ -242,6 +248,11 @@ export async function generateFromRecipe(recipeId: string) {
   let posCounter = maxPos + 1;
 
   for (const ing of ingredients) {
+    const scaledAmount =
+      ing.amount !== null
+        ? (parseFloat(ing.amount) * scale).toString()
+        : null;
+
     const normalName = ing.ingredientName.toLowerCase().trim();
     const match = existing.find(
       (e) =>
@@ -249,9 +260,9 @@ export async function generateFromRecipe(recipeId: string) {
         e.unit === ing.unit
     );
 
-    if (match && match.amount !== null && ing.amount !== null) {
+    if (match && match.amount !== null && scaledAmount !== null) {
       const newAmount = (
-        parseFloat(match.amount) + parseFloat(ing.amount)
+        parseFloat(match.amount) + parseFloat(scaledAmount)
       ).toString();
       await db
         .update(shoppingListItems)
@@ -262,7 +273,7 @@ export async function generateFromRecipe(recipeId: string) {
         listId: list.id,
         recipeId,
         ingredientName: ing.ingredientName,
-        amount: ing.amount,
+        amount: scaledAmount,
         unit: ing.unit,
         position: posCounter++,
       });
