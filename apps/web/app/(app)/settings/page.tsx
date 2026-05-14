@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getHouseholdWithMembers } from "@/app/actions/settings";
+import { APP_VERSION } from "@/lib/version";
 import { HouseholdNameForm } from "./_components/household-name-form";
 import { MembersList } from "./_components/members-list";
 import { AddMemberForm } from "./_components/add-member-form";
@@ -81,7 +82,7 @@ export default async function SettingsPage() {
       </section>
 
       <p className="mt-8 text-xs text-muted-foreground">
-        Version {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
+        Version {APP_VERSION}
       </p>
     </div>
   );
