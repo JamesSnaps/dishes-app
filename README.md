@@ -182,6 +182,42 @@ Route your domain (e.g. `dishes.yourdomain.com`) to the `web` container on port 
 | `Remote-Name` | Display name |
 | `Remote-Groups` | Comma-separated group list |
 
+#### Traefik + Authelia (collardserver setup)
+
+The dishes container must include the `auth@file` middleware in its Traefik labels — this is what triggers Authelia to verify the request and inject the headers above. `securityHeaders` alone is not enough.
+
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.http.routers.dishes.rule=Host(`dishes.collardserver.co.uk`)"
+  - "traefik.http.routers.dishes.middlewares=auth@file"
+  - "traefik.http.routers.dishes.tls.certResolver=letsencrypt"
+  - "traefik.http.services.dishes.loadbalancer.server.port=3000"
+```
+
+#### Authelia access control
+
+The wildcard bypass rule for local networks prevents Authelia from injecting user headers even when the `auth` middleware is applied, because bypass skips authentication entirely. Add a dishes-specific rule **before** the wildcard bypass so that auth (and header injection) always runs:
+
+```yaml
+access_control:
+  rules:
+    # Dishes: require auth regardless of source network so Remote-User is always injected
+    - domain: "dishes.collardserver.co.uk"
+      subject:
+        - "group:admins"
+      policy: one_factor
+
+    # Existing wildcard bypass for local networks (unchanged below)
+    - domain: "*.collardserver.co.uk"
+      policy: bypass
+      networks:
+        - 10.0.10.0/24
+        ...
+```
+
+Without this, local-network requests reach the app without `Remote-User` and the app returns 401.
+
 ### 5. First run — create a household
 
 On first visit the app will prompt you to create a household and will register the Authelia-authenticated user as the admin.
