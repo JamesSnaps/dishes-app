@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2 } from "lucide-react";
+import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag } from "lucide-react";
 import {
   Button,
   Input,
@@ -113,7 +113,8 @@ export function RecipeForm({
     defaults.servingsUnit ?? "servings"
   );
   const [sourceUrl, setSourceUrl] = useState(defaults.sourceUrl ?? "");
-  const [tags, setTags] = useState(defaults.tags?.join(", ") ?? "");
+  const [tags, setTags] = useState<string[]>(defaults.tags ?? []);
+  const [tagInput, setTagInput] = useState("");
   const [notes, setNotes] = useState(defaults.notes ?? "");
 
   const [ingredients, setIngredients] = useState<IngredientRow[]>(() =>
@@ -159,10 +160,7 @@ export function RecipeForm({
       cookTimeMinutes: cookTimeMinutes ? Number(cookTimeMinutes) : null,
       servings,
       servingsUnit,
-      tags: tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
+      tags,
       ingredients: ingredients.map(({ key: _key, ...rest }) => rest),
       steps: steps.map(({ key: _key, ...rest }) => rest),
       notes: notes || null,
@@ -185,7 +183,7 @@ export function RecipeForm({
     setCookTimeMinutes(r.cookTimeMinutes?.toString() ?? "");
     setServings(r.servings);
     setServingsUnit(r.servingsUnit);
-    setTags(r.tags.join(", "));
+    setTags(r.tags);
     setNotes(r.notes ?? "");
     setIngredients(r.ingredients.map((i) => ({ ...i, key: nextKey() })));
     setSteps(r.steps.map((s) => ({ ...s, key: nextKey() })));
@@ -282,7 +280,7 @@ export function RecipeForm({
     formData.set("servings", servings);
     formData.set("servingsUnit", servingsUnit);
     formData.set("sourceUrl", sourceUrl);
-    formData.set("tags", tags);
+    formData.set("tags", tags.join(", "));
     formData.set("notes", notes);
     formData.set(
       "ingredients",
@@ -535,14 +533,51 @@ export function RecipeForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="tags">Tags</Label>
-          <Input
-            id="tags"
-            name="tags"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="pasta, quick, family-friendly (comma-separated)"
-          />
+          <Label>Tags</Label>
+          <div className="rounded-md border border-input bg-background px-3 py-2 min-h-10 flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium"
+              >
+                <Tag className="h-3 w-3" />
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
+                  className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5"
+                  aria-label={`Remove ${tag}`}
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </span>
+            ))}
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  const val = tagInput.trim().replace(/,$/, "");
+                  if (val && !tags.includes(val)) {
+                    setTags((prev) => [...prev, val]);
+                  }
+                  setTagInput("");
+                } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+                  setTags((prev) => prev.slice(0, -1));
+                }
+              }}
+              onBlur={() => {
+                const val = tagInput.trim().replace(/,$/, "");
+                if (val && !tags.includes(val)) {
+                  setTags((prev) => [...prev, val]);
+                }
+                setTagInput("");
+              }}
+              placeholder={tags.length === 0 ? "Type a tag and press Enter…" : ""}
+              className="flex-1 min-w-24 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
         </div>
       </section>
 

@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, ShoppingCart, Settings, UtensilsCrossed } from "lucide-react";
+import { BookOpen, CalendarDays, Home, ShoppingCart, Settings, UtensilsCrossed } from "lucide-react";
 import { cn } from "@dishes/ui";
 import { NAV_ITEMS } from "./nav-items";
 
-const ICONS = { BookOpen, CalendarDays, ShoppingCart, Settings };
+const ICONS = { BookOpen, CalendarDays, Home, ShoppingCart, Settings };
 
 interface Props {
   className?: string;
@@ -18,7 +18,7 @@ export function SideNav({ className }: Props) {
   return (
     <nav
       className={cn(
-        "flex w-60 flex-col border-r bg-background",
+        "flex w-60 flex-col border-r bg-background h-screen sticky top-0 overflow-y-auto",
         className
       )}
     >

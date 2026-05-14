@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, ShoppingCart, Settings } from "lucide-react";
+import { BookOpen, CalendarDays, Home, ShoppingCart, Settings } from "lucide-react";
 import { cn } from "@dishes/ui";
 import { NAV_ITEMS } from "./nav-items";
 
-const ICONS = { BookOpen, CalendarDays, ShoppingCart, Settings };
+const ICONS = { BookOpen, CalendarDays, Home, ShoppingCart, Settings };
 
 interface Props {
   className?: string;

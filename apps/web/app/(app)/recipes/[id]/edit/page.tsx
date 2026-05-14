@@ -12,7 +12,9 @@ import {
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { updateRecipe } from "@/app/actions/recipes";
+import { getAiConfig } from "@/app/actions/settings";
 import { RecipeForm } from "../../_components/recipe-form";
+import { GenerateImageButton } from "../_components/generate-image-button";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -28,7 +30,7 @@ export default async function EditRecipePage({ params }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps, tags] = await Promise.all([
+  const [recipe, ingredients, steps, tags, aiConfig] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -49,6 +51,7 @@ export default async function EditRecipePage({ params }: Props) {
       .select({ tag: recipeTags.tag })
       .from(recipeTags)
       .where(eq(recipeTags.recipeId, id)),
+    getAiConfig(householdId),
   ]);
 
   if (!recipe) notFound();
@@ -66,6 +69,10 @@ export default async function EditRecipePage({ params }: Props) {
       </Link>
 
       <h1 className="mb-8 text-2xl font-bold">Edit Recipe</h1>
+
+      {!recipe.imageUrl && aiConfig?.hasKey && (
+        <GenerateImageButton recipeId={id} />
+      )}
 
       <RecipeForm
         action={action}

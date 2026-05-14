@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Suspense } from "react";
+import { Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { recipes } from "@dishes/db/schema";
 import { eq, and, ilike, isNotNull } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { Button, Input } from "@dishes/ui";
+import { Button } from "@dishes/ui";
 import { RecipeCard } from "./_components/recipe-card";
+import { RecipeFilters } from "./_components/recipe-filters";
 
 export const metadata = { title: "Recipes" };
 
@@ -20,10 +22,10 @@ export default async function RecipesPage({ searchParams }: Props) {
 
   const { q, cuisine, favourites } = await searchParams;
 
-  // Build where conditions
   const conditions = [eq(recipes.householdId, householdId)];
   if (q?.trim()) conditions.push(ilike(recipes.title, `%${q.trim()}%`));
   if (cuisine?.trim()) conditions.push(eq(recipes.cuisine, cuisine.trim()));
+  if (favourites === "1") conditions.push(eq(recipes.isFavourite, true));
 
   const [allRecipes, cuisineRows] = await Promise.all([
     db
@@ -50,11 +52,6 @@ export default async function RecipesPage({ searchParams }: Props) {
       .orderBy(recipes.cuisine),
   ]);
 
-  const displayed =
-    favourites === "1"
-      ? allRecipes.filter((r) => r.isFavourite)
-      : allRecipes;
-
   const cuisines = cuisineRows
     .map((r) => r.cuisine)
     .filter((c): c is string => Boolean(c));
@@ -72,55 +69,13 @@ export default async function RecipesPage({ searchParams }: Props) {
         </Button>
       </div>
 
-      {/* Search + filters */}
-      <form method="GET" className="mb-6 flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            name="q"
-            defaultValue={q ?? ""}
-            placeholder="Search recipes…"
-            className="pl-9"
-          />
-        </div>
-
-        <select
-          name="cuisine"
-          defaultValue={cuisine ?? ""}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-        >
-          <option value="">All cuisines</option>
-          {cuisines.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="favourites"
-            value="1"
-            defaultChecked={favourites === "1"}
-            className="h-4 w-4 rounded border-input"
-          />
-          Favourites only
-        </label>
-
-        <Button type="submit" variant="secondary" size="sm" className="shrink-0">
-          Filter
-        </Button>
-
-        {(q || cuisine || favourites) && (
-          <Button asChild variant="ghost" size="sm" className="shrink-0">
-            <Link href="/recipes">Clear</Link>
-          </Button>
-        )}
-      </form>
+      {/* Filters */}
+      <Suspense>
+        <RecipeFilters cuisines={cuisines} />
+      </Suspense>
 
       {/* Results */}
-      {displayed.length === 0 ? (
+      {allRecipes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-muted-foreground">
             {q || cuisine || favourites
@@ -135,7 +90,7 @@ export default async function RecipesPage({ searchParams }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {displayed.map((recipe) => (
+          {allRecipes.map((recipe) => (
             <RecipeCard key={recipe.id} {...recipe} />
           ))}
         </div>

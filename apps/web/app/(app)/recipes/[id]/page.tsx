@@ -21,9 +21,8 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Badge, Button, Separator } from "@dishes/ui";
 import { DeleteRecipeButton } from "./_components/delete-recipe-button";
-import { GenerateImageButton } from "./_components/generate-image-button";
+import { AddToShoppingButton } from "./_components/add-to-shopping-button";
 import { toggleFavourite } from "@/app/actions/recipes";
-import { getAiConfig } from "@/app/actions/settings";
 
 export const metadata = { title: "Recipe" };
 
@@ -36,7 +35,7 @@ export default async function RecipeDetailPage({ params }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps, tags, aiConfig] = await Promise.all([
+  const [recipe, ingredients, steps, tags] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -57,7 +56,6 @@ export default async function RecipeDetailPage({ params }: Props) {
       .select()
       .from(recipeTags)
       .where(eq(recipeTags.recipeId, id)),
-    getAiConfig(householdId),
   ]);
 
   if (!recipe) notFound();
@@ -95,8 +93,6 @@ export default async function RecipeDetailPage({ params }: Props) {
             className="h-full w-full object-cover"
           />
         </div>
-      ) : aiConfig?.hasKey ? (
-        <GenerateImageButton recipeId={id} />
       ) : null}
 
       {/* Title + actions */}
@@ -152,7 +148,7 @@ export default async function RecipeDetailPage({ params }: Props) {
         {recipe.servings && (
           <span className="flex items-center gap-1 text-sm text-muted-foreground">
             <Users className="h-4 w-4" />
-            {recipe.servings} {recipe.servingsUnit}
+            {parseFloat(recipe.servings)} {recipe.servingsUnit}
           </span>
         )}
       </div>
@@ -197,7 +193,10 @@ export default async function RecipeDetailPage({ params }: Props) {
       {/* Ingredients */}
       {ingredients.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold">Ingredients</h2>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 className="text-lg font-semibold">Ingredients</h2>
+            <AddToShoppingButton recipeId={id} />
+          </div>
           <ul className="space-y-2">
             {ingredients.map((ing) => (
               <li key={ing.id} className="flex items-baseline gap-2 text-sm">

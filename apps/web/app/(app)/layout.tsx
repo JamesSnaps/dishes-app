@@ -4,7 +4,7 @@ import { SideNav } from "@/components/nav/side-nav";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <SideNav className="hidden lg:flex" />
 
