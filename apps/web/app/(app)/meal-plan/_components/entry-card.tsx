@@ -2,7 +2,6 @@
 
 import { useTransition } from "react";
 import { Trash2, Clock, Users } from "lucide-react";
-import { Badge } from "@dishes/ui";
 import { removeMealEntry } from "@/app/actions/meal-plan";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
@@ -14,14 +13,11 @@ const MEAL_LABELS: Record<MealType, string> = {
   snack: "Snack",
 };
 
-const MEAL_BADGE_VARIANT: Record<
-  MealType,
-  "default" | "secondary" | "outline"
-> = {
-  breakfast: "secondary",
-  lunch: "outline",
-  dinner: "default",
-  snack: "secondary",
+const MEAL_DOT_COLOR: Record<MealType, string> = {
+  breakfast: "bg-amber-400",
+  lunch: "bg-sky-400",
+  dinner: "bg-primary",
+  snack: "bg-muted-foreground",
 };
 
 interface Props {
@@ -51,33 +47,43 @@ export function EntryCard({ entry }: Props) {
 
   return (
     <li
-      className={`flex items-start gap-3 rounded-xl border bg-card p-3 transition-opacity ${pending ? "opacity-50" : ""}`}
+      className={`flex items-center gap-3 rounded-lg border bg-background px-3 py-2.5 transition-opacity ${pending ? "opacity-50" : ""}`}
     >
+      <span
+        className={`flex-shrink-0 h-2 w-2 rounded-full ${MEAL_DOT_COLOR[entry.mealType]}`}
+        title={MEAL_LABELS[entry.mealType]}
+      />
+
       <div className="flex-1 min-w-0">
-        <Badge
-          variant={MEAL_BADGE_VARIANT[entry.mealType]}
-          className="mb-1.5 text-xs"
-        >
-          {MEAL_LABELS[entry.mealType]}
-        </Badge>
-        <p className="font-semibold leading-snug truncate">{recipe.title}</p>
-        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-          {totalTime > 0 && (
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {totalTime < 60
-                ? `${totalTime}m`
-                : `${Math.floor(totalTime / 60)}h${totalTime % 60 > 0 ? ` ${totalTime % 60}m` : ""}`}
-            </span>
-          )}
-          {recipe.servings && (
-            <span className="flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              Serves {recipe.servings}
-            </span>
-          )}
+        <div className="flex items-baseline gap-2">
+          <p className="font-semibold text-sm leading-snug truncate">
+            {recipe.title}
+          </p>
+          <span className="text-xs text-muted-foreground flex-shrink-0">
+            {MEAL_LABELS[entry.mealType]}
+          </span>
         </div>
+
+        {(totalTime > 0 || recipe.servings) && (
+          <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+            {totalTime > 0 && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {totalTime < 60
+                  ? `${totalTime}m`
+                  : `${Math.floor(totalTime / 60)}h${totalTime % 60 > 0 ? ` ${totalTime % 60}m` : ""}`}
+              </span>
+            )}
+            {recipe.servings && (
+              <span className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                Serves {recipe.servings}
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
       <button
         onClick={handleRemove}
         disabled={pending}

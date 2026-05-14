@@ -153,6 +153,18 @@ export default async function RecipeDetailPage({ params }: Props) {
         )}
       </div>
 
+      {/* Start Cooking CTA */}
+      {steps.length > 0 && (
+        <div className="mb-6">
+          <Button asChild size="lg" className="w-full sm:w-auto">
+            <Link href={`/recipes/${id}/cook`}>
+              <ChefHat className="mr-2 h-5 w-5" />
+              Start Cooking
+            </Link>
+          </Button>
+        </div>
+      )}
+
       {/* Description */}
       {recipe.description && (
         <p className="mb-6 text-muted-foreground leading-relaxed">
@@ -288,15 +300,6 @@ export default async function RecipeDetailPage({ params }: Props) {
         </a>
       )}
 
-      {/* Cook mode CTA */}
-      <div className="mt-10">
-        <Button asChild className="w-full sm:w-auto">
-          <Link href={`/recipes/${id}/cook`}>
-            <ChefHat className="mr-2 h-4 w-4" />
-            Start Cooking
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }

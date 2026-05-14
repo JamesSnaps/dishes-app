@@ -2,7 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  ShoppingCart,
+  UtensilsCrossed,
+} from "lucide-react";
 import { Button } from "@dishes/ui";
 import { generateShoppingFromWeek } from "@/app/actions/meal-plan";
 import { AddEntryDialog } from "./add-entry-dialog";
@@ -99,21 +106,17 @@ export function WeekPlanner({
   todayDayIndex,
 }: Props) {
   const router = useRouter();
-  const [selectedDay, setSelectedDay] = useState<number>(
-    isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0
-  );
+
+  const [expandedDays, setExpandedDays] = useState<Set<number>>(() => {
+    const defaultDay =
+      isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0;
+    return new Set([defaultDay]);
+  });
+
   const [shoppingPending, startShoppingTransition] = useTransition();
 
   const prevWeek = addDays(weekStartDate, -7);
   const nextWeek = addDays(weekStartDate, 7);
-
-  const dayEntries = entries
-    .filter((e) => e.dayOfWeek === selectedDay)
-    .sort(
-      (a, b) =>
-        MEAL_TYPE_ORDER.indexOf(a.mealType) -
-        MEAL_TYPE_ORDER.indexOf(b.mealType)
-    );
 
   const totalMeals = entries.length;
   const totalTime = entries.reduce(
@@ -121,8 +124,23 @@ export function WeekPlanner({
       sum + (e.recipe.prepTimeMinutes ?? 0) + (e.recipe.cookTimeMinutes ?? 0),
     0
   );
+  const daysWithMeals = new Set(entries.map((e) => e.dayOfWeek)).size;
 
-  const dayLabel = formatDayHeading(weekStartDate, selectedDay);
+  const totalServings = entries.reduce((sum, e) => {
+    const s = parseInt(e.recipe.servings ?? "0");
+    return sum + (isNaN(s) ? 0 : s);
+  }, 0);
+  const avgServings =
+    totalMeals > 0 ? Math.round(totalServings / totalMeals) : 0;
+
+  function toggleDay(day: number) {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  }
 
   function handleGenerateShopping() {
     if (!planId) return;
@@ -130,147 +148,220 @@ export function WeekPlanner({
   }
 
   return (
-    <div className="p-4 lg:p-8 max-w-2xl mx-auto">
-      {/* Week header */}
-      <div className="mb-5">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push(`/meal-plan?week=${prevWeek}`)}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-            aria-label="Previous week"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
+    <div className="p-4 lg:p-8">
+      {/* Week navigation header */}
+      <div className="mb-6 flex items-center gap-2">
+        <button
+          onClick={() => router.push(`/meal-plan?week=${prevWeek}`)}
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+          aria-label="Previous week"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
 
-          <div className="flex-1">
-            <h1 className="text-xl font-bold leading-tight">
-              {isCurrentWeek ? "This Week" : "Meal Plan"}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {formatWeekRange(weekStartDate)}
-            </p>
-          </div>
-
-          <button
-            onClick={() => router.push(`/meal-plan?week=${nextWeek}`)}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-            aria-label="Next week"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-
-          {!isCurrentWeek && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/meal-plan")}
-            >
-              Today
-            </Button>
-          )}
+        <div className="flex-1">
+          <h1 className="text-xl font-bold leading-tight">
+            {isCurrentWeek ? "This Week" : "Meal Plan"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {formatWeekRange(weekStartDate)}
+          </p>
         </div>
 
-        {totalMeals > 0 && (
-          <div className="mt-2 flex gap-4 text-sm text-muted-foreground">
-            <span>
-              <strong className="text-foreground">{totalMeals}</strong> meals
-            </span>
-            {totalTime > 0 && (
-              <span>
-                <strong className="text-foreground">
-                  {formatTotalTime(totalTime)}
-                </strong>{" "}
-                total cook time
-              </span>
+        {!isCurrentWeek && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/meal-plan")}
+          >
+            Today
+          </Button>
+        )}
+
+        <button
+          onClick={() => router.push(`/meal-plan?week=${nextWeek}`)}
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+          aria-label="Next week"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* Main layout: agenda + sidebar on desktop */}
+      <div className="lg:grid lg:grid-cols-[1fr_272px] lg:gap-8 lg:items-start">
+        {/* Agenda */}
+        <div className="space-y-2">
+          {Array.from({ length: 7 }, (_, i) => {
+            const dayEntries = entries
+              .filter((e) => e.dayOfWeek === i)
+              .sort(
+                (a, b) =>
+                  MEAL_TYPE_ORDER.indexOf(a.mealType) -
+                  MEAL_TYPE_ORDER.indexOf(b.mealType)
+              );
+            const isExpanded = expandedDays.has(i);
+            const isToday = isCurrentWeek && todayDayIndex === i;
+            const { short, date } = formatDayChip(weekStartDate, i);
+            const dayLabel = formatDayHeading(weekStartDate, i);
+
+            return (
+              <div
+                key={i}
+                className="rounded-xl border bg-card overflow-hidden"
+              >
+                {/* Day header row */}
+                <button
+                  onClick={() => toggleDay(i)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
+                >
+                  <div
+                    className={`flex-shrink-0 flex flex-col items-center rounded-lg px-2.5 py-1.5 min-w-[2.75rem] ${
+                      isToday
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wide leading-none mb-0.5">
+                      {short}
+                    </span>
+                    <span className="text-lg font-bold leading-none">
+                      {date}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{dayLabel}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {dayEntries.length > 0
+                        ? `${dayEntries.length} meal${dayEntries.length !== 1 ? "s" : ""}`
+                        : "No meals planned"}
+                    </p>
+                  </div>
+
+                  {isExpanded ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  )}
+                </button>
+
+                {/* Expanded day content */}
+                {isExpanded && (
+                  <div className="border-t px-3 py-3 space-y-3">
+                    {dayEntries.length > 0 && (
+                      <ul className="space-y-2">
+                        {dayEntries.map((entry) => (
+                          <EntryCard key={entry.id} entry={entry} />
+                        ))}
+                      </ul>
+                    )}
+
+                    {recipes.length > 0 ? (
+                      <AddEntryDialog
+                        weekStartDate={weekStartDate}
+                        dayOfWeek={i}
+                        dayLabel={dayLabel}
+                        recipes={recipes}
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Add some recipes first to start planning meals.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop sidebar */}
+        <div className="hidden lg:flex flex-col gap-4 sticky top-8">
+          {/* Week stats */}
+          <div className="rounded-xl border bg-card p-4">
+            <h3 className="font-semibold text-sm mb-3">Week Overview</h3>
+            {totalMeals === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No meals planned yet.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+                  <p className="text-2xl font-bold leading-none">{totalMeals}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Meals planned
+                  </p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+                  <p className="text-2xl font-bold leading-none">
+                    {daysWithMeals}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Days covered
+                  </p>
+                </div>
+                {totalTime > 0 && (
+                  <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+                    <p className="text-2xl font-bold leading-none">
+                      {formatTotalTime(totalTime)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cook time
+                    </p>
+                  </div>
+                )}
+                {avgServings > 0 && (
+                  <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+                    <p className="text-2xl font-bold leading-none">
+                      {avgServings}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Avg. servings
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      {/* Day tab strip */}
-      <div className="flex gap-1 mb-6 overflow-x-auto pb-1 -mx-1 px-1">
-        {Array.from({ length: 7 }, (_, i) => {
-          const { short, date } = formatDayChip(weekStartDate, i);
-          const dayMeals = entries.filter((e) => e.dayOfWeek === i).length;
-          const isSelected = selectedDay === i;
-          const isToday = isCurrentWeek && todayDayIndex === i;
-          return (
-            <button
-              key={i}
-              onClick={() => setSelectedDay(i)}
-              className={`flex-shrink-0 flex flex-col items-center gap-0.5 rounded-xl px-3 py-2 transition-colors min-w-[3rem] ${
-                isSelected
-                  ? "bg-primary text-primary-foreground"
-                  : isToday
-                    ? "ring-2 ring-primary hover:bg-muted"
-                    : "hover:bg-muted"
-              }`}
-            >
-              <span className="text-xs font-medium">{short}</span>
-              <span className="text-base font-bold leading-none">{date}</span>
-              <span className="h-1.5 flex items-center justify-center">
-                {dayMeals > 0 && (
-                  <span
-                    className={`block h-1 w-1 rounded-full ${
-                      isSelected ? "bg-primary-foreground/70" : "bg-primary"
-                    }`}
-                  />
-                )}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Day content */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-base">{dayLabel}</h2>
-          {dayEntries.length > 0 && (
-            <span className="text-sm text-muted-foreground">
-              {dayEntries.length} meal{dayEntries.length !== 1 ? "s" : ""}
-            </span>
-          )}
+          {/* Actions */}
+          <div className="rounded-xl border bg-card p-4">
+            <h3 className="font-semibold text-sm mb-3">Actions</h3>
+            <div className="space-y-2">
+              {totalMeals > 0 && planId ? (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={handleGenerateShopping}
+                  disabled={shoppingPending}
+                >
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  {shoppingPending
+                    ? "Adding to list…"
+                    : "Generate shopping list"}
+                </Button>
+              ) : (
+                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <UtensilsCrossed className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <p>Add meals to the week to generate a shopping list.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-
-        {dayEntries.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4">
-            No meals planned yet.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-3 mb-4">
-            {dayEntries.map((entry) => (
-              <EntryCard key={entry.id} entry={entry} />
-            ))}
-          </ul>
-        )}
-
-        {recipes.length > 0 ? (
-          <AddEntryDialog
-            weekStartDate={weekStartDate}
-            dayOfWeek={selectedDay}
-            dayLabel={dayLabel}
-            recipes={recipes}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Add some recipes first to start planning meals.
-          </p>
-        )}
       </div>
 
-      {/* Generate shopping list */}
+      {/* Mobile: generate shopping list */}
       {totalMeals > 0 && planId && (
-        <div className="mt-8 pt-6 border-t flex justify-center">
+        <div className="mt-6 lg:hidden">
           <Button
             variant="outline"
+            className="w-full"
             onClick={handleGenerateShopping}
             disabled={shoppingPending}
           >
             <ShoppingCart className="mr-2 h-4 w-4" />
-            {shoppingPending
-              ? "Adding to shopping list…"
-              : "Generate shopping list"}
+            {shoppingPending ? "Adding to list…" : "Generate shopping list"}
           </Button>
         </div>
       )}

@@ -217,13 +217,11 @@ export async function getAiConfig(householdId: string) {
     defaultPrompt: config.defaultPrompt,
     measurementSystem: config.measurementSystem,
     hasKey: true,
-    // Partial reveal so user knows the key they stored (first/last 4 chars)
+    // Short hint: first 8 chars only — enough to identify the key, won't overflow on mobile
     keyHint: (() => {
       try {
         const plain = decrypt(config.encryptedApiKey);
-        return plain.length > 8
-          ? `${plain.slice(0, 4)}${"•".repeat(plain.length - 8)}${plain.slice(-4)}`
-          : "•".repeat(plain.length);
+        return plain.length > 8 ? `${plain.slice(0, 8)}…` : plain.slice(0, 5) + "…";
       } catch {
         return "••••••••";
       }

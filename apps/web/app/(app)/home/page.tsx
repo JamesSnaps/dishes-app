@@ -1,24 +1,36 @@
 import Link from "next/link";
 import { desc, eq, isNotNull, and, count } from "drizzle-orm";
-import { Plus, ChefHat, CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed } from "lucide-react";
+import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, Bell } from "lucide-react";
 import { db } from "@/lib/db";
 import { recipes } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Badge, Button, Card } from "@dishes/ui";
 import { RecipeCard } from "../recipes/_components/recipe-card";
+import { HomeSearchBar } from "./_components/home-search-bar";
 
 export const metadata = { title: "Home" };
 
-function greeting() {
+function timeGreeting() {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
 }
 
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 export default async function HomePage() {
   const user = await getAutheliaUser();
+  const firstName = user.displayName.split(" ")[0];
   const { householdId } = await requireHousehold(user);
 
   const [recentRecipes, cuisineRows, [{ total }]] = await Promise.all([
@@ -54,35 +66,44 @@ export default async function HomePage() {
     .filter((c): c is string => Boolean(c));
 
   return (
-    <div className="p-4 lg:p-8 space-y-10">
+    <div className="p-4 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 pt-1">
         <div>
-          <h1 className="text-2xl font-bold">{greeting()}</h1>
-          <p className="mt-1 text-muted-foreground">
-            {total === 0
-              ? "Start building your recipe collection."
-              : `You have ${total} recipe${total === 1 ? "" : "s"} in your collection.`}
+          <h1 className="text-2xl font-bold leading-tight">
+            {timeGreeting()}, {firstName}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            What shall we cook today?
           </p>
         </div>
-        <Button asChild size="sm" className="shrink-0">
-          <Link href="/recipes/new">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add Recipe
+        <div className="flex items-center gap-2 shrink-0">
+          <button className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors">
+            <Bell className="h-5 w-5" />
+          </button>
+          <Link
+            href="/settings"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+            title="Settings"
+          >
+            {initials(user.displayName)}
           </Link>
-        </Button>
+        </div>
       </div>
+
+      {/* Search bar */}
+      <HomeSearchBar cuisines={cuisines} />
 
       {/* Recent recipes */}
       {recentRecipes.length > 0 && (
         <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recently Added</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold">Recently Added</h2>
             <Link
               href="/recipes"
               className="text-sm text-primary hover:underline"
             >
-              View all
+              See all
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -96,7 +117,7 @@ export default async function HomePage() {
       {/* Cuisine pills */}
       {cuisines.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-semibold">Browse by Cuisine</h2>
+          <h2 className="mb-3 text-base font-semibold">Browse by Cuisine</h2>
           <div className="flex flex-wrap gap-2">
             {cuisines.map((c) => (
               <Link key={c} href={`/recipes?cuisine=${encodeURIComponent(c)}`}>
@@ -114,13 +135,13 @@ export default async function HomePage() {
 
       {/* Tools */}
       <section>
-        <h2 className="mb-4 text-lg font-semibold">Tools & Planning</h2>
+        <h2 className="mb-3 text-base font-semibold">Tools & Planning</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <ToolCard
             href="/ai-concierge"
             icon={<Sparkles className="h-6 w-6 text-violet-500" />}
             title="AI Concierge"
-            description="Generate recipes just for you"
+            description="Generate recipes"
           />
           <ToolCard
             href="/meal-plan"
@@ -132,7 +153,7 @@ export default async function HomePage() {
             href="/shopping"
             icon={<ShoppingCart className="h-6 w-6 text-green-500" />}
             title="Shopping List"
-            description="View and edit your list"
+            description="View & edit list"
           />
           <ToolCard
             href="/recipes/new"

@@ -12,6 +12,7 @@ import {
   Minus,
   Plus,
   CheckCircle2,
+  Circle,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import type { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
@@ -51,9 +52,7 @@ function formatAmount(amount: string | null, scale: number): string {
   const scaled = raw * scale;
   const whole = Math.floor(scaled);
   const frac = Math.round((scaled - whole) * 1000) / 1000;
-  const fracKey = frac.toFixed(3).replace(/0+$/, "").slice(1); // e.g. ".500" → ".5"
   const fracSymbol = FRACTION_SYMBOLS[frac.toFixed(2)] ?? FRACTION_SYMBOLS[frac.toFixed(3)] ?? null;
-
   if (frac < 0.01) return String(whole || "");
   if (whole === 0) return fracSymbol ?? parseFloat(scaled.toFixed(2)).toString();
   return fracSymbol ? `${whole}${fracSymbol}` : parseFloat(scaled.toFixed(2)).toString();
@@ -79,7 +78,6 @@ function StepTimer({ durationMinutes, label }: StepTimerProps) {
   const [done, setDone] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Reset when durationMinutes changes (step navigation)
   useEffect(() => {
     setRemaining(totalSeconds);
     setRunning(false);
@@ -106,27 +104,17 @@ function StepTimer({ durationMinutes, label }: StepTimerProps) {
     };
   }, [running]);
 
-  const toggle = () => {
-    if (done) return;
-    setRunning((r) => !r);
-  };
-
-  const reset = () => {
-    setRunning(false);
-    setDone(false);
-    setRemaining(totalSeconds);
-  };
-
+  const toggle = () => { if (!done) setRunning((r) => !r); };
+  const reset = () => { setRunning(false); setDone(false); setRemaining(totalSeconds); };
   const progress = (totalSeconds - remaining) / totalSeconds;
 
   return (
-    <div className="mt-6 rounded-xl border bg-muted/40 p-4">
-      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+    <div className="mt-6 rounded-xl border bg-muted/40 p-5">
+      <div className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <Timer className="h-4 w-4" />
         {label ?? "Timer"}
       </div>
 
-      {/* Progress ring + time */}
       <div className="mb-4 flex items-center justify-between">
         <span
           className={`font-mono text-4xl font-bold tabular-nums tracking-tight ${
@@ -135,35 +123,17 @@ function StepTimer({ durationMinutes, label }: StepTimerProps) {
         >
           {done ? "Done!" : formatTimer(remaining)}
         </span>
-
-        {/* Thin progress bar */}
         <div className="h-1.5 w-32 overflow-hidden rounded-full bg-border">
           <div
-            className={`h-full rounded-full transition-all duration-1000 ${
-              done ? "bg-green-500" : "bg-primary"
-            }`}
+            className={`h-full rounded-full transition-all duration-1000 ${done ? "bg-green-500" : "bg-primary"}`}
             style={{ width: `${Math.round(progress * 100)}%` }}
           />
         </div>
       </div>
 
       <div className="flex gap-2">
-        <Button
-          variant={running ? "outline" : "default"}
-          size="sm"
-          onClick={toggle}
-          disabled={done}
-          className="flex-1"
-        >
-          {running ? (
-            <>
-              <Pause className="mr-1.5 h-4 w-4" /> Pause
-            </>
-          ) : (
-            <>
-              <Play className="mr-1.5 h-4 w-4" /> {remaining < totalSeconds ? "Resume" : "Start"}
-            </>
-          )}
+        <Button variant={running ? "outline" : "default"} size="sm" onClick={toggle} disabled={done} className="flex-1">
+          {running ? <><Pause className="mr-1.5 h-4 w-4" /> Pause</> : <><Play className="mr-1.5 h-4 w-4" /> {remaining < totalSeconds ? "Resume" : "Start"}</>}
         </Button>
         <Button variant="ghost" size="sm" onClick={reset} title="Reset timer">
           <RotateCcw className="h-4 w-4" />
@@ -182,12 +152,7 @@ interface ScalingControlProps {
   onChange: (n: number) => void;
 }
 
-function ScalingControl({
-  originalServings,
-  servingsUnit,
-  currentServings,
-  onChange,
-}: ScalingControlProps) {
+function ScalingControl({ originalServings, servingsUnit, currentServings, onChange }: ScalingControlProps) {
   const step = currentServings >= 10 ? 2 : 1;
   const min = 0.5;
 
@@ -213,9 +178,7 @@ function ScalingControl({
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
-      {servingsUnit && (
-        <span className="text-sm text-muted-foreground">{servingsUnit}</span>
-      )}
+      {servingsUnit && <span className="text-sm text-muted-foreground">{servingsUnit}</span>}
       {originalServings && parseFloat(originalServings) !== currentServings && (
         <button
           onClick={() => onChange(parseFloat(originalServings))}
@@ -233,25 +196,20 @@ function ScalingControl({
 export function CookingMode({ recipe, ingredients, steps }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   const originalServings = recipe.servings ? parseFloat(recipe.servings) : null;
   const [currentServings, setCurrentServings] = useState(originalServings ?? 4);
 
-  const scale =
-    originalServings && originalServings > 0
-      ? currentServings / originalServings
-      : 1;
-
+  const scale = originalServings && originalServings > 0 ? currentServings / originalServings : 1;
   const currentStep = steps[stepIndex];
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === steps.length - 1;
 
-  // Ingredient IDs used in the current step
-  const activeIngredientIds = new Set(
-    (currentStep?.ingredientIds as string[] | null) ?? []
-  );
-  const stepIngredients = ingredients.filter((ing) =>
-    activeIngredientIds.has(ing.id)
-  );
+  const completedCount = completedSteps.size;
+  const progress = Math.round((completedCount / steps.length) * 100);
+
+  const activeIngredientIds = new Set((currentStep?.ingredientIds as string[] | null) ?? []);
+  const stepIngredients = ingredients.filter((ing) => activeIngredientIds.has(ing.id));
 
   // Wake lock
   useEffect(() => {
@@ -264,19 +222,21 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
     return () => { lock?.release().catch(() => {}); };
   }, []);
 
-  const goNext = useCallback(() => {
-    if (!isLast) setStepIndex((i) => i + 1);
-  }, [isLast]);
-
-  const goPrev = useCallback(() => {
-    if (!isFirst) setStepIndex((i) => i - 1);
-  }, [isFirst]);
+  const goNext = useCallback(() => { if (!isLast) setStepIndex((i) => i + 1); }, [isLast]);
+  const goPrev = useCallback(() => { if (!isFirst) setStepIndex((i) => i - 1); }, [isFirst]);
 
   const toggleComplete = (idx: number) => {
     setCompletedSteps((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const toggleIngredient = (id: string) => {
+    setCheckedIngredients((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -302,224 +262,327 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
     );
   }
 
+  const NavButtons = ({ className }: { className?: string }) => (
+    <div className={`flex gap-3 ${className ?? ""}`}>
+      <Button variant="outline" size="lg" onClick={goPrev} disabled={isFirst} className="flex-1">
+        <ChevronLeft className="mr-1.5 h-5 w-5" />
+        Previous
+      </Button>
+      {isLast ? (
+        <Button
+          size="lg"
+          onClick={() => toggleComplete(stepIndex)}
+          className={`flex-1 ${completedSteps.has(stepIndex) ? "bg-green-600 hover:bg-green-700" : ""}`}
+        >
+          <CheckCircle2 className="mr-1.5 h-5 w-5" />
+          {completedSteps.has(stepIndex) ? "Finished!" : "Done"}
+        </Button>
+      ) : (
+        <Button size="lg" onClick={goNext} className="flex-1">
+          Next
+          <ChevronRight className="ml-1.5 h-5 w-5" />
+        </Button>
+      )}
+    </div>
+  );
+
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex flex-col lg:h-screen lg:overflow-hidden">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
+      <header className="shrink-0 sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex items-center gap-3 px-4 py-3">
           <Button asChild variant="ghost" size="sm" className="-ml-2 shrink-0">
             <Link href={`/recipes/${recipe.id}`}>
               <ChevronLeft className="mr-1 h-4 w-4" />
-              Exit
+              <span className="hidden sm:inline">Exit Cooking Mode</span>
+              <span className="sm:hidden">Exit</span>
             </Link>
           </Button>
 
-          <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">
-            {recipe.title}
-          </h1>
+          <div className="flex-1 min-w-0 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Cooking Mode
+            </p>
+            <h1 className="text-sm font-semibold truncate">{recipe.title}</h1>
+          </div>
 
-          {originalServings && (
-            <ScalingControl
-              originalServings={recipe.servings}
-              servingsUnit={recipe.servingsUnit ?? null}
-              currentServings={currentServings}
-              onChange={setCurrentServings}
-            />
-          )}
+          <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+            {stepIndex + 1} / {steps.length}
+          </span>
         </div>
 
         {/* Progress bar */}
-        <div className="h-0.5 bg-border">
+        <div className="h-1 bg-border">
           <div
             className="h-full bg-primary transition-all duration-300"
-            style={{
-              width: `${((stepIndex + 1) / steps.length) * 100}%`,
-            }}
+            style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
           />
         </div>
       </header>
 
-      {/* ── Step content ───────────────────────────────────────────── */}
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6">
-        {/* Step counter */}
-        <div className="mb-6 flex items-center justify-between">
-          <span className="text-sm font-medium text-muted-foreground">
-            Step {stepIndex + 1} of {steps.length}
-          </span>
-          <div className="flex gap-1">
-            {steps.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setStepIndex(i)}
-                className={`h-1.5 rounded-full transition-all ${
-                  i === stepIndex
-                    ? "w-6 bg-primary"
-                    : completedSteps.has(i)
-                    ? "w-1.5 bg-primary/40"
-                    : "w-1.5 bg-border"
-                }`}
-                aria-label={`Go to step ${i + 1}`}
+      {/* ── Body ───────────────────────────────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ── Main content ─────────────────────────────────────────── */}
+        <main className="flex-1 overflow-y-auto">
+          {/* Recipe image */}
+          {recipe.imageUrl && (
+            <div className="aspect-video lg:aspect-[21/8] w-full overflow-hidden bg-muted shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={recipe.imageUrl}
+                alt={recipe.title}
+                className="h-full w-full object-cover"
               />
-            ))}
-          </div>
-        </div>
+            </div>
+          )}
 
-        {/* Instruction */}
-        {currentStep && (
-          <div className="mb-2">
-            <p className="text-xl leading-relaxed sm:text-2xl">
-              {currentStep.instruction}
-            </p>
-
-            {/* Mark complete toggle */}
-            <button
-              onClick={() => toggleComplete(stepIndex)}
-              className={`mt-4 flex items-center gap-2 text-sm transition-colors ${
-                completedSteps.has(stepIndex)
-                  ? "text-green-500"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <CheckCircle2
-                className={`h-5 w-5 ${
-                  completedSteps.has(stepIndex) ? "fill-green-500/20" : ""
-                }`}
-              />
-              {completedSteps.has(stepIndex) ? "Done" : "Mark as done"}
-            </button>
-          </div>
-        )}
-
-        {/* Timer */}
-        {currentStep?.durationMinutes ? (
-          <StepTimer
-            key={stepIndex}
-            durationMinutes={currentStep.durationMinutes}
-            label={currentStep.timerLabel}
-          />
-        ) : null}
-
-        {/* Active ingredients */}
-        {stepIngredients.length > 0 && (
-          <div className="mt-6 rounded-xl border bg-muted/40 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Used in this step
-            </p>
-            <ul className="space-y-1.5">
-              {stepIngredients.map((ing) => (
-                <li key={ing.id} className="flex items-baseline gap-2 text-sm">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-[5px]" />
-                  <span>
-                    {ing.amount && (
-                      <span className="font-medium">
-                        {formatAmount(ing.amount, scale)}
-                        {ing.unit ? ` ${ing.unit}` : ""}{" "}
-                      </span>
-                    )}
-                    {ing.ingredientName}
-                    {ing.preparation && (
-                      <span className="text-muted-foreground">, {ing.preparation}</span>
-                    )}
-                  </span>
-                </li>
+          <div className="px-4 py-6 lg:px-10 lg:py-10">
+            {/* Step dot nav (mobile only) */}
+            <div className="mb-8 flex justify-center gap-1 lg:hidden">
+              {steps.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setStepIndex(i)}
+                  className={`h-1.5 rounded-full transition-all ${
+                    i === stepIndex
+                      ? "w-6 bg-primary"
+                      : completedSteps.has(i)
+                      ? "w-1.5 bg-primary/40"
+                      : "w-1.5 bg-border"
+                  }`}
+                  aria-label={`Go to step ${i + 1}`}
+                />
               ))}
-            </ul>
-          </div>
-        )}
+            </div>
 
-        {/* All ingredients (collapsed reference) */}
-        {ingredients.length > 0 && (
-          <details className="mt-6 rounded-xl border">
-            <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none hover:bg-muted/40 transition-colors">
-              All ingredients ({ingredients.length})
+            {/* Step number badge + instruction */}
+            {currentStep && (
+              <div className="flex gap-4 lg:gap-6 mb-6">
+                <span className="flex h-10 w-10 lg:h-14 lg:w-14 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white font-bold text-base lg:text-xl">
+                  {stepIndex + 1}
+                </span>
+                <div className="flex-1 min-w-0 pt-1 lg:pt-2">
+                  <p className="text-xl lg:text-3xl leading-relaxed">
+                    {currentStep.instruction}
+                  </p>
+                  <button
+                    onClick={() => toggleComplete(stepIndex)}
+                    className={`mt-4 flex items-center gap-2 text-sm transition-colors ${
+                      completedSteps.has(stepIndex)
+                        ? "text-green-500"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <CheckCircle2
+                      className={`h-5 w-5 ${completedSteps.has(stepIndex) ? "fill-green-500/20" : ""}`}
+                    />
+                    {completedSteps.has(stepIndex) ? "Done" : "Mark as done"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Timer */}
+            {currentStep?.durationMinutes ? (
+              <StepTimer key={stepIndex} durationMinutes={currentStep.durationMinutes} label={currentStep.timerLabel} />
+            ) : null}
+
+            {/* Active ingredients — mobile only (sidebar handles desktop) */}
+            {stepIngredients.length > 0 && (
+              <div className="mt-6 rounded-xl border bg-muted/40 p-4 lg:hidden">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Used in this step
+                </p>
+                <ul className="space-y-1.5">
+                  {stepIngredients.map((ing) => (
+                    <li key={ing.id} className="flex items-baseline gap-2 text-sm">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500 mt-[5px]" />
+                      <span>
+                        {ing.amount && (
+                          <span className="font-medium">
+                            {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                          </span>
+                        )}
+                        {ing.ingredientName}
+                        {ing.preparation && (
+                          <span className="text-muted-foreground">, {ing.preparation}</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* All ingredients collapsed — mobile only */}
+            {ingredients.length > 0 && (
+              <details className="mt-4 rounded-xl border lg:hidden">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none hover:bg-muted/40 transition-colors">
+                  All ingredients ({ingredients.length})
+                  {scale !== 1 && (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      scaled ×{parseFloat(scale.toFixed(2))}
+                    </span>
+                  )}
+                </summary>
+                <ul className="space-y-1.5 px-4 pb-4 pt-2">
+                  {ingredients.map((ing) => (
+                    <li
+                      key={ing.id}
+                      className={`flex items-baseline gap-2 text-sm transition-colors ${
+                        activeIngredientIds.has(ing.id) ? "text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
+                          activeIngredientIds.has(ing.id) ? "bg-orange-500" : "bg-muted-foreground/40"
+                        }`}
+                      />
+                      <span>
+                        {ing.amount && (
+                          <span className="font-medium">
+                            {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                          </span>
+                        )}
+                        {ing.ingredientName}
+                        {ing.preparation && <span>, {ing.preparation}</span>}
+                        {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            {/* Done state */}
+            {isLast && completedSteps.has(stepIndex) && (
+              <div className="mt-8 rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
+                <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+                  All done! Enjoy your meal.
+                </p>
+                <Button asChild className="mt-4" variant="outline">
+                  <Link href={`/recipes/${recipe.id}`}>Back to recipe</Link>
+                </Button>
+              </div>
+            )}
+
+            {/* Desktop navigation */}
+            <NavButtons className="hidden lg:flex mt-10" />
+          </div>
+        </main>
+
+        {/* ── Sidebar (desktop only) ────────────────────────────────── */}
+        <aside className="hidden lg:flex lg:w-[340px] xl:w-[380px] shrink-0 flex-col border-l overflow-hidden">
+          {/* Progress */}
+          <div className="shrink-0 px-6 py-5 border-b">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="font-semibold text-sm">Your Progress</span>
+              <span className="text-sm text-muted-foreground tabular-nums">{progress}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-border overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {completedCount} of {steps.length} steps complete
+            </p>
+          </div>
+
+          {/* Scaling */}
+          {originalServings && (
+            <div className="shrink-0 px-6 py-4 border-b">
+              <ScalingControl
+                originalServings={recipe.servings}
+                servingsUnit={recipe.servingsUnit ?? null}
+                currentServings={currentServings}
+                onChange={setCurrentServings}
+              />
+            </div>
+          )}
+
+          {/* Ingredients checklist */}
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Ingredients
               {scale !== 1 && (
-                <span className="ml-2 text-xs text-muted-foreground">
+                <span className="ml-2 normal-case font-normal">
                   scaled ×{parseFloat(scale.toFixed(2))}
                 </span>
               )}
-            </summary>
-            <ul className="space-y-1.5 px-4 pb-4 pt-2">
-              {ingredients.map((ing) => (
-                <li
-                  key={ing.id}
-                  className={`flex items-baseline gap-2 text-sm transition-colors ${
-                    activeIngredientIds.has(ing.id)
-                      ? "text-foreground"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
-                      activeIngredientIds.has(ing.id) ? "bg-primary" : "bg-muted-foreground/40"
-                    }`}
-                  />
-                  <span>
-                    {ing.amount && (
-                      <span className="font-medium">
-                        {formatAmount(ing.amount, scale)}
-                        {ing.unit ? ` ${ing.unit}` : ""}{" "}
-                      </span>
-                    )}
-                    {ing.ingredientName}
-                    {ing.preparation && (
-                      <span>, {ing.preparation}</span>
-                    )}
-                    {ing.isOptional && (
-                      <span className="ml-1 text-xs">(optional)</span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-
-        {/* Done state */}
-        {isLast && completedSteps.has(stepIndex) && (
-          <div className="mt-8 rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
-            <p className="text-lg font-semibold text-green-600 dark:text-green-400">
-              All done! Enjoy your meal.
             </p>
-            <Button asChild className="mt-4" variant="outline">
-              <Link href={`/recipes/${recipe.id}`}>Back to recipe</Link>
-            </Button>
+            <ul className="space-y-3">
+              {ingredients.map((ing) => {
+                const isActive = activeIngredientIds.has(ing.id);
+                const isChecked = checkedIngredients.has(ing.id);
+                return (
+                  <li key={ing.id} className="flex items-start gap-3">
+                    <button
+                      onClick={() => toggleIngredient(ing.id)}
+                      className={`mt-0.5 shrink-0 transition-colors ${
+                        isChecked
+                          ? "text-green-500"
+                          : isActive
+                          ? "text-orange-500"
+                          : "text-muted-foreground/40 hover:text-muted-foreground"
+                      }`}
+                      aria-label={isChecked ? `Uncheck ${ing.ingredientName}` : `Check ${ing.ingredientName}`}
+                    >
+                      {isChecked ? (
+                        <CheckCircle2 className="h-5 w-5 fill-green-500/20" />
+                      ) : (
+                        <Circle className="h-5 w-5" />
+                      )}
+                    </button>
+                    <span
+                      className={`text-sm leading-relaxed transition-colors ${
+                        isChecked
+                          ? "text-muted-foreground/50 line-through"
+                          : isActive
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {ing.amount && (
+                        <span className={isActive && !isChecked ? "font-semibold" : "font-medium"}>
+                          {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                        </span>
+                      )}
+                      {ing.ingredientName}
+                      {ing.preparation && <span className="font-normal">, {ing.preparation}</span>}
+                      {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-        )}
-      </main>
 
-      {/* ── Footer nav ─────────────────────────────────────────────── */}
-      <footer className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto grid max-w-2xl grid-cols-2 gap-3 p-4">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={goPrev}
-            disabled={isFirst}
-            className="w-full"
-          >
-            <ChevronLeft className="mr-1.5 h-5 w-5" />
-            Previous
-          </Button>
-          {isLast ? (
-            <Button
-              size="lg"
-              onClick={() => toggleComplete(stepIndex)}
-              className={`w-full ${
-                completedSteps.has(stepIndex)
-                  ? "bg-green-600 hover:bg-green-700"
-                  : ""
-              }`}
-            >
-              <CheckCircle2 className="mr-1.5 h-5 w-5" />
-              {completedSteps.has(stepIndex) ? "Finished!" : "Done"}
-            </Button>
-          ) : (
-            <Button size="lg" onClick={goNext} className="w-full">
-              Next
-              <ChevronRight className="ml-1.5 h-5 w-5" />
-            </Button>
+          {/* Up Next */}
+          {!isLast && steps[stepIndex + 1] && (
+            <div className="shrink-0 px-6 py-5 border-t bg-muted/30">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Up Next
+              </p>
+              <p className="text-sm text-muted-foreground line-clamp-3">
+                {steps[stepIndex + 1].instruction}
+              </p>
+              <button
+                onClick={goNext}
+                className="mt-2 text-xs text-primary hover:underline underline-offset-2"
+              >
+                Skip ahead →
+              </button>
+            </div>
           )}
-        </div>
+        </aside>
+      </div>
+
+      {/* ── Mobile footer nav ───────────────────────────────────────── */}
+      <footer className="lg:hidden shrink-0 sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <NavButtons className="p-4" />
       </footer>
     </div>
   );

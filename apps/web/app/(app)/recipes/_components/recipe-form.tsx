@@ -85,6 +85,7 @@ interface RecipeFormProps {
   action: (formData: FormData) => Promise<void>;
   defaults?: RecipeFormDefaults;
   submitLabel?: string;
+  heading?: string;
   mode?: "create" | "edit";
 }
 
@@ -92,6 +93,7 @@ export function RecipeForm({
   action,
   defaults = {},
   submitLabel = "Save Recipe",
+  heading = "Edit Recipe",
   mode = "edit",
 }: RecipeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -298,453 +300,533 @@ export function RecipeForm({
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  return (
-    <form
-      ref={formRef}
-      onSubmit={handleSubmit}
-      className="space-y-8 pb-20 lg:pb-8"
-    >
-      {/* ── AI Improve (edit mode only) ── */}
-      {mode === "edit" && <section className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary shrink-0" />
-          <h2 className="text-sm font-semibold">Improve with AI</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Describe a change and the AI will update the recipe for you to review before saving.
-        </p>
-        <div className="flex gap-2">
-          <Input
-            value={aiPrompt}
-            onChange={(e) => {
-              setAiPrompt(e.target.value);
-              setAiApplied(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void handleAiImprove();
-              }
-            }}
-            placeholder='e.g. "Make it healthier", "Rearrange the steps logically"'
-            disabled={aiLoading}
-            className="flex-1 text-sm"
-          />
-          <Button
+  const photoSection = (
+    <section className="space-y-3">
+      {imageUrl ? (
+        <div className="relative w-full overflow-hidden rounded-lg border bg-muted aspect-video">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageUrl} alt="Recipe photo" className="h-full w-full object-cover" />
+          <button
             type="button"
-            onClick={() => void handleAiImprove()}
-            disabled={aiLoading || !aiPrompt.trim()}
-            size="sm"
-            className="shrink-0"
+            onClick={() => setImageUrl("")}
+            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-background/80 text-foreground hover:bg-background"
+            title="Remove photo"
           >
-            {aiLoading ? "Improving…" : "Improve"}
-          </Button>
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        {aiError && <p className="text-sm text-destructive">{aiError}</p>}
-        {aiApplied && (
-          <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            Recipe updated — review the changes below and save when ready.
-          </p>
-        )}
-      </section>}
-
-      {/* ── Photo ── */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Photo</h2>
-
-        {imageUrl ? (
-          <div className="relative w-full max-w-sm overflow-hidden rounded-lg border bg-muted aspect-video">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt="Recipe photo" className="h-full w-full object-cover" />
+      ) : (
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={imageUploading || imageGenerating}
+            className="flex w-full aspect-video items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input bg-muted/30 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <ImagePlus className="h-5 w-5" />
+            {imageUploading ? "Uploading…" : "Upload photo"}
+          </button>
+          {mode === "edit" && (
             <button
               type="button"
-              onClick={() => setImageUrl("")}
-              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-background/80 text-foreground hover:bg-background"
-              title="Remove photo"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => void handleGenerateImage()}
               disabled={imageUploading || imageGenerating}
-              className="flex h-32 w-40 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input bg-muted/30 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 py-2 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
             >
-              <ImagePlus className="h-5 w-5" />
-              {imageUploading ? "Uploading…" : "Upload photo"}
+              <Wand2 className="h-4 w-4" />
+              {imageGenerating ? "Generating…" : "Generate with AI"}
             </button>
-            {mode === "edit" && (
-              <button
-                type="button"
-                onClick={() => void handleGenerateImage()}
-                disabled={imageUploading || imageGenerating}
-                className="flex h-32 w-40 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input bg-muted/30 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
-              >
-                <Wand2 className="h-5 w-5" />
-                {imageGenerating ? "Generating…" : "Generate with AI"}
-              </button>
-            )}
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {imageUrl && !imageUploading && (
+      {imageUrl && !imageUploading && (
+        <div className="flex gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
+            className="flex-1"
           >
             <ImagePlus className="mr-1.5 h-4 w-4" />
             Change photo
           </Button>
-        )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setImageUrl("")}
+            className="flex-1"
+          >
+            <X className="mr-1.5 h-4 w-4" />
+            Remove
+          </Button>
+        </div>
+      )}
 
-        {imageError && (
-          <p className="text-sm text-destructive">{imageError}</p>
-        )}
+      {imageError && (
+        <p className="text-sm text-destructive">{imageError}</p>
+      )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          className="hidden"
-          onChange={handleImageChange}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={handleImageChange}
+      />
+    </section>
+  );
+
+  const detailsSection = (
+    <section className="space-y-4">
+      <h2 className="text-base font-semibold">Recipe Details</h2>
+
+      <div className="space-y-2">
+        <Label htmlFor="title">Title *</Label>
+        <Input
+          id="title"
+          name="title"
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Spaghetti Carbonara"
         />
-      </section>
+      </div>
 
-      {/* ── Basic info ── */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Basic info</h2>
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          name="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="A short summary of the dish…"
+          rows={2}
+        />
+      </div>
 
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="title">Title *</Label>
+          <Label htmlFor="cuisine">Cuisine</Label>
           <Input
-            id="title"
-            name="title"
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Spaghetti Carbonara"
+            id="cuisine"
+            name="cuisine"
+            value={cuisine}
+            onChange={(e) => setCuisine(e.target.value)}
+            placeholder="e.g. Italian"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="description">Description</Label>
-          <Textarea
-            id="description"
-            name="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="A short summary of the dish…"
-            rows={2}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div className="space-y-2">
-            <Label htmlFor="cuisine">Cuisine</Label>
-            <Input
-              id="cuisine"
-              name="cuisine"
-              value={cuisine}
-              onChange={(e) => setCuisine(e.target.value)}
-              placeholder="e.g. Italian"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="difficulty">Difficulty</Label>
-            <Select value={difficulty} onValueChange={setDifficulty}>
-              <SelectTrigger id="difficulty">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="easy">Easy</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="hard">Hard</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="prepTimeMinutes">Prep (min)</Label>
-            <Input
-              id="prepTimeMinutes"
-              name="prepTimeMinutes"
-              type="number"
-              min={0}
-              value={prepTimeMinutes}
-              onChange={(e) => setPrepTimeMinutes(e.target.value)}
-              placeholder="0"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cookTimeMinutes">Cook (min)</Label>
-            <Input
-              id="cookTimeMinutes"
-              name="cookTimeMinutes"
-              type="number"
-              min={0}
-              value={cookTimeMinutes}
-              onChange={(e) => setCookTimeMinutes(e.target.value)}
-              placeholder="0"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="servings">Servings</Label>
-            <Input
-              id="servings"
-              name="servings"
-              value={servings}
-              onChange={(e) => setServings(e.target.value)}
-              placeholder="4"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="servingsUnit">Servings unit</Label>
-            <Input
-              id="servingsUnit"
-              name="servingsUnit"
-              value={servingsUnit}
-              onChange={(e) => setServingsUnit(e.target.value)}
-              placeholder="servings"
-            />
-          </div>
+          <Label htmlFor="difficulty">Difficulty</Label>
+          <Select value={difficulty} onValueChange={setDifficulty}>
+            <SelectTrigger id="difficulty">
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="easy">Easy</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="hard">Hard</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="sourceUrl">Source URL</Label>
+          <Label htmlFor="prepTimeMinutes">Prep (min)</Label>
           <Input
-            id="sourceUrl"
-            name="sourceUrl"
-            type="url"
-            value={sourceUrl}
-            onChange={(e) => setSourceUrl(e.target.value)}
-            placeholder="https://…"
+            id="prepTimeMinutes"
+            name="prepTimeMinutes"
+            type="number"
+            min={0}
+            value={prepTimeMinutes}
+            onChange={(e) => setPrepTimeMinutes(e.target.value)}
+            placeholder="0"
           />
         </div>
 
         <div className="space-y-2">
-          <Label>Tags</Label>
-          <div className="rounded-md border border-input bg-background px-3 py-2 min-h-10 flex flex-wrap gap-1.5">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium"
-              >
-                <Tag className="h-3 w-3" />
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
-                  className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5"
-                  aria-label={`Remove ${tag}`}
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </span>
-            ))}
-            <input
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === ",") {
-                  e.preventDefault();
-                  const val = tagInput.trim().replace(/,$/, "");
-                  if (val && !tags.includes(val)) {
-                    setTags((prev) => [...prev, val]);
-                  }
-                  setTagInput("");
-                } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
-                  setTags((prev) => prev.slice(0, -1));
-                }
-              }}
-              onBlur={() => {
-                const val = tagInput.trim().replace(/,$/, "");
-                if (val && !tags.includes(val)) {
-                  setTags((prev) => [...prev, val]);
-                }
-                setTagInput("");
-              }}
-              placeholder={tags.length === 0 ? "Type a tag and press Enter…" : ""}
-              className="flex-1 min-w-24 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-          </div>
+          <Label htmlFor="cookTimeMinutes">Cook (min)</Label>
+          <Input
+            id="cookTimeMinutes"
+            name="cookTimeMinutes"
+            type="number"
+            min={0}
+            value={cookTimeMinutes}
+            onChange={(e) => setCookTimeMinutes(e.target.value)}
+            placeholder="0"
+          />
         </div>
-      </section>
-
-      {/* ── Ingredients ── */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Ingredients</h2>
 
         <div className="space-y-2">
-          {ingredients.map((row, idx) => (
-            <div
-              key={row.key}
-              className="grid grid-cols-[auto_1fr] gap-2 items-start"
-            >
-              <span className="flex h-10 w-6 items-center justify-center text-xs text-muted-foreground">
-                {idx + 1}
-              </span>
-
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_2fr_auto_auto]">
-                <Input
-                  value={row.ingredientName}
-                  onChange={(e) =>
-                    updateIngredient(row.key, "ingredientName", e.target.value)
-                  }
-                  placeholder="Ingredient *"
-                  className="col-span-2 sm:col-span-1"
-                />
-                <Input
-                  value={row.amount}
-                  onChange={(e) =>
-                    updateIngredient(row.key, "amount", e.target.value)
-                  }
-                  placeholder="Amount"
-                />
-                <Input
-                  value={row.unit}
-                  onChange={(e) =>
-                    updateIngredient(row.key, "unit", e.target.value)
-                  }
-                  placeholder="Unit"
-                />
-                <Input
-                  value={row.preparation}
-                  onChange={(e) =>
-                    updateIngredient(row.key, "preparation", e.target.value)
-                  }
-                  placeholder="Preparation"
-                />
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                  <input
-                    type="checkbox"
-                    checked={row.isOptional}
-                    onChange={(e) =>
-                      updateIngredient(row.key, "isOptional", e.target.checked)
-                    }
-                    className="h-4 w-4"
-                  />
-                  Optional
-                </label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeIngredient(row.key)}
-                  disabled={ingredients.length === 1}
-                  className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
+          <Label htmlFor="servings">Servings</Label>
+          <Input
+            id="servings"
+            name="servings"
+            value={servings}
+            onChange={(e) => setServings(e.target.value)}
+            placeholder="4"
+          />
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addIngredient}
-          className="gap-1"
-        >
-          <Plus className="h-4 w-4" />
-          Add ingredient
-        </Button>
-      </section>
+        <div className="space-y-2">
+          <Label htmlFor="servingsUnit">Unit</Label>
+          <Input
+            id="servingsUnit"
+            name="servingsUnit"
+            value={servingsUnit}
+            onChange={(e) => setServingsUnit(e.target.value)}
+            placeholder="servings"
+          />
+        </div>
+      </div>
 
-      {/* ── Steps ── */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Steps</h2>
+      <div className="space-y-2">
+        <Label htmlFor="sourceUrl">Source URL</Label>
+        <Input
+          id="sourceUrl"
+          name="sourceUrl"
+          type="url"
+          value={sourceUrl}
+          onChange={(e) => setSourceUrl(e.target.value)}
+          placeholder="https://…"
+        />
+      </div>
+    </section>
+  );
 
-        <div className="space-y-3">
-          {steps.map((row, idx) => (
-            <div key={row.key} className="flex gap-3 items-start">
-              <span className="flex h-10 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                {idx + 1}
-              </span>
+  const ingredientsSection = (
+    <section className="space-y-3">
+      <h2 className="text-base font-semibold">Ingredients</h2>
 
-              <div className="flex-1 space-y-2">
-                <Textarea
-                  value={row.instruction}
+      {/* Column headers — visible on sm+ */}
+      <div className="hidden sm:grid sm:grid-cols-[2fr_1fr_1fr_2fr_auto_auto] gap-2 px-1">
+        <span className="text-xs font-medium text-muted-foreground">Ingredient</span>
+        <span className="text-xs font-medium text-muted-foreground">Amount</span>
+        <span className="text-xs font-medium text-muted-foreground">Unit</span>
+        <span className="text-xs font-medium text-muted-foreground">Preparation</span>
+        <span className="text-xs font-medium text-muted-foreground">Opt.</span>
+        <span />
+      </div>
+
+      <div className="space-y-2">
+        {ingredients.map((row, idx) => (
+          <div
+            key={row.key}
+            className="grid grid-cols-[auto_1fr] gap-2 items-start"
+          >
+            <span className="flex h-9 w-5 items-center justify-center text-xs text-muted-foreground">
+              {idx + 1}
+            </span>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_2fr_auto_auto]">
+              <Input
+                value={row.ingredientName}
+                onChange={(e) =>
+                  updateIngredient(row.key, "ingredientName", e.target.value)
+                }
+                placeholder="Ingredient *"
+                className="col-span-2 sm:col-span-1 h-9 text-sm"
+              />
+              <Input
+                value={row.amount}
+                onChange={(e) =>
+                  updateIngredient(row.key, "amount", e.target.value)
+                }
+                placeholder="Amount"
+                className="h-9 text-sm"
+              />
+              <Input
+                value={row.unit}
+                onChange={(e) =>
+                  updateIngredient(row.key, "unit", e.target.value)
+                }
+                placeholder="Unit"
+                className="h-9 text-sm"
+              />
+              <Input
+                value={row.preparation}
+                onChange={(e) =>
+                  updateIngredient(row.key, "preparation", e.target.value)
+                }
+                placeholder="Preparation"
+                className="col-span-2 sm:col-span-1 h-9 text-sm"
+              />
+              <div className="flex items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={row.isOptional}
                   onChange={(e) =>
-                    updateStep(row.key, "instruction", e.target.value)
+                    updateIngredient(row.key, "isOptional", e.target.checked)
                   }
-                  placeholder="Describe this step…"
-                  rows={2}
+                  className="h-4 w-4"
+                  title="Optional"
                 />
-                <div className="flex gap-2">
-                  <Input
-                    value={row.durationMinutes}
-                    onChange={(e) =>
-                      updateStep(row.key, "durationMinutes", e.target.value)
-                    }
-                    type="number"
-                    min={0}
-                    placeholder="Timer (min)"
-                    className="w-32"
-                  />
-                  <Input
-                    value={row.timerLabel}
-                    onChange={(e) =>
-                      updateStep(row.key, "timerLabel", e.target.value)
-                    }
-                    placeholder='Timer label (e.g. "Simmer")'
-                  />
-                </div>
               </div>
-
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                onClick={() => removeStep(row.key)}
-                disabled={steps.length === 1}
-                className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={() => removeIngredient(row.key)}
+                disabled={ingredients.length === 1}
+                className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
-          ))}
+          </div>
+        ))}
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={addIngredient}
+        className="gap-1"
+      >
+        <Plus className="h-4 w-4" />
+        Add ingredient
+      </Button>
+    </section>
+  );
+
+  const stepsSection = (
+    <section className="space-y-3">
+      <h2 className="text-base font-semibold">Steps</h2>
+
+      <div className="space-y-3">
+        {steps.map((row, idx) => (
+          <div key={row.key} className="flex gap-2 items-start">
+            <span className="flex h-8 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+              {idx + 1}
+            </span>
+
+            <div className="flex-1 space-y-1.5">
+              <Textarea
+                value={row.instruction}
+                onChange={(e) =>
+                  updateStep(row.key, "instruction", e.target.value)
+                }
+                placeholder="Describe this step…"
+                rows={2}
+                className="text-sm"
+              />
+              <div className="flex gap-2">
+                <Input
+                  value={row.durationMinutes}
+                  onChange={(e) =>
+                    updateStep(row.key, "durationMinutes", e.target.value)
+                  }
+                  type="number"
+                  min={0}
+                  placeholder="Timer (min)"
+                  className="w-28 h-8 text-sm"
+                />
+                <Input
+                  value={row.timerLabel}
+                  onChange={(e) =>
+                    updateStep(row.key, "timerLabel", e.target.value)
+                  }
+                  placeholder='Label (e.g. "Simmer")'
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => removeStep(row.key)}
+              disabled={steps.length === 1}
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={addStep}
+        className="gap-1"
+      >
+        <Plus className="h-4 w-4" />
+        Add step
+      </Button>
+    </section>
+  );
+
+  const notesSection = (
+    <section className="space-y-2">
+      <Label htmlFor="notes" className="text-base font-semibold">Notes</Label>
+      <Textarea
+        id="notes"
+        name="notes"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Any extra notes, variations, substitutions…"
+        rows={3}
+        className="text-sm"
+      />
+    </section>
+  );
+
+  const tagsSection = (
+    <section className="space-y-2">
+      <Label className="text-base font-semibold">Tags</Label>
+      <div className="rounded-md border border-input bg-background px-3 py-2 min-h-10 flex flex-wrap gap-1.5">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium"
+          >
+            <Tag className="h-3 w-3" />
+            {tag}
+            <button
+              type="button"
+              onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
+              className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5"
+              aria-label={`Remove ${tag}`}
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={tagInput}
+          onChange={(e) => setTagInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              const val = tagInput.trim().replace(/,$/, "");
+              if (val && !tags.includes(val)) {
+                setTags((prev) => [...prev, val]);
+              }
+              setTagInput("");
+            } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+              setTags((prev) => prev.slice(0, -1));
+            }
+          }}
+          onBlur={() => {
+            const val = tagInput.trim().replace(/,$/, "");
+            if (val && !tags.includes(val)) {
+              setTags((prev) => [...prev, val]);
+            }
+            setTagInput("");
+          }}
+          placeholder={tags.length === 0 ? "Type a tag and press Enter…" : ""}
+          className="flex-1 min-w-24 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        />
+      </div>
+    </section>
+  );
+
+  return (
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="space-y-6 pb-20 lg:pb-8"
+    >
+      {/* ── Page header: title + actions (desktop) ── */}
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">{heading}</h1>
+        <div className="hidden lg:flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => window.history.back()}
+          >
+            Cancel
+          </Button>
+          <Button type="submit">{submitLabel}</Button>
+        </div>
+      </div>
+
+      {/* ── AI Improve (edit mode only) ── */}
+      {mode === "edit" && (
+        <section className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary shrink-0" />
+            <h2 className="text-sm font-semibold">Improve with AI</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Describe a change and the AI will update the recipe for you to review before saving.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={aiPrompt}
+              onChange={(e) => {
+                setAiPrompt(e.target.value);
+                setAiApplied(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleAiImprove();
+                }
+              }}
+              placeholder='e.g. "Make it healthier", "Rearrange the steps logically"'
+              disabled={aiLoading}
+              className="flex-1 text-sm"
+            />
+            <Button
+              type="button"
+              onClick={() => void handleAiImprove()}
+              disabled={aiLoading || !aiPrompt.trim()}
+              size="sm"
+              className="shrink-0"
+            >
+              {aiLoading ? "Improving…" : "Improve"}
+            </Button>
+          </div>
+          {aiError && <p className="text-sm text-destructive">{aiError}</p>}
+          {aiApplied && (
+            <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              Recipe updated — review the changes below and save when ready.
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* ── 3-column desktop layout ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr_300px] lg:items-start">
+
+        {/* Left: Photo */}
+        <div className="space-y-4 lg:sticky lg:top-6">
+          <h2 className="text-base font-semibold">Photo</h2>
+          {photoSection}
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addStep}
-          className="gap-1"
-        >
-          <Plus className="h-4 w-4" />
-          Add step
-        </Button>
-      </section>
+        {/* Centre: Details + Ingredients */}
+        <div className="space-y-6">
+          {detailsSection}
+          <div className="border-t border-border pt-6">
+            {ingredientsSection}
+          </div>
+        </div>
 
-      {/* ── Notes ── */}
-      <section className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea
-          id="notes"
-          name="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Any extra notes, variations, substitutions…"
-          rows={3}
-        />
-      </section>
+        {/* Right: Steps + Notes + Tags */}
+        <div className="space-y-6">
+          {stepsSection}
+          <div className="border-t border-border pt-6">
+            {notesSection}
+          </div>
+          <div className="border-t border-border pt-6">
+            {tagsSection}
+          </div>
+        </div>
 
-      {/* ── Submit ── */}
-      <div className="flex gap-3">
+      </div>
+
+      {/* ── Submit (mobile only — desktop uses header buttons) ── */}
+      <div className="flex gap-3 pt-2 lg:hidden">
         <Button type="submit">{submitLabel}</Button>
         <Button
           type="button"

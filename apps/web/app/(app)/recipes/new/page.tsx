@@ -13,16 +13,14 @@ export default async function NewRecipePage() {
   const aiConfig = await getAiConfig(householdId);
 
   return (
-    <div className="mx-auto max-w-2xl p-4 lg:p-8">
+    <div className="mx-auto max-w-screen-xl p-4 lg:p-8">
       <Link
         href="/recipes"
-        className="mb-6 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
         Recipes
       </Link>
-
-      <h1 className="mb-8 text-2xl font-bold">New Recipe</h1>
 
       <NewRecipeClient hasAi={!!aiConfig?.hasKey} />
     </div>

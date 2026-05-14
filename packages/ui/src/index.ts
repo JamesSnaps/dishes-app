@@ -39,4 +39,12 @@ export {
   ToastTitle,
   ToastViewport,
 } from "./components/toast";
+export {
+  Sheet,
+  SheetTrigger,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "./components/sheet";
 export { cn } from "./lib/utils";

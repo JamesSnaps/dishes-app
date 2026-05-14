@@ -2,14 +2,80 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, Home, ShoppingCart, Settings, UtensilsCrossed } from "lucide-react";
+import {
+  BookOpen,
+  CalendarDays,
+  ChefHat,
+  FileText,
+  FolderOpen,
+  Heart,
+  HelpCircle,
+  Home,
+  Package,
+  Settings,
+  ShoppingCart,
+  Sparkles,
+  UtensilsCrossed,
+  ChevronDown,
+} from "lucide-react";
 import { cn } from "@dishes/ui";
-import { NAV_ITEMS } from "./nav-items";
-
-const ICONS = { BookOpen, CalendarDays, Home, ShoppingCart, Settings };
 
 interface Props {
   className?: string;
+}
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  disabled?: boolean;
+}
+
+const MAIN_NAV: NavItem[] = [
+  { href: "/home", label: "Home", icon: Home },
+  { href: "/recipes", label: "Recipes", icon: BookOpen },
+  { href: "/meal-plan", label: "Meal Planner", icon: CalendarDays },
+  { href: "/shopping", label: "Shopping List", icon: ShoppingCart },
+  { href: "/pantry", label: "Pantry", icon: Package, disabled: true },
+  { href: "/ai-concierge", label: "AI Concierge", icon: Sparkles },
+  { href: "/what-can-i-cook", label: "What Can I Cook?", icon: ChefHat, disabled: true },
+];
+
+const PERSONAL_NAV: NavItem[] = [
+  { href: "/favourites", label: "Favourites", icon: Heart, disabled: true },
+  { href: "/collections", label: "Collections", icon: FolderOpen, disabled: true },
+  { href: "/notes", label: "My Notes", icon: FileText, disabled: true },
+];
+
+function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = !item.disabled && (pathname === item.href || pathname.startsWith(`${item.href}/`));
+  const Icon = item.icon;
+
+  if (item.disabled) {
+    return (
+      <span
+        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/40 cursor-not-allowed select-none"
+      >
+        <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+        {item.label}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      href={item.href}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+        active
+          ? "bg-primary/10 text-primary font-medium"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" strokeWidth={active ? 2.5 : 1.75} />
+      {item.label}
+    </Link>
+  );
 }
 
 export function SideNav({ className }: Props) {
@@ -18,37 +84,59 @@ export function SideNav({ className }: Props) {
   return (
     <nav
       className={cn(
-        "flex w-60 flex-col border-r bg-background h-screen sticky top-0 overflow-y-auto",
+        "flex w-60 flex-col border-r bg-background h-screen sticky top-0",
         className
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center gap-2 border-b px-6">
+      <div className="flex h-16 items-center gap-2 border-b px-6 shrink-0">
         <UtensilsCrossed className="h-5 w-5 text-primary" />
         <span className="text-lg font-semibold">Dishes</span>
       </div>
 
-      {/* Nav links */}
-      <div className="flex flex-col gap-1 p-3">
-        {NAV_ITEMS.map(({ href, label, icon }) => {
-          const Icon = ICONS[icon];
-          const active = pathname === href || pathname.startsWith(`${href}/`);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                active
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" strokeWidth={active ? 2.5 : 1.75} />
-              {label}
-            </Link>
-          );
-        })}
+      {/* Scrollable nav area */}
+      <div className="flex flex-col flex-1 overflow-y-auto">
+        {/* Main nav */}
+        <div className="flex flex-col gap-1 p-3">
+          {MAIN_NAV.map((item) => (
+            <NavLink key={item.href} item={item} pathname={pathname} />
+          ))}
+        </div>
+
+        {/* Personal section */}
+        <div className="px-3 pb-1 pt-3">
+          <p className="px-3 pb-1 text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
+            Personal
+          </p>
+          <div className="flex flex-col gap-1">
+            {PERSONAL_NAV.map((item) => (
+              <NavLink key={item.href} item={item} pathname={pathname} />
+            ))}
+          </div>
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Settings + Help */}
+        <div className="border-t p-3 flex flex-col gap-1">
+          <NavLink item={{ href: "/settings", label: "Settings", icon: Settings }} pathname={pathname} />
+          <NavLink item={{ href: "/help", label: "Help & Support", icon: HelpCircle, disabled: true }} pathname={pathname} />
+        </div>
+      </div>
+
+      {/* Profile card */}
+      <div className="border-t px-3 py-3 shrink-0">
+        <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted text-left">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs">
+            JC
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium leading-tight truncate">James</p>
+            <p className="text-xs text-muted-foreground leading-tight">View profile</p>
+          </div>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
       </div>
     </nav>
   );

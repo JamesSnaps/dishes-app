@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Clock, Heart, UtensilsCrossed } from "lucide-react";
+import { Clock, UtensilsCrossed } from "lucide-react";
 import { Badge, Card } from "@dishes/ui";
+import { FavouriteButton } from "./favourite-button";
 
 type RecipeCardProps = {
   id: string;
@@ -52,11 +53,9 @@ export function RecipeCard({
             <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30" />
           )}
 
-          {isFavourite && (
-            <div className="absolute top-2 right-2">
-              <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
-            </div>
-          )}
+          <div className="absolute top-2 right-2">
+            <FavouriteButton recipeId={id} isFavourite={isFavourite} size="sm" />
+          </div>
         </div>
 
         {/* Content */}

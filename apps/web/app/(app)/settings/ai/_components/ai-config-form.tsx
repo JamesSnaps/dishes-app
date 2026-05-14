@@ -68,7 +68,7 @@ export function AiConfigForm({ config, isAdmin }: Props) {
         {config?.hasKey && (
           <p className="text-xs text-muted-foreground">
             Current key:{" "}
-            <code className="font-mono break-all">{config.keyHint}</code>
+            <code className="font-mono">{config.keyHint}</code>
             {" "}— leave blank to keep it unchanged
           </p>
         )}

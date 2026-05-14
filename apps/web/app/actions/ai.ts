@@ -298,6 +298,8 @@ export async function generateRecipeImageUrl(
 
     const prompt = `Professional food photography of "${title}". ${description ? description + " " : ""}Beautifully plated, appetising, clean background, natural lighting. No text, no labels, no watermarks.`;
 
+    console.log(`[AI] Generating image with model=${imageModel} for "${title}"`);
+
     const response = await client.images.generate({
       model: imageModel,
       prompt,
@@ -305,15 +307,28 @@ export async function generateRecipeImageUrl(
       size: "1024x1024",
     });
 
-    const b64 = response.data?.[0]?.b64_json;
-    if (!b64) throw new Error("No image data returned from AI.");
+    const imageData = response.data?.[0];
+    let buffer: Buffer;
 
-    const buffer = Buffer.from(b64, "base64");
+    if (imageData?.b64_json) {
+      buffer = Buffer.from(imageData.b64_json, "base64");
+    } else if (imageData?.url) {
+      console.log(`[AI] Model returned URL instead of b64 — fetching to upload`);
+      const fetched = await fetch(imageData.url);
+      if (!fetched.ok) throw new Error(`Failed to fetch generated image: ${fetched.status}`);
+      buffer = Buffer.from(await fetched.arrayBuffer());
+    } else {
+      console.error(`[AI] Image generation response had no usable data:`, JSON.stringify(response.data));
+      throw new Error("No image data returned from AI.");
+    }
+
     const key = `recipes/${householdId}/${randomUUID()}.png`;
     const url = await uploadFile(key, buffer, "image/png");
+    console.log(`[AI] Image uploaded successfully: ${url}`);
 
     return { url };
   } catch (err) {
+    console.error(`[AI] Image generation failed:`, err);
     return { error: classifyError(err) };
   }
 }
@@ -340,6 +355,7 @@ export async function generateAndSaveRecipeImage(
     if (error || !url) return { error: error ?? "Image generation failed." };
 
     await db.update(recipes).set({ imageUrl: url }).where(eq(recipes.id, recipeId));
+    console.log(`[AI] Saved image URL to recipe ${recipeId}: ${url}`);
     revalidatePath(`/recipes/${recipeId}`);
     revalidatePath("/recipes");
 
