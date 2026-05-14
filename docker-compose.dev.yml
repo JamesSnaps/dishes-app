@@ -1,0 +1,22 @@
+# Development override — run infra only, Next.js runs locally
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#        then: pnpm dev
+
+name: dishes-dev
+
+services:
+  web:
+    profiles: ["skip"]   # don't start the web container in dev
+
+  db:
+    ports:
+      - "5432:5432"      # expose Postgres for local Drizzle Studio / migrations
+
+  redis:
+    ports:
+      - "6379:6379"      # expose Redis for local dev
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"

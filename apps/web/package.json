@@ -1,0 +1,38 @@
+{
+  "name": "@dishes/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dishes/api": "workspace:*",
+    "@dishes/db": "workspace:*",
+    "@dishes/shared": "workspace:*",
+    "@dishes/ui": "workspace:*",
+    "next": "^15.1.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "openai": "^4.77.0",
+    "zod": "^3.24.1",
+    "lucide-react": "^0.469.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.5",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "autoprefixer": "^10.4.20"
+  }
+}

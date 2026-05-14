@@ -1,4 +1,13 @@
-.DS_Store
+# Deps
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+dist/
+.turbo/
+
+# Env files
 .env
 .env.local
 .env.development.local
@@ -7,3 +16,21 @@
 .env.development
 .env.test
 .env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Drizzle
+drizzle/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
