@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Plus, Trash2, ImagePlus, X } from "lucide-react";
+import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2 } from "lucide-react";
 import {
   Button,
   Input,
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dishes/ui";
+import { improveRecipe, type GeneratedRecipe } from "@/app/actions/ai";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,25 @@ export function RecipeForm({
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Controlled field state ──────────────────────────────────────────────────
+
+  const [title, setTitle] = useState(defaults.title ?? "");
+  const [description, setDescription] = useState(defaults.description ?? "");
+  const [cuisine, setCuisine] = useState(defaults.cuisine ?? "");
+  const [prepTimeMinutes, setPrepTimeMinutes] = useState(
+    defaults.prepTimeMinutes?.toString() ?? ""
+  );
+  const [cookTimeMinutes, setCookTimeMinutes] = useState(
+    defaults.cookTimeMinutes?.toString() ?? ""
+  );
+  const [servings, setServings] = useState(defaults.servings ?? "");
+  const [servingsUnit, setServingsUnit] = useState(
+    defaults.servingsUnit ?? "servings"
+  );
+  const [sourceUrl, setSourceUrl] = useState(defaults.sourceUrl ?? "");
+  const [tags, setTags] = useState(defaults.tags?.join(", ") ?? "");
+  const [notes, setNotes] = useState(defaults.notes ?? "");
+
   const [ingredients, setIngredients] = useState<IngredientRow[]>(() =>
     defaults.ingredients?.length
       ? defaults.ingredients.map((i) => ({ ...i, key: nextKey() }))
@@ -113,6 +133,64 @@ export function RecipeForm({
   const [imageUrl, setImageUrl] = useState<string>(defaults.imageUrl ?? "");
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+
+  // ── AI improve state ────────────────────────────────────────────────────────
+
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiApplied, setAiApplied] = useState(false);
+
+  async function handleAiImprove() {
+    if (!aiPrompt.trim()) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiApplied(false);
+
+    const current: GeneratedRecipe = {
+      title,
+      description,
+      cuisine,
+      difficulty: (difficulty as GeneratedRecipe["difficulty"]) || "easy",
+      prepTimeMinutes: prepTimeMinutes ? Number(prepTimeMinutes) : null,
+      cookTimeMinutes: cookTimeMinutes ? Number(cookTimeMinutes) : null,
+      servings,
+      servingsUnit,
+      tags: tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
+      ingredients: ingredients.map(({ key: _key, ...rest }) => rest),
+      steps: steps.map(({ key: _key, ...rest }) => rest),
+      notes: notes || null,
+    };
+
+    const result = await improveRecipe(current, aiPrompt);
+    setAiLoading(false);
+
+    if (result.error) {
+      setAiError(result.error);
+      return;
+    }
+
+    const r = result.recipe!;
+    setTitle(r.title);
+    setDescription(r.description);
+    setCuisine(r.cuisine);
+    setDifficulty(r.difficulty);
+    setPrepTimeMinutes(r.prepTimeMinutes?.toString() ?? "");
+    setCookTimeMinutes(r.cookTimeMinutes?.toString() ?? "");
+    setServings(r.servings);
+    setServingsUnit(r.servingsUnit);
+    setTags(r.tags.join(", "));
+    setNotes(r.notes ?? "");
+    setIngredients(r.ingredients.map((i) => ({ ...i, key: nextKey() })));
+    setSteps(r.steps.map((s) => ({ ...s, key: nextKey() })));
+    setAiApplied(true);
+    setAiPrompt("");
+  }
+
+  // ── Image upload ────────────────────────────────────────────────────────────
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -181,12 +259,19 @@ export function RecipeForm({
     const form = formRef.current!;
     const formData = new FormData(form);
 
-    // Inject serialized state
+    formData.set("title", title);
+    formData.set("description", description);
+    formData.set("cuisine", cuisine);
+    formData.set("prepTimeMinutes", prepTimeMinutes);
+    formData.set("cookTimeMinutes", cookTimeMinutes);
+    formData.set("servings", servings);
+    formData.set("servingsUnit", servingsUnit);
+    formData.set("sourceUrl", sourceUrl);
+    formData.set("tags", tags);
+    formData.set("notes", notes);
     formData.set(
       "ingredients",
-      JSON.stringify(
-        ingredients.map(({ key: _key, ...rest }) => rest)
-      )
+      JSON.stringify(ingredients.map(({ key: _key, ...rest }) => rest))
     );
     formData.set(
       "steps",
@@ -206,6 +291,51 @@ export function RecipeForm({
       onSubmit={handleSubmit}
       className="space-y-8 pb-20 lg:pb-8"
     >
+      {/* ── AI Improve ── */}
+      <section className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary shrink-0" />
+          <h2 className="text-sm font-semibold">Improve with AI</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Describe a change and the AI will update the recipe for you to review before saving.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            value={aiPrompt}
+            onChange={(e) => {
+              setAiPrompt(e.target.value);
+              setAiApplied(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleAiImprove();
+              }
+            }}
+            placeholder='e.g. "Make it healthier", "Rearrange the steps logically"'
+            disabled={aiLoading}
+            className="flex-1 text-sm"
+          />
+          <Button
+            type="button"
+            onClick={() => void handleAiImprove()}
+            disabled={aiLoading || !aiPrompt.trim()}
+            size="sm"
+            className="shrink-0"
+          >
+            {aiLoading ? "Improving…" : "Improve"}
+          </Button>
+        </div>
+        {aiError && <p className="text-sm text-destructive">{aiError}</p>}
+        {aiApplied && (
+          <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            Recipe updated — review the changes below and save when ready.
+          </p>
+        )}
+      </section>
+
       {/* ── Photo ── */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Photo</h2>
@@ -270,7 +400,8 @@ export function RecipeForm({
             id="title"
             name="title"
             required
-            defaultValue={defaults.title}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Spaghetti Carbonara"
           />
         </div>
@@ -280,7 +411,8 @@ export function RecipeForm({
           <Textarea
             id="description"
             name="description"
-            defaultValue={defaults.description ?? ""}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             placeholder="A short summary of the dish…"
             rows={2}
           />
@@ -292,7 +424,8 @@ export function RecipeForm({
             <Input
               id="cuisine"
               name="cuisine"
-              defaultValue={defaults.cuisine ?? ""}
+              value={cuisine}
+              onChange={(e) => setCuisine(e.target.value)}
               placeholder="e.g. Italian"
             />
           </div>
@@ -318,7 +451,8 @@ export function RecipeForm({
               name="prepTimeMinutes"
               type="number"
               min={0}
-              defaultValue={defaults.prepTimeMinutes ?? ""}
+              value={prepTimeMinutes}
+              onChange={(e) => setPrepTimeMinutes(e.target.value)}
               placeholder="0"
             />
           </div>
@@ -330,7 +464,8 @@ export function RecipeForm({
               name="cookTimeMinutes"
               type="number"
               min={0}
-              defaultValue={defaults.cookTimeMinutes ?? ""}
+              value={cookTimeMinutes}
+              onChange={(e) => setCookTimeMinutes(e.target.value)}
               placeholder="0"
             />
           </div>
@@ -342,7 +477,8 @@ export function RecipeForm({
             <Input
               id="servings"
               name="servings"
-              defaultValue={defaults.servings ?? ""}
+              value={servings}
+              onChange={(e) => setServings(e.target.value)}
               placeholder="4"
             />
           </div>
@@ -351,7 +487,8 @@ export function RecipeForm({
             <Input
               id="servingsUnit"
               name="servingsUnit"
-              defaultValue={defaults.servingsUnit ?? "servings"}
+              value={servingsUnit}
+              onChange={(e) => setServingsUnit(e.target.value)}
               placeholder="servings"
             />
           </div>
@@ -363,7 +500,8 @@ export function RecipeForm({
             id="sourceUrl"
             name="sourceUrl"
             type="url"
-            defaultValue={defaults.sourceUrl ?? ""}
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
             placeholder="https://…"
           />
         </div>
@@ -373,7 +511,8 @@ export function RecipeForm({
           <Input
             id="tags"
             name="tags"
-            defaultValue={defaults.tags?.join(", ") ?? ""}
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
             placeholder="pasta, quick, family-friendly (comma-separated)"
           />
         </div>
@@ -389,7 +528,6 @@ export function RecipeForm({
               key={row.key}
               className="grid grid-cols-[auto_1fr] gap-2 items-start"
             >
-              {/* Row number */}
               <span className="flex h-10 w-6 items-center justify-center text-xs text-muted-foreground">
                 {idx + 1}
               </span>
@@ -535,7 +673,8 @@ export function RecipeForm({
         <Textarea
           id="notes"
           name="notes"
-          defaultValue={defaults.notes ?? ""}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
           placeholder="Any extra notes, variations, substitutions…"
           rows={3}
         />

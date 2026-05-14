@@ -8,6 +8,7 @@ import { saveAiConfig } from "@/app/actions/settings";
 type Props = {
   config: {
     model: string;
+    imageModel: string;
     monthlyLimitUsd: string | null;
     hasKey: boolean;
     keyHint: string;
@@ -15,10 +16,19 @@ type Props = {
   isAdmin: boolean;
 };
 
-const MODELS = [
-  { value: "gpt-4o", label: "GPT-4o (recommended)" },
-  { value: "gpt-4o-mini", label: "GPT-4o mini (faster, cheaper)" },
-  { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+const CHAT_MODELS = [
+  { value: "gpt-4.1-nano", label: "GPT-4.1 Nano (recommended)" },
+  { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+  { value: "gpt-4.1", label: "GPT-4.1" },
+  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+  { value: "gpt-4o", label: "GPT-4o" },
+  { value: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
+];
+
+const IMAGE_MODELS = [
+  { value: "gpt-image-2", label: "GPT Image 2 (recommended)" },
+  { value: "dall-e-3", label: "DALL·E 3" },
+  { value: "dall-e-2", label: "DALL·E 2" },
 ];
 
 export function AiConfigForm({ config, isAdmin }: Props) {
@@ -51,12 +61,11 @@ export function AiConfigForm({ config, isAdmin }: Props) {
     <form action={handleSubmit} className="flex flex-col gap-5">
       {/* API Key */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">
-          OpenAI API key
-        </label>
+        <label className="text-sm font-medium">OpenAI API key</label>
         {config?.hasKey && (
           <p className="text-xs text-muted-foreground">
-            Current key: <code className="font-mono">{config.keyHint}</code>
+            Current key:{" "}
+            <code className="font-mono break-all">{config.keyHint}</code>
             {" "}— leave blank to keep it unchanged
           </p>
         )}
@@ -69,16 +78,31 @@ export function AiConfigForm({ config, isAdmin }: Props) {
         />
       </div>
 
-      {/* Model */}
+      {/* Chat model */}
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium">Model</label>
         <select
           name="model"
-          defaultValue={config?.model ?? "gpt-4o"}
+          defaultValue={config?.model ?? "gpt-4.1-nano"}
           disabled={isPending}
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
         >
-          {MODELS.map((m) => (
+          {CHAT_MODELS.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Image model */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Image model</label>
+        <select
+          name="imageModel"
+          defaultValue={config?.imageModel ?? "gpt-image-2"}
+          disabled={isPending}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+        >
+          {IMAGE_MODELS.map((m) => (
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>
@@ -86,7 +110,7 @@ export function AiConfigForm({ config, isAdmin }: Props) {
 
       {/* Monthly limit */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">Monthly spend limit (USD)</label>
+        <label className="text-sm font-medium">Monthly spend limit (GBP)</label>
         <p className="text-xs text-muted-foreground">
           AI generation will be disabled once this threshold is reached for the month.
         </p>

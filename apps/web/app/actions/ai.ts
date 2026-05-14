@@ -115,6 +115,72 @@ Make the 5 concepts meaningfully different from each other in style, cuisine, or
   }
 }
 
+// ── Improve an existing recipe ─────────────────────────────────────────────────
+
+export async function improveRecipe(
+  current: GeneratedRecipe,
+  instruction: string
+): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
+  if (!instruction.trim())
+    return { error: "Please describe how you'd like to improve the recipe." };
+
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+    const { client, model } = await getOpenAiClient(householdId);
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      max_tokens: 3000,
+      messages: [
+        {
+          role: "system",
+          content: `You are a chef editing an existing recipe based on a user's request. Return the complete modified recipe as JSON matching this exact schema:
+{
+  "title": string,
+  "description": string,
+  "cuisine": string,
+  "difficulty": "easy"|"medium"|"hard",
+  "prepTimeMinutes": number|null,
+  "cookTimeMinutes": number|null,
+  "servings": string,
+  "servingsUnit": string,
+  "tags": string[],
+  "ingredients": [
+    {"ingredientName": string, "amount": string, "unit": string, "preparation": string, "isOptional": boolean, "groupLabel": string}
+  ],
+  "steps": [
+    {"instruction": string, "durationMinutes": string, "timerLabel": string}
+  ],
+  "notes": string|null
+}
+Only change what is necessary to satisfy the user's request. Preserve everything else exactly. Return the full recipe even for fields you did not change.`,
+        },
+        {
+          role: "user",
+          content: `Here is the current recipe:\n${JSON.stringify(current, null, 2)}\n\nUser request: ${instruction}`,
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const recipe = JSON.parse(raw) as GeneratedRecipe;
+
+    if (
+      !recipe.title ||
+      !Array.isArray(recipe.ingredients) ||
+      !Array.isArray(recipe.steps)
+    ) {
+      throw new Error("Incomplete recipe returned by AI.");
+    }
+
+    return { recipe };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
 // ── Step 2: Generate full recipe from a chosen concept ─────────────────────────
 
 export async function generateFullRecipe(

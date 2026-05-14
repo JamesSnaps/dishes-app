@@ -119,7 +119,8 @@ export async function saveAiConfig(formData: FormData) {
   if (role !== "admin") throw new Error("Only admins can configure AI settings");
 
   const rawKey = (formData.get("apiKey") as string)?.trim();
-  const model = (formData.get("model") as string)?.trim() || "gpt-4o";
+  const model = (formData.get("model") as string)?.trim() || "gpt-4.1-nano";
+  const imageModel = (formData.get("imageModel") as string)?.trim() || "gpt-image-2";
   const monthlyLimit = (formData.get("monthlyLimit") as string)?.trim() || "20.00";
 
   const existing = await db
@@ -141,13 +142,14 @@ export async function saveAiConfig(formData: FormData) {
   if (existing.length) {
     await db
       .update(aiConfigurations)
-      .set({ encryptedApiKey, model, monthlyLimitUsd: monthlyLimit })
+      .set({ encryptedApiKey, model, imageModel, monthlyLimitUsd: monthlyLimit })
       .where(eq(aiConfigurations.id, existing[0]!.id));
   } else {
     await db.insert(aiConfigurations).values({
       householdId,
       encryptedApiKey,
       model,
+      imageModel,
       monthlyLimitUsd: monthlyLimit,
     });
   }
@@ -190,6 +192,7 @@ export async function getAiConfig(householdId: string) {
     .select({
       id: aiConfigurations.id,
       model: aiConfigurations.model,
+      imageModel: aiConfigurations.imageModel,
       monthlyLimitUsd: aiConfigurations.monthlyLimitUsd,
       encryptedApiKey: aiConfigurations.encryptedApiKey,
     })
@@ -203,6 +206,7 @@ export async function getAiConfig(householdId: string) {
   return {
     id: config.id,
     model: config.model,
+    imageModel: config.imageModel,
     monthlyLimitUsd: config.monthlyLimitUsd,
     hasKey: true,
     // Partial reveal so user knows the key they stored (first/last 4 chars)

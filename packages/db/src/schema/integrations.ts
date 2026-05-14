@@ -21,7 +21,8 @@ export const aiConfigurations = pgTable("ai_configurations", {
     .references(() => households.id, { onDelete: "cascade" }),
   provider: aiProviderEnum("provider").notNull().default("openai"),
   encryptedApiKey: text("encrypted_api_key").notNull(),
-  model: varchar("model", { length: 100 }).notNull().default("gpt-4o"),
+  model: varchar("model", { length: 100 }).notNull().default("gpt-4.1-nano"),
+  imageModel: varchar("image_model", { length: 100 }).notNull().default("gpt-image-2"),
   monthlyLimitUsd: decimal("monthly_limit_usd", {
     precision: 8,
     scale: 2,
