@@ -21,8 +21,8 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Drizzle
-drizzle/
+# Drizzle — generated snapshots only, not migration SQL
+drizzle/**/meta/
 
 # Logs
 *.log
