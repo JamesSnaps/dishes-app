@@ -485,7 +485,7 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                           </span>
                         )}
                         {ing.ingredientName}
-                        {ing.preparation && (
+                        {ing.preparation && ing.preparation.toLowerCase() !== "none" && (
                           <span className="text-muted-foreground">, {ing.preparation}</span>
                         )}
                       </span>
@@ -528,7 +528,7 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                             </span>
                           )}
                           {ing.ingredientName}
-                          {ing.preparation && <span>, {ing.preparation}</span>}
+                          {ing.preparation && ing.preparation.toLowerCase() !== "none" && <span>, {ing.preparation}</span>}
                           {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
                         </span>
                       </li>
@@ -633,7 +633,7 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                         </span>
                       )}
                       {ing.ingredientName}
-                      {ing.preparation && <span className="font-normal">, {ing.preparation}</span>}
+                      {ing.preparation && ing.preparation.toLowerCase() !== "none" && <span className="font-normal">, {ing.preparation}</span>}
                       {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
                     </span>
                     {isActive && !isChecked && (

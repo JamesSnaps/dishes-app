@@ -183,7 +183,7 @@ export async function improveRecipe(
   "servingsUnit": string,
   "tags": string[],
   "ingredients": [
-    {"ingredientName": string, "amount": string, "unit": string, "preparation": string, "isOptional": boolean, "groupLabel": string}
+    {"ingredientName": string, "amount": string, "unit": string, "preparation": string (empty string if no preparation needed — never use "none"), "isOptional": boolean, "groupLabel": string}
   ],
   "steps": [
     {"instruction": string, "durationMinutes": string, "timerLabel": string}
@@ -247,7 +247,7 @@ export async function generateFullRecipe(
   "servingsUnit": string (e.g. "servings"),
   "tags": string[],
   "ingredients": [
-    {"ingredientName": string, "amount": string, "unit": string, "preparation": string, "isOptional": boolean, "groupLabel": string}
+    {"ingredientName": string, "amount": string, "unit": string, "preparation": string (empty string if no preparation needed — never use "none"), "isOptional": boolean, "groupLabel": string}
   ],
   "steps": [
     {"instruction": string, "durationMinutes": string (empty string if no timer), "timerLabel": string (empty string if no timer)}

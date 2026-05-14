@@ -228,7 +228,7 @@ export default async function RecipeDetailPage({ params }: Props) {
                       </span>
                     )}
                     {ing.ingredientName}
-                    {ing.preparation && (
+                    {ing.preparation && ing.preparation.toLowerCase() !== "none" && (
                       <span className="text-muted-foreground">
                         , {ing.preparation}
                       </span>
