@@ -2,7 +2,7 @@
 set -e
 
 echo "Running migrations..."
-node /app/migrate.mjs
+node /app/migrate/migrate.mjs
 
 echo "Starting server..."
 exec node apps/web/server.js

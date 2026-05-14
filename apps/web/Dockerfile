@@ -29,6 +29,13 @@ ENV DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
 ENV ENCRYPTION_KEY=buildsecretbuildsecretbuildsecret
 RUN pnpm --filter @dishes/web build
 
+# ─── Migrator ────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS migrator
+WORKDIR /migrate
+RUN echo '{}' > package.json && npm install drizzle-orm postgres
+COPY packages/db/migrate.mjs ./migrate.mjs
+COPY packages/db/drizzle ./drizzle
+
 # ─── Runner ──────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -42,9 +49,8 @@ COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 
-# Migration runner — uses node_modules already present in the standalone bundle
-COPY --from=builder --chown=nextjs:nodejs /app/packages/db/migrate.mjs ./migrate.mjs
-COPY --from=builder --chown=nextjs:nodejs /app/packages/db/drizzle ./drizzle
+# Self-contained migration runner with its own node_modules
+COPY --from=migrator --chown=nextjs:nodejs /migrate ./migrate
 
 COPY --chown=nextjs:nodejs apps/web/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
