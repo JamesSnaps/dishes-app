@@ -6,6 +6,7 @@ Dishes is a self-hosted, family-oriented recipe management and meal planning web
 
 Full product spec: `setup_guide/recipe-app.md`
 UI mockups: `setup_guide/*.png`
+**Build checklist (keep updated):** `TODO.md`
 
 ---
 
