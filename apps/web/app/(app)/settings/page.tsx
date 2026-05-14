@@ -79,6 +79,10 @@ export default async function SettingsPage() {
           </Link>
         </div>
       </section>
+
+      <p className="mt-8 text-xs text-muted-foreground">
+        Version {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
+      </p>
     </div>
   );
 }

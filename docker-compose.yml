@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        APP_VERSION: "0.1.1"
     restart: unless-stopped
     env_file: .env
     environment:
