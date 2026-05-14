@@ -115,7 +115,7 @@ Whenever you add, change, or remove something user-facing, update these files as
 - **`README.md`** — update if you: add a new feature to the app, add or change environment variables, change deployment steps, or fix anything in the MinIO/S3 setup section. The env var reference table and the Features list must stay accurate.
 - **`TODO.md`** — tick items off as they are completed. Add new items if scope expands.
 - **`API.md`** — update if you add, change, or remove any integration API endpoints or token scopes.
-- **Version number** — bump the patch version (`x.y.Z`) in both `apps/web/package.json` and the `APP_VERSION` build arg in `docker-compose.yml` whenever you make any user-facing change or deploy-relevant fix. Use minor (`x.Y.0`) for new features, patch (`x.y.Z`) for fixes and small changes.
+- **Version number** — bump the patch version (`x.y.Z`) in `apps/web/package.json` whenever you make any user-facing change or deploy-relevant fix. Use minor (`x.Y.0`) for new features, patch (`x.y.Z`) for fixes and small changes.
 
 Do not leave docs stale. A one-line feature entry or a new row in the env var table takes seconds and saves confusion later.
 

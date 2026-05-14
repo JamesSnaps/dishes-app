@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -11,6 +11,9 @@ import {
   UtensilsCrossed,
   Sparkles,
   ShoppingBag,
+  Bell,
+  Users,
+  Clock,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { generateShoppingFromWeek } from "@/app/actions/meal-plan";
@@ -30,6 +33,7 @@ type Entry = {
     prepTimeMinutes: number | null;
     cookTimeMinutes: number | null;
     servings: string | null;
+    imageUrl: string | null;
   };
 };
 
@@ -52,6 +56,7 @@ interface Props {
   isCurrentWeek: boolean;
   todayDayIndex: number; // 0=Mon … 6=Sun, -1 if not current week
   topIngredients: TopIngredient[];
+  shoppingItemCount: number;
 }
 
 function addDays(dateStr: string, days: number): string {
@@ -113,6 +118,7 @@ export function WeekPlanner({
   isCurrentWeek,
   todayDayIndex,
   topIngredients,
+  shoppingItemCount,
 }: Props) {
   const router = useRouter();
 
@@ -124,6 +130,8 @@ export function WeekPlanner({
 
   const [shoppingPending, startShoppingTransition] = useTransition();
 
+  const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
+
   const prevWeek = addDays(weekStartDate, -7);
   const nextWeek = addDays(weekStartDate, 7);
 
@@ -133,7 +141,6 @@ export function WeekPlanner({
       sum + (e.recipe.prepTimeMinutes ?? 0) + (e.recipe.cookTimeMinutes ?? 0),
     0
   );
-  const daysWithMeals = new Set(entries.map((e) => e.dayOfWeek)).size;
 
   const totalServings = entries.reduce((sum, e) => {
     const s = parseInt(e.recipe.servings ?? "0");
@@ -151,6 +158,17 @@ export function WeekPlanner({
     });
   }
 
+  function handleDayChipClick(dayIndex: number) {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      next.add(dayIndex);
+      return next;
+    });
+    setTimeout(() => {
+      dayRefs.current[dayIndex]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
+
   function handleGenerateShopping() {
     if (!planId) return;
     startShoppingTransition(() => generateShoppingFromWeek(planId));
@@ -159,7 +177,7 @@ export function WeekPlanner({
   return (
     <div className="p-4 lg:p-8">
       {/* Week navigation header */}
-      <div className="mb-6 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-2">
         <button
           onClick={() => router.push(`/meal-plan?week=${prevWeek}`)}
           className="p-1.5 rounded-lg hover:bg-muted transition-colors"
@@ -196,6 +214,90 @@ export function WeekPlanner({
         </button>
       </div>
 
+      {/* Horizontal day strip */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-4 scrollbar-hide">
+        {Array.from({ length: 7 }, (_, i) => {
+          const { short, date } = formatDayChip(weekStartDate, i);
+          const isToday = isCurrentWeek && todayDayIndex === i;
+          const hasMeals = entries.some((e) => e.dayOfWeek === i);
+          return (
+            <button
+              key={i}
+              onClick={() => handleDayChipClick(i)}
+              className={`flex-shrink-0 flex flex-col items-center rounded-xl px-3 py-2 min-w-[3.5rem] border-2 transition-colors ${
+                isToday
+                  ? "border-orange-400 bg-orange-50 dark:bg-orange-950/20"
+                  : "border-transparent bg-muted/50 hover:bg-muted"
+              }`}
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground leading-none">
+                {short}
+              </span>
+              <span
+                className={`text-lg font-bold leading-none mt-0.5 ${isToday ? "text-orange-500" : ""}`}
+              >
+                {date}
+              </span>
+              <span
+                className={`mt-1 h-1.5 w-1.5 rounded-full transition-colors ${
+                  hasMeals
+                    ? isToday
+                      ? "bg-orange-400"
+                      : "bg-primary/50"
+                    : "bg-transparent"
+                }`}
+              />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Stats overview bar */}
+      <div className="rounded-xl border bg-card overflow-hidden mb-6">
+        <div className="grid grid-cols-4 divide-x">
+          <div className="flex flex-col items-center gap-1 px-3 py-3">
+            <Bell className="h-4 w-4 text-violet-500" />
+            <p className="text-xl font-bold leading-none text-violet-700 dark:text-violet-400">
+              {totalMeals}
+            </p>
+            <p className="text-[10px] text-center text-muted-foreground leading-tight">
+              Meals planned
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-1 px-3 py-3">
+            <Users className="h-4 w-4 text-emerald-500" />
+            <p className="text-xl font-bold leading-none text-emerald-700 dark:text-emerald-400">
+              {avgServings || "—"}
+            </p>
+            <p className="text-[10px] text-center text-muted-foreground leading-tight">
+              Servings avg
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-1 px-3 py-3">
+            <Clock className="h-4 w-4 text-orange-500" />
+            <p className="text-xl font-bold leading-none text-orange-700 dark:text-orange-400">
+              {totalTime > 0 ? formatTotalTime(totalTime) : "—"}
+            </p>
+            <p className="text-[10px] text-center text-muted-foreground leading-tight">
+              Total cook time
+            </p>
+          </div>
+          <button
+            onClick={() => router.push("/shopping")}
+            className="flex flex-col items-center gap-1 px-3 py-3 hover:bg-muted/50 transition-colors relative"
+          >
+            <ShoppingCart className="h-4 w-4 text-blue-500" />
+            <p className="text-xl font-bold leading-none text-blue-700 dark:text-blue-400">
+              {shoppingItemCount || "—"}
+            </p>
+            <p className="text-[10px] text-center text-muted-foreground leading-tight">
+              Items to buy
+            </p>
+            <ChevronRight className="h-3 w-3 text-muted-foreground absolute right-1.5 top-1/2 -translate-y-1/2" />
+          </button>
+        </div>
+      </div>
+
       {/* Main layout: agenda + sidebar on desktop */}
       <div className="lg:grid lg:grid-cols-[1fr_272px] lg:gap-8 lg:items-start">
         {/* Agenda */}
@@ -210,42 +312,30 @@ export function WeekPlanner({
               );
             const isExpanded = expandedDays.has(i);
             const isToday = isCurrentWeek && todayDayIndex === i;
-            const { short, date } = formatDayChip(weekStartDate, i);
             const dayLabel = formatDayHeading(weekStartDate, i);
 
             return (
               <div
                 key={i}
+                ref={(el) => { dayRefs.current[i] = el; }}
                 className="rounded-xl border bg-card overflow-hidden"
               >
                 {/* Day header row */}
                 <button
                   onClick={() => toggleDay(i)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors text-left"
                 >
-                  <div
-                    className={`flex-shrink-0 flex flex-col items-center rounded-lg px-2.5 py-1.5 min-w-[2.75rem] ${
-                      isToday
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    }`}
-                  >
-                    <span className="text-[10px] font-semibold uppercase tracking-wide leading-none mb-0.5">
-                      {short}
-                    </span>
-                    <span className="text-lg font-bold leading-none">
-                      {date}
-                    </span>
-                  </div>
-
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate">{dayLabel}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {dayEntries.length > 0
-                        ? `${dayEntries.length} meal${dayEntries.length !== 1 ? "s" : ""}`
-                        : "No meals planned"}
+                    <p className={`font-semibold text-sm truncate ${isToday ? "text-orange-500" : ""}`}>
+                      {dayLabel}
                     </p>
                   </div>
+
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                    {dayEntries.length > 0
+                      ? `${dayEntries.length} meal${dayEntries.length !== 1 ? "s" : ""}`
+                      : "No meals"}
+                  </span>
 
                   {isExpanded ? (
                     <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -286,37 +376,6 @@ export function WeekPlanner({
 
         {/* Desktop sidebar */}
         <div className="hidden lg:flex flex-col gap-4 sticky top-8">
-          {/* Week stats */}
-          <div className="rounded-xl border bg-card p-4">
-            <h3 className="font-semibold text-sm mb-3">Week Overview</h3>
-            {totalMeals === 0 ? (
-              <p className="text-sm text-muted-foreground">No meals planned yet.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-violet-50 border border-violet-100 p-2.5 text-center">
-                  <p className="text-2xl font-bold leading-none text-violet-700">{totalMeals}</p>
-                  <p className="text-xs text-violet-600/70 mt-1">Meals planned</p>
-                </div>
-                <div className="rounded-lg bg-blue-50 border border-blue-100 p-2.5 text-center">
-                  <p className="text-2xl font-bold leading-none text-blue-700">{daysWithMeals}</p>
-                  <p className="text-xs text-blue-600/70 mt-1">Days covered</p>
-                </div>
-                {totalTime > 0 && (
-                  <div className="rounded-lg bg-orange-50 border border-orange-100 p-2.5 text-center">
-                    <p className="text-2xl font-bold leading-none text-orange-700">{formatTotalTime(totalTime)}</p>
-                    <p className="text-xs text-orange-600/70 mt-1">Cook time</p>
-                  </div>
-                )}
-                {avgServings > 0 && (
-                  <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-2.5 text-center">
-                    <p className="text-2xl font-bold leading-none text-emerald-700">{avgServings}</p>
-                    <p className="text-xs text-emerald-600/70 mt-1">Avg. servings</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* Tools & Actions */}
           <div className="rounded-xl border bg-card p-4">
             <h3 className="font-semibold text-sm mb-3">Tools &amp; Actions</h3>

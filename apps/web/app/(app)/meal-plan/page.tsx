@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { mealPlans, mealPlanEntries, recipes, recipeIngredients } from "@dishes/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { mealPlans, mealPlanEntries, recipes, recipeIngredients, shoppingLists, shoppingListItems } from "@dishes/db/schema";
+import { eq, and, inArray, count } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { WeekPlanner } from "./_components/week-planner";
@@ -57,6 +57,7 @@ export default async function MealPlanPage({
               prepTimeMinutes: recipes.prepTimeMinutes,
               cookTimeMinutes: recipes.cookTimeMinutes,
               servings: recipes.servings,
+              imageUrl: recipes.imageUrl,
             },
           })
           .from(mealPlanEntries)
@@ -73,6 +74,7 @@ export default async function MealPlanPage({
               prepTimeMinutes: number | null;
               cookTimeMinutes: number | null;
               servings: string | null;
+              imageUrl: string | null;
             };
           }[]
         ),
@@ -104,7 +106,23 @@ export default async function MealPlanPage({
   const topIngredients = Object.entries(ingredientCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
-    .map(([name, count]) => ({ name, count }));
+    .map(([name, cnt]) => ({ name, count: cnt }));
+
+  // Count unchecked items in the active shopping list
+  const activeList = await db
+    .select({ id: shoppingLists.id })
+    .from(shoppingLists)
+    .where(and(eq(shoppingLists.householdId, householdId), eq(shoppingLists.status, "active")))
+    .orderBy(shoppingLists.createdAt)
+    .limit(1);
+
+  const shoppingItemCount = activeList[0]
+    ? await db
+        .select({ value: count() })
+        .from(shoppingListItems)
+        .where(and(eq(shoppingListItems.listId, activeList[0].id), eq(shoppingListItems.isChecked, false)))
+        .then((r) => r[0]?.value ?? 0)
+    : 0;
 
   return (
     <WeekPlanner
@@ -115,6 +133,7 @@ export default async function MealPlanPage({
       isCurrentWeek={isCurrentWeek}
       todayDayIndex={isCurrentWeek ? getTodayDayIndex() : -1}
       topIngredients={topIngredients}
+      shoppingItemCount={Number(shoppingItemCount)}
     />
   );
 }

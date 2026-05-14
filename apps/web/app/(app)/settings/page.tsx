@@ -6,6 +6,7 @@ import { APP_VERSION } from "@/lib/version";
 import { HouseholdNameForm } from "./_components/household-name-form";
 import { MembersList } from "./_components/members-list";
 import { AddMemberForm } from "./_components/add-member-form";
+import { AppearanceSection } from "./_components/appearance-section";
 
 export const metadata = { title: "Settings" };
 
@@ -18,6 +19,8 @@ export default async function SettingsPage() {
   return (
     <div className="p-4 lg:p-8 max-w-2xl mx-auto">
       <h1 className="mb-6 text-2xl font-bold">Settings</h1>
+
+      <AppearanceSection />
 
       {/* Household */}
       <section className="mb-8">

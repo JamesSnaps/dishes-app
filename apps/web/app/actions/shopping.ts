@@ -248,10 +248,12 @@ export async function generateFromRecipe(recipeId: string, servings?: number) {
   let posCounter = maxPos + 1;
 
   for (const ing of ingredients) {
-    const scaledAmount =
-      ing.amount !== null
-        ? (parseFloat(ing.amount) * scale).toString()
-        : null;
+    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+    const isNumeric = !isNaN(rawNum);
+
+    const scaledAmount = isNumeric ? (rawNum * scale).toString() : null;
+    // Non-numeric amounts like "small handful" / "to taste" go into notes
+    const textNote = !isNumeric && ing.amount ? ing.amount : null;
 
     const normalName = ing.ingredientName.toLowerCase().trim();
     const match = existing.find(
@@ -275,6 +277,7 @@ export async function generateFromRecipe(recipeId: string, servings?: number) {
         ingredientName: ing.ingredientName,
         amount: scaledAmount,
         unit: ing.unit,
+        notes: textNote,
         position: posCounter++,
       });
     }

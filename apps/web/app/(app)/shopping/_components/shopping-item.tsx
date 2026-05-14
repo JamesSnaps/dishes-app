@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { toggleItem, deleteItem } from "@/app/actions/shopping";
+import { formatQuantity } from "@/lib/format-quantity";
 
 interface Props {
   item: {
@@ -27,7 +28,8 @@ export function ShoppingItem({ item }: Props) {
     startTransition(() => deleteItem(item.id));
   }
 
-  const label = [item.amount, item.unit, item.ingredientName]
+  const { amount: displayAmount, unit: displayUnit } = formatQuantity(item.amount, item.unit);
+  const label = [displayAmount, displayUnit, item.ingredientName]
     .filter(Boolean)
     .join(" ");
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star } from "lucide-react";
 import {
   Button,
   Input,
@@ -110,7 +110,9 @@ export function RecipeForm({
   const [cookTimeMinutes, setCookTimeMinutes] = useState(
     defaults.cookTimeMinutes?.toString() ?? ""
   );
-  const [servings, setServings] = useState(defaults.servings ?? "");
+  const [servings, setServings] = useState(
+    defaults.servings ? String(parseFloat(defaults.servings)) : ""
+  );
   const [servingsUnit, setServingsUnit] = useState(
     defaults.servingsUnit ?? "servings"
   );
@@ -139,6 +141,24 @@ export function RecipeForm({
   const [imageUploading, setImageUploading] = useState(false);
   const [imageGenerating, setImageGenerating] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [genMsgIdx, setGenMsgIdx] = useState(0);
+
+  const GEN_MESSAGES = [
+    "Conjuring your image…",
+    "Painting with pixels…",
+    "Adding a pinch of magic…",
+    "Almost ready…",
+  ];
+
+  useEffect(() => {
+    if (!imageGenerating) return;
+    setGenMsgIdx(0);
+    const id = setInterval(() => {
+      setGenMsgIdx((i) => (i + 1) % GEN_MESSAGES.length);
+    }, 2200);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageGenerating]);
 
   // ── AI improve state ────────────────────────────────────────────────────────
 
@@ -315,28 +335,65 @@ export function RecipeForm({
             <X className="h-4 w-4" />
           </button>
         </div>
+      ) : imageGenerating ? (
+        <div className="relative w-full aspect-video overflow-hidden rounded-lg border bg-gradient-to-br from-violet-950/60 via-purple-900/40 to-fuchsia-950/60">
+          {/* sweeping shimmer */}
+          <div
+            className="absolute inset-0 opacity-30"
+            style={{
+              background: "linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%)",
+              animation: "shimmer 2s linear infinite",
+              backgroundSize: "200% 100%",
+            }}
+          />
+          {/* floating sparkle dots */}
+          <div className="absolute top-5 left-8 h-1.5 w-1.5 rounded-full bg-violet-400 animate-ping" style={{ animationDelay: "0s", animationDuration: "1.6s" }} />
+          <div className="absolute top-10 right-10 h-1 w-1 rounded-full bg-fuchsia-400 animate-ping" style={{ animationDelay: "0.5s", animationDuration: "2s" }} />
+          <div className="absolute bottom-8 left-14 h-1.5 w-1.5 rounded-full bg-purple-300 animate-ping" style={{ animationDelay: "1s", animationDuration: "1.8s" }} />
+          <div className="absolute bottom-5 right-6 h-1 w-1 rounded-full bg-pink-400 animate-ping" style={{ animationDelay: "0.3s", animationDuration: "2.2s" }} />
+          <Star className="absolute top-4 right-4 h-3 w-3 text-violet-400/60 animate-pulse" style={{ animationDelay: "0.8s" }} />
+          <Star className="absolute bottom-6 left-5 h-2.5 w-2.5 text-fuchsia-400/60 animate-pulse" style={{ animationDelay: "0.2s" }} />
+          {/* centre content */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-violet-500/30 blur-lg animate-pulse scale-150" />
+              <Wand2 className="relative h-8 w-8 text-violet-300 drop-shadow-[0_0_6px_rgba(167,139,250,0.8)]" style={{ animation: "wand-rock 1.8s ease-in-out infinite" }} />
+              <Sparkles className="absolute -top-2 -right-2 h-4 w-4 text-fuchsia-300 animate-spin" style={{ animationDuration: "3s" }} />
+            </div>
+            <p
+              key={genMsgIdx}
+              className="text-sm font-medium text-violet-200/90 tracking-wide"
+              style={{ animation: "fadeSlideIn 0.4s ease-out" }}
+            >
+              {GEN_MESSAGES[genMsgIdx]}
+            </p>
+          </div>
+          <style>{`
+            @keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+            @keyframes wand-rock { 0%, 100% { transform: rotate(-12deg) } 50% { transform: rotate(12deg) } }
+            @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
+          `}</style>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={imageUploading || imageGenerating}
+            disabled={imageUploading}
             className="flex w-full aspect-video items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input bg-muted/30 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
           >
             <ImagePlus className="h-5 w-5" />
             {imageUploading ? "Uploading…" : "Upload photo"}
           </button>
-          {mode === "edit" && (
-            <button
-              type="button"
-              onClick={() => void handleGenerateImage()}
-              disabled={imageUploading || imageGenerating}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 py-2 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
-            >
-              <Wand2 className="h-4 w-4" />
-              {imageGenerating ? "Generating…" : "Generate with AI"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => void handleGenerateImage()}
+            disabled={imageUploading}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 py-2 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <Wand2 className="h-4 w-4" />
+            Generate with AI
+          </button>
         </div>
       )}
 
@@ -806,19 +863,17 @@ export function RecipeForm({
         </div>
       </div>
 
-      {/* ── Ingredients + Steps row ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px] lg:items-start border-t border-border pt-6">
-        <div>
-          {ingredientsSection}
-        </div>
-        <div className="space-y-6">
+      {/* ── Ingredients, Steps, Notes, Tags ── */}
+      <div className="space-y-6 border-t border-border pt-6">
+        {ingredientsSection}
+        <div className="border-t border-border pt-6">
           {stepsSection}
-          <div className="border-t border-border pt-6">
-            {notesSection}
-          </div>
-          <div className="border-t border-border pt-6">
-            {tagsSection}
-          </div>
+        </div>
+        <div className="border-t border-border pt-6">
+          {notesSection}
+        </div>
+        <div className="border-t border-border pt-6">
+          {tagsSection}
         </div>
       </div>
 

@@ -4,12 +4,10 @@ import {
   ChevronLeft,
   Clock,
   Users,
-  Edit,
   Heart,
-  ExternalLink,
   ChefHat,
 } from "lucide-react";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, ne, or, inArray, asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   recipes,
@@ -19,9 +17,9 @@ import {
 } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { Badge, Button, Separator } from "@dishes/ui";
-import { DeleteRecipeButton } from "./_components/delete-recipe-button";
-import { AddToShoppingButton } from "./_components/add-to-shopping-button";
+import { Badge, Button } from "@dishes/ui";
+import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
+import { RecipeTabs } from "./_components/recipe-tabs";
 import { toggleFavourite } from "@/app/actions/recipes";
 
 export const metadata = { title: "Recipe" };
@@ -60,6 +58,46 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   if (!recipe) notFound();
 
+  // Related recipes: same cuisine or shared tags, deduplicated, max 4
+  const tagValues = tags.map((t) => t.tag);
+  const relatedConditions = [
+    ...(recipe.cuisine ? [eq(recipes.cuisine, recipe.cuisine)] : []),
+    ...(tagValues.length > 0 ? [inArray(recipeTags.tag, tagValues)] : []),
+  ];
+
+  const relatedRecipes =
+    relatedConditions.length > 0
+      ? await db
+          .select({
+            id: recipes.id,
+            title: recipes.title,
+            imageUrl: recipes.imageUrl,
+            prepTimeMinutes: recipes.prepTimeMinutes,
+            cookTimeMinutes: recipes.cookTimeMinutes,
+            cuisine: recipes.cuisine,
+          })
+          .from(recipes)
+          .leftJoin(recipeTags, eq(recipeTags.recipeId, recipes.id))
+          .where(
+            and(
+              eq(recipes.householdId, householdId),
+              ne(recipes.id, id),
+              or(...relatedConditions)
+            )
+          )
+          .limit(12)
+          .then((rows) => {
+            const seen = new Set<string>();
+            return rows
+              .filter((r) => {
+                if (seen.has(r.id)) return false;
+                seen.add(r.id);
+                return true;
+              })
+              .slice(0, 4);
+          })
+      : [];
+
   const totalMinutes =
     (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0);
 
@@ -73,16 +111,21 @@ export default async function RecipeDetailPage({ params }: Props) {
   const toggleAction = toggleFavourite.bind(null, id);
 
   return (
-    <div className="mx-auto max-w-5xl p-4 lg:p-8">
-      {/* Back link */}
-      <Link
-        href="/recipes"
-        className="mb-6 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Recipes
-      </Link>
+    <>
+      {/* Sticky back bar */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b">
+        <div className="mx-auto max-w-4xl px-4 lg:px-8 py-3">
+          <Link
+            href="/recipes"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Recipes
+          </Link>
+        </div>
+      </div>
 
+    <div className="mx-auto max-w-4xl p-4 lg:p-8">
       {/* Hero image */}
       {recipe.imageUrl ? (
         <div className="mb-6 aspect-video overflow-hidden rounded-xl bg-muted">
@@ -112,19 +155,12 @@ export default async function RecipeDetailPage({ params }: Props) {
             </button>
           </form>
 
-          <Button asChild variant="ghost" size="sm">
-            <Link href={`/recipes/${id}/edit`}>
-              <Edit className="mr-1.5 h-4 w-4" />
-              Edit
-            </Link>
-          </Button>
-
-          <DeleteRecipeButton recipeId={id} recipeTitle={recipe.title} />
+          <RecipeActionsMenu recipeId={id} recipeTitle={recipe.title} />
         </div>
       </div>
 
       {/* Meta row */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         {recipe.cuisine && (
           <Badge variant="secondary">{recipe.cuisine}</Badge>
         )}
@@ -165,150 +201,78 @@ export default async function RecipeDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Description */}
-      {recipe.description && (
-        <p className="mb-6 text-muted-foreground leading-relaxed">
-          {recipe.description}
-        </p>
-      )}
+      {/* Tabbed content */}
+      <RecipeTabs
+        recipeId={id}
+        description={recipe.description}
+        prepTimeMinutes={recipe.prepTimeMinutes}
+        cookTimeMinutes={recipe.cookTimeMinutes}
+        servings={recipe.servings}
+        servingsUnit={recipe.servingsUnit}
+        notes={recipe.notes}
+        sourceUrl={recipe.sourceUrl}
+        ingredients={ingredients}
+        steps={steps}
+        tags={tags}
+      />
 
-      {/* Time breakdown */}
-      {(recipe.prepTimeMinutes || recipe.cookTimeMinutes) && (
-        <div className="mb-6 flex gap-6 rounded-lg bg-muted/50 px-4 py-3 text-sm">
-          {recipe.prepTimeMinutes ? (
-            <div>
-              <div className="font-medium">Prep</div>
-              <div className="text-muted-foreground">
-                {formatTime(recipe.prepTimeMinutes)}
-              </div>
-            </div>
-          ) : null}
-          {recipe.cookTimeMinutes ? (
-            <div>
-              <div className="font-medium">Cook</div>
-              <div className="text-muted-foreground">
-                {formatTime(recipe.cookTimeMinutes)}
-              </div>
-            </div>
-          ) : null}
-          {totalMinutes > 0 && recipe.prepTimeMinutes && recipe.cookTimeMinutes ? (
-            <div>
-              <div className="font-medium">Total</div>
-              <div className="text-muted-foreground">{formatTime(totalMinutes)}</div>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      <Separator className="mb-6" />
-
-      {/* Ingredients + Steps — side by side on desktop */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_1fr] lg:items-start mb-8">
-
-        {/* Ingredients */}
-        {ingredients.length > 0 && (
-          <section>
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold">Ingredients</h2>
-              <AddToShoppingButton
-                recipeId={id}
-                recipeServings={recipe.servings ? parseFloat(recipe.servings) : null}
-                servingsUnit={recipe.servingsUnit ?? "servings"}
-              />
-            </div>
-            <ul className="space-y-2">
-              {ingredients.map((ing) => (
-                <li key={ing.id} className="flex items-baseline gap-2 text-sm">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-1.5" />
-                  <span>
-                    {ing.amount && (
-                      <span className="font-medium">
-                        {ing.amount}
-                        {ing.unit ? ` ${ing.unit}` : ""}{" "}
-                      </span>
-                    )}
-                    {ing.ingredientName}
-                    {ing.preparation && ing.preparation.toLowerCase() !== "none" && (
-                      <span className="text-muted-foreground">
-                        , {ing.preparation}
-                      </span>
-                    )}
-                    {ing.isOptional && (
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        (optional)
-                      </span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Steps */}
-        {steps.length > 0 && (
-          <section>
-            <h2 className="mb-4 text-lg font-semibold">Method</h2>
-            <ol className="space-y-8">
-              {steps.map((step, idx) => (
-                <li key={step.id} className="flex gap-4">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                    {idx + 1}
-                  </span>
-                  <div className="flex-1 pt-1">
-                    <p className="leading-relaxed">{step.instruction}</p>
-                    {step.durationMinutes && (
-                      <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        {step.timerLabel
-                          ? `${step.timerLabel} — `
-                          : ""}
-                        {formatTime(step.durationMinutes)}
-                      </p>
+      {/* Related recipes */}
+      {relatedRecipes.length > 0 && (
+        <section className="mt-12">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">You might also like</h2>
+            <Link
+              href="/recipes"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              View all
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {relatedRecipes.map((r) => {
+              const mins = (r.prepTimeMinutes ?? 0) + (r.cookTimeMinutes ?? 0);
+              return (
+                <Link
+                  key={r.id}
+                  href={`/recipes/${r.id}`}
+                  className="group rounded-lg overflow-hidden border bg-card hover:shadow-md transition-shadow"
+                >
+                  <div className="aspect-video bg-muted overflow-hidden">
+                    {r.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={r.imageUrl}
+                        alt={r.title}
+                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+                        <ChefHat className="h-8 w-8 opacity-30" />
+                      </div>
                     )}
                   </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
-
-      </div>
-
-      {/* Notes */}
-      {recipe.notes && (
-        <section className="mb-8">
-          <h2 className="mb-2 text-lg font-semibold">Notes</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-            {recipe.notes}
-          </p>
+                  <div className="p-2.5">
+                    <p className="text-sm font-medium leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                      {r.title}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                      {r.cuisine && <span>{r.cuisine}</span>}
+                      {r.cuisine && mins > 0 && <span>·</span>}
+                      {mins > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="h-3 w-3" />
+                          {formatTime(mins)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </section>
       )}
-
-      {/* Tags */}
-      {tags.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-1.5">
-          {tags.map((t) => (
-            <Badge key={t.id} variant="secondary" className="text-xs">
-              {t.tag}
-            </Badge>
-          ))}
-        </div>
-      )}
-
-      {/* Source */}
-      {recipe.sourceUrl && (
-        <a
-          href={recipe.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Original source
-        </a>
-      )}
-
     </div>
+    </>
   );
 }

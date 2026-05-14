@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   BookOpen,
   CalendarDays,
@@ -11,10 +12,12 @@ import {
   Heart,
   HelpCircle,
   Home,
+  Moon,
   Package,
   Settings,
   ShoppingCart,
   Sparkles,
+  Sun,
   UtensilsCrossed,
   ChevronDown,
 } from "lucide-react";
@@ -80,6 +83,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 
 export function SideNav({ className }: Props) {
   const pathname = usePathname();
+  const { resolvedTheme, setTheme } = useTheme();
 
   return (
     <nav
@@ -127,6 +131,20 @@ export function SideNav({ className }: Props) {
 
       {/* Profile card */}
       <div className="border-t px-3 py-3 shrink-0">
+        <div className="flex items-center gap-1 px-1 mb-1">
+          <button
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-auto"
+            title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {resolvedTheme === "dark" ? (
+              <Sun className="h-3.5 w-3.5" />
+            ) : (
+              <Moon className="h-3.5 w-3.5" />
+            )}
+            {resolvedTheme === "dark" ? "Light" : "Dark"}
+          </button>
+        </div>
         <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted text-left">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs">
             JC
