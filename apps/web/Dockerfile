@@ -23,6 +23,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_OUTPUT=standalone
+# Dummy build-time env vars so Next.js page data collection doesn't throw on
+# missing runtime secrets. These are not present in the runner stage.
+ENV DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+ENV ENCRYPTION_KEY=buildsecretbuildsecretbuildsecret
 RUN pnpm --filter @dishes/web build
 
 # ─── Runner ──────────────────────────────────────────────────────────────────
