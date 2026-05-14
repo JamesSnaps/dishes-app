@@ -7,15 +7,9 @@ import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { generateToken } from "@/lib/integration-auth";
+import { ALL_SCOPES } from "./integration-constants";
 
-export const ALL_SCOPES = [
-  "read:meal_plan",
-  "write:meal_plan",
-  "read:shopping_list",
-  "write:shopping_list",
-] as const;
-
-export type TokenScope = (typeof ALL_SCOPES)[number];
+export type { TokenScope } from "./integration-constants";
 
 export async function createIntegrationToken(formData: FormData) {
   const user = await getAutheliaUser();

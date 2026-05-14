@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { createIntegrationToken, ALL_SCOPES } from "@/app/actions/integrations";
+import { createIntegrationToken } from "@/app/actions/integrations";
+import { ALL_SCOPES } from "@/app/actions/integration-constants";
 
 const SCOPE_LABELS: Record<string, string> = {
   "read:meal_plan": "Read meal plan",
