@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { getAutheliaUser } from "@/lib/auth";
@@ -30,5 +31,9 @@ export default async function AiConciergePage() {
     );
   }
 
-  return <ConciergeClient />;
+  return (
+    <Suspense>
+      <ConciergeClient />
+    </Suspense>
+  );
 }

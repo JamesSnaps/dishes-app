@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { mealPlans, mealPlanEntries, recipes } from "@dishes/db/schema";
-import { eq, and } from "drizzle-orm";
+import { mealPlans, mealPlanEntries, recipes, recipeIngredients } from "@dishes/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { WeekPlanner } from "./_components/week-planner";
@@ -87,6 +87,25 @@ export default async function MealPlanPage({
       .orderBy(recipes.title),
   ]);
 
+  // Compute top ingredients for the week
+  const recipeIds = [...new Set(allEntries.map((e) => e.recipe.id))];
+  const ingredientRows = recipeIds.length
+    ? await db
+        .select({ ingredientName: recipeIngredients.ingredientName })
+        .from(recipeIngredients)
+        .where(inArray(recipeIngredients.recipeId, recipeIds))
+    : [];
+
+  const ingredientCounts: Record<string, number> = {};
+  for (const row of ingredientRows) {
+    const name = row.ingredientName.toLowerCase().trim();
+    ingredientCounts[name] = (ingredientCounts[name] ?? 0) + 1;
+  }
+  const topIngredients = Object.entries(ingredientCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([name, count]) => ({ name, count }));
+
   return (
     <WeekPlanner
       weekStartDate={weekStartDate}
@@ -95,6 +114,7 @@ export default async function MealPlanPage({
       recipes={allRecipes}
       isCurrentWeek={isCurrentWeek}
       todayDayIndex={isCurrentWeek ? getTodayDayIndex() : -1}
+      topIngredients={topIngredients}
     />
   );
 }

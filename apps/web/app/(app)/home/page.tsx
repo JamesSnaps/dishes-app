@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { desc, eq, isNotNull, and, count } from "drizzle-orm";
+import { desc, eq, isNotNull, and } from "drizzle-orm";
 import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, Bell } from "lucide-react";
 import { db } from "@/lib/db";
 import { recipes } from "@dishes/db/schema";
@@ -33,7 +33,7 @@ export default async function HomePage() {
   const firstName = user.displayName.split(" ")[0];
   const { householdId } = await requireHousehold(user);
 
-  const [recentRecipes, cuisineRows, [{ total }]] = await Promise.all([
+  const [recentRecipes, cuisineRows] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -55,10 +55,6 @@ export default async function HomePage() {
       .from(recipes)
       .where(and(eq(recipes.householdId, householdId), isNotNull(recipes.cuisine)))
       .orderBy(recipes.cuisine),
-    db
-      .select({ total: count() })
-      .from(recipes)
-      .where(eq(recipes.householdId, householdId)),
   ]);
 
   const cuisines = cuisineRows

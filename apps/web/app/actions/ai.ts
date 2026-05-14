@@ -333,6 +333,69 @@ export async function generateRecipeImageUrl(
   }
 }
 
+// ── Generate a week's meal plan as concept slots ───────────────────────────────
+
+export type MealPlanSlot = {
+  dayOfWeek: number; // 0=Mon … 6=Sun
+  mealType: string;
+  title: string;
+  description: string;
+  cuisine: string;
+  difficulty: "easy" | "medium" | "hard";
+};
+
+export async function generateMealPlanConcepts(params: {
+  days: number[];
+  mealTypes: string[];
+  preferences: string;
+}): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
+  const { days, mealTypes, preferences } = params;
+  if (!days.length || !mealTypes.length)
+    return { error: "Please select at least one day and one meal type." };
+
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+    const { client, model, defaultPrompt, measurementSystem } =
+      await getOpenAiClient(householdId);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
+
+    const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const slots = days.flatMap((d) => mealTypes.map((m) => ({ dayOfWeek: d, mealType: m })));
+    const slotsDesc = slots
+      .map((s) => `${DAY_NAMES[s.dayOfWeek]} ${s.mealType}`)
+      .join(", ");
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      max_tokens: 2000,
+      messages: [
+        {
+          role: "system",
+          content: `You are a meal planning chef helping a family plan their week. Return meal suggestions as JSON.
+Format: {"slots": [{"dayOfWeek": number, "mealType": string, "title": string, "description": "1-2 sentences", "cuisine": string, "difficulty": "easy"|"medium"|"hard"}]}
+Make meals varied across the week. Consider meal type when suggesting (lighter for breakfast/lunch, heartier for dinner).
+dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.${addendum}`,
+        },
+        {
+          role: "user",
+          content: `Plan these meals: ${slotsDesc}.${preferences ? ` Preferences: ${preferences}` : ""} Return exactly ${slots.length} suggestions.`,
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const parsed = JSON.parse(raw) as { slots: MealPlanSlot[] };
+    if (!Array.isArray(parsed.slots) || parsed.slots.length === 0)
+      throw new Error("Unexpected AI response format.");
+
+    return { slots: parsed.slots };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
 // ── Generate and save recipe image (updates DB directly) ──────────────────────
 // Used by the recipe detail page button.
 

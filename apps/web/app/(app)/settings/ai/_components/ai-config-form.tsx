@@ -132,7 +132,7 @@ export function AiConfigForm({ config, isAdmin }: Props) {
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium">Default recipe preferences</label>
         <p className="text-xs text-muted-foreground">
-          Applied to every AI recipe generation. Use this to set household-wide requirements, e.g. "Always make recipes kid-friendly and nut-free."
+          Applied to every AI recipe generation. Use this to set household-wide requirements, e.g. &ldquo;Always make recipes kid-friendly and nut-free.&rdquo;
         </p>
         <Textarea
           name="defaultPrompt"

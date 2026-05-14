@@ -2,7 +2,9 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
-function createClient() {
+type DbClient = ReturnType<typeof drizzle<typeof schema>>;
+
+function createClient(): DbClient {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
 
@@ -16,13 +18,22 @@ function createClient() {
 // Singleton to avoid multiple connections during hot reload
 declare global {
   // eslint-disable-next-line no-var
-  var __db: ReturnType<typeof createClient> | undefined;
+  var __db: DbClient | undefined;
 }
 
-export const db = globalThis.__db ?? createClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__db = db;
+function getDb(): DbClient {
+  if (!globalThis.__db) {
+    globalThis.__db = createClient();
+  }
+  return globalThis.__db;
 }
+
+// Lazy proxy — defers DB connection until first use so the module is safe to
+// import during Next.js build without DATABASE_URL being set.
+export const db = new Proxy({} as DbClient, {
+  get(_, prop) {
+    return getDb()[prop as keyof DbClient];
+  },
+});
 
 export type Database = typeof db;

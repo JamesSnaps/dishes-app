@@ -1,17 +1,18 @@
 import Redis from "ioredis";
-import { env } from "@/lib/env";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __redis: Redis | null | undefined;
 }
 
 function createRedis(): Redis | null {
-  if (!env.REDIS_URL) return null;
-  return new Redis(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 2 });
+  const url = process.env.REDIS_URL;
+  if (!url) return null;
+  return new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 2 });
 }
 
-export const redis: Redis | null =
-  process.env.NODE_ENV === "production"
-    ? createRedis()
-    : (global.__redis ??= createRedis());
+// Lazy getter — safe to call at module load; defers connection until first use
+// so the module is safe to import at build time without REDIS_URL being set.
+export function getRedis(): Redis | null {
+  if (process.env.NODE_ENV === "production") return createRedis();
+  return (global.__redis ??= createRedis());
+}

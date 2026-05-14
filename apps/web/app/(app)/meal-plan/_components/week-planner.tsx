@@ -9,6 +9,8 @@ import {
   ChevronUp,
   ShoppingCart,
   UtensilsCrossed,
+  Sparkles,
+  ShoppingBag,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { generateShoppingFromWeek } from "@/app/actions/meal-plan";
@@ -37,6 +39,11 @@ type Recipe = {
   cuisine: string | null;
 };
 
+type TopIngredient = {
+  name: string;
+  count: number;
+};
+
 interface Props {
   weekStartDate: string;
   planId: string | null;
@@ -44,6 +51,7 @@ interface Props {
   recipes: Recipe[];
   isCurrentWeek: boolean;
   todayDayIndex: number; // 0=Mon … 6=Sun, -1 if not current week
+  topIngredients: TopIngredient[];
 }
 
 function addDays(dateStr: string, days: number): string {
@@ -104,6 +112,7 @@ export function WeekPlanner({
   recipes,
   isCurrentWeek,
   todayDayIndex,
+  topIngredients,
 }: Props) {
   const router = useRouter();
 
@@ -281,53 +290,45 @@ export function WeekPlanner({
           <div className="rounded-xl border bg-card p-4">
             <h3 className="font-semibold text-sm mb-3">Week Overview</h3>
             {totalMeals === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No meals planned yet.
-              </p>
+              <p className="text-sm text-muted-foreground">No meals planned yet.</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-muted/50 p-2.5 text-center">
-                  <p className="text-2xl font-bold leading-none">{totalMeals}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Meals planned
-                  </p>
+                <div className="rounded-lg bg-violet-50 border border-violet-100 p-2.5 text-center">
+                  <p className="text-2xl font-bold leading-none text-violet-700">{totalMeals}</p>
+                  <p className="text-xs text-violet-600/70 mt-1">Meals planned</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-2.5 text-center">
-                  <p className="text-2xl font-bold leading-none">
-                    {daysWithMeals}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Days covered
-                  </p>
+                <div className="rounded-lg bg-blue-50 border border-blue-100 p-2.5 text-center">
+                  <p className="text-2xl font-bold leading-none text-blue-700">{daysWithMeals}</p>
+                  <p className="text-xs text-blue-600/70 mt-1">Days covered</p>
                 </div>
                 {totalTime > 0 && (
-                  <div className="rounded-lg bg-muted/50 p-2.5 text-center">
-                    <p className="text-2xl font-bold leading-none">
-                      {formatTotalTime(totalTime)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Cook time
-                    </p>
+                  <div className="rounded-lg bg-orange-50 border border-orange-100 p-2.5 text-center">
+                    <p className="text-2xl font-bold leading-none text-orange-700">{formatTotalTime(totalTime)}</p>
+                    <p className="text-xs text-orange-600/70 mt-1">Cook time</p>
                   </div>
                 )}
                 {avgServings > 0 && (
-                  <div className="rounded-lg bg-muted/50 p-2.5 text-center">
-                    <p className="text-2xl font-bold leading-none">
-                      {avgServings}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Avg. servings
-                    </p>
+                  <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-2.5 text-center">
+                    <p className="text-2xl font-bold leading-none text-emerald-700">{avgServings}</p>
+                    <p className="text-xs text-emerald-600/70 mt-1">Avg. servings</p>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Actions */}
+          {/* Tools & Actions */}
           <div className="rounded-xl border bg-card p-4">
-            <h3 className="font-semibold text-sm mb-3">Actions</h3>
+            <h3 className="font-semibold text-sm mb-3">Tools &amp; Actions</h3>
             <div className="space-y-2">
+              <Button
+                className="w-full justify-start gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                onClick={() => router.push("/ai-concierge?tab=plan")}
+              >
+                <Sparkles className="h-4 w-4" />
+                Generate Plan
+              </Button>
+
               {totalMeals > 0 && planId ? (
                 <Button
                   variant="outline"
@@ -336,18 +337,38 @@ export function WeekPlanner({
                   disabled={shoppingPending}
                 >
                   <ShoppingCart className="mr-2 h-4 w-4" />
-                  {shoppingPending
-                    ? "Adding to list…"
-                    : "Generate shopping list"}
+                  {shoppingPending ? "Adding to list…" : "Generate shopping list"}
                 </Button>
               ) : (
-                <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <UtensilsCrossed className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <p>Add meals to the week to generate a shopping list.</p>
+                <div className="flex items-start gap-2 text-sm text-muted-foreground pt-1">
+                  <UtensilsCrossed className="h-4 w-4 mt-0.5 shrink-0" />
+                  <p>Add meals to generate a shopping list.</p>
                 </div>
               )}
             </div>
           </div>
+
+          {/* Top Ingredients */}
+          {topIngredients.length > 0 && (
+            <div className="rounded-xl border bg-card p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold text-sm">Top Ingredients</h3>
+              </div>
+              <div className="space-y-1.5">
+                {topIngredients.map(({ name, count }) => (
+                  <div key={name} className="flex items-center justify-between gap-2">
+                    <span className="text-sm capitalize truncate">{name}</span>
+                    {count > 1 && (
+                      <span className="text-xs shrink-0 rounded-full bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5">
+                        ×{count}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

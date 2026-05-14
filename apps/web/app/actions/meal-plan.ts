@@ -9,6 +9,7 @@ import {
   shoppingLists,
   shoppingListItems,
 } from "@dishes/db/schema";
+import type { MealPlanSlot } from "./ai";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
@@ -101,6 +102,51 @@ export async function removeMealEntry(entryId: string) {
   await db.delete(mealPlanEntries).where(eq(mealPlanEntries.id, entryId));
 
   revalidatePath("/meal-plan");
+}
+
+export async function addAiGeneratedMealPlan(
+  weekStartDate: string,
+  slots: MealPlanSlot[]
+): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId, memberId } = await requireHousehold(user);
+
+    const plan = await getOrCreatePlan(householdId, memberId, weekStartDate);
+
+    const createdRecipes = await Promise.all(
+      slots.map(async (slot) => {
+        const [recipe] = await db
+          .insert(recipes)
+          .values({
+            householdId,
+            createdById: memberId,
+            title: slot.title,
+            description: slot.description,
+            cuisine: slot.cuisine,
+            difficulty: slot.difficulty,
+            isAiGenerated: true,
+          })
+          .returning({ id: recipes.id });
+        return { ...slot, recipeId: recipe!.id };
+      })
+    );
+
+    await db.insert(mealPlanEntries).values(
+      createdRecipes.map((r) => ({
+        mealPlanId: plan.id,
+        recipeId: r.recipeId,
+        dayOfWeek: r.dayOfWeek,
+        mealType: r.mealType as MealType,
+      }))
+    );
+
+    revalidatePath("/meal-plan");
+    revalidatePath("/recipes");
+    return { success: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to add meal plan." };
+  }
 }
 
 export async function generateShoppingFromWeek(mealPlanId: string) {

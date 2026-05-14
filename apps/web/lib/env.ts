@@ -21,7 +21,12 @@ const envSchema = z.object({
   S3_PUBLIC_URL: z.string().url().optional(),
 });
 
-function validateEnv() {
+type Env = z.infer<typeof envSchema>;
+
+let _env: Env | undefined;
+
+function validateEnv(): Env {
+  if (_env) return _env;
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
     const missing = result.error.issues
@@ -29,7 +34,14 @@ function validateEnv() {
       .join("\n");
     throw new Error(`Invalid environment variables:\n${missing}`);
   }
-  return result.data;
+  _env = result.data;
+  return _env;
 }
 
-export const env = validateEnv();
+// Lazy proxy — safe to import at build time; throws only when env vars are
+// actually read (i.e. during request handling, not static analysis).
+export const env = new Proxy({} as Env, {
+  get(_, prop) {
+    return validateEnv()[prop as keyof Env];
+  },
+});
