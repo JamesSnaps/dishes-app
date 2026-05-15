@@ -1,0 +1,232 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  CheckCircle2,
+  Clock,
+  Minus,
+  PackageCheck,
+  Plus,
+} from "lucide-react";
+import { Button, Textarea } from "@dishes/ui";
+import { StarRating } from "@/app/(app)/recipes/[id]/_components/star-rating";
+import { logCook } from "@/app/actions/cook-history";
+import { updateRecipeCookTime } from "@/app/actions/recipes";
+import { deductRecipeIngredients } from "@/app/actions/pantry";
+
+const OCCASION_SUGGESTIONS = [
+  "Weeknight dinner",
+  "Date night",
+  "Family dinner",
+  "Birthday",
+  "Anniversary",
+  "Dinner party",
+  "Meal prep",
+];
+
+interface Props {
+  recipeId: string;
+  recipeTitle: string;
+  recipeServings: number | null;
+  storedCookTimeMinutes: number | null;
+  elapsedMinutes: number;
+  currentServings: number;
+}
+
+export function CookDebrief({
+  recipeId,
+  recipeTitle,
+  recipeServings: _recipeServings,
+  storedCookTimeMinutes,
+  elapsedMinutes,
+  currentServings,
+}: Props) {
+  const router = useRouter();
+  const [rating, setRating] = useState<number | null>(null);
+  const [duration, setDuration] = useState(elapsedMinutes);
+  const [notes, setNotes] = useState("");
+  const [occasion, setOccasion] = useState("");
+  const [deducted, setDeducted] = useState(false);
+  const [deducting, setDeducting] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const cookTimeDiffers =
+    !storedCookTimeMinutes ||
+    Math.abs(storedCookTimeMinutes - duration) >= 5;
+
+  function adjustDuration(delta: number) {
+    setDuration((d) => Math.max(1, d + delta));
+  }
+
+  function handleSkip() {
+    router.push(`/recipes/${recipeId}`);
+  }
+
+  function handleSubmit() {
+    startTransition(async () => {
+      await logCook(recipeId, {
+        rating: rating ?? null,
+        actualDuration: duration,
+        notes: notes.trim() || null,
+        occasion: occasion.trim() || null,
+      });
+      if (cookTimeDiffers) {
+        updateRecipeCookTime(recipeId, duration).catch(() => {});
+      }
+      router.push(`/recipes/${recipeId}`);
+    });
+  }
+
+  async function handleDeduct() {
+    setDeducting(true);
+    try {
+      await deductRecipeIngredients(recipeId, currentServings);
+      setDeducted(true);
+    } finally {
+      setDeducting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-y-auto">
+      {/* Header */}
+      <div className="flex flex-col items-center pt-12 pb-8 px-6 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/15 mb-4">
+          <CheckCircle2 className="h-9 w-9 text-green-500" />
+        </div>
+        <h1 className="text-2xl font-bold">All done!</h1>
+        <p className="mt-1 text-muted-foreground text-sm line-clamp-1 max-w-xs">
+          {recipeTitle}
+        </p>
+      </div>
+
+      {/* Form */}
+      <div className="flex-1 px-5 pb-8 max-w-md mx-auto w-full space-y-8">
+
+        {/* Duration */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium flex items-center gap-1.5">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            How long did it take?
+          </label>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => adjustDuration(-5)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-muted transition-colors"
+              aria-label="Decrease by 5 minutes"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="min-w-[5rem] text-center text-lg font-semibold tabular-nums">
+              {duration < 60
+                ? `${duration} min`
+                : `${Math.floor(duration / 60)}h ${duration % 60 > 0 ? `${duration % 60}m` : ""}`}
+            </span>
+            <button
+              type="button"
+              onClick={() => adjustDuration(5)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-muted transition-colors"
+              aria-label="Increase by 5 minutes"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+            {storedCookTimeMinutes && cookTimeDiffers && (
+              <span className="text-xs text-muted-foreground">
+                Recipe says {storedCookTimeMinutes} min — we&apos;ll update it
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Rating */}
+        <div className="space-y-3">
+          <label className="text-sm font-medium">How did it go?</label>
+          <div className="flex flex-col items-start gap-2">
+            <StarRating value={rating} onChange={setRating} size="lg" />
+            <p className="text-sm text-muted-foreground h-4">
+              {rating != null ? `${rating / 2} / 5` : "Tap to rate (optional)"}
+            </p>
+          </div>
+        </div>
+
+        {/* Occasion */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">What was the occasion?</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {OCCASION_SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setOccasion(occasion === s ? "" : s)}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  occasion === s
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "hover:bg-muted text-muted-foreground"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            placeholder="Or write your own…"
+            value={occasion}
+            onChange={(e) => setOccasion(e.target.value)}
+            className="w-full rounded-lg border bg-muted/40 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+
+        {/* Notes */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Any notes?</label>
+          <Textarea
+            placeholder="What worked well, what you'd change, substitutions you made…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className="resize-none"
+          />
+        </div>
+
+        {/* Pantry deduction */}
+        {!deducted ? (
+          <button
+            type="button"
+            onClick={handleDeduct}
+            disabled={deducting}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <PackageCheck className="h-4 w-4" />
+            {deducting ? "Updating pantry…" : "Mark ingredients as used from pantry"}
+          </button>
+        ) : (
+          <p className="text-center text-sm text-muted-foreground">
+            Pantry stock updated.
+          </p>
+        )}
+
+        {/* Actions */}
+        <div className="space-y-2 pt-2">
+          <Button
+            className="w-full"
+            onClick={handleSubmit}
+            disabled={isPending}
+          >
+            {isPending ? "Saving…" : "Save & finish"}
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full text-muted-foreground"
+            onClick={handleSkip}
+            disabled={isPending}
+          >
+            Skip
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

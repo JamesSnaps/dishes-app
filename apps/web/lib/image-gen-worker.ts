@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { recipes, notifications } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { getRedis } from "@/lib/redis";
 import { generateRecipeImageCore } from "./image-gen";
 
@@ -70,6 +71,9 @@ export async function generateImageBackground(
       body: `A photo was generated for "${recipe.title}"`,
       recipeId,
     });
+
+    revalidatePath(`/recipes/${recipeId}`);
+    revalidatePath("/recipes");
 
     await updateJobStatus(jobId, "done", { imageUrl: url });
     console.log(`[image-gen] Job ${jobId} completed for recipe ${recipeId}`);

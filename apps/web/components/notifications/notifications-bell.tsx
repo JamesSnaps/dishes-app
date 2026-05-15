@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Image, Info, CheckCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@dishes/ui";
@@ -22,7 +22,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   image_generated: Image,
 };
 
-function formatRelativeTime(date: Date): string {
+function formatRelativeTime(date: Date | string): string {
   const now = Date.now();
   const diff = now - new Date(date).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -37,36 +37,34 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<Notification[]>([]);
-  const [, startTransition] = useTransition();
 
   async function refresh() {
     const count = await getUnreadCount();
     setUnread(count);
   }
 
-  async function loadAndOpen() {
-    setOpen(true);
-    const [list] = await Promise.all([getNotifications()]);
-    setItems(list);
-    // Mark all read after opening
-    startTransition(async () => {
-      await markAllRead();
+  async function handleOpenChange(isOpen: boolean) {
+    setOpen(isOpen);
+    if (isOpen) {
+      const list = await getNotifications();
+      setItems(list);
+      // Fire-and-forget mark as read — no need to block UI
+      markAllRead().catch(console.error);
       setUnread(0);
-    });
+    }
   }
 
   useEffect(() => {
-    refresh();
-    const onAdded = () => refresh();
+    void refresh();
+    const onAdded = () => { void refresh(); };
     window.addEventListener("dishes-notification-added", onAdded);
     return () => window.removeEventListener("dishes-notification-added", onAdded);
   }, []);
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={(isOpen) => { void handleOpenChange(isOpen); }}>
       <SheetTrigger asChild>
         <button
-          onClick={loadAndOpen}
           className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
           aria-label={unread > 0 ? `${unread} unread notifications` : "Notifications"}
         >

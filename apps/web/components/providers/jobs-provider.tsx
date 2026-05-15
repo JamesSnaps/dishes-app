@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 
 const STORAGE_KEY = "dishes-pending-image-jobs";
@@ -36,6 +37,7 @@ export function addPendingImageJob(job: PendingImageJob) {
 
 export function JobsProvider({ children }: { children: React.ReactNode }) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const router = useRouter();
 
   const pollOnce = useCallback(async () => {
     const jobs = readJobs();
@@ -54,6 +56,8 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
               title: "Image ready",
               description: `Photo generated for "${job.recipeTitle}"`,
             });
+            // Refresh server components on the current page so the image appears
+            router.refresh();
             window.dispatchEvent(new Event("dishes-notification-added"));
           } else if (data.status === "failed") {
             writeJobs(readJobs().filter((j) => j.jobId !== job.jobId));
@@ -69,13 +73,13 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         }
       })
     );
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     pollOnce();
     intervalRef.current = setInterval(pollOnce, POLL_INTERVAL);
 
-    const onJobsChanged = () => pollOnce();
+    const onJobsChanged = () => { void pollOnce(); };
     window.addEventListener("dishes-jobs-changed", onJobsChanged);
 
     return () => {

@@ -39,8 +39,8 @@ export function GenerateImageButton({ recipeId, recipeTitle }: Props) {
       <div className="mb-6 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
         <Loader2 className="h-4 w-4 animate-spin shrink-0" />
         <span>
-          Generating image — you can navigate away and we'll notify you when
-          it's ready.
+          Generating image &mdash; you can navigate away and we&apos;ll notify you when
+          it&apos;s ready.
         </span>
       </div>
     );
