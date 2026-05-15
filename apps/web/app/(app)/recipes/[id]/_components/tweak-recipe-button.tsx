@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Wand2, Copy, Save } from "lucide-react";
 import {
@@ -21,7 +21,20 @@ interface Props {
 
 type Phase = "idle" | "loading" | "result";
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
+}
+
 export function TweakRecipeButton({ recipeId, recipe }: Props) {
+  const isDesktop = useIsDesktop();
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [prompt, setPrompt] = useState("");
@@ -120,7 +133,14 @@ export function TweakRecipeButton({ recipeId, recipe }: Props) {
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="h-[90dvh] flex flex-col p-0 overflow-hidden">
+        <SheetContent
+          side={isDesktop ? "right" : "bottom"}
+          className={
+            isDesktop
+              ? "w-[420px] sm:max-w-[420px] flex flex-col p-0 overflow-hidden"
+              : "h-[90dvh] flex flex-col p-0 overflow-hidden"
+          }
+        >
           <SheetHeader className="px-4 pt-5 pb-3 border-b shrink-0 pr-12">
             <SheetTitle className="flex items-center gap-2">
               <Wand2 className="h-4 w-4" />

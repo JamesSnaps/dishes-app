@@ -54,6 +54,7 @@ type AiConfig = {
   model: string;
   imageModel: string;
   defaultPrompt: string | null;
+  kitchenEquipment: string | null;
   measurementSystem: string;
 };
 
@@ -64,6 +65,7 @@ async function getOpenAiClient(householdId: string): Promise<AiConfig> {
       model: aiConfigurations.model,
       imageModel: aiConfigurations.imageModel,
       defaultPrompt: aiConfigurations.defaultPrompt,
+      kitchenEquipment: aiConfigurations.kitchenEquipment,
       measurementSystem: aiConfigurations.measurementSystem,
     })
     .from(aiConfigurations)
@@ -79,6 +81,7 @@ async function getOpenAiClient(householdId: string): Promise<AiConfig> {
     model: config.model,
     imageModel: config.imageModel,
     defaultPrompt: config.defaultPrompt,
+    kitchenEquipment: config.kitchenEquipment,
     measurementSystem: config.measurementSystem,
   };
 }
@@ -94,7 +97,7 @@ function classifyError(err: unknown): string {
   return `AI error: ${msg}`;
 }
 
-function buildSystemAddendum(defaultPrompt: string | null, measurementSystem: string): string {
+function buildSystemAddendum(defaultPrompt: string | null, measurementSystem: string, kitchenEquipment: string | null): string {
   const parts: string[] = [];
   if (measurementSystem === "metric") {
     parts.push(
@@ -103,6 +106,9 @@ function buildSystemAddendum(defaultPrompt: string | null, measurementSystem: st
   }
   if (defaultPrompt?.trim()) {
     parts.push(defaultPrompt.trim());
+  }
+  if (kitchenEquipment?.trim()) {
+    parts.push(`Available kitchen equipment: ${kitchenEquipment.trim()}. Size recipes to fit this equipment where relevant.`);
   }
   return parts.length ? `\n\nAdditional requirements: ${parts.join(" ")}` : "";
 }
@@ -118,9 +124,9 @@ export async function generateConcepts(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model, defaultPrompt, measurementSystem } = await getOpenAiClient(householdId);
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = await getOpenAiClient(householdId);
 
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
 
     const completion = await client.chat.completions.create({
       model,
@@ -160,9 +166,9 @@ export async function improveRecipe(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model, defaultPrompt, measurementSystem } = await getOpenAiClient(householdId);
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = await getOpenAiClient(householdId);
 
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
 
     const completion = await client.chat.completions.create({
       model,
@@ -224,9 +230,9 @@ export async function generateFullRecipe(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model, defaultPrompt, measurementSystem } = await getOpenAiClient(householdId);
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = await getOpenAiClient(householdId);
 
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
 
     const completion = await client.chat.completions.create({
       model,
@@ -357,9 +363,9 @@ export async function generateMealPlanConcepts(params: {
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model, defaultPrompt, measurementSystem } =
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } =
       await getOpenAiClient(householdId);
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
 
     // Build recipe library context with planner history
     const today = new Date().toISOString().split("T")[0]!;

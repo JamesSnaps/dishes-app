@@ -12,6 +12,7 @@ type Props = {
     imageModel: string;
     monthlyLimitUsd: string | null;
     defaultPrompt: string | null;
+    kitchenEquipment: string | null;
     measurementSystem: string;
     hasKey: boolean;
     keyHint: string;
@@ -130,7 +131,7 @@ export function AiConfigForm({ config, isAdmin }: Props) {
 
       {/* Default prompt */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">Default recipe preferences</label>
+        <label className="text-sm font-medium">Cooking preferences</label>
         <p className="text-xs text-muted-foreground">
           Applied to every AI recipe generation. Use this to set household-wide requirements, e.g. &ldquo;Always make recipes kid-friendly and nut-free.&rdquo;
         </p>
@@ -139,6 +140,22 @@ export function AiConfigForm({ config, isAdmin }: Props) {
           rows={3}
           defaultValue={config?.defaultPrompt ?? ""}
           placeholder='e.g. "Always make recipes suitable for children. Avoid nuts and shellfish."'
+          disabled={isPending}
+          className="text-sm resize-none"
+        />
+      </div>
+
+      {/* Kitchen equipment */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Kitchen equipment</label>
+        <p className="text-xs text-muted-foreground">
+          List notable equipment the AI should size recipes for, e.g. &ldquo;20 cm square baking dish, stand mixer, 24 cm cast iron skillet.&rdquo;
+        </p>
+        <Textarea
+          name="kitchenEquipment"
+          rows={3}
+          defaultValue={config?.kitchenEquipment ?? ""}
+          placeholder='e.g. "20 cm square baking dish, stand mixer, no wok"'
           disabled={isPending}
           className="text-sm resize-none"
         />

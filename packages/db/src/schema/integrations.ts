@@ -24,6 +24,7 @@ export const aiConfigurations = pgTable("ai_configurations", {
   model: varchar("model", { length: 100 }).notNull().default("gpt-4.1-nano"),
   imageModel: varchar("image_model", { length: 100 }).notNull().default("gpt-image-2"),
   defaultPrompt: text("default_prompt"),
+  kitchenEquipment: text("kitchen_equipment"),
   measurementSystem: varchar("measurement_system", { length: 20 }).notNull().default("metric"),
   monthlyLimitUsd: decimal("monthly_limit_usd", {
     precision: 8,

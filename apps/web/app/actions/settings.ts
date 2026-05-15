@@ -123,6 +123,7 @@ export async function saveAiConfig(formData: FormData) {
   const imageModel = (formData.get("imageModel") as string)?.trim() || "gpt-image-2";
   const monthlyLimit = (formData.get("monthlyLimit") as string)?.trim() || "20.00";
   const defaultPrompt = (formData.get("defaultPrompt") as string)?.trim() || null;
+  const kitchenEquipment = (formData.get("kitchenEquipment") as string)?.trim() || null;
   const measurementSystem = (formData.get("measurementSystem") as string)?.trim() || "metric";
 
   const existing = await db
@@ -144,7 +145,7 @@ export async function saveAiConfig(formData: FormData) {
   if (existing.length) {
     await db
       .update(aiConfigurations)
-      .set({ encryptedApiKey, model, imageModel, monthlyLimitUsd: monthlyLimit, defaultPrompt, measurementSystem })
+      .set({ encryptedApiKey, model, imageModel, monthlyLimitUsd: monthlyLimit, defaultPrompt, kitchenEquipment, measurementSystem })
       .where(eq(aiConfigurations.id, existing[0]!.id));
   } else {
     await db.insert(aiConfigurations).values({
@@ -154,6 +155,7 @@ export async function saveAiConfig(formData: FormData) {
       imageModel,
       monthlyLimitUsd: monthlyLimit,
       defaultPrompt,
+      kitchenEquipment,
       measurementSystem,
     });
   }
@@ -199,6 +201,7 @@ export async function getAiConfig(householdId: string) {
       imageModel: aiConfigurations.imageModel,
       monthlyLimitUsd: aiConfigurations.monthlyLimitUsd,
       defaultPrompt: aiConfigurations.defaultPrompt,
+      kitchenEquipment: aiConfigurations.kitchenEquipment,
       measurementSystem: aiConfigurations.measurementSystem,
       encryptedApiKey: aiConfigurations.encryptedApiKey,
     })
@@ -215,6 +218,7 @@ export async function getAiConfig(householdId: string) {
     imageModel: config.imageModel,
     monthlyLimitUsd: config.monthlyLimitUsd,
     defaultPrompt: config.defaultPrompt,
+    kitchenEquipment: config.kitchenEquipment,
     measurementSystem: config.measurementSystem,
     hasKey: true,
     // Short hint: first 8 chars only — enough to identify the key, won't overflow on mobile

@@ -13,6 +13,10 @@ import {
   Plus,
   CheckCircle2,
   PackageCheck,
+  HelpCircle,
+  X,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { deductRecipeIngredients } from "@/app/actions/pantry";
@@ -75,6 +79,17 @@ function formatTimer(totalSeconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// ─── Timer state ──────────────────────────────────────────────────────────────
+
+interface TimerState {
+  remaining: number;
+  running: boolean;
+  done: boolean;
+  totalSeconds: number;
+  label: string | null;
+  stepNumber: number;
+}
+
 // ─── Ingredient chip (inline in step text) ───────────────────────────────────
 
 interface IngredientChipProps {
@@ -126,7 +141,6 @@ interface StepTextProps {
 function StepText({ instruction, ingredients, scale }: StepTextProps) {
   const [openId, setOpenId] = useState<string | null>(null);
 
-  // Build a sorted list: longest names first to avoid partial matches
   const namedIngredients = ingredients
     .filter((ing) => ing.ingredientName)
     .sort((a, b) => b.ingredientName.length - a.ingredientName.length);
@@ -135,20 +149,48 @@ function StepText({ instruction, ingredients, scale }: StepTextProps) {
     return <p className="text-xl lg:text-3xl leading-relaxed">{instruction}</p>;
   }
 
-  // Build regex from all ingredient names (escape special chars, word-boundary aware)
   const escaped = namedIngredients.map((ing) =>
     ing.ingredientName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
   );
-  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
-
-  const parts = instruction.split(pattern);
 
   const ingByNameLower = new Map(namedIngredients.map((ing) => [ing.ingredientName.toLowerCase(), ing]));
+
+  const MODIFIER_WORDS = new Set([
+    "long", "grain", "short", "fresh", "frozen", "dried", "raw", "cooked",
+    "large", "small", "medium", "fine", "coarse", "chopped", "diced", "sliced",
+    "minced", "grated", "beaten", "rinsed", "thawed", "peeled", "whole", "lean",
+    "plain", "dark", "light", "extra", "young", "baby", "mixed", "taste", "and",
+    "or", "the", "for", "with",
+  ]);
+  const keywordCandidates = new Map<string, Ingredient | null>();
+  for (const ing of namedIngredients) {
+    const words = ing.ingredientName.toLowerCase().split(/[\s\-,]+/);
+    for (const word of words) {
+      if (word.length > 3 && !MODIFIER_WORDS.has(word) && !ingByNameLower.has(word)) {
+        if (!keywordCandidates.has(word)) {
+          keywordCandidates.set(word, ing);
+        } else {
+          keywordCandidates.set(word, null);
+        }
+      }
+    }
+  }
+  const keywordToIng = new Map<string, Ingredient>(
+    [...keywordCandidates.entries()]
+      .filter((entry): entry is [string, Ingredient] => entry[1] !== null)
+  );
+
+  const keywordPatterns = [...keywordToIng.keys()].map(
+    (kw) => `\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`
+  );
+  const pattern = new RegExp(`(${[...escaped, ...keywordPatterns].join("|")})`, "gi");
+
+  const parts = instruction.split(pattern);
 
   return (
     <p className="text-xl lg:text-3xl leading-relaxed">
       {parts.map((part, i) => {
-        const ing = ingByNameLower.get(part.toLowerCase());
+        const ing = ingByNameLower.get(part.toLowerCase()) ?? keywordToIng.get(part.toLowerCase());
         if (!ing) return part;
 
         const amount = formatIngredientAmount(ing, scale);
@@ -172,48 +214,16 @@ function StepText({ instruction, ingredients, scale }: StepTextProps) {
   );
 }
 
-// ─── Timer sub-component ──────────────────────────────────────────────────────
+// ─── Timer sub-component (controlled) ────────────────────────────────────────
 
 interface StepTimerProps {
-  durationMinutes: number;
-  label?: string | null;
+  timer: TimerState;
+  onToggle: () => void;
+  onReset: () => void;
 }
 
-function StepTimer({ durationMinutes, label }: StepTimerProps) {
-  const totalSeconds = durationMinutes * 60;
-  const [remaining, setRemaining] = useState(totalSeconds);
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    setRemaining(totalSeconds);
-    setRunning(false);
-    setDone(false);
-  }, [totalSeconds]);
-
-  useEffect(() => {
-    if (!running) return;
-    intervalRef.current = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          setRunning(false);
-          setDone(true);
-          if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-            navigator.vibrate([300, 100, 300]);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [running]);
-
-  const toggle = () => { if (!done) setRunning((r) => !r); };
-  const reset = () => { setRunning(false); setDone(false); setRemaining(totalSeconds); };
+function StepTimer({ timer, onToggle, onReset }: StepTimerProps) {
+  const { remaining, running, done, totalSeconds, label } = timer;
   const progress = (totalSeconds - remaining) / totalSeconds;
 
   return (
@@ -240,14 +250,347 @@ function StepTimer({ durationMinutes, label }: StepTimerProps) {
       </div>
 
       <div className="flex gap-2">
-        <Button variant={running ? "outline" : "default"} size="sm" onClick={toggle} disabled={done} className="flex-1">
+        <Button variant={running ? "outline" : "default"} size="sm" onClick={onToggle} disabled={done} className="flex-1">
           {running ? <><Pause className="mr-1.5 h-4 w-4" /> Pause</> : <><Play className="mr-1.5 h-4 w-4" /> {remaining < totalSeconds ? "Resume" : "Start"}</>}
         </Button>
-        <Button variant="ghost" size="sm" onClick={reset} title="Reset timer">
+        <Button variant="ghost" size="sm" onClick={onReset} title="Reset timer">
           <RotateCcw className="h-4 w-4" />
         </Button>
       </div>
     </div>
+  );
+}
+
+// ─── Active timers panel (sidebar) ───────────────────────────────────────────
+
+interface TimerPanelProps {
+  timers: Map<number, TimerState>;
+  onToggle: (idx: number) => void;
+  onReset: (idx: number) => void;
+  onJumpToStep: (idx: number) => void;
+}
+
+function ActiveTimersPanel({ timers, onToggle, onReset, onJumpToStep }: TimerPanelProps) {
+  const active = [...timers.entries()].filter(([, t]) => t.remaining < t.totalSeconds || t.done);
+  if (active.length === 0) return null;
+
+  return (
+    <div className="shrink-0 px-6 py-5 border-t">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+        <Timer className="h-3.5 w-3.5" />
+        Active Timers
+      </p>
+      <div className="space-y-2.5">
+        {active.map(([idx, timer]) => (
+          <div
+            key={idx}
+            className={`rounded-lg border p-3 transition-colors ${
+              timer.done
+                ? "border-green-500/30 bg-green-500/5"
+                : timer.running
+                ? "border-orange-500/30 bg-orange-500/5"
+                : "border-border bg-muted/30"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <button
+                onClick={() => onJumpToStep(idx)}
+                className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline underline-offset-2 transition-colors"
+              >
+                Step {timer.stepNumber}{timer.label ? ` · ${timer.label}` : ""}
+              </button>
+              <div className="flex items-center gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => onToggle(idx)}
+                  disabled={timer.done}
+                >
+                  {timer.running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => onReset(idx)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+            <span
+              className={`font-mono text-xl font-bold tabular-nums ${
+                timer.done ? "text-green-500" : timer.running && timer.remaining <= 30 ? "text-orange-500" : ""
+              }`}
+            >
+              {timer.done ? "Done!" : formatTimer(timer.remaining)}
+            </span>
+            {!timer.done && (
+              <div className="mt-1.5 h-1 rounded-full bg-border overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-1000 ${timer.running ? "bg-orange-500" : "bg-primary/40"}`}
+                  style={{ width: `${Math.round(((timer.totalSeconds - timer.remaining) / timer.totalSeconds) * 100)}%` }}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Mobile timer shelf ───────────────────────────────────────────────────────
+
+function MobileTimerShelf({ timers, onToggle, onReset, onJumpToStep }: TimerPanelProps) {
+  const active = [...timers.entries()].filter(([, t]) => t.remaining < t.totalSeconds || t.done);
+  if (active.length === 0) return null;
+
+  return (
+    <div className="lg:hidden shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="flex gap-2 overflow-x-auto px-4 py-2 scrollbar-none">
+        {active.map(([idx, timer]) => (
+          <div
+            key={idx}
+            className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 ${
+              timer.done
+                ? "border-green-500/40 bg-green-500/10"
+                : timer.running
+                ? "border-orange-500/40 bg-orange-500/10"
+                : "border-border bg-muted/40"
+            }`}
+          >
+            <button
+              onClick={() => onJumpToStep(idx)}
+              className="flex items-center gap-1.5"
+              aria-label={`Jump to step ${timer.stepNumber}`}
+            >
+              <Timer className={`h-3.5 w-3.5 ${timer.running ? "text-orange-500" : "text-muted-foreground"}`} />
+              <span className={`font-mono text-sm font-bold tabular-nums ${timer.done ? "text-green-500" : ""}`}>
+                {timer.done ? "Done!" : formatTimer(timer.remaining)}
+              </span>
+              <span className="text-xs text-muted-foreground">S{timer.stepNumber}</span>
+            </button>
+            <div className="flex gap-0.5">
+              <button
+                onClick={() => onToggle(idx)}
+                disabled={timer.done}
+                className="flex h-6 w-6 items-center justify-center rounded hover:bg-background disabled:opacity-40 transition-colors"
+                aria-label={timer.running ? "Pause timer" : "Resume timer"}
+              >
+                {timer.running ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+              </button>
+              <button
+                onClick={() => onReset(idx)}
+                className="flex h-6 w-6 items-center justify-center rounded hover:bg-background transition-colors"
+                aria-label="Reset timer"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Cook Assist (contextual AI quick-ask) ───────────────────────────────────
+
+interface CookAssistProps {
+  recipeTitle: string;
+  stepNumber: number;
+  stepInstruction: string;
+  stepIngredients: Array<{ name: string; amount?: string; unit?: string }>;
+}
+
+function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients }: CookAssistProps) {
+  const [open, setOpen] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset answer when step changes so old context doesn't linger
+  useEffect(() => {
+    setAnswer("");
+    setQuestion("");
+    setError(null);
+  }, [stepNumber]);
+
+  function openModal() {
+    setOpen(true);
+    // Focus input on next frame
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
+  function closeModal() {
+    setOpen(false);
+  }
+
+  async function submit() {
+    if (!question.trim() || loading) return;
+    setLoading(true);
+    setAnswer("");
+    setError(null);
+
+    try {
+      const res = await fetch("/api/cook-assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipeTitle,
+          stepNumber,
+          stepInstruction,
+          stepIngredients,
+          question: question.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const msg = await res.text();
+        setError(msg || "Something went wrong.");
+        return;
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        setAnswer((prev) => prev + decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      setError("Could not reach the server. Check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
+  }
+
+  const stepPreview = stepInstruction.length > 80
+    ? stepInstruction.slice(0, 80).trimEnd() + "…"
+    : stepInstruction;
+
+  return (
+    <>
+      {/* Trigger button */}
+      <button
+        onClick={openModal}
+        className="mt-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="Ask a question about this step"
+      >
+        <HelpCircle className="h-4 w-4" />
+        Ask about this step
+      </button>
+
+      {/* Modal overlay */}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ask a cooking question"
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={closeModal}
+          />
+
+          {/* Panel — bottom sheet on mobile, centered card on sm+ */}
+          <div className="relative z-10 w-full sm:max-w-lg mx-auto sm:mx-4 bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl border flex flex-col max-h-[85dvh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <HelpCircle className="h-4 w-4 text-orange-500" />
+                <span className="font-semibold text-sm">Ask about Step {stepNumber}</span>
+              </div>
+              <button
+                onClick={closeModal}
+                className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Step context */}
+            <p className="px-5 pb-3 text-xs text-muted-foreground leading-relaxed shrink-0 border-b">
+              {stepPreview}
+            </p>
+
+            {/* Answer area */}
+            {(answer || loading || error) && (
+              <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
+                {error ? (
+                  <p className="text-sm text-destructive">{error}</p>
+                ) : (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {answer}
+                    {loading && !answer && (
+                      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Thinking…
+                      </span>
+                    )}
+                    {loading && answer && (
+                      <span className="inline-block w-1.5 h-4 bg-foreground/50 animate-pulse ml-0.5 rounded-sm align-text-bottom" />
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Input area */}
+            <div className="shrink-0 px-5 py-4 border-t flex gap-2 items-end">
+              <textarea
+                ref={inputRef}
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="e.g. Can I substitute Greek yogurt here?"
+                rows={2}
+                disabled={loading}
+                className="flex-1 resize-none rounded-xl border bg-muted/40 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+              />
+              <Button
+                size="sm"
+                onClick={submit}
+                disabled={!question.trim() || loading}
+                className="shrink-0 h-10 w-10 p-0"
+                aria-label="Send question"
+              >
+                {loading
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Send className="h-4 w-4" />
+                }
+              </Button>
+            </div>
+
+            {/* Ask another — shown after answer */}
+            {answer && !loading && (
+              <div className="shrink-0 px-5 pb-4 -mt-2 flex justify-end">
+                <button
+                  onClick={() => { setQuestion(""); setAnswer(""); setError(null); inputRef.current?.focus(); }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                >
+                  Ask another question
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -310,6 +653,69 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
   const originalServings = recipe.servings ? parseFloat(recipe.servings) : null;
   const [currentServings, setCurrentServings] = useState(originalServings ?? 4);
 
+  // Global timer state — timers persist across step navigation
+  const [timers, setTimers] = useState<Map<number, TimerState>>(() => {
+    const map = new Map<number, TimerState>();
+    steps.forEach((step, i) => {
+      if (step.durationMinutes) {
+        const totalSeconds = step.durationMinutes * 60;
+        map.set(i, {
+          remaining: totalSeconds,
+          running: false,
+          done: false,
+          totalSeconds,
+          label: step.timerLabel ?? null,
+          stepNumber: i + 1,
+        });
+      }
+    });
+    return map;
+  });
+
+  // Single interval ticks all running timers
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimers((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        for (const [idx, timer] of next) {
+          if (!timer.running || timer.done) continue;
+          changed = true;
+          if (timer.remaining <= 1) {
+            next.set(idx, { ...timer, remaining: 0, running: false, done: true });
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+              navigator.vibrate([300, 100, 300]);
+            }
+          } else {
+            next.set(idx, { ...timer, remaining: timer.remaining - 1 });
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const toggleTimer = useCallback((idx: number) => {
+    setTimers((prev) => {
+      const timer = prev.get(idx);
+      if (!timer || timer.done) return prev;
+      const next = new Map(prev);
+      next.set(idx, { ...timer, running: !timer.running });
+      return next;
+    });
+  }, []);
+
+  const resetTimer = useCallback((idx: number) => {
+    setTimers((prev) => {
+      const timer = prev.get(idx);
+      if (!timer) return prev;
+      const next = new Map(prev);
+      next.set(idx, { ...timer, remaining: timer.totalSeconds, running: false, done: false });
+      return next;
+    });
+  }, []);
+
   const scale = originalServings && originalServings > 0 ? currentServings / originalServings : 1;
   const currentStep = steps[stepIndex];
   const isFirst = stepIndex === 0;
@@ -371,6 +777,15 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
     );
   }
 
+  const currentTimer = timers.get(stepIndex);
+
+  const timerProps: TimerPanelProps = {
+    timers,
+    onToggle: toggleTimer,
+    onReset: resetTimer,
+    onJumpToStep: setStepIndex,
+  };
+
   const NavButtons = ({ className }: { className?: string }) => (
     <div className={`flex gap-3 ${className ?? ""}`}>
       <Button variant="outline" size="lg" onClick={goPrev} disabled={isFirst} className="flex-1">
@@ -399,28 +814,29 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
     <div className="flex flex-col h-dvh overflow-hidden">
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="shrink-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="flex items-center gap-3 px-4 py-3">
+        <div className="relative flex items-center px-4 py-3 h-14">
+          {/* Exit button — icon only on small screens, full label on sm+ */}
           <Button asChild variant="ghost" size="sm" className="-ml-2 shrink-0">
             <Link href={`/recipes/${recipe.id}`}>
-              <ChevronLeft className="mr-1 h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">Exit Cooking Mode</span>
-              <span className="sm:hidden">Exit</span>
             </Link>
           </Button>
 
-          <div className="flex-1 min-w-0 text-center">
+          {/* Title — absolutely centred so it's never pushed off-axis */}
+          <div className="absolute inset-x-0 flex flex-col items-center px-20 sm:px-40 pointer-events-none">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Cooking Mode
             </p>
-            <h1 className="text-sm font-semibold truncate">{recipe.title}</h1>
+            <h1 className="text-sm font-semibold truncate w-full text-center">{recipe.title}</h1>
           </div>
 
-          <span className="shrink-0 text-sm font-semibold tabular-nums">
+          <span className="ml-auto shrink-0 text-sm font-semibold tabular-nums">
             {stepIndex + 1} / {steps.length}
           </span>
         </div>
 
-        {/* Progress bar — tracks current step position */}
+        {/* Progress bar */}
         <div className="h-1 bg-border">
           <div
             className="h-full bg-primary transition-all duration-300"
@@ -435,158 +851,176 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
         {/* ── Main column: scrollable content + pinned desktop nav ─── */}
         <div className="flex flex-col flex-1 min-h-0">
 
-        {/* ── Main content ─────────────────────────────────────────── */}
-        <main className="flex-1 min-h-0 overflow-y-auto">
-          {/* Recipe image — small strip on mobile, wider banner on desktop */}
-          {recipe.imageUrl && (
-            <div className="h-20 sm:h-28 lg:h-auto lg:aspect-[21/8] w-full overflow-hidden bg-muted shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={recipe.imageUrl}
-                alt={recipe.title}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          )}
-
-          <div className="px-4 py-6 lg:px-10 lg:py-10">
-            {/* Step dot nav (mobile only) */}
-            <div className="mb-8 flex justify-center gap-1 lg:hidden">
-              {steps.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setStepIndex(i)}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === stepIndex ? "w-6 bg-primary" : "w-1.5 bg-border"
-                  }`}
-                  aria-label={`Go to step ${i + 1}`}
+          {/* ── Main content ─────────────────────────────────────────── */}
+          <main className="flex-1 min-h-0 overflow-y-auto">
+            {/* Recipe image */}
+            {recipe.imageUrl && (
+              <div className="h-20 sm:h-28 lg:h-auto lg:aspect-[21/8] w-full overflow-hidden bg-muted shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={recipe.imageUrl}
+                  alt={recipe.title}
+                  className="h-full w-full object-cover"
                 />
-              ))}
-            </div>
+              </div>
+            )}
 
-            {/* Step number badge + instruction */}
-            {currentStep && (
-              <div className="flex gap-4 lg:gap-6 mb-6">
-                <span className="flex h-10 w-10 lg:h-14 lg:w-14 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white font-bold text-base lg:text-xl">
-                  {stepIndex + 1}
-                </span>
-                <div className="flex-1 min-w-0 pt-1 lg:pt-2">
-                  <StepText
-                    instruction={currentStep.instruction}
-                    ingredients={ingredients}
-                    scale={scale}
+            <div className="px-4 py-6 lg:px-10 lg:py-10">
+              {/* Step dot nav (mobile only) */}
+              <div className="mb-8 flex justify-center gap-1 lg:hidden">
+                {steps.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setStepIndex(i)}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === stepIndex ? "w-6 bg-primary" : "w-1.5 bg-border"
+                    }`}
+                    aria-label={`Go to step ${i + 1}`}
                   />
+                ))}
+              </div>
+
+              {/* Step number badge + instruction */}
+              {currentStep && (
+                <div className="flex gap-4 lg:gap-6 mb-6">
+                  <span className="flex h-10 w-10 lg:h-14 lg:w-14 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white font-bold text-base lg:text-xl">
+                    {stepIndex + 1}
+                  </span>
+                  <div className="flex-1 min-w-0 pt-1 lg:pt-2">
+                    <StepText
+                      instruction={currentStep.instruction}
+                      ingredients={ingredients}
+                      scale={scale}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Timer */}
-            {currentStep?.durationMinutes ? (
-              <StepTimer key={stepIndex} durationMinutes={currentStep.durationMinutes} label={currentStep.timerLabel} />
-            ) : null}
+              {/* Timer for current step */}
+              {currentTimer && (
+                <StepTimer
+                  timer={currentTimer}
+                  onToggle={() => toggleTimer(stepIndex)}
+                  onReset={() => resetTimer(stepIndex)}
+                />
+              )}
 
-            {/* Active ingredients — mobile only (sidebar handles desktop) */}
-            {stepIngredients.length > 0 && (
-              <div className="mt-6 rounded-xl border bg-orange-500/5 border-orange-500/20 p-4 lg:hidden">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">
-                  Used in this step
-                </p>
-                <ul className="space-y-1.5">
-                  {stepIngredients.map((ing) => (
-                    <li key={ing.id} className="flex items-baseline gap-2 text-sm">
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500 mt-[5px]" />
-                      <span>
-                        {ing.amount && (
-                          <span className="font-semibold">
-                            {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
-                          </span>
-                        )}
-                        {ing.ingredientName}
-                        {ing.preparation && ing.preparation.toLowerCase() !== "none" && (
-                          <span className="text-muted-foreground">, {ing.preparation}</span>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+              {/* AI quick-ask */}
+              {currentStep && (
+                <CookAssist
+                  recipeTitle={recipe.title}
+                  stepNumber={stepIndex + 1}
+                  stepInstruction={currentStep.instruction}
+                  stepIngredients={stepIngredients.map((ing) => ({
+                    name: ing.ingredientName,
+                    amount: ing.amount ?? undefined,
+                    unit: ing.unit ?? undefined,
+                  }))}
+                />
+              )}
 
-            {/* All ingredients collapsed — mobile only */}
-            {ingredients.length > 0 && (
-              <details className="mt-4 rounded-xl border lg:hidden">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none hover:bg-muted/40 transition-colors">
-                  All ingredients ({ingredients.length})
-                  {scale !== 1 && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      scaled ×{parseFloat(scale.toFixed(2))}
-                    </span>
-                  )}
-                </summary>
-                <ul className="space-y-1.5 px-4 pb-4 pt-2">
-                  {ingredients.map((ing) => {
-                    const isActive = activeIngredientIds.has(ing.id);
-                    return (
-                      <li
-                        key={ing.id}
-                        className={`flex items-baseline gap-2 text-sm transition-colors ${
-                          isActive ? "text-foreground font-medium" : "text-muted-foreground"
-                        }`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
-                            isActive ? "bg-orange-500" : "bg-muted-foreground/40"
-                          }`}
-                        />
+              {/* Active ingredients — mobile only */}
+              {stepIngredients.length > 0 && (
+                <div className="mt-6 rounded-xl border bg-orange-500/5 border-orange-500/20 p-4 lg:hidden">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">
+                    Used in this step
+                  </p>
+                  <ul className="space-y-1.5">
+                    {stepIngredients.map((ing) => (
+                      <li key={ing.id} className="flex items-baseline gap-2 text-sm">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500 mt-[5px]" />
                         <span>
                           {ing.amount && (
-                            <span className={isActive ? "font-semibold" : "font-medium"}>
+                            <span className="font-semibold">
                               {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
                             </span>
                           )}
                           {ing.ingredientName}
-                          {ing.preparation && ing.preparation.toLowerCase() !== "none" && <span>, {ing.preparation}</span>}
-                          {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
+                          {ing.preparation && ing.preparation.toLowerCase() !== "none" && (
+                            <span className="text-muted-foreground">, {ing.preparation}</span>
+                          )}
                         </span>
                       </li>
-                    );
-                  })}
-                </ul>
-              </details>
-            )}
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-            {/* Done state */}
-            {isLast && isComplete && (
-              <div className="mt-8 rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
-                <p className="text-lg font-semibold text-green-600 dark:text-green-400">
-                  All done! Enjoy your meal.
-                </p>
-                {!deducted ? (
-                  <Button
-                    className="mt-4 w-full"
-                    variant="outline"
-                    onClick={handleDeductIngredients}
-                    disabled={deducting}
-                  >
-                    <PackageCheck className="mr-1.5 h-4 w-4" />
-                    {deducting ? "Updating pantry…" : "Mark ingredients as used"}
-                  </Button>
-                ) : (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Pantry stock updated.
+              {/* All ingredients collapsed — mobile only */}
+              {ingredients.length > 0 && (
+                <details className="mt-4 rounded-xl border lg:hidden">
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none hover:bg-muted/40 transition-colors">
+                    All ingredients ({ingredients.length})
+                    {scale !== 1 && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        scaled ×{parseFloat(scale.toFixed(2))}
+                      </span>
+                    )}
+                  </summary>
+                  <ul className="space-y-1.5 px-4 pb-4 pt-2">
+                    {ingredients.map((ing) => {
+                      const isActive = activeIngredientIds.has(ing.id);
+                      return (
+                        <li
+                          key={ing.id}
+                          className={`flex items-baseline gap-2 text-sm transition-colors ${
+                            isActive ? "text-foreground font-medium" : "text-muted-foreground"
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
+                              isActive ? "bg-orange-500" : "bg-muted-foreground/40"
+                            }`}
+                          />
+                          <span>
+                            {ing.amount && (
+                              <span className={isActive ? "font-semibold" : "font-medium"}>
+                                {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                              </span>
+                            )}
+                            {ing.ingredientName}
+                            {ing.preparation && ing.preparation.toLowerCase() !== "none" && <span>, {ing.preparation}</span>}
+                            {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
+              )}
+
+              {/* Done state */}
+              {isLast && isComplete && (
+                <div className="mt-8 rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
+                  <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+                    All done! Enjoy your meal.
                   </p>
-                )}
-                <Button asChild className="mt-2 w-full" variant="ghost">
-                  <Link href={`/recipes/${recipe.id}`}>Back to recipe</Link>
-                </Button>
-              </div>
-            )}
+                  {!deducted ? (
+                    <Button
+                      className="mt-4 w-full"
+                      variant="outline"
+                      onClick={handleDeductIngredients}
+                      disabled={deducting}
+                    >
+                      <PackageCheck className="mr-1.5 h-4 w-4" />
+                      {deducting ? "Updating pantry…" : "Mark ingredients as used"}
+                    </Button>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Pantry stock updated.
+                    </p>
+                  )}
+                  <Button asChild className="mt-2 w-full" variant="ghost">
+                    <Link href={`/recipes/${recipe.id}`}>Back to recipe</Link>
+                  </Button>
+                </div>
+              )}
 
-          </div>
-        </main>
+            </div>
+          </main>
 
-        {/* ── Desktop nav — pinned at bottom of content column ─────── */}
-        <NavButtons className="hidden lg:flex shrink-0 px-10 py-4 border-t bg-background" />
+          {/* ── Desktop nav — pinned at bottom of content column ─────── */}
+          <NavButtons className="hidden lg:flex shrink-0 px-10 py-4 border-t bg-background" />
 
         </div>{/* end main column */}
 
@@ -680,6 +1114,9 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
             </ul>
           </div>
 
+          {/* Active timers panel */}
+          <ActiveTimersPanel {...timerProps} />
+
           {/* Up Next */}
           {!isLast && steps[stepIndex + 1] && (
             <div className="shrink-0 px-6 py-5 border-t bg-muted/30">
@@ -699,6 +1136,9 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
           )}
         </aside>
       </div>
+
+      {/* ── Mobile timer shelf — shown when timers are running/paused ── */}
+      <MobileTimerShelf {...timerProps} />
 
       {/* ── Mobile footer nav ───────────────────────────────────────── */}
       <footer className="lg:hidden shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
