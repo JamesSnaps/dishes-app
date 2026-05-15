@@ -9,7 +9,7 @@ import { parseCrumbFile, type ParsedCrumbRecipe } from "@/lib/crumb-parser";
 
 const SESSION_TTL_SECONDS = 900; // 15 minutes
 const THUMBNAIL_SIZE = 120;
-const MAX_ZIP_BYTES = 50 * 1024 * 1024; // 50 MB
+const THUMBNAIL_CONCURRENCY = 4;
 
 export interface CrumbPreviewItem {
   index: number;
@@ -42,7 +42,6 @@ async function makeThumbnail(base64: string | null): Promise<string | null> {
 
 async function parseCrumbs(content: ArrayBuffer, filename: string): Promise<ParsedCrumbRecipe[]> {
   if (filename.toLowerCase().endsWith(".zip")) {
-    if (content.byteLength > MAX_ZIP_BYTES) throw new Error("Zip file too large (max 50 MB)");
     const zip = await JSZip.loadAsync(content);
     const crumbFiles = Object.values(zip.files).filter(
       (f) => !f.dir && f.name.toLowerCase().endsWith(".crumb")
@@ -90,21 +89,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No valid recipes found in file" }, { status: 400 });
   }
 
-  // Build thumbnails and store full data in Redis
+  // Build thumbnails in small batches to avoid OOM on large zips
   const redis = getRedis();
   const sessionId = randomUUID();
 
-  const recipes: CrumbPreviewItem[] = await Promise.all(
-    parsed.map(async (recipe, index) => ({
-      index,
-      title: recipe.title,
-      ingredientCount: recipe.ingredients.length,
-      stepCount: recipe.steps.length,
-      cookTimeMinutes: recipe.cookTimeMinutes,
-      servings: recipe.servings,
-      thumbnailDataUrl: await makeThumbnail(recipe.imageBase64),
-    }))
-  );
+  const recipes: CrumbPreviewItem[] = [];
+  for (let i = 0; i < parsed.length; i += THUMBNAIL_CONCURRENCY) {
+    const batch = parsed.slice(i, i + THUMBNAIL_CONCURRENCY);
+    const items = await Promise.all(
+      batch.map(async (recipe, j) => ({
+        index: i + j,
+        title: recipe.title,
+        ingredientCount: recipe.ingredients.length,
+        stepCount: recipe.steps.length,
+        cookTimeMinutes: recipe.cookTimeMinutes,
+        servings: recipe.servings,
+        thumbnailDataUrl: await makeThumbnail(recipe.imageBase64),
+      }))
+    );
+    recipes.push(...items);
+  }
 
   if (redis) {
     await redis.setex(
