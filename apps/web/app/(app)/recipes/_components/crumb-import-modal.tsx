@@ -171,8 +171,8 @@ export function CrumbImportModal() {
         {/* Selecting */}
         {phase === "selecting" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground min-w-0">
                 {previewRecipes.length === 1
                   ? "1 recipe found — ready to import."
                   : `${previewRecipes.length} recipes found. Choose which to import.`}
@@ -181,14 +181,14 @@ export function CrumbImportModal() {
                 <button
                   type="button"
                   onClick={() => toggleAll(!allSelected)}
-                  className="text-xs text-primary underline-offset-2 hover:underline"
+                  className="text-xs text-primary underline-offset-2 hover:underline shrink-0"
                 >
                   {allSelected ? "Deselect all" : "Select all"}
                 </button>
               )}
             </div>
 
-            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto overflow-x-hidden">
               {previewRecipes.map((recipe) => {
                 const checked = selected.has(recipe.index);
                 return (
