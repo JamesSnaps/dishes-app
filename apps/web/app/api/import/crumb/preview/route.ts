@@ -69,15 +69,20 @@ export async function POST(req: NextRequest) {
   await requireHousehold(user);
 
   const formData = await req.formData();
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "No file provided." }, { status: 400 });
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File);
+  if (files.length === 0) {
+    return NextResponse.json({ error: "No files provided." }, { status: 400 });
   }
 
   let parsed: ParsedCrumbRecipe[];
   try {
-    const content = await file.arrayBuffer();
-    parsed = await parseCrumbs(content, file.name);
+    const results = await Promise.all(
+      files.map(async (file) => {
+        const content = await file.arrayBuffer();
+        return parseCrumbs(content, file.name);
+      })
+    );
+    parsed = results.flat();
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to parse file" },

@@ -55,15 +55,15 @@ export function CrumbImportModal() {
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
 
     setPhase("parsing");
     setErrorMsg(null);
 
     try {
       const form = new FormData();
-      form.append("file", file);
+      for (const file of files) form.append("files", file);
       const res = await fetch("/api/import/crumb/preview", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to parse file");
@@ -144,13 +144,15 @@ export function CrumbImportModal() {
             </p>
             <label className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/30 p-8 cursor-pointer hover:border-muted-foreground/60 transition-colors">
               <FileArchive className="h-10 w-10 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                Click to choose a <strong>.crumb</strong> or <strong>.zip</strong> file
+              <span className="text-sm text-muted-foreground text-center">
+                Click to choose one or more <strong>.crumb</strong> files,
+                or a <strong>.zip</strong> archive
               </span>
               <input
                 ref={inputRef}
                 type="file"
                 accept=".crumb,.zip"
+                multiple
                 className="sr-only"
                 onChange={handleFileChange}
               />
@@ -192,7 +194,7 @@ export function CrumbImportModal() {
                 return (
                   <label
                     key={recipe.index}
-                    className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                    className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors overflow-hidden ${
                       checked
                         ? "border-primary/60 bg-primary/5"
                         : "border-border bg-background hover:bg-muted/40"
@@ -238,7 +240,7 @@ export function CrumbImportModal() {
               })}
             </div>
 
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
               <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
