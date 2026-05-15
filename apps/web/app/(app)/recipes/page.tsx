@@ -2,32 +2,65 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Plus } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes, cookHistory } from "@dishes/db/schema";
-import { eq, and, ilike, isNotNull, avg, count } from "drizzle-orm";
+import { recipes, cookHistory, recipeTags } from "@dishes/db/schema";
+import { eq, and, ilike, isNotNull, or, inArray, avg, count, sql } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
 import { RecipeCard } from "./_components/recipe-card";
 import { RecipeFilters } from "./_components/recipe-filters";
+import { CrumbImportModal } from "./_components/crumb-import-modal";
 
 export const metadata = { title: "Recipes" };
 
 interface Props {
-  searchParams: Promise<{ q?: string; cuisine?: string; favourites?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    cuisine?: string;
+    favourites?: string;
+    difficulty?: string;
+    maxTime?: string;
+    tags?: string;
+  }>;
 }
 
 export default async function RecipesPage({ searchParams }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const { q, cuisine, favourites } = await searchParams;
+  const { q, cuisine, favourites, difficulty, maxTime, tags } = await searchParams;
 
   const conditions = [eq(recipes.householdId, householdId)];
   if (q?.trim()) conditions.push(ilike(recipes.title, `%${q.trim()}%`));
   if (cuisine?.trim()) conditions.push(eq(recipes.cuisine, cuisine.trim()));
   if (favourites === "1") conditions.push(eq(recipes.isFavourite, true));
+  if (difficulty?.trim() && ["easy", "medium", "hard"].includes(difficulty)) {
+    conditions.push(eq(recipes.difficulty, difficulty as "easy" | "medium" | "hard"));
+  }
+  if (maxTime?.trim()) {
+    const maxMinutes = parseInt(maxTime);
+    if (!isNaN(maxMinutes)) {
+      conditions.push(
+        and(
+          or(isNotNull(recipes.prepTimeMinutes), isNotNull(recipes.cookTimeMinutes))!,
+          sql`COALESCE(${recipes.prepTimeMinutes}, 0) + COALESCE(${recipes.cookTimeMinutes}, 0) <= ${maxMinutes}`
+        )!
+      );
+    }
+  }
+  if (tags?.trim()) {
+    const tagList = tags.split(",").filter(Boolean);
+    if (tagList.length > 0) {
+      conditions.push(
+        inArray(
+          recipes.id,
+          db.select({ id: recipeTags.recipeId }).from(recipeTags).where(inArray(recipeTags.tag, tagList))
+        )
+      );
+    }
+  }
 
-  const [allRecipes, cuisineRows, cookStatsRows] = await Promise.all([
+  const [allRecipes, cuisineRows, cookStatsRows, tagRows] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -59,6 +92,12 @@ export default async function RecipesPage({ searchParams }: Props) {
       .from(cookHistory)
       .where(eq(cookHistory.householdId, householdId))
       .groupBy(cookHistory.recipeId),
+    db
+      .selectDistinct({ tag: recipeTags.tag })
+      .from(recipeTags)
+      .innerJoin(recipes, eq(recipeTags.recipeId, recipes.id))
+      .where(eq(recipes.householdId, householdId))
+      .orderBy(recipeTags.tag),
   ]);
 
   const cookStatsByRecipe = new Map(
@@ -78,33 +117,40 @@ export default async function RecipesPage({ searchParams }: Props) {
     .map((r) => r.cuisine)
     .filter((c): c is string => Boolean(c));
 
+  const allTags = tagRows
+    .map((r) => r.tag)
+    .filter((t): t is string => Boolean(t));
+
   return (
     <div className="p-4 lg:p-8">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Recipes</h1>
-        <Button asChild size="sm">
-          <Link href="/recipes/new">
-            <Plus className="mr-1 h-4 w-4" />
-            New Recipe
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <CrumbImportModal />
+          <Button asChild size="sm">
+            <Link href="/recipes/new">
+              <Plus className="mr-1 h-4 w-4" />
+              New Recipe
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
       <Suspense>
-        <RecipeFilters cuisines={cuisines} />
+        <RecipeFilters cuisines={cuisines} tags={allTags} />
       </Suspense>
 
       {/* Results */}
       {allRecipes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-muted-foreground">
-            {q || cuisine || favourites
+            {q || cuisine || favourites || difficulty || maxTime || tags
               ? "No recipes match your filters."
               : "No recipes yet. Add your first one!"}
           </p>
-          {!q && !cuisine && !favourites && (
+          {!q && !cuisine && !favourites && !difficulty && !maxTime && !tags && (
             <Button asChild className="mt-4">
               <Link href="/recipes/new">Add a recipe</Link>
             </Button>

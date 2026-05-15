@@ -80,7 +80,7 @@ export function RecipeCard({
             <div className="mt-2 flex items-center gap-1.5">
               <StarRating value={averageRating ?? null} readonly size="sm" />
               {averageRating != null && (
-                <span className="text-xs text-muted-foreground">{averageRating}</span>
+                <span className="text-xs text-muted-foreground">{averageRating / 2}/5</span>
               )}
             </div>
           )}

@@ -100,7 +100,7 @@ export function StarRating({
             onMouseEnter={() => setHover((star - 1) * 2 + 1)}
             onMouseLeave={() => setHover(null)}
             onClick={() => onChange?.((star - 1) * 2 + 1)}
-            aria-label={`Rate ${(star - 1) * 2 + 1} out of 10`}
+            aria-label={`Rate ${(star - 1) + 0.5} out of 5`}
           />
           {/* right half → full-star rating */}
           <button
@@ -109,7 +109,7 @@ export function StarRating({
             onMouseEnter={() => setHover(star * 2)}
             onMouseLeave={() => setHover(null)}
             onClick={() => onChange?.(star * 2)}
-            aria-label={`Rate ${star * 2} out of 10`}
+            aria-label={`Rate ${star} out of 5`}
           />
         </div>
       ))}
