@@ -12,16 +12,13 @@ import {
   Minus,
   Plus,
   CheckCircle2,
-  PackageCheck,
   HelpCircle,
   X,
   Send,
   Loader2,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
-import { deductRecipeIngredients } from "@/app/actions/pantry";
-import { logCook } from "@/app/actions/cook-history";
-import { updateRecipeCookTime } from "@/app/actions/recipes";
+import { CookDebrief } from "./cook-debrief";
 import type { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
 
 type Recipe = typeof recipes.$inferSelect;
@@ -649,14 +646,9 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 export function CookingMode({ recipe, ingredients, steps }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const completionRef = useRef<HTMLDivElement>(null);
   const cookStartRef = useRef<number>(Date.now());
-  const [elapsedMinutes, setElapsedMinutes] = useState<number | null>(null);
-  const [updatingCookTime, setUpdatingCookTime] = useState(false);
-  const [cookTimeUpdated, setCookTimeUpdated] = useState(false);
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
-  const [deducting, setDeducting] = useState(false);
-  const [deducted, setDeducted] = useState(false);
   const originalServings = recipe.servings ? parseFloat(recipe.servings) : null;
   const [currentServings, setCurrentServings] = useState(originalServings ?? 4);
 
@@ -745,27 +737,6 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
   const goNext = useCallback(() => { if (!isLast) setStepIndex((i) => i + 1); }, [isLast]);
   const goPrev = useCallback(() => { if (!isFirst) setStepIndex((i) => i - 1); }, [isFirst]);
 
-  async function handleDeductIngredients() {
-    setDeducting(true);
-    try {
-      await deductRecipeIngredients(recipe.id, currentServings);
-      setDeducted(true);
-    } finally {
-      setDeducting(false);
-    }
-  }
-
-  async function handleUpdateCookTime() {
-    if (!elapsedMinutes) return;
-    setUpdatingCookTime(true);
-    try {
-      await updateRecipeCookTime(recipe.id, elapsedMinutes);
-      setCookTimeUpdated(true);
-    } finally {
-      setUpdatingCookTime(false);
-    }
-  }
-
   const toggleIngredient = (id: string) => {
     setCheckedIngredients((prev) => {
       const next = new Set(prev);
@@ -815,16 +786,14 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
           size="lg"
           onClick={() => {
             if (isComplete) return;
-            const mins = Math.round((Date.now() - cookStartRef.current) / 60000);
+            const mins = Math.max(1, Math.round((Date.now() - cookStartRef.current) / 60000));
             setElapsedMinutes(mins);
             setIsComplete(true);
-            logCook(recipe.id, { actualDuration: mins }).catch(() => {});
-            setTimeout(() => completionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
           }}
-          className={`flex-1 ${isComplete ? "bg-green-600 hover:bg-green-700" : ""}`}
+          className="flex-1"
         >
           <CheckCircle2 className="mr-1.5 h-5 w-5" />
-          {isComplete ? "Finished!" : "Done"}
+          Done
         </Button>
       ) : (
         <Button size="lg" onClick={goNext} className="flex-1">
@@ -1014,74 +983,6 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                 </details>
               )}
 
-              {/* Done state */}
-              {isLast && isComplete && (
-                <div ref={completionRef} className="mt-8 rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
-                  <p className="text-lg font-semibold text-green-600 dark:text-green-400">
-                    All done! Enjoy your meal.
-                  </p>
-
-                  {/* Elapsed time */}
-                  {elapsedMinutes !== null && (
-                    <div className="mt-3 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
-                      <Timer className="h-4 w-4" />
-                      <span>
-                        Took {elapsedMinutes < 60
-                          ? `${elapsedMinutes} min`
-                          : `${Math.floor(elapsedMinutes / 60)} hr ${elapsedMinutes % 60} min`}
-                      </span>
-                      {recipe.cookTimeMinutes && (
-                        <span className="text-xs">
-                          (recipe says {recipe.cookTimeMinutes} min)
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Update recipe cook time */}
-                  {elapsedMinutes !== null && !cookTimeUpdated && (
-                    (() => {
-                      const stored = recipe.cookTimeMinutes;
-                      const differs = !stored || Math.abs(stored - elapsedMinutes) >= 5;
-                      return differs ? (
-                        <Button
-                          className="mt-3 w-full"
-                          variant="outline"
-                          onClick={handleUpdateCookTime}
-                          disabled={updatingCookTime}
-                        >
-                          <Timer className="mr-1.5 h-4 w-4" />
-                          {updatingCookTime
-                            ? "Saving…"
-                            : `Update recipe time to ${elapsedMinutes} min`}
-                        </Button>
-                      ) : null;
-                    })()
-                  )}
-                  {cookTimeUpdated && (
-                    <p className="mt-3 text-sm text-muted-foreground">Recipe time updated.</p>
-                  )}
-
-                  {!deducted ? (
-                    <Button
-                      className="mt-3 w-full"
-                      variant="outline"
-                      onClick={handleDeductIngredients}
-                      disabled={deducting}
-                    >
-                      <PackageCheck className="mr-1.5 h-4 w-4" />
-                      {deducting ? "Updating pantry…" : "Mark ingredients as used"}
-                    </Button>
-                  ) : (
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      Pantry stock updated.
-                    </p>
-                  )}
-                  <Button asChild className="mt-2 w-full" variant="ghost">
-                    <Link href={`/recipes/${recipe.id}`}>Back to recipe</Link>
-                  </Button>
-                </div>
-              )}
 
             </div>
           </main>
@@ -1211,6 +1112,18 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
       <footer className="lg:hidden shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <NavButtons className="p-4" />
       </footer>
+
+      {/* ── Post-cooking debrief overlay ────────────────────────────── */}
+      {isComplete && (
+        <CookDebrief
+          recipeId={recipe.id}
+          recipeTitle={recipe.title}
+          recipeServings={originalServings}
+          storedCookTimeMinutes={recipe.cookTimeMinutes}
+          elapsedMinutes={elapsedMinutes}
+          currentServings={currentServings}
+        />
+      )}
     </div>
   );
 }

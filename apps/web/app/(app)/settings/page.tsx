@@ -36,7 +36,6 @@ export default async function SettingsPage() {
               <p className="mt-1 text-lg font-semibold">{household.name}</p>
             </div>
           )}
-          <p className="mt-2 text-xs text-muted-foreground">Slug: {household.slug}</p>
         </div>
       </section>
 

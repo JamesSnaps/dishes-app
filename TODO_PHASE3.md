@@ -46,16 +46,16 @@ After the user finishes cooking mode, present a lightweight debrief screen rathe
 
 ### Tasks
 
-- [ ] "You're done!" screen at end of cooking mode — shown when user taps "Finish" on the last step
-- [ ] Display auto-timed session duration (cooking mode starts a timer on mount)
-- [ ] Prompt: "How long did it actually take?" — pre-filled with session duration, editable
-- [ ] Prompt: "How did it go?" — star/slider rating widget
-- [ ] Prompt: "Any notes?" — single text field (optional)
-- [ ] Prompt: "What was the occasion?" — optional text field with suggestions (Anniversary, Birthday, weeknight dinner…)
-- [ ] Prompt: "Who did you cook for?" — multi-select from `household_members` names
-- [ ] "Upload a photo of your dish" — optional, see section 5
-- [ ] On submit: call `logCook()` server action; navigate to recipe detail
-- [ ] Skip button — exits without logging (no friction for casual cooks)
+- [x] "You're done!" screen at end of cooking mode — full-screen overlay replaces inline done state (`cook-debrief.tsx`)
+- [x] Display auto-timed session duration (cooking mode starts a timer on mount via `cookStartRef`)
+- [x] Prompt: "How long did it actually take?" — pre-filled with session duration, editable with ±5 min buttons
+- [x] Prompt: "How did it go?" — half-star rating widget (0–10 scale)
+- [x] Prompt: "Any notes?" — textarea (optional)
+- [x] Prompt: "What was the occasion?" — text field with quick-select chip suggestions
+- [ ] Prompt: "Who did you cook for?" — multi-select from `household_members` names (blocked on Section 3)
+- [ ] "Upload a photo of your dish" — optional (blocked on Section 5)
+- [x] On submit: call `logCook()` server action; auto-updates recipe cook time if elapsed differs ≥5 min; navigates to recipe detail
+- [x] Skip button — exits without logging (no friction for casual cooks)
 
 ---
 
@@ -84,14 +84,15 @@ household_members
 
 ### Tasks
 
-- [ ] Migration: create `household_members` table
-- [ ] Settings page: `/settings/family` — list family members with edit/delete
-- [ ] Add/edit family member form — name, relationship, date of birth (optional), dietary flags (multi-select from a preset list + free text), dislikes (tag input), preferences (tag input), custom notes
-- [ ] Preset dietary flags: vegetarian, vegan, gluten-free, dairy-free, nut allergy, shellfish allergy, halal, kosher, low-FODMAP (extensible)
-- [ ] "Who's eating?" selector on AI recipe generation — multi-select from household members; selected profiles are injected into the AI system prompt
-- [ ] "Who's eating?" selector on meal plan day — same, stored on the meal plan slot
-- [ ] AI prompt injection: when members are selected, append a constraints block to the generation prompt listing allergies, dislikes, and custom notes
-- [ ] Family member profiles visible to all household members (read), editable by admin/adult roles only
+- [x] Preference columns added to existing `household_members` table (`0005_member_preferences.sql`) — no separate table needed, members already existed
+- [x] Settings page: preferences edit sheet on each member row (gear icon) — dietary flags, dislikes, preferences, custom notes
+- [x] Dietary flags: preset chip toggles (Vegetarian, Vegan, Gluten-free, Dairy-free, Nut allergy, Shellfish allergy, Halal, Kosher, Low-FODMAP, Egg-free)
+- [x] Dislikes + Favourites: tag inputs (type and press Enter)
+- [x] Preference summary shown inline beneath each member row when any data exists
+- [x] Slug removed from settings household card
+- [ ] "Who did you cook for?" multi-select in post-cooking debrief (unblocked — wire to existing members)
+- [ ] "Who's eating?" selector on AI recipe generation — inject constraints into AI system prompt
+- [ ] "Who's eating?" selector on meal plan day
 
 ---
 

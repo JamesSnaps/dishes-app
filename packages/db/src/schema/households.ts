@@ -32,6 +32,10 @@ export const householdMembers = pgTable("household_members", {
   displayName: varchar("display_name", { length: 255 }).notNull(),
   avatarUrl: text("avatar_url"),
   isActive: boolean("is_active").notNull().default(true),
+  dietaryFlags: text("dietary_flags").array(),
+  dislikes: text("dislikes").array(),
+  preferences: text("preferences").array(),
+  customNotes: text("custom_notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

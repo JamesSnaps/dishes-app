@@ -110,6 +110,38 @@ export async function removeMember(memberId: string) {
   revalidatePath("/settings");
 }
 
+export type MemberPreferencesInput = {
+  dietaryFlags: string[];
+  dislikes: string[];
+  preferences: string[];
+  customNotes: string;
+};
+
+export async function updateMemberPreferences(
+  memberId: string,
+  data: MemberPreferencesInput
+): Promise<void> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  await db
+    .update(householdMembers)
+    .set({
+      dietaryFlags: data.dietaryFlags.length ? data.dietaryFlags : null,
+      dislikes: data.dislikes.length ? data.dislikes : null,
+      preferences: data.preferences.length ? data.preferences : null,
+      customNotes: data.customNotes.trim() || null,
+    })
+    .where(
+      and(
+        eq(householdMembers.id, memberId),
+        eq(householdMembers.householdId, householdId)
+      )
+    );
+
+  revalidatePath("/settings");
+}
+
 // ─── AI Config ────────────────────────────────────────────────────────────────
 
 export async function saveAiConfig(formData: FormData) {
@@ -179,6 +211,10 @@ export async function getHouseholdWithMembers(householdId: string) {
       displayName: householdMembers.displayName,
       role: householdMembers.role,
       avatarUrl: householdMembers.avatarUrl,
+      dietaryFlags: householdMembers.dietaryFlags,
+      dislikes: householdMembers.dislikes,
+      preferences: householdMembers.preferences,
+      customNotes: householdMembers.customNotes,
       createdAt: householdMembers.createdAt,
     })
     .from(householdMembers)

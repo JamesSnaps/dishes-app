@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Star } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -16,11 +15,13 @@ import { rateRecipe } from "@/app/actions/cook-history";
 interface RateRecipeSheetProps {
   recipeId: string;
   recipeTitle: string;
+  currentRating: number | null;
 }
 
 export function RateRecipeSheet({
   recipeId,
   recipeTitle,
+  currentRating,
 }: RateRecipeSheetProps) {
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
@@ -48,13 +49,16 @@ export function RateRecipeSheet({
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <Star className="h-4 w-4" />
-          Rate
-        </Button>
+        <button
+          type="button"
+          className="flex items-center gap-0.5 cursor-pointer"
+          aria-label="Rate this recipe"
+        >
+          <StarRating value={currentRating} readonly size="sm" />
+        </button>
       </SheetTrigger>
 
-      <SheetContent className="px-4 pb-8">
+      <SheetContent className="px-4 pb-8 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-sm sm:rounded-2xl">
         <SheetHeader className="mb-6">
           <SheetTitle>Rate this recipe</SheetTitle>
           <p className="text-sm text-muted-foreground line-clamp-1">
@@ -66,7 +70,7 @@ export function RateRecipeSheet({
           <div className="flex flex-col items-center gap-3">
             <StarRating value={rating} onChange={setRating} size="lg" />
             <p className="text-sm text-muted-foreground h-5">
-              {rating != null ? `${rating} / 10` : "Tap to rate"}
+              {rating != null ? `${rating / 2} / 5` : "Tap to rate"}
             </p>
           </div>
 
