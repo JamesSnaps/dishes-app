@@ -25,19 +25,34 @@ const SheetOverlay = React.forwardRef<
 ));
 SheetOverlay.displayName = "SheetOverlay";
 
+type Side = "top" | "bottom" | "left" | "right";
+
+const sideStyles: Record<Side, string> = {
+  bottom:
+    "fixed bottom-0 left-0 right-0 rounded-t-2xl data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+  top: "fixed top-0 left-0 right-0 rounded-b-2xl data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+  right:
+    "fixed right-0 top-0 bottom-0 h-full rounded-l-2xl data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+  left: "fixed left-0 top-0 bottom-0 h-full rounded-r-2xl data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+};
+
+interface SheetContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  side?: Side;
+}
+
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  SheetContentProps
+>(({ className, children, side = "bottom", ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl bg-background shadow-lg",
+        "z-50 bg-background shadow-lg",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
-        "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         "duration-300",
+        sideStyles[side],
         className
       )}
       {...props}

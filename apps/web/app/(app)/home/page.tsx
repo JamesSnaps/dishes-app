@@ -1,8 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import { desc, eq, isNotNull, and } from "drizzle-orm";
-import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, Bell } from "lucide-react";
+import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, Bell, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes } from "@dishes/db/schema";
+import { recipes, mealPlans, mealPlanEntries } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Badge, Button, Card } from "@dishes/ui";
@@ -10,6 +11,53 @@ import { RecipeCard } from "../recipes/_components/recipe-card";
 import { HomeSearchBar } from "./_components/home-search-bar";
 
 export const metadata = { title: "Home" };
+
+type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
+
+const MEAL_LABELS: Record<MealType, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  dessert: "Dessert",
+  snack: "Snack",
+};
+
+const MEAL_ICON: Record<MealType, React.ReactNode> = {
+  breakfast: <Sunrise className="h-3.5 w-3.5" />,
+  lunch: <Sun className="h-3.5 w-3.5" />,
+  dinner: <Moon className="h-3.5 w-3.5" />,
+  dessert: <IceCreamCone className="h-3.5 w-3.5" />,
+  snack: <Cookie className="h-3.5 w-3.5" />,
+};
+
+const MEAL_COLOR: Record<MealType, string> = {
+  breakfast: "text-amber-600 dark:text-amber-400",
+  lunch: "text-violet-600 dark:text-violet-400",
+  dinner: "text-indigo-600 dark:text-indigo-400",
+  dessert: "text-pink-600 dark:text-pink-400",
+  snack: "text-muted-foreground",
+};
+
+const MEAL_BG: Record<MealType, string> = {
+  breakfast: "bg-amber-50 dark:bg-amber-950/20",
+  lunch: "bg-violet-50 dark:bg-violet-950/20",
+  dinner: "bg-indigo-50 dark:bg-indigo-950/20",
+  dessert: "bg-pink-50 dark:bg-pink-950/20",
+  snack: "bg-muted/30",
+};
+
+function getMondayOfToday(): string {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function getTodayDayIndex(): number {
+  const day = new Date().getDay();
+  return day === 0 ? 6 : day - 1;
+}
 
 function timeGreeting() {
   const h = new Date().getHours();
@@ -33,7 +81,10 @@ export default async function HomePage() {
   const firstName = user.displayName.split(" ")[0];
   const { householdId } = await requireHousehold(user);
 
-  const [recentRecipes, cuisineRows] = await Promise.all([
+  const weekStartDate = getMondayOfToday();
+  const todayDayIndex = getTodayDayIndex();
+
+  const [recentRecipes, cuisineRows, todayPlan] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -55,7 +106,31 @@ export default async function HomePage() {
       .from(recipes)
       .where(and(eq(recipes.householdId, householdId), isNotNull(recipes.cuisine)))
       .orderBy(recipes.cuisine),
+    db
+      .select({ id: mealPlans.id })
+      .from(mealPlans)
+      .where(and(eq(mealPlans.householdId, householdId), eq(mealPlans.weekStartDate, weekStartDate)))
+      .limit(1),
   ]);
+
+  const todayMeals = todayPlan[0]
+    ? await db
+        .select({
+          id: mealPlanEntries.id,
+          mealType: mealPlanEntries.mealType,
+          recipe: {
+            id: recipes.id,
+            title: recipes.title,
+            prepTimeMinutes: recipes.prepTimeMinutes,
+            cookTimeMinutes: recipes.cookTimeMinutes,
+            imageUrl: recipes.imageUrl,
+          },
+        })
+        .from(mealPlanEntries)
+        .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
+        .where(and(eq(mealPlanEntries.mealPlanId, todayPlan[0].id), eq(mealPlanEntries.dayOfWeek, todayDayIndex)))
+        .orderBy(mealPlanEntries.mealType)
+    : [];
 
   const cuisines = cuisineRows
     .map((r) => r.cuisine)
@@ -89,6 +164,82 @@ export default async function HomePage() {
 
       {/* Search bar */}
       <HomeSearchBar cuisines={cuisines} />
+
+      {/* Today's meals */}
+      {todayMeals.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <ChefHat className="h-4 w-4 text-primary" />
+              Today&apos;s Meals
+            </h2>
+            <Link href="/meal-plan" className="text-sm text-primary hover:underline">
+              Full plan
+            </Link>
+          </div>
+          <div className="flex flex-col gap-2">
+            {todayMeals.map((entry) => {
+              const mealType = entry.mealType as MealType;
+              const totalTime =
+                (entry.recipe.prepTimeMinutes ?? 0) + (entry.recipe.cookTimeMinutes ?? 0);
+              return (
+                <div
+                  key={entry.id}
+                  className="flex items-center gap-3 rounded-xl border bg-card shadow-sm overflow-hidden"
+                >
+                  {entry.recipe.imageUrl ? (
+                    <Image
+                      src={entry.recipe.imageUrl}
+                      alt={entry.recipe.title}
+                      width={64}
+                      height={64}
+                      className="h-16 w-16 object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="h-16 w-16 flex-shrink-0 bg-muted flex items-center justify-center">
+                      <span className="text-2xl text-muted-foreground/30">🍽</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0 py-2">
+                    <div
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit mb-1 ${MEAL_BG[mealType]} ${MEAL_COLOR[mealType]}`}
+                    >
+                      {MEAL_ICON[mealType]}
+                      <span className="text-xs font-semibold">{MEAL_LABELS[mealType]}</span>
+                    </div>
+                    <p className="font-semibold text-sm leading-snug line-clamp-1">
+                      {entry.recipe.title}
+                    </p>
+                    {totalTime > 0 && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Clock className="h-3 w-3" />
+                        {totalTime < 60
+                          ? `${totalTime}m`
+                          : `${Math.floor(totalTime / 60)}h${totalTime % 60 > 0 ? ` ${totalTime % 60}m` : ""}`}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 pr-3 flex-shrink-0">
+                    <Link
+                      href={`/recipes/${entry.recipe.id}/cook`}
+                      className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                    >
+                      <ChefHat className="h-3.5 w-3.5" />
+                      Cook
+                    </Link>
+                    <Link
+                      href={`/recipes/${entry.recipe.id}`}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      View
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Recent recipes */}
       {recentRecipes.length > 0 && (

@@ -353,3 +353,26 @@ export async function toggleFavourite(recipeId: string) {
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
 }
+
+export async function updateRecipeCookTime(
+  recipeId: string,
+  cookTimeMinutes: number
+): Promise<void> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const [recipe] = await db
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+    .limit(1);
+
+  if (!recipe) throw new Error("Recipe not found");
+
+  await db
+    .update(recipes)
+    .set({ cookTimeMinutes })
+    .where(eq(recipes.id, recipeId));
+
+  revalidatePath(`/recipes/${recipeId}`);
+}

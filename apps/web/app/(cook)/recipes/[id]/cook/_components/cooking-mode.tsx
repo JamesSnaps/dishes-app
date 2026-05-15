@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { deductRecipeIngredients } from "@/app/actions/pantry";
+import { logCook } from "@/app/actions/cook-history";
+import { updateRecipeCookTime } from "@/app/actions/recipes";
 import type { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
 
 type Recipe = typeof recipes.$inferSelect;
@@ -647,6 +649,11 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 export function CookingMode({ recipe, ingredients, steps }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
+  const completionRef = useRef<HTMLDivElement>(null);
+  const cookStartRef = useRef<number>(Date.now());
+  const [elapsedMinutes, setElapsedMinutes] = useState<number | null>(null);
+  const [updatingCookTime, setUpdatingCookTime] = useState(false);
+  const [cookTimeUpdated, setCookTimeUpdated] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   const [deducting, setDeducting] = useState(false);
   const [deducted, setDeducted] = useState(false);
@@ -748,6 +755,17 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
     }
   }
 
+  async function handleUpdateCookTime() {
+    if (!elapsedMinutes) return;
+    setUpdatingCookTime(true);
+    try {
+      await updateRecipeCookTime(recipe.id, elapsedMinutes);
+      setCookTimeUpdated(true);
+    } finally {
+      setUpdatingCookTime(false);
+    }
+  }
+
   const toggleIngredient = (id: string) => {
     setCheckedIngredients((prev) => {
       const next = new Set(prev);
@@ -795,7 +813,14 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
       {isLast ? (
         <Button
           size="lg"
-          onClick={() => setIsComplete(true)}
+          onClick={() => {
+            if (isComplete) return;
+            const mins = Math.round((Date.now() - cookStartRef.current) / 60000);
+            setElapsedMinutes(mins);
+            setIsComplete(true);
+            logCook(recipe.id, { actualDuration: mins }).catch(() => {});
+            setTimeout(() => completionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+          }}
           className={`flex-1 ${isComplete ? "bg-green-600 hover:bg-green-700" : ""}`}
         >
           <CheckCircle2 className="mr-1.5 h-5 w-5" />
@@ -991,13 +1016,55 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
 
               {/* Done state */}
               {isLast && isComplete && (
-                <div className="mt-8 rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
+                <div ref={completionRef} className="mt-8 rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
                   <p className="text-lg font-semibold text-green-600 dark:text-green-400">
                     All done! Enjoy your meal.
                   </p>
+
+                  {/* Elapsed time */}
+                  {elapsedMinutes !== null && (
+                    <div className="mt-3 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+                      <Timer className="h-4 w-4" />
+                      <span>
+                        Took {elapsedMinutes < 60
+                          ? `${elapsedMinutes} min`
+                          : `${Math.floor(elapsedMinutes / 60)} hr ${elapsedMinutes % 60} min`}
+                      </span>
+                      {recipe.cookTimeMinutes && (
+                        <span className="text-xs">
+                          (recipe says {recipe.cookTimeMinutes} min)
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Update recipe cook time */}
+                  {elapsedMinutes !== null && !cookTimeUpdated && (
+                    (() => {
+                      const stored = recipe.cookTimeMinutes;
+                      const differs = !stored || Math.abs(stored - elapsedMinutes) >= 5;
+                      return differs ? (
+                        <Button
+                          className="mt-3 w-full"
+                          variant="outline"
+                          onClick={handleUpdateCookTime}
+                          disabled={updatingCookTime}
+                        >
+                          <Timer className="mr-1.5 h-4 w-4" />
+                          {updatingCookTime
+                            ? "Saving…"
+                            : `Update recipe time to ${elapsedMinutes} min`}
+                        </Button>
+                      ) : null;
+                    })()
+                  )}
+                  {cookTimeUpdated && (
+                    <p className="mt-3 text-sm text-muted-foreground">Recipe time updated.</p>
+                  )}
+
                   {!deducted ? (
                     <Button
-                      className="mt-4 w-full"
+                      className="mt-3 w-full"
                       variant="outline"
                       onClick={handleDeductIngredients}
                       disabled={deducting}

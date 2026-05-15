@@ -2,7 +2,8 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Clock, Users, Sun, Moon, Sunrise, Cookie, IceCreamCone } from "lucide-react";
+import Image from "next/image";
+import { Trash2, Clock, Users, Sun, Moon, Sunrise, Cookie, IceCreamCone, ChefHat } from "lucide-react";
 import { removeMealEntry } from "@/app/actions/meal-plan";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
@@ -85,9 +86,11 @@ export function EntryCard({ entry }: Props) {
     >
       {recipe.imageUrl ? (
         <div className="flex-shrink-0 w-[120px] h-[120px]">
-          <img
+          <Image
             src={recipe.imageUrl}
             alt={recipe.title}
+            width={120}
+            height={120}
             className="w-full h-full object-cover"
           />
         </div>
@@ -127,14 +130,28 @@ export function EntryCard({ entry }: Props) {
         )}
       </div>
 
-      <button
-        onClick={handleRemove}
-        disabled={pending}
-        className="flex-shrink-0 px-3 flex items-center text-muted-foreground hover:text-destructive transition-colors"
-        aria-label={`Remove ${recipe.title}`}
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
+      <div className="flex-shrink-0 flex flex-col items-center justify-center gap-2 px-3 border-l">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push(`/recipes/${recipe.id}/cook`);
+          }}
+          disabled={pending}
+          className="flex flex-col items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          aria-label={`Start cooking ${recipe.title}`}
+        >
+          <ChefHat className="h-5 w-5" />
+          <span>Cook</span>
+        </button>
+        <button
+          onClick={handleRemove}
+          disabled={pending}
+          className="flex items-center text-muted-foreground hover:text-destructive transition-colors"
+          aria-label={`Remove ${recipe.title}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
     </li>
   );
 }
