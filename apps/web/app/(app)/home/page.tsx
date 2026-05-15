@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { desc, eq, isNotNull, and } from "drizzle-orm";
 import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone } from "lucide-react";
 import { db } from "@/lib/db";

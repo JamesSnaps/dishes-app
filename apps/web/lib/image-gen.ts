@@ -5,6 +5,9 @@ import { aiConfigurations } from "@dishes/db/schema";
 import { eq } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("image-gen");
 
 export async function generateRecipeImageCore(
   householdId: string,
@@ -38,7 +41,7 @@ export async function generateRecipeImageCore(
     description ? description + " " : ""
   }Beautifully plated, appetising, clean background, natural lighting. No text, no labels, no watermarks.`;
 
-  console.log(`[AI] Generating image with model=${imageModel} for "${title}"`);
+  log.info(`Generating image with model=${imageModel} for "${title}"`);
 
   const response = await client.images.generate({
     model: imageModel,
@@ -53,19 +56,19 @@ export async function generateRecipeImageCore(
   if (imageData?.b64_json) {
     buffer = Buffer.from(imageData.b64_json, "base64");
   } else if (imageData?.url) {
-    console.log("[AI] Model returned URL — fetching to upload");
+    log.debug("Model returned URL — fetching to upload");
     const fetched = await fetch(imageData.url);
     if (!fetched.ok)
       throw new Error(`Failed to fetch generated image: ${fetched.status}`);
     buffer = Buffer.from(await fetched.arrayBuffer());
   } else {
-    console.error("[AI] Image generation response had no usable data:", JSON.stringify(response.data));
+    log.error("Image generation response had no usable data:", JSON.stringify(response.data));
     throw new Error("No image data returned from AI.");
   }
 
   const key = `recipes/${householdId}/${randomUUID()}.png`;
   const url = await uploadFile(key, buffer, "image/png");
-  console.log(`[AI] Image uploaded: ${url}`);
+  log.info(`Image uploaded: ${url}`);
 
   return { url };
 }

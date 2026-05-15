@@ -5,6 +5,7 @@ import {
   households,
   householdMembers,
   aiConfigurations,
+  appSettings,
 } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -228,6 +229,37 @@ export async function getHouseholdWithMembers(householdId: string) {
 
   return { household: household!, members };
 }
+
+// ─── App settings (global, not household-scoped) ─────────────────────────────
+
+import type { LogLevel } from "@/lib/log-levels";
+
+export async function getLogLevel(): Promise<LogLevel> {
+  const [row] = await db
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.key, "log_level"))
+    .limit(1);
+  return (row?.value as LogLevel) ?? "info";
+}
+
+export async function setLogLevel(level: LogLevel): Promise<void> {
+  const user = await getAutheliaUser();
+  const { role } = await requireHousehold(user);
+  if (role !== "admin") throw new Error("Admin only");
+
+  await db
+    .insert(appSettings)
+    .values({ key: "log_level", value: level })
+    .onConflictDoUpdate({
+      target: appSettings.key,
+      set: { value: level, updatedAt: new Date() },
+    });
+
+  revalidatePath("/settings");
+}
+
+// ─── AI config ────────────────────────────────────────────────────────────────
 
 export async function getAiConfig(householdId: string) {
   const [config] = await db

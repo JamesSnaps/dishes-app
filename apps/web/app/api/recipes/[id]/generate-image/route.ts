@@ -7,6 +7,9 @@ import { generateImageBackground } from "@/lib/image-gen-worker";
 import { db } from "@/lib/db";
 import { recipes, notifications } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("image-gen-route");
 
 export async function POST(
   _req: NextRequest,
@@ -58,12 +61,13 @@ export async function POST(
 
     // Fire and forget — returns before the image is ready
     generateImageBackground(jobId, recipeId, householdId, notif.id).catch((err) => {
-      console.error(`[image-gen] Background job ${jobId} threw:`, err);
+      log.error(`Background job ${jobId} threw:`, err);
     });
 
+    log.info(`Started background image job ${jobId} for recipe ${recipeId}`);
     return NextResponse.json({ jobId, status: "pending" });
   } catch (err) {
-    console.error("[image-gen] Failed to start job:", err);
+    log.error("Failed to start job:", err);
     return NextResponse.json(
       { error: "Failed to start image generation" },
       { status: 500 }

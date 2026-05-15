@@ -3,6 +3,9 @@ import { recipes, notifications } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getRedis } from "@/lib/redis";
 import { generateRecipeImageCore } from "./image-gen";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("image-gen-worker");
 
 async function updateJobStatus(
   jobId: string,
@@ -22,7 +25,7 @@ async function updateJobStatus(
       3600
     );
   } catch (err) {
-    console.error("[image-gen] Failed to update job status:", err);
+    log.error("Failed to update job status:", err);
   }
 }
 
@@ -87,7 +90,7 @@ export async function generateImageBackground(
     // Mark job done BEFORE revalidatePath — revalidatePath can throw from
     // a background context in Next.js and must not block the success signal.
     await updateJobStatus(jobId, "done", { imageUrl: url });
-    console.log(`[image-gen] Job ${jobId} completed for recipe ${recipeId}`);
+    log.info(`Job ${jobId} completed for recipe ${recipeId}`);
 
     // Best-effort cache bust — failure here doesn't matter since the recipe
     // page is a dynamic route and will re-fetch from DB on next navigation.
@@ -99,7 +102,7 @@ export async function generateImageBackground(
       // Silently ignored — background context may not support revalidatePath
     }
   } catch (err) {
-    console.error(`[image-gen] Job ${jobId} failed:`, err);
+    log.error(`Job ${jobId} failed:`, err);
     const message = err instanceof Error ? err.message : String(err);
     await updateJobStatus(jobId, "failed", { error: message });
     // Best-effort notification update on unexpected failure

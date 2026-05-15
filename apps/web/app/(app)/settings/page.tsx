@@ -1,19 +1,23 @@
 import Link from "next/link";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getHouseholdWithMembers } from "@/app/actions/settings";
+import { getHouseholdWithMembers, getLogLevel } from "@/app/actions/settings";
 import { APP_VERSION } from "@/lib/version";
 import { HouseholdNameForm } from "./_components/household-name-form";
 import { MembersList } from "./_components/members-list";
 import { AddMemberForm } from "./_components/add-member-form";
 import { AppearanceSection } from "./_components/appearance-section";
+import { LogLevelSection } from "./_components/log-level-section";
 
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const user = await getAutheliaUser();
   const { householdId, memberId, role } = await requireHousehold(user);
-  const { household, members } = await getHouseholdWithMembers(householdId);
+  const [{ household, members }, logLevel] = await Promise.all([
+    getHouseholdWithMembers(householdId),
+    getLogLevel(),
+  ]);
   const isAdmin = role === "admin";
 
   return (
@@ -82,6 +86,8 @@ export default async function SettingsPage() {
           </Link>
         </div>
       </section>
+
+      {isAdmin && <LogLevelSection current={logLevel} />}
 
       <p className="mt-8 text-xs text-muted-foreground">
         Version {APP_VERSION}
