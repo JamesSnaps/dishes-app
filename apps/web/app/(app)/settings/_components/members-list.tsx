@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { Button } from "@dishes/ui";
 import { updateMemberRole, removeMember } from "@/app/actions/settings";
 import { MemberPreferencesSheet } from "./member-preferences-sheet";
+import { AvatarUpload } from "./avatar-upload";
 
 type Member = {
   id: string;
@@ -81,9 +82,12 @@ export function MembersList({
       {members.map((member) => (
         <li key={member.id} className="px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold uppercase">
-              {member.displayName.charAt(0)}
-            </div>
+            <AvatarUpload
+              memberId={member.id}
+              displayName={member.displayName}
+              avatarUrl={member.avatarUrl}
+              canEdit={isAdmin || member.id === currentUserMemberId}
+            />
             <div className="flex-1 min-w-0">
               <p className="font-medium leading-tight">{member.displayName}</p>
               <p className="text-xs text-muted-foreground">{member.autheliaUser}</p>

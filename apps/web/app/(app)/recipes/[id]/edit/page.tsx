@@ -68,6 +68,7 @@ export default async function EditRecipePage({ params }: Props) {
         action={action}
         heading="Edit Recipe"
         submitLabel="Save Changes"
+        recipeId={id}
         defaults={{
           title: recipe.title,
           description: recipe.description ?? undefined,

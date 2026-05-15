@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@dishes/ui";
 import { improveRecipe, generateRecipeImageUrl, type GeneratedRecipe } from "@/app/actions/ai";
+import { addPendingImageJob } from "@/components/providers/jobs-provider";
+import { toast } from "@/hooks/use-toast";
 import { PasteImportModal } from "./paste-import-modal";
 import type { ParsedIngredient, ParsedStep } from "@/lib/recipe-parser";
 
@@ -89,6 +91,7 @@ interface RecipeFormProps {
   submitLabel?: string;
   heading?: string;
   mode?: "create" | "edit";
+  recipeId?: string;
 }
 
 export function RecipeForm({
@@ -97,6 +100,7 @@ export function RecipeForm({
   submitLabel = "Save Recipe",
   heading = "Edit Recipe",
   mode = "edit",
+  recipeId,
 }: RecipeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -239,6 +243,29 @@ export function RecipeForm({
 
   async function handleGenerateImage() {
     setImageError(null);
+
+    if (recipeId) {
+      // Background job — fire-and-forget so the user can navigate away
+      try {
+        const res = await fetch(`/api/recipes/${recipeId}/generate-image`, { method: "POST" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error((body as { error?: string }).error ?? "Failed to start image generation");
+        }
+        const { jobId } = (await res.json()) as { jobId: string };
+        addPendingImageJob({ jobId, recipeId, recipeTitle: title || "Recipe" });
+        toast({
+          title: "Generating image",
+          description: "You can navigate away — we’ll notify you when it’s ready.",
+        });
+        window.dispatchEvent(new Event("dishes-notification-added"));
+      } catch (err) {
+        setImageError(err instanceof Error ? err.message : "Something went wrong");
+      }
+      return;
+    }
+
+    // Create mode — synchronous, URL stored in form state
     setImageGenerating(true);
     const result = await generateRecipeImageUrl(title || "Recipe", description || null);
     setImageGenerating(false);
