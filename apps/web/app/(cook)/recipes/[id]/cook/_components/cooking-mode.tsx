@@ -382,9 +382,9 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
   );
 
   return (
-    <div className="flex flex-col lg:h-screen lg:overflow-hidden">
+    <div className="flex flex-col h-dvh overflow-hidden">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="shrink-0 sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <header className="shrink-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="flex items-center gap-3 px-4 py-3">
           <Button asChild variant="ghost" size="sm" className="-ml-2 shrink-0">
             <Link href={`/recipes/${recipe.id}`}>
@@ -418,11 +418,14 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
       {/* ── Body ───────────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
+        {/* ── Main column: scrollable content + pinned desktop nav ─── */}
+        <div className="flex flex-col flex-1 min-h-0">
+
         {/* ── Main content ─────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto">
-          {/* Recipe image */}
+        <main className="flex-1 min-h-0 overflow-y-auto">
+          {/* Recipe image — small strip on mobile, wider banner on desktop */}
           {recipe.imageUrl && (
-            <div className="aspect-video lg:aspect-[21/8] w-full overflow-hidden bg-muted shrink-0">
+            <div className="h-20 sm:h-28 lg:h-auto lg:aspect-[21/8] w-full overflow-hidden bg-muted shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={recipe.imageUrl}
@@ -550,10 +553,13 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
               </div>
             )}
 
-            {/* Desktop navigation */}
-            <NavButtons className="hidden lg:flex mt-10" />
           </div>
         </main>
+
+        {/* ── Desktop nav — pinned at bottom of content column ─────── */}
+        <NavButtons className="hidden lg:flex shrink-0 px-10 py-4 border-t bg-background" />
+
+        </div>{/* end main column */}
 
         {/* ── Sidebar (desktop only) ────────────────────────────────── */}
         <aside className="hidden lg:flex lg:w-[340px] xl:w-[380px] shrink-0 flex-col border-l h-full overflow-hidden">
@@ -666,7 +672,7 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
       </div>
 
       {/* ── Mobile footer nav ───────────────────────────────────────── */}
-      <footer className="lg:hidden shrink-0 sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <footer className="lg:hidden shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <NavButtons className="p-4" />
       </footer>
     </div>
