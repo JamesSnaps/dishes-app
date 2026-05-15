@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Plus } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes } from "@dishes/db/schema";
-import { eq, and, ilike, isNotNull } from "drizzle-orm";
+import { recipes, cookHistory } from "@dishes/db/schema";
+import { eq, and, ilike, isNotNull, avg, count } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
@@ -27,7 +27,7 @@ export default async function RecipesPage({ searchParams }: Props) {
   if (cuisine?.trim()) conditions.push(eq(recipes.cuisine, cuisine.trim()));
   if (favourites === "1") conditions.push(eq(recipes.isFavourite, true));
 
-  const [allRecipes, cuisineRows] = await Promise.all([
+  const [allRecipes, cuisineRows, cookStatsRows] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -50,7 +50,29 @@ export default async function RecipesPage({ searchParams }: Props) {
         and(eq(recipes.householdId, householdId), isNotNull(recipes.cuisine))
       )
       .orderBy(recipes.cuisine),
+    db
+      .select({
+        recipeId: cookHistory.recipeId,
+        averageRating: avg(cookHistory.rating),
+        cookCount: count(cookHistory.id),
+      })
+      .from(cookHistory)
+      .where(eq(cookHistory.householdId, householdId))
+      .groupBy(cookHistory.recipeId),
   ]);
+
+  const cookStatsByRecipe = new Map(
+    cookStatsRows.map((r) => [
+      r.recipeId,
+      {
+        averageRating:
+          r.averageRating != null
+            ? Math.round(parseFloat(r.averageRating) * 10) / 10
+            : null,
+        cookCount: Number(r.cookCount),
+      },
+    ])
+  );
 
   const cuisines = cuisineRows
     .map((r) => r.cuisine)
@@ -90,9 +112,17 @@ export default async function RecipesPage({ searchParams }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {allRecipes.map((recipe) => (
-            <RecipeCard key={recipe.id} {...recipe} />
-          ))}
+          {allRecipes.map((recipe) => {
+            const stats = cookStatsByRecipe.get(recipe.id);
+            return (
+              <RecipeCard
+                key={recipe.id}
+                {...recipe}
+                averageRating={stats?.averageRating ?? null}
+                cookCount={stats?.cookCount ?? 0}
+              />
+            );
+          })}
         </div>
       )}
     </div>

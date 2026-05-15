@@ -6,6 +6,8 @@ import {
   shoppingListItems,
   recipes,
   recipeIngredients,
+  pantryStaples,
+  pantryStock,
 } from "@dishes/db/schema";
 import { eq, and, asc, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -199,7 +201,126 @@ export async function deleteItem(itemId: string) {
   revalidatePath("/shopping");
 }
 
-export async function generateFromRecipe(recipeId: string, servings?: number) {
+export type SkippedIngredient = {
+  ingredientName: string;
+  amount: string | null;
+  unit: string | null;
+  reason: "staple" | "in_stock";
+};
+
+export type AddingIngredient = {
+  ingredientName: string;
+  amount: string | null;
+  unit: string | null;
+};
+
+export type ShoppingPreview = {
+  adding: AddingIngredient[];
+  skipped: SkippedIngredient[];
+};
+
+export async function previewShoppingGeneration(
+  recipeId: string,
+  servings?: number
+): Promise<ShoppingPreview> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const [recipe] = await db
+    .select({ id: recipes.id, servings: recipes.servings })
+    .from(recipes)
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+    .limit(1);
+
+  if (!recipe) return { adding: [], skipped: [] };
+
+  const baseServings = recipe.servings ? parseFloat(recipe.servings) : null;
+  const scale =
+    servings && baseServings && baseServings > 0
+      ? servings / baseServings
+      : 1;
+
+  const [ingredients, staples, stock] = await Promise.all([
+    db
+      .select({
+        ingredientName: recipeIngredients.ingredientName,
+        amount: recipeIngredients.amount,
+        unit: recipeIngredients.unit,
+      })
+      .from(recipeIngredients)
+      .where(eq(recipeIngredients.recipeId, recipeId))
+      .orderBy(asc(recipeIngredients.position)),
+    db
+      .select({ ingredientName: pantryStaples.ingredientName })
+      .from(pantryStaples)
+      .where(eq(pantryStaples.householdId, householdId)),
+    db
+      .select({
+        ingredientName: pantryStock.ingredientName,
+        amount: pantryStock.amount,
+        unit: pantryStock.unit,
+      })
+      .from(pantryStock)
+      .where(eq(pantryStock.householdId, householdId)),
+  ]);
+
+  const stapleNames = new Set(
+    staples.map((s) => s.ingredientName.toLowerCase().trim())
+  );
+
+  const adding: AddingIngredient[] = [];
+  const skipped: SkippedIngredient[] = [];
+
+  for (const ing of ingredients) {
+    const normalName = ing.ingredientName.toLowerCase().trim();
+
+    if (stapleNames.has(normalName)) {
+      skipped.push({
+        ingredientName: ing.ingredientName,
+        amount: ing.amount,
+        unit: ing.unit,
+        reason: "staple",
+      });
+      continue;
+    }
+
+    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+    const scaledAmount = !isNaN(rawNum) ? rawNum * scale : null;
+
+    if (scaledAmount !== null) {
+      const stockItem = stock.find(
+        (s) =>
+          s.ingredientName.toLowerCase().trim() === normalName &&
+          s.unit === ing.unit
+      );
+      if (stockItem?.amount && parseFloat(stockItem.amount) >= scaledAmount) {
+        skipped.push({
+          ingredientName: ing.ingredientName,
+          amount: ing.amount,
+          unit: ing.unit,
+          reason: "in_stock",
+        });
+        continue;
+      }
+    }
+
+    const scaledAmountStr =
+      scaledAmount !== null ? scaledAmount.toString() : null;
+    adding.push({
+      ingredientName: ing.ingredientName,
+      amount: scaledAmountStr,
+      unit: ing.unit,
+    });
+  }
+
+  return { adding, skipped };
+}
+
+export async function generateFromRecipe(
+  recipeId: string,
+  servings?: number,
+  forceInclude?: string[]
+) {
   const user = await getAutheliaUser();
   const { householdId, memberId } = await requireHousehold(user);
 
@@ -229,7 +350,29 @@ export async function generateFromRecipe(recipeId: string, servings?: number) {
     .where(eq(recipeIngredients.recipeId, recipeId))
     .orderBy(asc(recipeIngredients.position));
 
-  const list = await ensureActiveList(householdId, memberId);
+  const [list, staples, stock] = await Promise.all([
+    ensureActiveList(householdId, memberId),
+    db
+      .select({ ingredientName: pantryStaples.ingredientName })
+      .from(pantryStaples)
+      .where(eq(pantryStaples.householdId, householdId)),
+    db
+      .select({
+        ingredientName: pantryStock.ingredientName,
+        amount: pantryStock.amount,
+        unit: pantryStock.unit,
+      })
+      .from(pantryStock)
+      .where(eq(pantryStock.householdId, householdId)),
+  ]);
+
+  const stapleNames = new Set(
+    staples.map((s) => s.ingredientName.toLowerCase().trim())
+  );
+
+  const forceIncludeNames = new Set(
+    (forceInclude ?? []).map((n) => n.toLowerCase().trim())
+  );
 
   const existing = await db
     .select({
@@ -248,23 +391,42 @@ export async function generateFromRecipe(recipeId: string, servings?: number) {
   let posCounter = maxPos + 1;
 
   for (const ing of ingredients) {
+    const normalName = ing.ingredientName.toLowerCase().trim();
+
+    const forced = forceIncludeNames.has(normalName);
+
+    // Skip staples — unless explicitly overridden
+    if (!forced && stapleNames.has(normalName)) continue;
+
     const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
     const isNumeric = !isNaN(rawNum);
+    const scaledAmount = isNumeric ? rawNum * scale : null;
 
-    const scaledAmount = isNumeric ? (rawNum * scale).toString() : null;
+    // Skip if sufficient stock exists — unless explicitly overridden
+    if (!forced && scaledAmount !== null) {
+      const stockItem = stock.find(
+        (s) =>
+          s.ingredientName.toLowerCase().trim() === normalName &&
+          s.unit === ing.unit
+      );
+      if (stockItem?.amount && parseFloat(stockItem.amount) >= scaledAmount) {
+        continue;
+      }
+    }
+
+    const scaledAmountStr = scaledAmount !== null ? scaledAmount.toString() : null;
     // Non-numeric amounts like "small handful" / "to taste" go into notes
     const textNote = !isNumeric && ing.amount ? ing.amount : null;
 
-    const normalName = ing.ingredientName.toLowerCase().trim();
     const match = existing.find(
       (e) =>
         e.ingredientName.toLowerCase().trim() === normalName &&
         e.unit === ing.unit
     );
 
-    if (match && match.amount !== null && scaledAmount !== null) {
+    if (match && match.amount !== null && scaledAmountStr !== null) {
       const newAmount = (
-        parseFloat(match.amount) + parseFloat(scaledAmount)
+        parseFloat(match.amount) + parseFloat(scaledAmountStr)
       ).toString();
       await db
         .update(shoppingListItems)
@@ -275,7 +437,7 @@ export async function generateFromRecipe(recipeId: string, servings?: number) {
         listId: list.id,
         recipeId,
         ingredientName: ing.ingredientName,
-        amount: scaledAmount,
+        amount: scaledAmountStr,
         unit: ing.unit,
         notes: textNote,
         position: posCounter++,

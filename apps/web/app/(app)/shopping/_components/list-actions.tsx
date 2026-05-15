@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { Archive, Trash2 } from "lucide-react";
+import { Archive, Trash2, PackagePlus } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@dishes/ui";
 import { clearChecked, archiveList } from "@/app/actions/shopping";
+import { addCheckedItemsToStock } from "@/app/actions/pantry";
 
 interface Props {
   listId: string;
@@ -28,6 +29,13 @@ export function ListActions({ listId, hasChecked }: Props) {
 
   function handleArchive() {
     startTransition(() => archiveList(listId));
+  }
+
+  function handleArchiveAndAddToStock() {
+    startTransition(async () => {
+      await addCheckedItemsToStock(listId);
+      await archiveList(listId);
+    });
   }
 
   return (
@@ -55,13 +63,22 @@ export function ListActions({ listId, hasChecked }: Props) {
             <DialogTitle>Complete this list?</DialogTitle>
             <DialogDescription>
               The list will be archived and a new one can be started.
+              {hasChecked && " You can also add your checked items to pantry stock."}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" disabled={pending}>
-              Cancel
-            </Button>
-            <Button onClick={handleArchive} disabled={pending}>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            {hasChecked && (
+              <Button
+                variant="outline"
+                onClick={handleArchiveAndAddToStock}
+                disabled={pending}
+                className="w-full sm:w-auto"
+              >
+                <PackagePlus className="mr-1.5 h-4 w-4" />
+                {pending ? "Saving…" : "Complete & add to pantry"}
+              </Button>
+            )}
+            <Button onClick={handleArchive} disabled={pending} className="w-full sm:w-auto">
               {pending ? "Archiving…" : "Complete"}
             </Button>
           </DialogFooter>

@@ -17,6 +17,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **AI recipe concierge** — describe what you want, get 5 concept cards, pick one, and the app generates a complete structured recipe
 - **Recipe photos** — upload images to MinIO/S3; shown on recipe cards and detail pages
 - **Household model** — multi-member households with role-based permissions (admin / adult / child); all data is household-scoped
+- **Pantry** — staples list (always-available ingredients excluded from shopping lists) and current stock tracking; automatically updated when cooking is completed or a shopping list is archived
 - **Integrations API** — JSON API with bearer token auth for n8n, Home Assistant, dashboards, and other automation tools
 - **PWA** — installable on mobile via browser
 

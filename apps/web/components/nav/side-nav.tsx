@@ -39,7 +39,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/recipes", label: "Recipes", icon: BookOpen },
   { href: "/meal-plan", label: "Meal Planner", icon: CalendarDays },
   { href: "/shopping", label: "Shopping List", icon: ShoppingCart },
-  { href: "/pantry", label: "Pantry", icon: Package, disabled: true },
+  { href: "/pantry", label: "Pantry", icon: Package },
   { href: "/ai-concierge", label: "AI Concierge", icon: Sparkles },
   { href: "/what-can-i-cook", label: "What Can I Cook?", icon: ChefHat, disabled: true },
 ];

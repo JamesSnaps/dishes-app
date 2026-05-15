@@ -74,6 +74,14 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Token management UI (`/settings/integrations`) — create/revoke tokens with scopes
 - [x] Redis rate limiting middleware for integration routes (100 req/min per token, gracefully skipped if Redis unavailable)
 
+## Pantry
+- [x] `pantry_staples` table — household-scoped list of always-available ingredients
+- [x] `pantry_stock` table — tracked items with optional quantity and unit
+- [x] `/pantry` page — staples section (chip list + add form) and stock section (table + add form)
+- [x] Shopping list generation skips staples and fully-stocked ingredients
+- [x] Cooking mode "Mark ingredients as used" button — deducts recipe ingredients from stock after cooking
+- [x] Shopping list "Complete & add to pantry" — adds checked items to stock when archiving a list
+
 ## Infrastructure / DevX
 - [x] `.env.local` validation on startup (zod, fail fast)
 - [x] Error boundary + 404/500 pages

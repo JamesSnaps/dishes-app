@@ -12,8 +12,10 @@ import {
   Minus,
   Plus,
   CheckCircle2,
+  PackageCheck,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
+import { deductRecipeIngredients } from "@/app/actions/pantry";
 import type { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
 
 type Recipe = typeof recipes.$inferSelect;
@@ -303,6 +305,8 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
+  const [deducting, setDeducting] = useState(false);
+  const [deducted, setDeducted] = useState(false);
   const originalServings = recipe.servings ? parseFloat(recipe.servings) : null;
   const [currentServings, setCurrentServings] = useState(originalServings ?? 4);
 
@@ -327,6 +331,16 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
 
   const goNext = useCallback(() => { if (!isLast) setStepIndex((i) => i + 1); }, [isLast]);
   const goPrev = useCallback(() => { if (!isFirst) setStepIndex((i) => i - 1); }, [isFirst]);
+
+  async function handleDeductIngredients() {
+    setDeducting(true);
+    try {
+      await deductRecipeIngredients(recipe.id, currentServings);
+      setDeducted(true);
+    } finally {
+      setDeducting(false);
+    }
+  }
 
   const toggleIngredient = (id: string) => {
     setCheckedIngredients((prev) => {
@@ -547,7 +561,22 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
                 <p className="text-lg font-semibold text-green-600 dark:text-green-400">
                   All done! Enjoy your meal.
                 </p>
-                <Button asChild className="mt-4" variant="outline">
+                {!deducted ? (
+                  <Button
+                    className="mt-4 w-full"
+                    variant="outline"
+                    onClick={handleDeductIngredients}
+                    disabled={deducting}
+                  >
+                    <PackageCheck className="mr-1.5 h-4 w-4" />
+                    {deducting ? "Updating pantry…" : "Mark ingredients as used"}
+                  </Button>
+                ) : (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Pantry stock updated.
+                  </p>
+                )}
+                <Button asChild className="mt-2 w-full" variant="ghost">
                   <Link href={`/recipes/${recipe.id}`}>Back to recipe</Link>
                 </Button>
               </div>

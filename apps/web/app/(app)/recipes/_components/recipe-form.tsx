@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@dishes/ui";
 import { improveRecipe, generateRecipeImageUrl, type GeneratedRecipe } from "@/app/actions/ai";
+import { PasteImportModal } from "./paste-import-modal";
+import type { ParsedIngredient, ParsedStep } from "@/lib/recipe-parser";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -287,6 +289,22 @@ export function RecipeForm({
     setSteps((prev) => prev.filter((row) => row.key !== key));
   }
 
+  function handlePasteImport(
+    parsedIngredients: ParsedIngredient[],
+    parsedSteps: ParsedStep[]
+  ) {
+    if (parsedIngredients.length > 0) {
+      setIngredients(
+        parsedIngredients.map(({ ...rest }) => ({ ...rest, key: nextKey() }))
+      );
+    }
+    if (parsedSteps.length > 0) {
+      setSteps(
+        parsedSteps.map(({ ...rest }) => ({ ...rest, key: nextKey() }))
+      );
+    }
+  }
+
   // ── Submit ──────────────────────────────────────────────────────────────────
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -555,7 +573,10 @@ export function RecipeForm({
 
   const ingredientsSection = (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold">Ingredients</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">Ingredients</h2>
+        <PasteImportModal onImport={handlePasteImport} />
+      </div>
 
       {/* Column headers — visible on sm+ */}
       <div className="hidden sm:grid sm:grid-cols-[2fr_1fr_1fr_2fr_auto_auto] gap-2 px-1">

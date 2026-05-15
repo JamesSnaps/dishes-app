@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import type { GeneratedRecipe } from "./ai";
 
 type IngredientInput = {
   ingredientName: string;
@@ -184,6 +185,152 @@ export async function deleteRecipe(recipeId: string) {
 
   revalidatePath("/recipes");
   redirect("/recipes");
+}
+
+export async function saveRecipeAsCopy(
+  originalRecipeId: string,
+  tweaked: GeneratedRecipe
+): Promise<{ recipeId?: string; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId, memberId } = await requireHousehold(user);
+
+    const [original] = await db
+      .select({ id: recipes.id })
+      .from(recipes)
+      .where(and(eq(recipes.id, originalRecipeId), eq(recipes.householdId, householdId)))
+      .limit(1);
+    if (!original) return { error: "Recipe not found." };
+
+    const [newRecipe] = await db
+      .insert(recipes)
+      .values({
+        householdId,
+        createdById: memberId,
+        title: tweaked.title,
+        description: tweaked.description || null,
+        cuisine: tweaked.cuisine || null,
+        prepTimeMinutes: tweaked.prepTimeMinutes,
+        cookTimeMinutes: tweaked.cookTimeMinutes,
+        servings: tweaked.servings || null,
+        servingsUnit: tweaked.servingsUnit || "servings",
+        difficulty: tweaked.difficulty || null,
+        notes: tweaked.notes,
+        isAiGenerated: true,
+      })
+      .returning({ id: recipes.id });
+
+    const newId = newRecipe!.id;
+
+    await Promise.all([
+      tweaked.ingredients.length
+        ? db.insert(recipeIngredients).values(
+            tweaked.ingredients.map((ing, i) => ({
+              recipeId: newId,
+              position: i,
+              ingredientName: ing.ingredientName,
+              amount: ing.amount || null,
+              unit: ing.unit || null,
+              preparation: ing.preparation || null,
+              isOptional: ing.isOptional,
+              groupLabel: ing.groupLabel || null,
+            }))
+          )
+        : Promise.resolve(),
+      tweaked.steps.length
+        ? db.insert(recipeSteps).values(
+            tweaked.steps.map((s, i) => ({
+              recipeId: newId,
+              position: i,
+              instruction: s.instruction,
+              durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
+              timerLabel: s.timerLabel || null,
+            }))
+          )
+        : Promise.resolve(),
+      tweaked.tags.length
+        ? db.insert(recipeTags).values(tweaked.tags.map((tag) => ({ recipeId: newId, tag })))
+        : Promise.resolve(),
+    ]);
+
+    revalidatePath("/recipes");
+    return { recipeId: newId };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to save recipe." };
+  }
+}
+
+export async function applyTweakToRecipe(
+  recipeId: string,
+  tweaked: GeneratedRecipe
+): Promise<{ error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+
+    const [existing] = await db
+      .select({ id: recipes.id })
+      .from(recipes)
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+      .limit(1);
+    if (!existing) return { error: "Recipe not found." };
+
+    await db
+      .update(recipes)
+      .set({
+        title: tweaked.title,
+        description: tweaked.description || null,
+        cuisine: tweaked.cuisine || null,
+        prepTimeMinutes: tweaked.prepTimeMinutes,
+        cookTimeMinutes: tweaked.cookTimeMinutes,
+        servings: tweaked.servings || null,
+        servingsUnit: tweaked.servingsUnit || "servings",
+        difficulty: tweaked.difficulty || null,
+        notes: tweaked.notes,
+      })
+      .where(eq(recipes.id, recipeId));
+
+    await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
+    await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
+    await db.delete(recipeTags).where(eq(recipeTags.recipeId, recipeId));
+
+    await Promise.all([
+      tweaked.ingredients.length
+        ? db.insert(recipeIngredients).values(
+            tweaked.ingredients.map((ing, i) => ({
+              recipeId,
+              position: i,
+              ingredientName: ing.ingredientName,
+              amount: ing.amount || null,
+              unit: ing.unit || null,
+              preparation: ing.preparation || null,
+              isOptional: ing.isOptional,
+              groupLabel: ing.groupLabel || null,
+            }))
+          )
+        : Promise.resolve(),
+      tweaked.steps.length
+        ? db.insert(recipeSteps).values(
+            tweaked.steps.map((s, i) => ({
+              recipeId,
+              position: i,
+              instruction: s.instruction,
+              durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
+              timerLabel: s.timerLabel || null,
+            }))
+          )
+        : Promise.resolve(),
+      tweaked.tags.length
+        ? db.insert(recipeTags).values(tweaked.tags.map((tag) => ({ recipeId, tag })))
+        : Promise.resolve(),
+    ]);
+
+    revalidatePath(`/recipes/${recipeId}`);
+    revalidatePath("/recipes");
+    return {};
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to update recipe." };
+  }
 }
 
 export async function toggleFavourite(recipeId: string) {

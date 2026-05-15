@@ -3,3 +3,5 @@ export * from "./recipes";
 export * from "./shopping";
 export * from "./meal-plans";
 export * from "./integrations";
+export * from "./pantry";
+export * from "./cook-history";

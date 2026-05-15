@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Clock, ExternalLink } from "lucide-react";
 import { Badge } from "@dishes/ui";
 import { AddToShoppingButton } from "./add-to-shopping-button";
+import { StarRating } from "./star-rating";
+import type { CookHistoryEntry } from "@/app/actions/cook-history";
 
-type Tab = "overview" | "ingredients" | "steps" | "notes";
+type Tab = "overview" | "ingredients" | "steps" | "notes" | "history";
 
 interface Ingredient {
   id: string;
@@ -35,6 +37,7 @@ interface RecipeTabsProps {
   ingredients: Ingredient[];
   steps: Step[];
   tags: { id: string; tag: string }[];
+  cookHistory: CookHistoryEntry[];
 }
 
 function formatTime(minutes: number): string {
@@ -42,6 +45,14 @@ function formatTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function formatDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export function RecipeTabs({
@@ -56,12 +67,16 @@ export function RecipeTabs({
   ingredients,
   steps,
   tags,
+  cookHistory,
 }: RecipeTabsProps) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "ingredients", label: `Ingredients${ingredients.length > 0 ? ` (${ingredients.length})` : ""}` },
     { id: "steps", label: `Steps${steps.length > 0 ? ` (${steps.length})` : ""}` },
     ...(notes ? [{ id: "notes" as Tab, label: "Notes" }] : []),
+    ...(cookHistory.length > 0
+      ? [{ id: "history" as Tab, label: `History (${cookHistory.length})` }]
+      : []),
   ];
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -219,6 +234,56 @@ export function RecipeTabs({
 
         {activeTab === "notes" && notes && (
           <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{notes}</p>
+        )}
+
+        {activeTab === "history" && (
+          <div className="space-y-4">
+            {cookHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No cook history yet.</p>
+            ) : (
+              cookHistory.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="rounded-lg border bg-card p-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{formatDate(entry.cookedAt)}</span>
+                    {entry.rating != null && (
+                      <div className="flex items-center gap-2">
+                        <StarRating value={entry.rating} readonly size="sm" />
+                        <span className="text-xs text-muted-foreground">{entry.rating}/10</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {entry.occasion && (
+                    <p className="text-sm text-muted-foreground">
+                      {entry.occasion}
+                    </p>
+                  )}
+
+                  {entry.cookedFor && entry.cookedFor.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Cooked for: {entry.cookedFor.join(", ")}
+                    </p>
+                  )}
+
+                  {entry.actualDuration && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Took {entry.actualDuration} min
+                    </p>
+                  )}
+
+                  {entry.notes && (
+                    <p className="text-sm text-muted-foreground leading-relaxed border-t pt-2 mt-2">
+                      {entry.notes}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         )}
       </div>
     </div>

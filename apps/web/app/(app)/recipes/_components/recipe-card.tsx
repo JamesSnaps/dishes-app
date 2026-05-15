@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Clock, UtensilsCrossed } from "lucide-react";
 import { Badge, Card } from "@dishes/ui";
 import { FavouriteButton } from "./favourite-button";
+import { StarRating } from "../[id]/_components/star-rating";
 
 type RecipeCardProps = {
   id: string;
@@ -13,6 +14,8 @@ type RecipeCardProps = {
   imageUrl: string | null;
   isFavourite: boolean;
   isAiGenerated: boolean;
+  averageRating?: number | null;
+  cookCount?: number;
 };
 
 function totalTime(prep: number | null, cook: number | null): string | null {
@@ -34,6 +37,8 @@ export function RecipeCard({
   imageUrl,
   isFavourite,
   isAiGenerated,
+  averageRating,
+  cookCount,
 }: RecipeCardProps) {
   const time = totalTime(prepTimeMinutes, cookTimeMinutes);
 
@@ -68,6 +73,16 @@ export function RecipeCard({
             <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
               {description}
             </p>
+          )}
+
+          {/* Rating row */}
+          {(cookCount ?? 0) > 0 && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <StarRating value={averageRating ?? null} readonly size="sm" />
+              {averageRating != null && (
+                <span className="text-xs text-muted-foreground">{averageRating}</span>
+              )}
+            </div>
           )}
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5">

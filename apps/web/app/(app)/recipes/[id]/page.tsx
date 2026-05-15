@@ -23,7 +23,12 @@ import { requireHousehold } from "@/lib/household";
 import { Badge, Button } from "@dishes/ui";
 import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
+import { TweakRecipeButton } from "./_components/tweak-recipe-button";
+import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
+import { StarRating } from "./_components/star-rating";
 import { toggleFavourite } from "@/app/actions/recipes";
+import { getCookStats, getRecipeCookHistory } from "@/app/actions/cook-history";
+import type { GeneratedRecipe } from "@/app/actions/ai";
 
 export const metadata = { title: "Recipe" };
 
@@ -38,7 +43,7 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [recipe, ingredients, steps, tags, plannerStats] = await Promise.all([
+  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -74,6 +79,8 @@ export default async function RecipeDetailPage({ params }: Props) {
         )
       )
       .then((r) => r[0] ?? { timesPlanned: 0, lastPlannedDate: null }),
+    getCookStats(id, householdId),
+    getRecipeCookHistory(id, householdId),
   ]);
 
   if (!recipe) notFound();
@@ -139,6 +146,32 @@ export default async function RecipeDetailPage({ params }: Props) {
   }
 
   const toggleAction = toggleFavourite.bind(null, id);
+
+  const recipeForTweak: GeneratedRecipe = {
+    title: recipe.title,
+    description: recipe.description ?? "",
+    cuisine: recipe.cuisine ?? "",
+    difficulty: recipe.difficulty ?? "medium",
+    prepTimeMinutes: recipe.prepTimeMinutes,
+    cookTimeMinutes: recipe.cookTimeMinutes,
+    servings: recipe.servings ?? "4",
+    servingsUnit: recipe.servingsUnit ?? "servings",
+    tags: tags.map((t) => t.tag),
+    ingredients: ingredients.map((i) => ({
+      ingredientName: i.ingredientName,
+      amount: i.amount ?? "",
+      unit: i.unit ?? "",
+      preparation: i.preparation ?? "",
+      isOptional: i.isOptional ?? false,
+      groupLabel: i.groupLabel ?? "",
+    })),
+    steps: steps.map((s) => ({
+      instruction: s.instruction,
+      durationMinutes: s.durationMinutes ? String(s.durationMinutes) : "",
+      timerLabel: s.timerLabel ?? "",
+    })),
+    notes: recipe.notes,
+  };
 
   return (
     <>
@@ -232,15 +265,32 @@ export default async function RecipeDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Start Cooking CTA */}
+      {/* Rating row */}
+      <div className="mb-4 flex items-center gap-3">
+        <StarRating value={cookStats.averageRating} readonly size="sm" />
+        {cookStats.cookCount > 0 ? (
+          <span className="text-sm text-muted-foreground">
+            {cookStats.averageRating != null
+              ? `${cookStats.averageRating}/10 · `
+              : ""}
+            Cooked {cookStats.cookCount === 1 ? "once" : `${cookStats.cookCount} times`}
+          </span>
+        ) : null}
+        <div className="ml-auto">
+          <RateRecipeSheet recipeId={id} recipeTitle={recipe.title} />
+        </div>
+      </div>
+
+      {/* Start Cooking + Tweak CTAs */}
       {steps.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap gap-2">
           <Button asChild size="lg" className="w-full sm:w-auto">
             <Link href={`/recipes/${id}/cook`}>
               <ChefHat className="mr-2 h-5 w-5" />
               Start Cooking
             </Link>
           </Button>
+          <TweakRecipeButton recipeId={id} recipe={recipeForTweak} />
         </div>
       )}
 
@@ -257,6 +307,7 @@ export default async function RecipeDetailPage({ params }: Props) {
         ingredients={ingredients}
         steps={steps}
         tags={tags}
+        cookHistory={cookHistoryRows}
       />
 
       {/* Related recipes */}
