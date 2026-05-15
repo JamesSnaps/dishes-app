@@ -7,8 +7,10 @@ import {
   Heart,
   ChefHat,
   CalendarDays,
+  FileText,
+  Plus,
 } from "lucide-react";
-import { eq, and, ne, or, inArray, asc, count, max, lte } from "drizzle-orm";
+import { eq, and, ne, or, inArray, asc, count, max, lte, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   recipes,
@@ -17,6 +19,7 @@ import {
   recipeTags,
   mealPlans,
   mealPlanEntries,
+  notes,
 } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -43,7 +46,7 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows] = await Promise.all([
+  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -81,6 +84,11 @@ export default async function RecipeDetailPage({ params }: Props) {
       .then((r) => r[0] ?? { timesPlanned: 0, lastPlannedDate: null }),
     getCookStats(id, householdId),
     getRecipeCookHistory(id, householdId),
+    db
+      .select({ id: notes.id, title: notes.title, body: notes.body, updatedAt: notes.updatedAt })
+      .from(notes)
+      .where(and(eq(notes.recipeId, id), eq(notes.householdId, householdId)))
+      .orderBy(desc(notes.updatedAt)),
   ]);
 
   if (!recipe) notFound();
@@ -309,6 +317,46 @@ export default async function RecipeDetailPage({ params }: Props) {
         tags={tags}
         cookHistory={cookHistoryRows}
       />
+
+      {/* Linked notes */}
+      <section className="mt-10">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            Notes
+            {linkedNotes.length > 0 && (
+              <span className="text-sm font-normal text-muted-foreground">({linkedNotes.length})</span>
+            )}
+          </h2>
+          <Link
+            href={`/notes/new?recipeId=${id}`}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add note
+          </Link>
+        </div>
+        {linkedNotes.length === 0 ? (
+          <p className="text-sm text-muted-foreground/60 py-2">No notes yet.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {linkedNotes.map((note) => (
+              <Link
+                key={note.id}
+                href={`/notes/${note.id}`}
+                className="group rounded-lg border bg-card p-4 hover:border-primary/40 hover:shadow-sm transition-all"
+              >
+                <p className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
+                  {note.title}
+                </p>
+                {note.body && (
+                  <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{note.body}</p>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Related recipes */}
       {relatedRecipes.length > 0 && (

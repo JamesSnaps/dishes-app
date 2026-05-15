@@ -45,9 +45,9 @@ const MAIN_NAV: NavItem[] = [
 ];
 
 const PERSONAL_NAV: NavItem[] = [
-  { href: "/favourites", label: "Favourites", icon: Heart, disabled: true },
-  { href: "/collections", label: "Collections", icon: FolderOpen, disabled: true },
-  { href: "/notes", label: "My Notes", icon: FileText, disabled: true },
+  { href: "/favourites", label: "Favourites", icon: Heart },
+  { href: "/collections", label: "Collections", icon: FolderOpen },
+  { href: "/notes", label: "My Notes", icon: FileText },
 ];
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {

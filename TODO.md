@@ -82,6 +82,11 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Cooking mode "Mark ingredients as used" button — deducts recipe ingredients from stock after cooking
 - [x] Shopping list "Complete & add to pantry" — adds checked items to stock when archiving a list
 
+## Personal / Library Features
+- [x] Favourites page (`/favourites`) — filtered grid of favourited recipes
+- [x] Collections (`/collections`) — create named collections, add recipes via actions menu
+- [x] My Notes (`/notes`) — standalone notes or linked to a specific recipe; linked notes appear on recipe detail page
+
 ## Infrastructure / DevX
 - [x] `.env.local` validation on startup (zod, fail fast)
 - [x] Error boundary + 404/500 pages

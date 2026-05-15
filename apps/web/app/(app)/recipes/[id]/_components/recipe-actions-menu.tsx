@@ -2,7 +2,7 @@
 
 import { useTransition, useState } from "react";
 import Link from "next/link";
-import { MoreVertical, Edit, Trash2 } from "lucide-react";
+import { MoreVertical, Edit, Trash2, FolderOpen, FileText } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@dishes/ui";
 import { deleteRecipe } from "@/app/actions/recipes";
+import { AddToCollectionDialog } from "./add-to-collection-dialog";
 
 interface Props {
   recipeId: string;
@@ -26,6 +27,7 @@ interface Props {
 
 export function RecipeActionsMenu({ recipeId, recipeTitle }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [collectionOpen, setCollectionOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function handleDelete() {
@@ -50,6 +52,19 @@ export function RecipeActionsMenu({ recipeId, recipeTitle }: Props) {
               Edit recipe
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2"
+            onSelect={() => setCollectionOpen(true)}
+          >
+            <FolderOpen className="h-4 w-4" />
+            Add to collection
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={`/notes/new?recipeId=${recipeId}`} className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Add note
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive flex items-center gap-2"
@@ -60,6 +75,12 @@ export function RecipeActionsMenu({ recipeId, recipeTitle }: Props) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <AddToCollectionDialog
+        recipeId={recipeId}
+        open={collectionOpen}
+        onOpenChange={setCollectionOpen}
+      />
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
