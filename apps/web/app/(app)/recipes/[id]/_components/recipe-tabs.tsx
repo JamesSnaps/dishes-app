@@ -251,7 +251,7 @@ export function RecipeTabs({
                     {entry.rating != null && (
                       <div className="flex items-center gap-2">
                         <StarRating value={entry.rating} readonly size="sm" />
-                        <span className="text-xs text-muted-foreground">{entry.rating}/10</span>
+                        <span className="text-xs text-muted-foreground">{entry.rating / 2}/5</span>
                       </div>
                     )}
                   </div>
