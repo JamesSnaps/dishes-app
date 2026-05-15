@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { addPendingImageJob } from "@/components/providers/jobs-provider";
+import { toast } from "@/hooks/use-toast";
 
 interface Props {
   recipeId: string;
@@ -27,6 +28,12 @@ export function GenerateImageButton({ recipeId, recipeTitle }: Props) {
       }
       const { jobId } = await res.json();
       addPendingImageJob({ jobId, recipeId, recipeTitle });
+      toast({
+        title: "Generating image",
+        description: "You can navigate away — we’ll notify you when it’s ready.",
+      });
+      // Refresh bell count so the "generating" notification shows immediately
+      window.dispatchEvent(new Event("dishes-notification-added"));
       setState("queued");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

@@ -4,6 +4,9 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getRedis } from "@/lib/redis";
 import { generateImageBackground } from "@/lib/image-gen-worker";
+import { db } from "@/lib/db";
+import { recipes, notifications } from "@dishes/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export async function POST(
   _req: NextRequest,
@@ -13,6 +16,28 @@ export async function POST(
     const { id: recipeId } = await params;
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
+
+    const [recipe] = await db
+      .select({ title: recipes.title })
+      .from(recipes)
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+      .limit(1);
+
+    if (!recipe) {
+      return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
+    }
+
+    // Create a "generating" notification immediately so the bell lights up
+    const [notif] = await db
+      .insert(notifications)
+      .values({
+        householdId,
+        type: "image_generating",
+        title: "Generating image…",
+        body: `Creating a photo for "${recipe.title}" — this usually takes 15–30 seconds.`,
+        recipeId,
+      })
+      .returning({ id: notifications.id });
 
     const jobId = randomUUID();
     const redis = getRedis();
@@ -32,7 +57,7 @@ export async function POST(
     }
 
     // Fire and forget — returns before the image is ready
-    generateImageBackground(jobId, recipeId, householdId).catch((err) => {
+    generateImageBackground(jobId, recipeId, householdId, notif.id).catch((err) => {
       console.error(`[image-gen] Background job ${jobId} threw:`, err);
     });
 

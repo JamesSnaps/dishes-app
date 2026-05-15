@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Image, Info, CheckCheck } from "lucide-react";
+import { Bell, Image, Info, CheckCheck, Loader, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@dishes/ui";
 import {
@@ -19,7 +19,9 @@ import {
 import type { Notification } from "@dishes/db/schema";
 
 const TYPE_ICON: Record<string, React.ElementType> = {
+  image_generating: Loader,
   image_generated: Image,
+  image_failed: AlertCircle,
 };
 
 function formatRelativeTime(date: Date | string): string {

@@ -30,7 +30,8 @@ async function updateJobStatus(
 export async function generateImageBackground(
   jobId: string,
   recipeId: string,
-  householdId: string
+  householdId: string,
+  notificationId: string
 ): Promise<void> {
   try {
     await updateJobStatus(jobId, "running");
@@ -43,6 +44,10 @@ export async function generateImageBackground(
 
     if (!recipe) {
       await updateJobStatus(jobId, "failed", { error: "Recipe not found." });
+      await db
+        .update(notifications)
+        .set({ type: "image_failed", title: "Image generation failed", body: "Recipe not found." })
+        .where(eq(notifications.id, notificationId));
       return;
     }
 
@@ -53,9 +58,12 @@ export async function generateImageBackground(
     );
 
     if (error || !url) {
-      await updateJobStatus(jobId, "failed", {
-        error: error ?? "Image generation failed.",
-      });
+      const msg = error ?? "Image generation failed.";
+      await updateJobStatus(jobId, "failed", { error: msg });
+      await db
+        .update(notifications)
+        .set({ type: "image_failed", title: "Image generation failed", body: msg })
+        .where(eq(notifications.id, notificationId));
       return;
     }
 
@@ -64,13 +72,16 @@ export async function generateImageBackground(
       .set({ imageUrl: url })
       .where(eq(recipes.id, recipeId));
 
-    await db.insert(notifications).values({
-      householdId,
-      type: "image_generated",
-      title: "Image ready",
-      body: `A photo was generated for "${recipe.title}"`,
-      recipeId,
-    });
+    // Update the "generating" notification to "ready" in place
+    await db
+      .update(notifications)
+      .set({
+        type: "image_generated",
+        title: "Image ready",
+        body: `Photo generated for "${recipe.title}"`,
+        readAt: null,
+      })
+      .where(eq(notifications.id, notificationId));
 
     revalidatePath(`/recipes/${recipeId}`);
     revalidatePath("/recipes");

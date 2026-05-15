@@ -176,62 +176,56 @@ export default async function HomePage() {
               Full plan
             </Link>
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {todayMeals.map((entry) => {
               const mealType = entry.mealType as MealType;
-              const totalTime =
+              const total =
                 (entry.recipe.prepTimeMinutes ?? 0) + (entry.recipe.cookTimeMinutes ?? 0);
+              const timeLabel = total === 0 ? null : total < 60 ? `${total}m` : `${Math.floor(total / 60)}h${total % 60 > 0 ? ` ${total % 60}m` : ""}`;
               return (
-                <div
-                  key={entry.id}
-                  className="flex items-center gap-3 rounded-xl border bg-card shadow-sm overflow-hidden"
-                >
-                  {entry.recipe.imageUrl ? (
-                    <Image
-                      src={entry.recipe.imageUrl}
-                      alt={entry.recipe.title}
-                      width={64}
-                      height={64}
-                      className="h-16 w-16 object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="h-16 w-16 flex-shrink-0 bg-muted flex items-center justify-center">
-                      <span className="text-2xl text-muted-foreground/30">🍽</span>
+                <div key={entry.id} className="group block">
+                  <div className="rounded-xl border bg-card overflow-hidden transition-shadow hover:shadow-md h-full flex flex-col">
+                    {/* Image */}
+                    <div className="relative aspect-[4/3] bg-muted flex items-center justify-center">
+                      {entry.recipe.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={entry.recipe.imageUrl}
+                          alt={entry.recipe.title}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30" />
+                      )}
+                      {/* Meal type badge */}
+                      <div
+                        className={`absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${MEAL_BG[mealType]} ${MEAL_COLOR[mealType]}`}
+                      >
+                        {MEAL_ICON[mealType]}
+                        <span className="text-xs font-semibold">{MEAL_LABELS[mealType]}</span>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0 py-2">
-                    <div
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit mb-1 ${MEAL_BG[mealType]} ${MEAL_COLOR[mealType]}`}
-                    >
-                      {MEAL_ICON[mealType]}
-                      <span className="text-xs font-semibold">{MEAL_LABELS[mealType]}</span>
+                    {/* Content */}
+                    <div className="p-3 flex flex-col flex-1">
+                      <h3 className="font-semibold leading-tight line-clamp-2 text-sm group-hover:text-primary transition-colors">
+                        {entry.recipe.title}
+                      </h3>
+                      <div className="mt-auto pt-2 flex items-center justify-between gap-2">
+                        {timeLabel && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            {timeLabel}
+                          </span>
+                        )}
+                        <Link
+                          href={`/recipes/${entry.recipe.id}/cook`}
+                          className="ml-auto flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                        >
+                          <ChefHat className="h-3 w-3" />
+                          Cook
+                        </Link>
+                      </div>
                     </div>
-                    <p className="font-semibold text-sm leading-snug line-clamp-1">
-                      {entry.recipe.title}
-                    </p>
-                    {totalTime > 0 && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Clock className="h-3 w-3" />
-                        {totalTime < 60
-                          ? `${totalTime}m`
-                          : `${Math.floor(totalTime / 60)}h${totalTime % 60 > 0 ? ` ${totalTime % 60}m` : ""}`}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 pr-3 flex-shrink-0">
-                    <Link
-                      href={`/recipes/${entry.recipe.id}/cook`}
-                      className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-                    >
-                      <ChefHat className="h-3.5 w-3.5" />
-                      Cook
-                    </Link>
-                    <Link
-                      href={`/recipes/${entry.recipe.id}`}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      View
-                    </Link>
                   </div>
                 </div>
               );
