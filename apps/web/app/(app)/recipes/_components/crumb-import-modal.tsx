@@ -129,10 +129,13 @@ export function CrumbImportModal() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import from Crouton / .crumb</DialogTitle>
         </DialogHeader>
+
+        {/* min-w-0 overrides the grid item min-width:auto that would otherwise blow past max-w-lg */}
+        <div className="min-w-0 overflow-hidden">
 
         {/* Idle — file picker */}
         {phase === "idle" && (
@@ -319,6 +322,8 @@ export function CrumbImportModal() {
             </div>
           </div>
         )}
+
+        </div>{/* end min-w-0 wrapper */}
       </DialogContent>
     </Dialog>
   );
