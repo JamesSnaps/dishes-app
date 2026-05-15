@@ -13,12 +13,13 @@ import {
 } from "@dishes/ui";
 import { addMealEntry } from "@/app/actions/meal-plan";
 
-type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
 const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "breakfast", label: "Breakfast" },
   { value: "lunch", label: "Lunch" },
   { value: "dinner", label: "Dinner" },
+  { value: "dessert", label: "Dessert" },
   { value: "snack", label: "Snack" },
 ];
 

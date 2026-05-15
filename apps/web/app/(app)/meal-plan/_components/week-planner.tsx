@@ -20,8 +20,8 @@ import { generateShoppingFromWeek } from "@/app/actions/meal-plan";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { EntryCard } from "./entry-card";
 
-type MealType = "breakfast" | "lunch" | "dinner" | "snack";
-const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
+type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
+const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "dessert", "snack"];
 
 type Entry = {
   id: string;

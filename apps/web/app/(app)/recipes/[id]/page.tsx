@@ -6,14 +6,17 @@ import {
   Users,
   Heart,
   ChefHat,
+  CalendarDays,
 } from "lucide-react";
-import { eq, and, ne, or, inArray, asc } from "drizzle-orm";
+import { eq, and, ne, or, inArray, asc, count, max, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   recipes,
   recipeIngredients,
   recipeSteps,
   recipeTags,
+  mealPlans,
+  mealPlanEntries,
 } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -33,7 +36,9 @@ export default async function RecipeDetailPage({ params }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps, tags] = await Promise.all([
+  const today = new Date().toISOString().split("T")[0];
+
+  const [recipe, ingredients, steps, tags, plannerStats] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -54,6 +59,21 @@ export default async function RecipeDetailPage({ params }: Props) {
       .select()
       .from(recipeTags)
       .where(eq(recipeTags.recipeId, id)),
+    db
+      .select({
+        timesPlanned: count(mealPlanEntries.id),
+        lastPlannedDate: max(mealPlans.weekStartDate),
+      })
+      .from(mealPlanEntries)
+      .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
+      .where(
+        and(
+          eq(mealPlanEntries.recipeId, id),
+          eq(mealPlans.householdId, householdId),
+          lte(mealPlans.weekStartDate, today)
+        )
+      )
+      .then((r) => r[0] ?? { timesPlanned: 0, lastPlannedDate: null }),
   ]);
 
   if (!recipe) notFound();
@@ -106,6 +126,16 @@ export default async function RecipeDetailPage({ params }: Props) {
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return m ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  function formatWeekDate(dateStr: string): string {
+    const date = new Date(dateStr + "T00:00:00");
+    const nowMs = new Date(today + "T00:00:00").getTime();
+    const diffWeeks = Math.floor((nowMs - date.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    if (diffWeeks === 0) return "this week";
+    if (diffWeeks === 1) return "last week";
+    if (diffWeeks < 8) return `${diffWeeks} weeks ago`;
+    return `week of ${date.getDate()} ${date.toLocaleString("default", { month: "short" })}`;
   }
 
   const toggleAction = toggleFavourite.bind(null, id);
@@ -188,6 +218,19 @@ export default async function RecipeDetailPage({ params }: Props) {
           </span>
         )}
       </div>
+
+      {/* Planner stats */}
+      {plannerStats.timesPlanned > 0 && (
+        <div className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <CalendarDays className="h-4 w-4 shrink-0" />
+          <span>
+            On the menu {plannerStats.timesPlanned === 1 ? "once" : `${plannerStats.timesPlanned} times`}
+            {plannerStats.lastPlannedDate && (
+              <> · Last planned {formatWeekDate(plannerStats.lastPlannedDate)}</>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* Start Cooking CTA */}
       {steps.length > 0 && (

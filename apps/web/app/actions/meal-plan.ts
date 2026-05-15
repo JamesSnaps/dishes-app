@@ -15,7 +15,7 @@ import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 
-type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
 async function getOrCreatePlan(
   householdId: string,
@@ -114,8 +114,22 @@ export async function addAiGeneratedMealPlan(
 
     const plan = await getOrCreatePlan(householdId, memberId, weekStartDate);
 
-    const createdRecipes = await Promise.all(
+    // Verify any proposed existing recipe IDs actually belong to this household
+    const proposedIds = slots.map((s) => s.recipeId).filter((id): id is string => !!id);
+    const verifiedIds = proposedIds.length > 0
+      ? await db
+          .select({ id: recipes.id })
+          .from(recipes)
+          .where(and(eq(recipes.householdId, householdId), inArray(recipes.id, proposedIds)))
+          .then((rows) => new Set(rows.map((r) => r.id)))
+      : new Set<string>();
+
+    // For library slots use the existing recipe; for new slots create a stub
+    const resolvedSlots = await Promise.all(
       slots.map(async (slot) => {
+        if (slot.recipeId && verifiedIds.has(slot.recipeId)) {
+          return { dayOfWeek: slot.dayOfWeek, mealType: slot.mealType, recipeId: slot.recipeId };
+        }
         const [recipe] = await db
           .insert(recipes)
           .values({
@@ -128,12 +142,12 @@ export async function addAiGeneratedMealPlan(
             isAiGenerated: true,
           })
           .returning({ id: recipes.id });
-        return { ...slot, recipeId: recipe!.id };
+        return { dayOfWeek: slot.dayOfWeek, mealType: slot.mealType, recipeId: recipe!.id };
       })
     );
 
     await db.insert(mealPlanEntries).values(
-      createdRecipes.map((r) => ({
+      resolvedSlots.map((r) => ({
         mealPlanId: plan.id,
         recipeId: r.recipeId,
         dayOfWeek: r.dayOfWeek,

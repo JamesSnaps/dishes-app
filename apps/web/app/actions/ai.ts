@@ -3,8 +3,8 @@
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { aiConfigurations, recipes } from "@dishes/db/schema";
-import { eq, and } from "drizzle-orm";
+import { aiConfigurations, recipes, mealPlanEntries, mealPlans } from "@dishes/db/schema";
+import { eq, and, count, max, lte, desc } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -342,6 +342,7 @@ export type MealPlanSlot = {
   description: string;
   cuisine: string;
   difficulty: "easy" | "medium" | "hard";
+  recipeId?: string | null; // set when the AI picks from the existing library
 };
 
 export async function generateMealPlanConcepts(params: {
@@ -360,6 +361,55 @@ export async function generateMealPlanConcepts(params: {
       await getOpenAiClient(householdId);
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem);
 
+    // Build recipe library context with planner history
+    const today = new Date().toISOString().split("T")[0]!;
+    const libraryRecipes = await db
+      .select({
+        id: recipes.id,
+        title: recipes.title,
+        cuisine: recipes.cuisine,
+        difficulty: recipes.difficulty,
+        timesPlanned: count(mealPlanEntries.id),
+        lastPlannedDate: max(mealPlans.weekStartDate),
+      })
+      .from(recipes)
+      .leftJoin(mealPlanEntries, eq(mealPlanEntries.recipeId, recipes.id))
+      .leftJoin(
+        mealPlans,
+        and(
+          eq(mealPlanEntries.mealPlanId, mealPlans.id),
+          lte(mealPlans.weekStartDate, today)
+        )
+      )
+      .where(eq(recipes.householdId, householdId))
+      .groupBy(recipes.id, recipes.title, recipes.cuisine, recipes.difficulty)
+      .orderBy(desc(count(mealPlanEntries.id)))
+      .limit(50);
+
+    function relativeWeeks(dateStr: string | null): string {
+      if (!dateStr) return "never tried";
+      const diffWeeks = Math.floor(
+        (new Date(today + "T00:00:00").getTime() - new Date(dateStr + "T00:00:00").getTime()) /
+          (7 * 24 * 60 * 60 * 1000)
+      );
+      if (diffWeeks === 0) return "this week";
+      if (diffWeeks === 1) return "1 week ago";
+      if (diffWeeks < 8) return `${diffWeeks} weeks ago`;
+      return `${Math.floor(diffWeeks / 4)} months ago`;
+    }
+
+    const libraryContext = libraryRecipes.length > 0
+      ? `\n\nRECIPE LIBRARY — use "libraryIndex" to reference these (1-based). Each recipe can only appear once per plan.\n` +
+        libraryRecipes
+          .map((r, i) => {
+            const times = Number(r.timesPlanned);
+            const history = times === 0 ? "never tried" : `cooked ${times}×, ${relativeWeeks(r.lastPlannedDate)}`;
+            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}] — ${history}`;
+          })
+          .join("\n") +
+        `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe.`
+      : "";
+
     const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     const slots = days.flatMap((d) => mealTypes.map((m) => ({ dayOfWeek: d, mealType: m })));
     const slotsDesc = slots
@@ -374,9 +424,9 @@ export async function generateMealPlanConcepts(params: {
         {
           role: "system",
           content: `You are a meal planning chef helping a family plan their week. Return meal suggestions as JSON.
-Format: {"slots": [{"dayOfWeek": number, "mealType": string, "title": string, "description": "1-2 sentences", "cuisine": string, "difficulty": "easy"|"medium"|"hard"}]}
+Format: {"slots": [{"dayOfWeek": number, "mealType": string, "title": string, "description": "1-2 sentences", "cuisine": string, "difficulty": "easy"|"medium"|"hard", "libraryIndex": number}]}
 Make meals varied across the week. Consider meal type when suggesting (lighter for breakfast/lunch, heartier for dinner).
-dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.${addendum}`,
+dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.${libraryContext}${addendum}`,
         },
         {
           role: "user",
@@ -386,11 +436,27 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
     });
 
     const raw = completion.choices[0]?.message?.content ?? "";
-    const parsed = JSON.parse(raw) as { slots: MealPlanSlot[] };
+    const parsed = JSON.parse(raw) as { slots: (Omit<MealPlanSlot, "recipeId"> & { libraryIndex?: number })[] };
     if (!Array.isArray(parsed.slots) || parsed.slots.length === 0)
       throw new Error("Unexpected AI response format.");
 
-    return { slots: parsed.slots };
+    // Resolve libraryIndex → recipeId
+    const resolvedSlots: MealPlanSlot[] = parsed.slots.map((slot) => {
+      const idx = slot.libraryIndex;
+      if (idx && idx > 0 && idx <= libraryRecipes.length) {
+        const lib = libraryRecipes[idx - 1]!;
+        return {
+          ...slot,
+          title: lib.title,
+          cuisine: lib.cuisine ?? slot.cuisine,
+          difficulty: (lib.difficulty ?? slot.difficulty) as MealPlanSlot["difficulty"],
+          recipeId: lib.id,
+        };
+      }
+      return { ...slot, recipeId: null };
+    });
+
+    return { slots: resolvedSlots };
   } catch (err) {
     return { error: classifyError(err) };
   }

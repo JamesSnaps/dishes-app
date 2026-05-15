@@ -2,15 +2,16 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Clock, Users, Sun, Moon, Sunrise, Cookie } from "lucide-react";
+import { Trash2, Clock, Users, Sun, Moon, Sunrise, Cookie, IceCreamCone } from "lucide-react";
 import { removeMealEntry } from "@/app/actions/meal-plan";
 
-type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
 const MEAL_LABELS: Record<MealType, string> = {
   breakfast: "Breakfast",
   lunch: "Lunch",
   dinner: "Dinner",
+  dessert: "Dessert",
   snack: "Snack",
 };
 
@@ -18,6 +19,7 @@ const MEAL_ICON: Record<MealType, React.ReactNode> = {
   breakfast: <Sunrise className="h-3.5 w-3.5" />,
   lunch: <Sun className="h-3.5 w-3.5" />,
   dinner: <Moon className="h-3.5 w-3.5" />,
+  dessert: <IceCreamCone className="h-3.5 w-3.5" />,
   snack: <Cookie className="h-3.5 w-3.5" />,
 };
 
@@ -25,6 +27,7 @@ const MEAL_COLOR: Record<MealType, string> = {
   breakfast: "text-amber-500",
   lunch: "text-violet-500",
   dinner: "text-indigo-500",
+  dessert: "text-pink-500",
   snack: "text-muted-foreground",
 };
 

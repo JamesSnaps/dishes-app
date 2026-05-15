@@ -11,7 +11,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import OpenAI from "openai";
 
-const VALID_MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
+const VALID_MEAL_TYPES = ["breakfast", "lunch", "dinner", "dessert", "snack"] as const;
 type MealType = (typeof VALID_MEAL_TYPES)[number];
 
 async function getOpenAiClient(householdId: string) {

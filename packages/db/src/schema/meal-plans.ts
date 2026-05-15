@@ -23,6 +23,7 @@ export const mealTypeEnum = pgEnum("meal_type", [
   "breakfast",
   "lunch",
   "dinner",
+  "dessert",
   "snack",
 ]);
 

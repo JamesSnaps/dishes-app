@@ -22,6 +22,10 @@ import {
   Globe,
   Flame,
   Tag,
+  Star,
+  Shuffle,
+  Lightbulb,
+  BookOpen,
 } from "lucide-react";
 import { Button, Textarea, cn } from "@dishes/ui";
 import {
@@ -42,25 +46,25 @@ const PREFERENCES = [
     label: "Vegetarian",
     icon: Leaf,
     activeClass: "border-emerald-400 bg-emerald-500 text-white",
-    inactiveClass: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300",
+    inactiveClass: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400 dark:hover:border-emerald-700",
   },
   {
     label: "Quick",
     icon: Zap,
     activeClass: "border-orange-400 bg-orange-500 text-white",
-    inactiveClass: "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300",
+    inactiveClass: "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700",
   },
   {
     label: "Family Friendly",
     icon: Users,
     activeClass: "border-blue-400 bg-blue-500 text-white",
-    inactiveClass: "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300",
+    inactiveClass: "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700",
   },
   {
     label: "Budget",
     icon: PiggyBank,
     activeClass: "border-violet-400 bg-violet-500 text-white",
-    inactiveClass: "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300",
+    inactiveClass: "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400 dark:hover:border-violet-700",
   },
 ] as const;
 
@@ -70,28 +74,28 @@ const QUICK_PROMPTS = [
     description: "Under 30 minutes",
     prompt: "Quick weeknight dinner in under 30 minutes",
     icon: Clock,
-    iconBg: "bg-orange-100 text-orange-600",
+    iconBg: "bg-orange-100 text-orange-600 dark:bg-orange-950/60 dark:text-orange-400",
   },
   {
     label: "Healthy meal",
     description: "High protein",
     prompt: "Healthy high-protein meal",
     icon: Heart,
-    iconBg: "bg-emerald-100 text-emerald-600",
+    iconBg: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400",
   },
   {
     label: "Comfort food",
     description: "For cosy nights",
     prompt: "Comfort food for a cosy night in",
     icon: Coffee,
-    iconBg: "bg-amber-100 text-amber-600",
+    iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400",
   },
   {
     label: "Use what I have",
     description: "Pantry staples",
     prompt: "Something easy using common pantry staples",
     icon: Package,
-    iconBg: "bg-blue-100 text-blue-600",
+    iconBg: "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400",
   },
 ] as const;
 
@@ -142,7 +146,7 @@ const SERVINGS_OPTIONS = [
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
-const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
+const MEAL_TYPES = ["breakfast", "lunch", "dinner", "dessert", "snack"] as const;
 
 const CUISINE_EMOJI: Record<string, string> = {
   italian: "🍝", pizza: "🍕", chinese: "🥢", japanese: "🍱",
@@ -162,9 +166,9 @@ function cuisineEmoji(cuisine: string): string {
 }
 
 function difficultyClass(d: string) {
-  if (d === "easy") return "bg-emerald-100 text-emerald-700 border-emerald-200";
-  if (d === "hard") return "bg-red-100 text-red-700 border-red-200";
-  return "bg-amber-100 text-amber-700 border-amber-200";
+  if (d === "easy") return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800";
+  if (d === "hard") return "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800";
+  return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-800";
 }
 
 function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
@@ -212,7 +216,7 @@ function ConceptCardItem({
         disabled && !isGenerating && "opacity-60 pointer-events-none"
       )}
     >
-      <div className="flex h-28 items-center justify-center bg-gradient-to-br from-violet-50 via-orange-50 to-amber-50 text-5xl select-none">
+      <div className="flex h-28 items-center justify-center bg-gradient-to-br from-violet-50 via-orange-50 to-amber-50 dark:from-violet-950/60 dark:via-orange-950/40 dark:to-amber-950/50 text-5xl select-none">
         {emoji}
       </div>
       <div className="flex flex-col flex-1 gap-2 p-4">
@@ -222,7 +226,7 @@ function ConceptCardItem({
         </p>
         <div className="flex flex-wrap gap-1">
           {concept.cuisine && (
-            <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700">
+            <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
               {concept.cuisine}
             </span>
           )}
@@ -339,11 +343,41 @@ function FilterChip({
 
 // ── Plan My Week tab ───────────────────────────────────────────────────────────
 
+type FrequencyMode = "favourites" | "new" | "mix" | null;
+
+const FREQUENCY_MODES: { mode: FrequencyMode; label: string; icon: React.ElementType; hint: string; activeClass: string; inactiveClass: string }[] = [
+  {
+    mode: "favourites",
+    label: "From our favourites",
+    icon: Star,
+    hint: "Prefer recipes from our library that we cook often and already love",
+    activeClass: "border-amber-400 bg-amber-500 text-white",
+    inactiveClass: "border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-400 dark:hover:border-amber-700",
+  },
+  {
+    mode: "new",
+    label: "Try something new",
+    icon: Lightbulb,
+    hint: "Prioritise recipes from our library we haven't tried, or suggest fresh ideas we've never cooked",
+    activeClass: "border-violet-400 bg-violet-500 text-white",
+    inactiveClass: "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400 dark:hover:border-violet-700",
+  },
+  {
+    mode: "mix",
+    label: "Mix it up",
+    icon: Shuffle,
+    hint: "Balance familiar library favourites with some new suggestions we haven't tried recently",
+    activeClass: "border-emerald-400 bg-emerald-500 text-white",
+    inactiveClass: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400 dark:hover:border-emerald-700",
+  },
+];
+
 function PlanMyWeekTab() {
   const router = useRouter();
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4]));
   const [selectedMealTypes, setSelectedMealTypes] = useState<Set<string>>(new Set(["dinner"]));
   const [preferences, setPreferences] = useState("");
+  const [frequencyMode, setFrequencyMode] = useState<FrequencyMode>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [slots, setSlots] = useState<MealPlanSlot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -367,6 +401,14 @@ function PlanMyWeekTab() {
     });
   }
 
+  function buildFullPreferences(): string {
+    const parts: string[] = [];
+    const freq = FREQUENCY_MODES.find((f) => f.mode === frequencyMode);
+    if (freq) parts.push(freq.hint);
+    if (preferences.trim()) parts.push(preferences.trim());
+    return parts.join(". ");
+  }
+
   function handleGenerate() {
     setError(null);
     setSlots(null);
@@ -375,7 +417,7 @@ function PlanMyWeekTab() {
       const result = await generateMealPlanConcepts({
         days: Array.from(selectedDays).sort(),
         mealTypes: Array.from(selectedMealTypes),
-        preferences,
+        preferences: buildFullPreferences(),
       });
       if (result.error) { setError(result.error); return; }
       setSlots(result.slots!);
@@ -445,10 +487,31 @@ function PlanMyWeekTab() {
                   "capitalize rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
                   selectedMealTypes.has(type)
                     ? "border-orange-400 bg-orange-500 text-white"
-                    : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300"
+                    : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
                 )}
               >
                 {type}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium mb-2">Suggestion style</p>
+          <div className="flex flex-wrap gap-2">
+            {FREQUENCY_MODES.map(({ mode, label, icon: Icon, activeClass, inactiveClass }) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setFrequencyMode((prev) => (prev === mode ? null : mode))}
+                disabled={isGenerating || isAdding}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
+                  frequencyMode === mode ? activeClass : inactiveClass
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
               </button>
             ))}
           </div>
@@ -479,7 +542,7 @@ function PlanMyWeekTab() {
                   "rounded-lg border px-3 py-1.5 text-sm transition-all",
                   weekOffset === offset
                     ? "border-blue-400 bg-blue-500 text-white"
-                    : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300"
+                    : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
                 )}
               >
                 {offset === 0 ? "This week" : offset === 1 ? "Next week" : "Week after"}
@@ -507,7 +570,7 @@ function PlanMyWeekTab() {
       {/* Generated plan preview */}
       {slots && (
         <div className="rounded-xl border bg-card overflow-hidden">
-          <div className="bg-gradient-to-r from-violet-50 to-orange-50 border-b px-5 py-3 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-violet-50 to-orange-50 border-b px-5 py-3 flex items-center justify-between dark:from-violet-950/60 dark:to-orange-950/40">
             <div>
               <h3 className="font-semibold text-sm">Your meal plan for {weekLabel}</h3>
               <p className="text-xs text-muted-foreground mt-0.5">{slots.length} meals planned — review and add to your planner</p>
@@ -534,9 +597,20 @@ function PlanMyWeekTab() {
                             <span className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] capitalize", difficultyClass(slot.difficulty))}>
                               {slot.difficulty}
                             </span>
-                            <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] capitalize text-orange-700">
+                            <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] capitalize text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400">
                               {slot.mealType}
                             </span>
+                            {slot.recipeId ? (
+                              <span className="inline-flex items-center gap-0.5 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400">
+                                <BookOpen className="h-2.5 w-2.5" />
+                                From your library
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400">
+                                <Sparkles className="h-2.5 w-2.5" />
+                                New recipe
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{slot.description}</p>
                         </div>
@@ -768,7 +842,7 @@ function FindRecipeTab() {
 
         {/* Recipe generation overlay banner */}
         {isRecipeLoading && (
-          <div className="flex items-center gap-3 rounded-xl border bg-violet-50 border-violet-200 px-4 py-3">
+          <div className="flex items-center gap-3 rounded-xl border bg-violet-50 border-violet-200 px-4 py-3 dark:bg-violet-950/40 dark:border-violet-800">
             <Loader2 className="h-5 w-5 animate-spin text-violet-600 shrink-0" />
             <div>
               <p className="text-sm font-medium">Writing your recipe…</p>
@@ -853,7 +927,7 @@ export function ConciergeClient() {
   return (
     <div className="p-4 lg:p-8 max-w-screen-xl mx-auto">
       {/* Hero banner */}
-      <div className="relative mb-6 rounded-2xl overflow-hidden bg-gradient-to-br from-violet-100 via-orange-50 to-amber-100 border border-violet-200/60 p-6 lg:p-8">
+      <div className="relative mb-6 rounded-2xl overflow-hidden bg-gradient-to-br from-violet-100 via-orange-50 to-amber-100 border border-violet-200/60 p-6 lg:p-8 dark:from-violet-950/80 dark:via-orange-950/40 dark:to-amber-950/60 dark:border-violet-800/40">
         <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-orange-500/5 pointer-events-none" />
         <div className="relative flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-orange-400 shadow-md">
@@ -866,16 +940,16 @@ export function ConciergeClient() {
             </p>
             {/* Sample preference tags for visual appeal */}
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">
                 <Leaf className="h-3 w-3" />Vegetarian
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-700">
+              <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-700 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-400">
                 <Zap className="h-3 w-3" />Quick meals
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">
+              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-400">
                 <Users className="h-3 w-3" />Family friendly
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700">
+              <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
                 <PiggyBank className="h-3 w-3" />Budget friendly
               </span>
             </div>
@@ -891,7 +965,7 @@ export function ConciergeClient() {
           className={cn(
             "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
             activeTab === "recipe"
-              ? "bg-white shadow-sm text-foreground"
+              ? "bg-background shadow-sm text-foreground"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
@@ -904,7 +978,7 @@ export function ConciergeClient() {
           className={cn(
             "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
             activeTab === "plan"
-              ? "bg-white shadow-sm text-foreground"
+              ? "bg-background shadow-sm text-foreground"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
