@@ -28,7 +28,7 @@ import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
 import { TweakRecipeButton } from "./_components/tweak-recipe-button";
 import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
-import { StarRating } from "./_components/star-rating";
+import { GenerateImageButton } from "./_components/generate-image-button";
 import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory } from "@/app/actions/cook-history";
 import type { GeneratedRecipe } from "@/app/actions/ai";
@@ -207,7 +207,9 @@ export default async function RecipeDetailPage({ params }: Props) {
             className="h-full w-full object-cover"
           />
         </div>
-      ) : null}
+      ) : (
+        <GenerateImageButton recipeId={id} recipeTitle={recipe.title} />
+      )}
 
       {/* Title + actions */}
       <div className="mb-4 flex items-start justify-between gap-4">
@@ -275,18 +277,19 @@ export default async function RecipeDetailPage({ params }: Props) {
 
       {/* Rating row */}
       <div className="mb-4 flex items-center gap-3">
-        <StarRating value={cookStats.averageRating} readonly size="sm" />
+        <RateRecipeSheet
+          recipeId={id}
+          recipeTitle={recipe.title}
+          currentRating={cookStats.averageRating}
+        />
         {cookStats.cookCount > 0 ? (
           <span className="text-sm text-muted-foreground">
             {cookStats.averageRating != null
-              ? `${cookStats.averageRating}/10 · `
+              ? `${cookStats.averageRating / 2}/5 · `
               : ""}
             Cooked {cookStats.cookCount === 1 ? "once" : `${cookStats.cookCount} times`}
           </span>
         ) : null}
-        <div className="ml-auto">
-          <RateRecipeSheet recipeId={id} recipeTitle={recipe.title} />
-        </div>
       </div>
 
       {/* Start Cooking + Tweak CTAs */}

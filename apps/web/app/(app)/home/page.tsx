@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { desc, eq, isNotNull, and } from "drizzle-orm";
-import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, Bell, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone } from "lucide-react";
+import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone } from "lucide-react";
 import { db } from "@/lib/db";
 import { recipes, mealPlans, mealPlanEntries } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
@@ -9,6 +9,7 @@ import { requireHousehold } from "@/lib/household";
 import { Badge, Button, Card } from "@dishes/ui";
 import { RecipeCard } from "../recipes/_components/recipe-card";
 import { HomeSearchBar } from "./_components/home-search-bar";
+import { NotificationsBell } from "@/components/notifications/notifications-bell";
 
 export const metadata = { title: "Home" };
 
@@ -149,9 +150,7 @@ export default async function HomePage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors">
-            <Bell className="h-5 w-5" />
-          </button>
+          <NotificationsBell />
           <Link
             href="/settings"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"

@@ -1,26 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Wand2 } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@dishes/ui";
-import { generateAndSaveRecipeImage } from "@/app/actions/ai";
+import { addPendingImageJob } from "@/components/providers/jobs-provider";
 
-export function GenerateImageButton({ recipeId }: { recipeId: string }) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
+interface Props {
+  recipeId: string;
+  recipeTitle: string;
+}
+
+export function GenerateImageButton({ recipeId, recipeTitle }: Props) {
+  const [state, setState] = useState<"idle" | "starting" | "queued">("idle");
   const [error, setError] = useState<string | null>(null);
 
   async function handleClick() {
-    setLoading(true);
+    setState("starting");
     setError(null);
-    const result = await generateAndSaveRecipeImage(recipeId);
-    setLoading(false);
-    if (result.error) {
-      setError(result.error);
-      return;
+    try {
+      const res = await fetch(`/api/recipes/${recipeId}/generate-image`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to start image generation");
+      }
+      const { jobId } = await res.json();
+      addPendingImageJob({ jobId, recipeId, recipeTitle });
+      setState("queued");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setState("idle");
     }
-    router.refresh();
+  }
+
+  if (state === "queued") {
+    return (
+      <div className="mb-6 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+        <span>
+          Generating image — you can navigate away and we'll notify you when
+          it's ready.
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -29,12 +52,17 @@ export function GenerateImageButton({ recipeId }: { recipeId: string }) {
         variant="outline"
         size="sm"
         onClick={() => void handleClick()}
-        disabled={loading}
+        disabled={state === "starting"}
+        className="gap-2"
       >
-        <Wand2 className="mr-1.5 h-4 w-4" />
-        {loading ? "Generating image…" : "Generate image with AI"}
+        {state === "starting" ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Sparkles className="h-4 w-4" />
+        )}
+        {state === "starting" ? "Starting…" : "Generate image with AI"}
       </Button>
-      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>
   );
 }

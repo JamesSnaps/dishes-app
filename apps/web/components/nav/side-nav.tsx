@@ -22,6 +22,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@dishes/ui";
+import { NotificationsBell } from "@/components/notifications/notifications-bell";
 
 interface Props {
   className?: string;
@@ -93,9 +94,10 @@ export function SideNav({ className }: Props) {
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center gap-2 border-b px-6 shrink-0">
+      <div className="flex h-16 items-center gap-2 border-b px-4 shrink-0">
         <UtensilsCrossed className="h-5 w-5 text-primary" />
-        <span className="text-lg font-semibold">Dishes</span>
+        <span className="text-lg font-semibold flex-1">Dishes</span>
+        <NotificationsBell />
       </div>
 
       {/* Scrollable nav area */}

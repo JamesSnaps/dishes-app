@@ -7,3 +7,4 @@ export * from "./pantry";
 export * from "./cook-history";
 export * from "./collections";
 export * from "./notes";
+export * from "./notifications";

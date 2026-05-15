@@ -38,6 +38,8 @@ export {
   ToastProvider,
   ToastTitle,
   ToastViewport,
+  type ToastProps,
+  type ToastActionElement,
 } from "./components/toast";
 export {
   Sheet,
