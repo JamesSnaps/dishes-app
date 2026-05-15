@@ -129,7 +129,7 @@ export function CrumbImportModal() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Import from Crouton / .crumb</DialogTitle>
         </DialogHeader>
