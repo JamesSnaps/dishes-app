@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import { recipes, notifications } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { getRedis } from "@/lib/redis";
 import { generateRecipeImageCore } from "./image-gen";
 
@@ -43,10 +42,11 @@ export async function generateImageBackground(
       .limit(1);
 
     if (!recipe) {
-      await updateJobStatus(jobId, "failed", { error: "Recipe not found." });
+      const msg = "Recipe not found.";
+      await updateJobStatus(jobId, "failed", { error: msg });
       await db
         .update(notifications)
-        .set({ type: "image_failed", title: "Image generation failed", body: "Recipe not found." })
+        .set({ type: "image_failed", title: "Image generation failed", body: msg })
         .where(eq(notifications.id, notificationId));
       return;
     }
@@ -67,12 +67,13 @@ export async function generateImageBackground(
       return;
     }
 
+    // Save image URL to recipe
     await db
       .update(recipes)
       .set({ imageUrl: url })
       .where(eq(recipes.id, recipeId));
 
-    // Update the "generating" notification to "ready" in place
+    // Update the notification to "ready"
     await db
       .update(notifications)
       .set({
@@ -83,14 +84,32 @@ export async function generateImageBackground(
       })
       .where(eq(notifications.id, notificationId));
 
-    revalidatePath(`/recipes/${recipeId}`);
-    revalidatePath("/recipes");
-
+    // Mark job done BEFORE revalidatePath — revalidatePath can throw from
+    // a background context in Next.js and must not block the success signal.
     await updateJobStatus(jobId, "done", { imageUrl: url });
     console.log(`[image-gen] Job ${jobId} completed for recipe ${recipeId}`);
+
+    // Best-effort cache bust — failure here doesn't matter since the recipe
+    // page is a dynamic route and will re-fetch from DB on next navigation.
+    try {
+      const { revalidatePath } = await import("next/cache");
+      revalidatePath(`/recipes/${recipeId}`);
+      revalidatePath("/recipes");
+    } catch {
+      // Silently ignored — background context may not support revalidatePath
+    }
   } catch (err) {
     console.error(`[image-gen] Job ${jobId} failed:`, err);
     const message = err instanceof Error ? err.message : String(err);
     await updateJobStatus(jobId, "failed", { error: message });
+    // Best-effort notification update on unexpected failure
+    try {
+      await db
+        .update(notifications)
+        .set({ type: "image_failed", title: "Image generation failed", body: message })
+        .where(eq(notifications.id, notificationId));
+    } catch {
+      // Ignored
+    }
   }
 }
