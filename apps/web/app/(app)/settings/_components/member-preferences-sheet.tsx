@@ -152,7 +152,7 @@ export function MemberPreferencesSheet({
         </button>
       </SheetTrigger>
 
-      <SheetContent className="px-4 pb-8 overflow-y-auto">
+      <SheetContent side="right" className="w-full sm:max-w-md px-4 pb-8 overflow-y-auto">
         <SheetHeader className="mb-6">
           <SheetTitle>{memberName}</SheetTitle>
           <p className="text-sm text-muted-foreground">Food preferences &amp; restrictions</p>
