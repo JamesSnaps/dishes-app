@@ -49,9 +49,19 @@ const FRACTION_SYMBOLS: Record<string, string> = {
   "0.875": "⅞",
 };
 
+function parseMixedFraction(amount: string): number {
+  // Handles "1 1/2", "1/2", "1", "1.5"
+  const trimmed = amount.trim();
+  const mixedMatch = trimmed.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixedMatch) return parseInt(mixedMatch[1]) + parseInt(mixedMatch[2]) / parseInt(mixedMatch[3]);
+  const fracMatch = trimmed.match(/^(\d+)\/(\d+)$/);
+  if (fracMatch) return parseInt(fracMatch[1]) / parseInt(fracMatch[2]);
+  return parseFloat(trimmed);
+}
+
 function formatAmount(amount: string | null, scale: number): string {
   if (!amount) return "";
-  const raw = parseFloat(amount);
+  const raw = parseMixedFraction(amount);
   if (isNaN(raw)) return amount;
   const scaled = raw * scale;
   const whole = Math.floor(scaled);
@@ -723,15 +733,24 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
   const activeIngredientIds = new Set((currentStep?.ingredientIds as string[] | null) ?? []);
   const stepIngredients = ingredients.filter((ing) => activeIngredientIds.has(ing.id));
 
-  // Wake lock
+  // Wake lock — re-acquire when the tab regains visibility (browser drops it on hide)
   useEffect(() => {
     if (!("wakeLock" in navigator)) return;
     let lock: WakeLockSentinel | null = null;
-    (navigator.wakeLock as { request: (type: string) => Promise<WakeLockSentinel> })
-      .request("screen")
-      .then((l) => { lock = l; })
-      .catch(() => {});
-    return () => { lock?.release().catch(() => {}); };
+    const acquire = () => {
+      if (document.visibilityState === "visible") {
+        (navigator.wakeLock as { request: (type: string) => Promise<WakeLockSentinel> })
+          .request("screen")
+          .then((l) => { lock = l; })
+          .catch(() => {});
+      }
+    };
+    acquire();
+    document.addEventListener("visibilitychange", acquire);
+    return () => {
+      document.removeEventListener("visibilitychange", acquire);
+      lock?.release().catch(() => {});
+    };
   }, []);
 
   const goNext = useCallback(() => { if (!isLast) setStepIndex((i) => i + 1); }, [isLast]);
