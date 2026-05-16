@@ -9,6 +9,7 @@ import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
+import { makeThumbnail } from "@/lib/thumbnail";
 import { revalidatePath } from "next/cache";
 
 // ── Shared types ───────────────────────────────────────────────────────────────
@@ -292,7 +293,7 @@ Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.
 export async function generateRecipeImageUrl(
   title: string,
   description: string | null
-): Promise<{ url?: string; error?: string }> {
+): Promise<{ url?: string; thumbnailUrl?: string; error?: string }> {
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
@@ -328,11 +329,15 @@ export async function generateRecipeImageUrl(
       throw new Error("No image data returned from AI.");
     }
 
-    const key = `recipes/${householdId}/${randomUUID()}.png`;
-    const url = await uploadFile(key, buffer, "image/png");
+    const id = randomUUID();
+    const [url, thumbnailBuffer] = await Promise.all([
+      uploadFile(`recipes/${householdId}/${id}.png`, buffer, "image/png"),
+      makeThumbnail(buffer),
+    ]);
+    const thumbnailUrl = await uploadFile(`recipes/${householdId}/${id}_thumb.jpg`, thumbnailBuffer, "image/jpeg");
     console.log(`[AI] Image uploaded successfully: ${url}`);
 
-    return { url };
+    return { url, thumbnailUrl };
   } catch (err) {
     console.error(`[AI] Image generation failed:`, err);
     return { error: classifyError(err) };

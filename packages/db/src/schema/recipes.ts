@@ -32,6 +32,7 @@ export const recipes = pgTable("recipes", {
   servingsUnit: varchar("servings_unit", { length: 50 }).default("servings"),
   difficulty: difficultyEnum("difficulty"),
   imageUrl: text("image_url"),
+  thumbnailUrl: text("thumbnail_url"),
   sourceUrl: text("source_url"),
   isAiGenerated: boolean("is_ai_generated").notNull().default(false),
   isFavourite: boolean("is_favourite").notNull().default(false),

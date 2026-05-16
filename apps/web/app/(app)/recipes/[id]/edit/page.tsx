@@ -81,6 +81,7 @@ export default async function EditRecipePage({ params }: Props) {
           sourceUrl: recipe.sourceUrl ?? undefined,
           notes: recipe.notes ?? undefined,
           imageUrl: recipe.imageUrl ?? undefined,
+          thumbnailUrl: recipe.thumbnailUrl ?? undefined,
           tags: tags.map((t) => t.tag),
           ingredients: ingredients.map((ing) => ({
             ingredientName: ing.ingredientName,

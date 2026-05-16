@@ -16,7 +16,7 @@ import {
   getUnreadCount,
   markAllRead,
 } from "@/app/actions/notifications";
-import type { Notification } from "@dishes/db/schema";
+import type { NotificationWithImage } from "@/app/actions/notifications";
 
 const TYPE_ICON: Record<string, React.ElementType> = {
   image_generating: Loader,
@@ -38,7 +38,7 @@ function formatRelativeTime(date: Date | string): string {
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
-  const [items, setItems] = useState<Notification[]>([]);
+  const [items, setItems] = useState<NotificationWithImage[]>([]);
 
   async function refresh() {
     const count = await getUnreadCount();
@@ -50,7 +50,6 @@ export function NotificationsBell() {
     if (isOpen) {
       const list = await getNotifications();
       setItems(list);
-      // Fire-and-forget mark as read — no need to block UI
       markAllRead().catch(console.error);
       setUnread(0);
     }
@@ -98,6 +97,12 @@ export function NotificationsBell() {
               {items.map((n) => {
                 const Icon = TYPE_ICON[n.type] ?? Info;
                 const isUnread = !n.readAt;
+                const inner = (
+                  <>
+                    <NotificationIcon Icon={Icon} unread={isUnread} thumbnailUrl={n.recipeThumbnailUrl} />
+                    <NotificationBody n={n} />
+                  </>
+                );
                 return (
                   <li key={n.id}>
                     {n.recipeId ? (
@@ -109,18 +114,11 @@ export function NotificationsBell() {
                           isUnread && "bg-primary/5"
                         )}
                       >
-                        <NotificationIcon Icon={Icon} unread={isUnread} />
-                        <NotificationBody n={n} />
+                        {inner}
                       </Link>
                     ) : (
-                      <div
-                        className={cn(
-                          "flex items-start gap-3 px-4 py-3",
-                          isUnread && "bg-primary/5"
-                        )}
-                      >
-                        <NotificationIcon Icon={Icon} unread={isUnread} />
-                        <NotificationBody n={n} />
+                      <div className={cn("flex items-start gap-3 px-4 py-3", isUnread && "bg-primary/5")}>
+                        {inner}
                       </div>
                     )}
                   </li>
@@ -137,15 +135,26 @@ export function NotificationsBell() {
 function NotificationIcon({
   Icon,
   unread,
+  thumbnailUrl,
 }: {
   Icon: React.ElementType;
   unread: boolean;
+  thumbnailUrl: string | null;
 }) {
   return (
     <div className="relative mt-0.5 shrink-0">
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </div>
+      {thumbnailUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={thumbnailUrl}
+          alt=""
+          className="h-10 w-10 rounded-lg object-cover"
+        />
+      ) : (
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </div>
+      )}
       {unread && (
         <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />
       )}
@@ -153,7 +162,7 @@ function NotificationIcon({
   );
 }
 
-function NotificationBody({ n }: { n: Notification }) {
+function NotificationBody({ n }: { n: NotificationWithImage }) {
   return (
     <div className="min-w-0 flex-1">
       <p className="text-sm font-medium leading-snug">{n.title}</p>

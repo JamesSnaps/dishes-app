@@ -5,6 +5,7 @@ import { aiConfigurations } from "@dishes/db/schema";
 import { eq } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
+import { makeThumbnail } from "@/lib/thumbnail";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("image-gen");
@@ -13,7 +14,7 @@ export async function generateRecipeImageCore(
   householdId: string,
   title: string,
   description: string | null
-): Promise<{ url?: string; error?: string }> {
+): Promise<{ url?: string; thumbnailUrl?: string; error?: string }> {
   if (!isStorageAvailable()) {
     return {
       error:
@@ -66,9 +67,13 @@ export async function generateRecipeImageCore(
     throw new Error("No image data returned from AI.");
   }
 
-  const key = `recipes/${householdId}/${randomUUID()}.png`;
-  const url = await uploadFile(key, buffer, "image/png");
+  const id = randomUUID();
+  const [url, thumbnailBuffer] = await Promise.all([
+    uploadFile(`recipes/${householdId}/${id}.png`, buffer, "image/png"),
+    makeThumbnail(buffer),
+  ]);
+  const thumbnailUrl = await uploadFile(`recipes/${householdId}/${id}_thumb.jpg`, thumbnailBuffer, "image/jpeg");
   log.info(`Image uploaded: ${url}`);
 
-  return { url };
+  return { url, thumbnailUrl };
 }

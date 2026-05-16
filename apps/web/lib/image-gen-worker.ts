@@ -54,7 +54,7 @@ export async function generateImageBackground(
       return;
     }
 
-    const { url, error } = await generateRecipeImageCore(
+    const { url, thumbnailUrl, error } = await generateRecipeImageCore(
       householdId,
       recipe.title,
       recipe.description
@@ -70,10 +70,9 @@ export async function generateImageBackground(
       return;
     }
 
-    // Save image URL to recipe
     await db
       .update(recipes)
-      .set({ imageUrl: url })
+      .set({ imageUrl: url, thumbnailUrl: thumbnailUrl ?? null })
       .where(eq(recipes.id, recipeId));
 
     // Update the notification to "ready"

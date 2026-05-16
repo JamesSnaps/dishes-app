@@ -94,6 +94,7 @@ export default async function HomePage() {
         prepTimeMinutes: recipes.prepTimeMinutes,
         cookTimeMinutes: recipes.cookTimeMinutes,
         imageUrl: recipes.imageUrl,
+        thumbnailUrl: recipes.thumbnailUrl,
         isFavourite: recipes.isFavourite,
         isAiGenerated: recipes.isAiGenerated,
       })
@@ -124,6 +125,7 @@ export default async function HomePage() {
             prepTimeMinutes: recipes.prepTimeMinutes,
             cookTimeMinutes: recipes.cookTimeMinutes,
             imageUrl: recipes.imageUrl,
+            thumbnailUrl: recipes.thumbnailUrl,
           },
         })
         .from(mealPlanEntries)
@@ -189,7 +191,7 @@ export default async function HomePage() {
                       {entry.recipe.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={entry.recipe.imageUrl}
+                          src={entry.recipe.thumbnailUrl ?? entry.recipe.imageUrl}
                           alt={entry.recipe.title}
                           className="h-full w-full object-cover"
                         />

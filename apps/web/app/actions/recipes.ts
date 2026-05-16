@@ -55,6 +55,7 @@ function extractRecipeFields(formData: FormData) {
     sourceUrl: (formData.get("sourceUrl") as string)?.trim() || null,
     notes: (formData.get("notes") as string)?.trim() || null,
     imageUrl: (formData.get("imageUrl") as string)?.trim() || null,
+    thumbnailUrl: (formData.get("thumbnailUrl") as string)?.trim() || null,
   };
 }
 

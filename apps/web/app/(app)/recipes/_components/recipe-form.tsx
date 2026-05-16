@@ -50,6 +50,7 @@ export type RecipeFormDefaults = {
   sourceUrl?: string | null;
   notes?: string | null;
   imageUrl?: string | null;
+  thumbnailUrl?: string | null;
   ingredients?: Omit<IngredientRow, "key">[];
   steps?: Omit<StepRow, "key">[];
   tags?: string[];
@@ -144,6 +145,7 @@ export function RecipeForm({
   );
 
   const [imageUrl, setImageUrl] = useState<string>(defaults.imageUrl ?? "");
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>(defaults.thumbnailUrl ?? "");
   const [imageUploading, setImageUploading] = useState(false);
   const [imageGenerating, setImageGenerating] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -230,9 +232,10 @@ export function RecipeForm({
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = (await res.json()) as { url?: string; error?: string };
+      const data = (await res.json()) as { url?: string; thumbnailUrl?: string | null; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Upload failed");
       setImageUrl(data.url!);
+      setThumbnailUrl(data.thumbnailUrl ?? "");
     } catch (err) {
       setImageError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -274,6 +277,7 @@ export function RecipeForm({
       return;
     }
     setImageUrl(result.url!);
+    setThumbnailUrl(result.thumbnailUrl ?? "");
   }
 
   // ── Ingredient helpers ──────────────────────────────────────────────────────
@@ -359,6 +363,7 @@ export function RecipeForm({
     );
     formData.set("difficulty", difficulty);
     formData.set("imageUrl", imageUrl);
+    formData.set("thumbnailUrl", thumbnailUrl);
 
     await action(formData);
   }
@@ -373,7 +378,7 @@ export function RecipeForm({
           <img src={imageUrl} alt="Recipe photo" className="h-full w-full object-cover" />
           <button
             type="button"
-            onClick={() => setImageUrl("")}
+            onClick={() => { setImageUrl(""); setThumbnailUrl(""); }}
             className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-background/80 text-foreground hover:bg-background"
             title="Remove photo"
           >
@@ -458,7 +463,7 @@ export function RecipeForm({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setImageUrl("")}
+            onClick={() => { setImageUrl(""); setThumbnailUrl(""); }}
             className="flex-1"
           >
             <X className="mr-1.5 h-4 w-4" />

@@ -1,21 +1,39 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { notifications } from "@dishes/db/schema";
+import { notifications, recipes } from "@dishes/db/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import type { Notification } from "@dishes/db/schema";
 
-export async function getNotifications(): Promise<Notification[]> {
+export type NotificationWithImage = Notification & {
+  recipeThumbnailUrl: string | null;
+};
+
+export async function getNotifications(): Promise<NotificationWithImage[]> {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
-  return db
-    .select()
+
+  const rows = await db
+    .select({
+      id: notifications.id,
+      householdId: notifications.householdId,
+      type: notifications.type,
+      title: notifications.title,
+      body: notifications.body,
+      recipeId: notifications.recipeId,
+      readAt: notifications.readAt,
+      createdAt: notifications.createdAt,
+      recipeThumbnailUrl: recipes.thumbnailUrl,
+    })
     .from(notifications)
+    .leftJoin(recipes, eq(notifications.recipeId, recipes.id))
     .where(eq(notifications.householdId, householdId))
     .orderBy(desc(notifications.createdAt))
     .limit(50);
+
+  return rows.map((r) => ({ ...r, recipeThumbnailUrl: r.recipeThumbnailUrl ?? null }));
 }
 
 export async function getUnreadCount(): Promise<number> {

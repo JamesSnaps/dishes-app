@@ -70,6 +70,7 @@ export default async function RecipesPage({ searchParams }: Props) {
         prepTimeMinutes: recipes.prepTimeMinutes,
         cookTimeMinutes: recipes.cookTimeMinutes,
         imageUrl: recipes.imageUrl,
+        thumbnailUrl: recipes.thumbnailUrl,
         isFavourite: recipes.isFavourite,
         isAiGenerated: recipes.isAiGenerated,
       })

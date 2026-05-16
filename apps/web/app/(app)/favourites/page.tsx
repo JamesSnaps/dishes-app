@@ -23,6 +23,7 @@ export default async function FavouritesPage() {
         prepTimeMinutes: recipes.prepTimeMinutes,
         cookTimeMinutes: recipes.cookTimeMinutes,
         imageUrl: recipes.imageUrl,
+        thumbnailUrl: recipes.thumbnailUrl,
         isFavourite: recipes.isFavourite,
         isAiGenerated: recipes.isAiGenerated,
       })

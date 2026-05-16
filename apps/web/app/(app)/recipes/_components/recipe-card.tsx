@@ -12,6 +12,7 @@ type RecipeCardProps = {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   imageUrl: string | null;
+  thumbnailUrl?: string | null;
   isFavourite: boolean;
   isAiGenerated: boolean;
   averageRating?: number | null;
@@ -35,6 +36,7 @@ export function RecipeCard({
   prepTimeMinutes,
   cookTimeMinutes,
   imageUrl,
+  thumbnailUrl,
   isFavourite,
   isAiGenerated,
   averageRating,
@@ -50,7 +52,7 @@ export function RecipeCard({
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={imageUrl}
+              src={thumbnailUrl ?? imageUrl}
               alt={title}
               className="h-full w-full object-cover"
             />
