@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
+import { recipes, recipeIngredients, recipeSteps, householdMembers } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { CookingMode } from "./_components/cooking-mode";
@@ -17,7 +17,7 @@ export default async function CookPage({ params }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps] = await Promise.all([
+  const [recipe, ingredients, steps, members] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -34,6 +34,11 @@ export default async function CookPage({ params }: Props) {
       .from(recipeSteps)
       .where(eq(recipeSteps.recipeId, id))
       .orderBy(asc(recipeSteps.position)),
+    db
+      .select({ id: householdMembers.id, displayName: householdMembers.displayName })
+      .from(householdMembers)
+      .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
+      .orderBy(householdMembers.displayName),
   ]);
 
   if (!recipe) notFound();
@@ -43,6 +48,7 @@ export default async function CookPage({ params }: Props) {
       recipe={recipe}
       ingredients={ingredients}
       steps={steps}
+      householdMembers={members}
     />
   );
 }

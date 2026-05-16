@@ -25,10 +25,13 @@ type Recipe = typeof recipes.$inferSelect;
 type Ingredient = typeof recipeIngredients.$inferSelect;
 type Step = typeof recipeSteps.$inferSelect;
 
+type HouseholdMember = { id: string; displayName: string };
+
 interface Props {
   recipe: Recipe;
   ingredients: Ingredient[];
   steps: Step[];
+  householdMembers?: HouseholdMember[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -653,7 +656,7 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CookingMode({ recipe, ingredients, steps }: Props) {
+export function CookingMode({ recipe, ingredients, steps, householdMembers = [] }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const cookStartRef = useRef<number>(Date.now());
@@ -1141,6 +1144,7 @@ export function CookingMode({ recipe, ingredients, steps }: Props) {
           storedCookTimeMinutes={recipe.cookTimeMinutes}
           elapsedMinutes={elapsedMinutes}
           currentServings={currentServings}
+          householdMembers={householdMembers}
         />
       )}
     </div>

@@ -3,8 +3,8 @@
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { aiConfigurations, recipes, mealPlanEntries, mealPlans, cookHistory, recipeTags } from "@dishes/db/schema";
-import { eq, and, count, max, lte, desc, avg, inArray } from "drizzle-orm";
+import { aiConfigurations, recipes, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers } from "@dishes/db/schema";
+import { eq, and, count, max, lte, avg, inArray } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -98,6 +98,33 @@ function classifyError(err: unknown): string {
   return `AI error: ${msg}`;
 }
 
+async function buildMemberConstraints(memberIds: string[], householdId: string): Promise<string> {
+  if (!memberIds.length) return "";
+  const members = await db
+    .select({
+      displayName: householdMembers.displayName,
+      dietaryFlags: householdMembers.dietaryFlags,
+      dislikes: householdMembers.dislikes,
+      preferences: householdMembers.preferences,
+      customNotes: householdMembers.customNotes,
+    })
+    .from(householdMembers)
+    .where(and(eq(householdMembers.householdId, householdId), inArray(householdMembers.id, memberIds)));
+
+  if (!members.length) return "";
+
+  const lines = members.map((m) => {
+    const parts: string[] = [`${m.displayName}:`];
+    if (m.dietaryFlags?.length) parts.push(`dietary requirements: ${m.dietaryFlags.join(", ")}`);
+    if (m.dislikes?.length) parts.push(`dislikes: ${m.dislikes.join(", ")}`);
+    if (m.preferences?.length) parts.push(`loves: ${m.preferences.join(", ")}`);
+    if (m.customNotes?.trim()) parts.push(m.customNotes.trim());
+    return parts.join(" — ");
+  });
+
+  return `\n\nWho's eating: ${lines.join("; ")}. Please respect all dietary requirements, avoid any listed dislikes, and lean towards their preferences where possible.`;
+}
+
 function buildSystemAddendum(defaultPrompt: string | null, measurementSystem: string, kitchenEquipment: string | null): string {
   const parts: string[] = [];
   if (measurementSystem === "metric") {
@@ -117,7 +144,8 @@ function buildSystemAddendum(defaultPrompt: string | null, measurementSystem: st
 // ── Step 1: Generate 5 concept cards ──────────────────────────────────────────
 
 export async function generateConcepts(
-  prompt: string
+  prompt: string,
+  memberIds?: string[]
 ): Promise<{ concepts?: ConceptCard[]; error?: string }> {
   if (!prompt.trim())
     return { error: "Please describe what you'd like to cook." };
@@ -125,9 +153,12 @@ export async function generateConcepts(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = await getOpenAiClient(householdId);
+    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints] = await Promise.all([
+      getOpenAiClient(householdId),
+      buildMemberConstraints(memberIds ?? [], householdId),
+    ]);
 
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + memberConstraints;
 
     const completion = await client.chat.completions.create({
       model,
@@ -226,14 +257,18 @@ Only change what is necessary to satisfy the user's request. Preserve everything
 // ── Step 2: Generate full recipe from a chosen concept ─────────────────────────
 
 export async function generateFullRecipe(
-  concept: ConceptCard
+  concept: ConceptCard,
+  memberIds?: string[]
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = await getOpenAiClient(householdId);
+    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints] = await Promise.all([
+      getOpenAiClient(householdId),
+      buildMemberConstraints(memberIds ?? [], householdId),
+    ]);
 
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + memberConstraints;
 
     const completion = await client.chat.completions.create({
       model,

@@ -25,6 +25,8 @@ const OCCASION_SUGGESTIONS = [
   "Meal prep",
 ];
 
+type HouseholdMember = { id: string; displayName: string };
+
 interface Props {
   recipeId: string;
   recipeTitle: string;
@@ -32,6 +34,7 @@ interface Props {
   storedCookTimeMinutes: number | null;
   elapsedMinutes: number;
   currentServings: number;
+  householdMembers?: HouseholdMember[];
 }
 
 export function CookDebrief({
@@ -41,12 +44,14 @@ export function CookDebrief({
   storedCookTimeMinutes,
   elapsedMinutes,
   currentServings,
+  householdMembers = [],
 }: Props) {
   const router = useRouter();
   const [rating, setRating] = useState<number | null>(null);
   const [duration, setDuration] = useState(elapsedMinutes);
   const [notes, setNotes] = useState("");
   const [occasion, setOccasion] = useState("");
+  const [cookedForIds, setCookedForIds] = useState<Set<string>>(new Set());
   const [deducted, setDeducted] = useState(false);
   const [deducting, setDeducting] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -63,13 +68,26 @@ export function CookDebrief({
     router.push(`/recipes/${recipeId}`);
   }
 
+  function toggleMember(id: string) {
+    setCookedForIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   function handleSubmit() {
+    const cookedForNames = householdMembers
+      .filter((m) => cookedForIds.has(m.id))
+      .map((m) => m.displayName);
+
     startTransition(async () => {
       await logCook(recipeId, {
         rating: rating ?? null,
         actualDuration: duration,
         notes: notes.trim() || null,
         occasion: occasion.trim() || null,
+        cookedFor: cookedForNames.length ? cookedForNames : null,
       });
       if (cookTimeDiffers) {
         updateRecipeCookTime(recipeId, duration).catch(() => {});
@@ -150,6 +168,29 @@ export function CookDebrief({
             </p>
           </div>
         </div>
+
+        {/* Who did you cook for? */}
+        {householdMembers.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Who did you cook for?</label>
+            <div className="flex flex-wrap gap-2">
+              {householdMembers.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => toggleMember(m.id)}
+                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                    cookedForIds.has(m.id)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "hover:bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {m.displayName}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Occasion */}
         <div className="space-y-2">

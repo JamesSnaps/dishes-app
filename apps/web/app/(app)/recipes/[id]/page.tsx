@@ -30,7 +30,7 @@ import { TweakRecipeButton } from "./_components/tweak-recipe-button";
 import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
 import { GenerateImageButton } from "./_components/generate-image-button";
 import { toggleFavourite } from "@/app/actions/recipes";
-import { getCookStats, getRecipeCookHistory } from "@/app/actions/cook-history";
+import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/app/actions/cook-history";
 import type { GeneratedRecipe } from "@/app/actions/ai";
 
 export const metadata = { title: "Recipe" };
@@ -46,7 +46,7 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes] = await Promise.all([
+  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -89,6 +89,7 @@ export default async function RecipeDetailPage({ params }: Props) {
       .from(notes)
       .where(and(eq(notes.recipeId, id), eq(notes.householdId, householdId)))
       .orderBy(desc(notes.updatedAt)),
+    getAverageDuration(id, householdId),
   ]);
 
   if (!recipe) notFound();
@@ -252,6 +253,12 @@ export default async function RecipeDetailPage({ params }: Props) {
           <span className="flex items-center gap-1 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
             {formatTime(totalMinutes)}
+          </span>
+        )}
+        {avgDuration && (
+          <span className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400">
+            <Clock className="h-4 w-4" />
+            Usually takes you ~{formatTime(avgDuration)}
           </span>
         )}
         {recipe.servings && (

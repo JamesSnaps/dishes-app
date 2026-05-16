@@ -341,6 +341,10 @@ function FilterChip({
   );
 }
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type Member = { id: string; displayName: string };
+
 // ── Plan My Week tab ───────────────────────────────────────────────────────────
 
 type PlanMyWeekProps = {
@@ -734,10 +738,11 @@ function PlanMyWeekTab({ availableCuisines, availableTags }: PlanMyWeekProps) {
 
 // ── Find a Recipe tab ─────────────────────────────────────────────────────────
 
-function FindRecipeTab() {
+function FindRecipeTab({ members }: { members: Member[] }) {
   const router = useRouter();
   const [promptText, setPromptText] = useState("");
   const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set());
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
   const [concepts, setConcepts] = useState<ConceptCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
@@ -772,7 +777,7 @@ function FindRecipeTab() {
     setConcepts(null);
     setGeneratingIdx(null);
     startTransition(async () => {
-      const result = await generateConcepts(full);
+      const result = await generateConcepts(full, Array.from(selectedMemberIds));
       if (result.error) { setError(result.error); return; }
       setConcepts(result.concepts!);
       setTimeout(() => {
@@ -794,11 +799,19 @@ function FindRecipeTab() {
     });
   }
 
+  function toggleMember(id: string) {
+    setSelectedMemberIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   function handleSelectConcept(concept: ConceptCard, idx: number) {
     setError(null);
     setGeneratingIdx(idx);
     startTransition(async () => {
-      const result = await generateFullRecipe(concept);
+      const result = await generateFullRecipe(concept, Array.from(selectedMemberIds));
       if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
       const defaults = recipeToDefaults(result.recipe!);
       sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
@@ -881,6 +894,37 @@ function FindRecipeTab() {
               </button>
             ))}
           </div>
+
+          {/* Who's eating? */}
+          {members.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Who&apos;s eating?</p>
+              <div className="flex flex-wrap gap-2">
+                {members.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggleMember(m.id)}
+                    disabled={isPending}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                      selectedMemberIds.has(m.id)
+                        ? "border-blue-400 bg-blue-500 text-white"
+                        : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                    )}
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    {m.displayName}
+                  </button>
+                ))}
+              </div>
+              {selectedMemberIds.size > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  AI will respect their dietary needs and preferences
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Refine your preferences */}
           <div className="space-y-2 border-t pt-4">
@@ -1002,7 +1046,7 @@ function FindRecipeTab() {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function ConciergeClient({ availableCuisines, availableTags }: PlanMyWeekProps) {
+export function ConciergeClient({ availableCuisines, availableTags, members }: PlanMyWeekProps & { members: Member[] }) {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") === "plan" ? "plan" : "recipe";
   const [activeTab, setActiveTab] = useState<"recipe" | "plan">(initialTab);
@@ -1070,7 +1114,7 @@ export function ConciergeClient({ availableCuisines, availableTags }: PlanMyWeek
         </button>
       </div>
 
-      {activeTab === "recipe" ? <FindRecipeTab /> : <PlanMyWeekTab availableCuisines={availableCuisines} availableTags={availableTags} />}
+      {activeTab === "recipe" ? <FindRecipeTab members={members} /> : <PlanMyWeekTab availableCuisines={availableCuisines} availableTags={availableTags} />}
     </div>
   );
 }

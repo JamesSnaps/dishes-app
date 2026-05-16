@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { cookHistory, recipes } from "@dishes/db/schema";
-import { eq, and, avg, count, desc } from "drizzle-orm";
+import { eq, and, avg, count, desc, isNotNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -134,6 +134,25 @@ export type CookHistoryEntry = {
   occasion: string | null;
   cookedFor: string[] | null;
 };
+
+export async function getAverageDuration(
+  recipeId: string,
+  householdId: string
+): Promise<number | null> {
+  const [row] = await db
+    .select({ avgDuration: avg(cookHistory.actualDuration), cookCount: count(cookHistory.id) })
+    .from(cookHistory)
+    .where(
+      and(
+        eq(cookHistory.recipeId, recipeId),
+        eq(cookHistory.householdId, householdId),
+        isNotNull(cookHistory.actualDuration)
+      )
+    );
+
+  if (!row || Number(row.cookCount) < 2 || !row.avgDuration) return null;
+  return Math.round(parseFloat(row.avgDuration));
+}
 
 export async function getRecipeCookHistory(
   recipeId: string,

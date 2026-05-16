@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { Heart, Search, SlidersHorizontal, X } from "lucide-react";
 import { Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@dishes/ui";
 
@@ -70,6 +70,15 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const activeTags = (params.get("tags") ?? "").split(",").filter(Boolean);
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => push({ q: value }), 300);
+    },
+    [params],
+  );
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingCuisine, setPendingCuisine] = useState(cuisine);
@@ -159,8 +168,10 @@ export function RecipeFilters({ cuisines, tags }: Props) {
             defaultValue={q}
             placeholder="Search recipes…"
             className="pl-9 bg-muted border-0 focus-visible:ring-1"
+            onChange={(e) => handleSearchChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
+                if (debounceRef.current) clearTimeout(debounceRef.current);
                 push({ q: (e.target as HTMLInputElement).value });
               }
             }}

@@ -52,7 +52,7 @@ After the user finishes cooking mode, present a lightweight debrief screen rathe
 - [x] Prompt: "How did it go?" — half-star rating widget (0–10 scale)
 - [x] Prompt: "Any notes?" — textarea (optional)
 - [x] Prompt: "What was the occasion?" — text field with quick-select chip suggestions
-- [ ] Prompt: "Who did you cook for?" — multi-select from `household_members` names (blocked on Section 3)
+- [x] Prompt: "Who did you cook for?" — multi-select from `household_members` names (blocked on Section 3)
 - [ ] "Upload a photo of your dish" — optional (blocked on Section 5)
 - [x] On submit: call `logCook()` server action; auto-updates recipe cook time if elapsed differs ≥5 min; navigates to recipe detail
 - [x] Skip button — exits without logging (no friction for casual cooks)
@@ -90,8 +90,8 @@ household_members
 - [x] Dislikes + Favourites: tag inputs (type and press Enter)
 - [x] Preference summary shown inline beneath each member row when any data exists
 - [x] Slug removed from settings household card
-- [ ] "Who did you cook for?" multi-select in post-cooking debrief (unblocked — wire to existing members)
-- [ ] "Who's eating?" selector on AI recipe generation — inject constraints into AI system prompt
+- [x] "Who did you cook for?" multi-select in post-cooking debrief (unblocked — wire to existing members)
+- [x] "Who's eating?" selector on AI recipe generation — inject constraints into AI system prompt
 - [ ] "Who's eating?" selector on meal plan day
 
 ---
@@ -102,9 +102,9 @@ The app uses recipe-specified durations for planning, but learns each household'
 
 ### Tasks
 
-- [ ] Schema: `actual_duration` already on `cook_history` (see section 1)
-- [ ] Server query: `getAverageDuration(recipeId, householdId)` — average of non-null `actual_duration` values, minimum 2 data points before surfacing
-- [ ] Recipe detail: show "Usually takes you ~X mins" beneath recipe's stated time once 2+ cooks logged
+- [x] Schema: `actual_duration` already on `cook_history` (see section 1)
+- [x] Server query: `getAverageDuration(recipeId, householdId)` — average of non-null `actual_duration` values, minimum 2 data points before surfacing
+- [x] Recipe detail: show "Usually takes you ~X mins" beneath recipe's stated time once 2+ cooks logged
 - [ ] Meal plan: use household average duration (if available) when planning day timings
 - [ ] Cooking mode: show "Last time this took you X mins" as a subtle note on the start screen
 - [ ] Integration API: include `household_avg_duration` in recipe responses where available
