@@ -58,6 +58,7 @@ export default async function MealPlanPage({
               cookTimeMinutes: recipes.cookTimeMinutes,
               servings: recipes.servings,
               imageUrl: recipes.imageUrl,
+              thumbnailUrl: recipes.thumbnailUrl,
             },
           })
           .from(mealPlanEntries)
@@ -75,6 +76,7 @@ export default async function MealPlanPage({
               cookTimeMinutes: number | null;
               servings: string | null;
               imageUrl: string | null;
+              thumbnailUrl: string | null;
             };
           }[]
         ),

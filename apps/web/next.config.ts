@@ -17,6 +17,10 @@ const config: NextConfig = {
         hostname: "localhost",
         port: "9000",
       },
+      {
+        protocol: "https",
+        hostname: "dishes-s3.collardserver.co.uk",
+      },
     ],
   },
 };

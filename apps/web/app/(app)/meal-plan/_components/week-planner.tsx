@@ -40,6 +40,7 @@ type Entry = {
     cookTimeMinutes: number | null;
     servings: string | null;
     imageUrl: string | null;
+    thumbnailUrl: string | null;
   };
 };
 

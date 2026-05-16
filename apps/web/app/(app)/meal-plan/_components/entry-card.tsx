@@ -2,7 +2,6 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { Trash2, Clock, Users, Sun, Moon, Sunrise, Cookie, IceCreamCone, ChefHat } from "lucide-react";
 import { removeMealEntry } from "@/app/actions/meal-plan";
 
@@ -58,6 +57,7 @@ interface Props {
       cookTimeMinutes: number | null;
       servings: string | null;
       imageUrl: string | null;
+      thumbnailUrl: string | null;
     };
   };
 }
@@ -86,11 +86,10 @@ export function EntryCard({ entry }: Props) {
     >
       {recipe.imageUrl ? (
         <div className="flex-shrink-0 w-[120px] h-[120px]">
-          <Image
-            src={recipe.imageUrl}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={recipe.thumbnailUrl ?? recipe.imageUrl}
             alt={recipe.title}
-            width={120}
-            height={120}
             className="w-full h-full object-cover"
           />
         </div>
