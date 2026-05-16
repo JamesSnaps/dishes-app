@@ -422,38 +422,52 @@ export default async function RecipeDetailPage({ params }: Props) {
                     {/* Timeline dot */}
                     <div className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-primary/60 ring-2 ring-background" />
 
-                    <div className="flex flex-col gap-1.5">
-                      {/* Date + rating */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-medium text-muted-foreground" title={fullDate}>
-                          {relDate}
-                        </span>
-                        {entry.occasion && (
-                          <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
-                            {entry.occasion}
+                    <div className="flex gap-3">
+                      {/* Photo thumbnail */}
+                      {entry.photoUrl && (
+                        <div className="shrink-0 h-16 w-16 rounded-lg overflow-hidden bg-muted">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={entry.photoUrl}
+                            alt="Dish photo"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                        {/* Date + metadata */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-medium text-muted-foreground" title={fullDate}>
+                            {relDate}
                           </span>
-                        )}
-                        {entry.cookedFor && entry.cookedFor.length > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            with {entry.cookedFor.join(", ")}
-                          </span>
-                        )}
-                        {entry.rating != null && (
-                          <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                            ★ {entry.rating / 2}/5
-                          </span>
-                        )}
-                        {entry.actualDuration && (
-                          <span className="text-xs text-muted-foreground">· {entry.actualDuration} min</span>
+                          {entry.occasion && (
+                            <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
+                              {entry.occasion}
+                            </span>
+                          )}
+                          {entry.cookedFor && entry.cookedFor.length > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              with {entry.cookedFor.join(", ")}
+                            </span>
+                          )}
+                          {entry.rating != null && (
+                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                              ★ {entry.rating / 2}/5
+                            </span>
+                          )}
+                          {entry.actualDuration && (
+                            <span className="text-xs text-muted-foreground">· {entry.actualDuration} min</span>
+                          )}
+                        </div>
+
+                        {/* Notes */}
+                        {entry.notes && (
+                          <p className="text-sm text-muted-foreground leading-relaxed italic">
+                            &ldquo;{entry.notes}&rdquo;
+                          </p>
                         )}
                       </div>
-
-                      {/* Notes */}
-                      {entry.notes && (
-                        <p className="text-sm text-muted-foreground leading-relaxed italic">
-                          &ldquo;{entry.notes}&rdquo;
-                        </p>
-                      )}
                     </div>
                   </div>
                 );

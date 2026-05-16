@@ -275,6 +275,17 @@ export function RecipeTabs({
                     </p>
                   )}
 
+                  {entry.photoUrl && (
+                    <div className="mt-2 rounded-lg overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={entry.photoUrl}
+                        alt="Dish photo"
+                        className="w-full aspect-video object-cover"
+                      />
+                    </div>
+                  )}
+
                   {entry.notes && (
                     <p className="text-sm text-muted-foreground leading-relaxed border-t pt-2 mt-2">
                       {entry.notes}

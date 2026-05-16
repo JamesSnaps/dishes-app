@@ -1,17 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Camera,
   CheckCircle2,
   Clock,
+  Loader2,
   Minus,
   PackageCheck,
   Plus,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { Button, Textarea } from "@dishes/ui";
 import { StarRating } from "@/app/(app)/recipes/[id]/_components/star-rating";
-import { logCook } from "@/app/actions/cook-history";
+import { logCook, uploadCookPhoto } from "@/app/actions/cook-history";
+import { reviewDishPhoto } from "@/app/actions/ai";
 import { updateRecipeCookTime } from "@/app/actions/recipes";
 import { deductRecipeIngredients } from "@/app/actions/pantry";
 
@@ -26,6 +31,7 @@ const OCCASION_SUGGESTIONS = [
 ];
 
 type HouseholdMember = { id: string; displayName: string };
+type Phase = "form" | "reviewed";
 
 interface Props {
   recipeId: string;
@@ -35,6 +41,7 @@ interface Props {
   elapsedMinutes: number;
   currentServings: number;
   householdMembers?: HouseholdMember[];
+  storageAvailable?: boolean;
 }
 
 export function CookDebrief({
@@ -45,8 +52,11 @@ export function CookDebrief({
   elapsedMinutes,
   currentServings,
   householdMembers = [],
+  storageAvailable = false,
 }: Props) {
   const router = useRouter();
+
+  // Form state
   const [rating, setRating] = useState<number | null>(null);
   const [duration, setDuration] = useState(elapsedMinutes);
   const [notes, setNotes] = useState("");
@@ -54,18 +64,25 @@ export function CookDebrief({
   const [cookedForIds, setCookedForIds] = useState<Set<string>>(new Set());
   const [deducted, setDeducted] = useState(false);
   const [deducting, setDeducting] = useState(false);
-  const [isPending, startTransition] = useTransition();
+
+  // Photo state
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+
+  // Submit state
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+
+  // Post-submit review state
+  const [phase, setPhase] = useState<Phase>("form");
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
+  const [aiReview, setAiReview] = useState<string | null>(null);
 
   const cookTimeDiffers =
-    !storedCookTimeMinutes ||
-    Math.abs(storedCookTimeMinutes - duration) >= 5;
+    !storedCookTimeMinutes || Math.abs(storedCookTimeMinutes - duration) >= 5;
 
   function adjustDuration(delta: number) {
     setDuration((d) => Math.max(1, d + delta));
-  }
-
-  function handleSkip() {
-    router.push(`/recipes/${recipeId}`);
   }
 
   function toggleMember(id: string) {
@@ -76,24 +93,61 @@ export function CookDebrief({
     });
   }
 
-  function handleSubmit() {
-    const cookedForNames = householdMembers
-      .filter((m) => cookedForIds.has(m.id))
-      .map((m) => m.displayName);
+  function handlePhotoChange(file: File | null) {
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    setPhotoFile(file);
+    setPhotoPreviewUrl(file ? URL.createObjectURL(file) : null);
+  }
 
-    startTransition(async () => {
-      await logCook(recipeId, {
+  function handleSkip() {
+    router.push(`/recipes/${recipeId}`);
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setLoadingMessage("Saving…");
+
+    try {
+      const cookedForNames = householdMembers
+        .filter((m) => cookedForIds.has(m.id))
+        .map((m) => m.displayName);
+
+      const { id: cookId } = await logCook(recipeId, {
         rating: rating ?? null,
         actualDuration: duration,
         notes: notes.trim() || null,
         occasion: occasion.trim() || null,
         cookedFor: cookedForNames.length ? cookedForNames : null,
       });
+
       if (cookTimeDiffers) {
         updateRecipeCookTime(recipeId, duration).catch(() => {});
       }
+
+      if (photoFile && storageAvailable) {
+        setLoadingMessage("Uploading photo…");
+        const fd = new FormData();
+        fd.append("photo", photoFile);
+        const { url } = await uploadCookPhoto(cookId, fd);
+
+        if (url) {
+          setUploadedPhotoUrl(url);
+          setLoadingMessage("Getting AI feedback…");
+          const { feedback } = await reviewDishPhoto(recipeTitle, url);
+          if (feedback) {
+            setAiReview(feedback);
+            setPhase("reviewed");
+            setSubmitting(false);
+            return;
+          }
+        }
+      }
+
       router.push(`/recipes/${recipeId}`);
-    });
+    } catch {
+      setSubmitting(false);
+      setLoadingMessage("");
+    }
   }
 
   async function handleDeduct() {
@@ -105,6 +159,51 @@ export function CookDebrief({
       setDeducting(false);
     }
   }
+
+  // ── Reviewed phase ────────────────────────────────────────────────────────
+
+  if (phase === "reviewed") {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-y-auto">
+        <div className="flex-1 flex flex-col max-w-md mx-auto w-full">
+          {/* Photo */}
+          {uploadedPhotoUrl && (
+            <div className="w-full aspect-video overflow-hidden bg-muted">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={uploadedPhotoUrl}
+                alt="Your dish"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+
+          <div className="px-5 py-8 space-y-6 flex-1">
+            {/* AI review card */}
+            {aiReview && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/40 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  <span className="text-sm font-semibold">AI feedback</span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{aiReview}</p>
+              </div>
+            )}
+
+            <p className="text-center text-sm text-muted-foreground">
+              Your cook has been saved.
+            </p>
+
+            <Button className="w-full" onClick={() => router.push(`/recipes/${recipeId}`)}>
+              Continue to recipe →
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Form phase ────────────────────────────────────────────────────────────
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-y-auto">
@@ -232,6 +331,48 @@ export function CookDebrief({
           />
         </div>
 
+        {/* Dish photo */}
+        {storageAvailable && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">How did it look?</label>
+            {photoPreviewUrl ? (
+              <div className="relative rounded-lg overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photoPreviewUrl}
+                  alt="Dish preview"
+                  className="w-full aspect-video object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => handlePhotoChange(null)}
+                  className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                  aria-label="Remove photo"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/30 px-4 py-6 text-sm text-muted-foreground hover:bg-muted hover:border-muted-foreground/50 transition-colors">
+                <Camera className="h-5 w-5" />
+                Take or upload a photo of your dish
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(e) => handlePhotoChange(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            )}
+            {photoFile && (
+              <p className="text-xs text-muted-foreground">
+                AI will review your presentation after saving ✨
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Pantry deduction */}
         {!deducted ? (
           <button
@@ -251,18 +392,18 @@ export function CookDebrief({
 
         {/* Actions */}
         <div className="space-y-2 pt-2">
-          <Button
-            className="w-full"
-            onClick={handleSubmit}
-            disabled={isPending}
-          >
-            {isPending ? "Saving…" : "Save & finish"}
+          <Button className="w-full" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{loadingMessage}</>
+            ) : (
+              "Save & finish"
+            )}
           </Button>
           <Button
             variant="ghost"
             className="w-full text-muted-foreground"
             onClick={handleSkip}
-            disabled={isPending}
+            disabled={submitting}
           >
             Skip
           </Button>

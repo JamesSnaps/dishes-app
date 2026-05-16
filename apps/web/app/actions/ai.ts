@@ -401,16 +401,19 @@ export async function generateMealPlanConcepts(params: {
   tagFilter?: string;
   unusedOnly?: boolean;
   ratedOnly?: boolean;
+  memberIds?: string[];
 }): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
-  const { days, mealTypes, preferences, cuisineFilter, tagFilter, unusedOnly, ratedOnly } = params;
+  const { days, mealTypes, preferences, cuisineFilter, tagFilter, unusedOnly, ratedOnly, memberIds } = params;
   if (!days.length || !mealTypes.length)
     return { error: "Please select at least one day and one meal type." };
 
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } =
-      await getOpenAiClient(householdId);
+    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints] = await Promise.all([
+      getOpenAiClient(householdId),
+      buildMemberConstraints(memberIds ?? [], householdId),
+    ]);
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
 
     // Build recipe library context with planner history + ratings
@@ -526,7 +529,7 @@ export async function generateMealPlanConcepts(params: {
       unusedOnly ? "Prefer library recipes marked as never tried (libraryIndex 0 is also fine for fresh ideas)." : "",
       ratedOnly ? "Only reference library recipes that have a star rating; use libraryIndex 0 for any slot where you'd otherwise pick an unrated recipe." : "",
     ].filter(Boolean).join(" ");
-    const fullAddendum = addendum + (filterHints ? `\n\n${filterHints}` : "");
+    const fullAddendum = addendum + (filterHints ? `\n\n${filterHints}` : "") + memberConstraints;
 
     const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     const slots = days.flatMap((d) => mealTypes.map((m) => ({ dayOfWeek: d, mealType: m })));
@@ -575,6 +578,51 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
     });
 
     return { slots: resolvedSlots };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Review a dish photo with AI vision ────────────────────────────────────────
+
+export async function reviewDishPhoto(
+  recipeTitle: string,
+  photoUrl: string
+): Promise<{ feedback?: string; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+    const { client, model } = await getOpenAiClient(householdId);
+
+    // Fetch image server-side (handles internal MinIO URLs unreachable by OpenAI)
+    const res = await fetch(photoUrl);
+    if (!res.ok) return { error: "Could not load photo for review." };
+    const base64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+    const mimeType = res.headers.get("content-type") ?? "image/jpeg";
+
+    const completion = await client.chat.completions.create({
+      model,
+      max_tokens: 200,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `You're looking at a home-cooked dish. The recipe was "${recipeTitle}". Give 2–3 sentences of warm, specific feedback: comment on the colour or presentation, and offer one practical tip to improve the plating or result next time. Be encouraging and personal.`,
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const feedback = completion.choices[0]?.message?.content?.trim() ?? null;
+    if (!feedback) return { error: "No feedback returned." };
+    return { feedback };
   } catch (err) {
     return { error: classifyError(err) };
   }

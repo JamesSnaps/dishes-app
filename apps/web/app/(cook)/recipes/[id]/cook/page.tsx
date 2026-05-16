@@ -6,6 +6,7 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { CookingMode } from "./_components/cooking-mode";
 import { getAverageDuration } from "@/app/actions/cook-history";
+import { isStorageAvailable } from "@/lib/storage";
 
 export const metadata = { title: "Cooking Mode" };
 
@@ -52,6 +53,7 @@ export default async function CookPage({ params }: Props) {
       steps={steps}
       householdMembers={members}
       avgDuration={avgDuration}
+      storageAvailable={isStorageAvailable()}
     />
   );
 }

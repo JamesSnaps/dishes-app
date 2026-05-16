@@ -34,6 +34,7 @@ interface Props {
   steps: Step[];
   householdMembers?: HouseholdMember[];
   avgDuration?: number | null;
+  storageAvailable?: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -658,7 +659,7 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration }: Props) {
+export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration, storageAvailable }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const cookStartRef = useRef<number>(Date.now());
@@ -1161,6 +1162,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           elapsedMinutes={elapsedMinutes}
           currentServings={currentServings}
           householdMembers={householdMembers}
+          storageAvailable={storageAvailable}
         />
       )}
     </div>

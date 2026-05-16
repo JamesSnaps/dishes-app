@@ -6,6 +6,8 @@ import { eq, and, avg, count, desc, isNotNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { uploadFile, isStorageAvailable } from "@/lib/storage";
+import { makeThumbnail } from "@/lib/thumbnail";
 
 export type LogCookInput = {
   rating?: number | null;
@@ -133,6 +135,7 @@ export type CookHistoryEntry = {
   notes: string | null;
   occasion: string | null;
   cookedFor: string[] | null;
+  photoUrl: string | null;
 };
 
 export async function getAverageDuration(
@@ -167,6 +170,7 @@ export async function getRecipeCookHistory(
       notes: cookHistory.notes,
       occasion: cookHistory.occasion,
       cookedFor: cookHistory.cookedFor,
+      photoUrl: cookHistory.photoUrl,
     })
     .from(cookHistory)
     .where(
@@ -182,4 +186,41 @@ export async function getRecipeCookHistory(
     cookedAt: r.cookedAt.toISOString(),
     rating: r.rating != null ? parseFloat(r.rating) : null,
   }));
+}
+
+export async function uploadCookPhoto(
+  cookId: string,
+  formData: FormData
+): Promise<{ url?: string; error?: string }> {
+  if (!isStorageAvailable()) return { error: "Storage not configured." };
+
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const [row] = await db
+    .select({ recipeId: cookHistory.recipeId })
+    .from(cookHistory)
+    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)))
+    .limit(1);
+  if (!row) return { error: "Cook record not found." };
+
+  const file = formData.get("photo") as File | null;
+  if (!file || file.size === 0) return { error: "No photo provided." };
+  if (file.size > 15 * 1024 * 1024) return { error: "Photo must be under 15 MB." };
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const ext = file.type === "image/png" ? "png" : "jpg";
+  const key = `households/${householdId}/cook-history/${cookId}/dish.${ext}`;
+
+  const [url] = await Promise.all([
+    uploadFile(key, buffer, file.type),
+    makeThumbnail(buffer).then((thumb) =>
+      uploadFile(`households/${householdId}/cook-history/${cookId}/dish_thumb.jpg`, thumb, "image/jpeg")
+    ).catch(() => null),
+  ]);
+
+  await db.update(cookHistory).set({ photoUrl: url }).where(eq(cookHistory.id, cookId));
+  revalidatePath(`/recipes/${row.recipeId}`);
+
+  return { url };
 }

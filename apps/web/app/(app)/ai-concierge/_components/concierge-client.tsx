@@ -350,6 +350,7 @@ type Member = { id: string; displayName: string };
 type PlanMyWeekProps = {
   availableCuisines: string[];
   availableTags: string[];
+  members?: Member[];
 };
 
 type FrequencyMode = "favourites" | "new" | "mix" | null;
@@ -381,11 +382,12 @@ const FREQUENCY_MODES: { mode: FrequencyMode; label: string; icon: React.Element
   },
 ];
 
-function PlanMyWeekTab({ availableCuisines, availableTags }: PlanMyWeekProps) {
+function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanMyWeekProps) {
   const router = useRouter();
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4]));
   const [selectedMealTypes, setSelectedMealTypes] = useState<Set<string>>(new Set(["dinner"]));
   const [preferences, setPreferences] = useState("");
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
   const [frequencyMode, setFrequencyMode] = useState<FrequencyMode>(null);
   const [cuisineFilter, setCuisineFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
@@ -429,6 +431,14 @@ function PlanMyWeekTab({ availableCuisines, availableTags }: PlanMyWeekProps) {
     setRatedOnly(false);
   }
 
+  function togglePlanMember(id: string) {
+    setSelectedMemberIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   function handleGenerate() {
     setError(null);
     setSlots(null);
@@ -442,6 +452,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags }: PlanMyWeekProps) {
         tagFilter: tagFilter || undefined,
         unusedOnly: unusedOnly || undefined,
         ratedOnly: ratedOnly || undefined,
+        memberIds: selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : undefined,
       });
       if (result.error) { setError(result.error); return; }
       setSlots(result.slots!);
@@ -603,6 +614,36 @@ function PlanMyWeekTab({ availableCuisines, availableTags }: PlanMyWeekProps) {
             </button>
           )}
         </div>
+
+        {members.length > 0 && (
+          <div>
+            <p className="text-sm font-medium mb-1.5">Who&apos;s eating?</p>
+            <div className="flex flex-wrap gap-2">
+              {members.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => togglePlanMember(m.id)}
+                  disabled={isGenerating || isAdding}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
+                    selectedMemberIds.has(m.id)
+                      ? "border-blue-400 bg-blue-500 text-white"
+                      : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                  )}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  {m.displayName}
+                </button>
+              ))}
+            </div>
+            {selectedMemberIds.size > 0 && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                AI will respect their dietary needs when suggesting meals
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <p className="text-sm font-medium mb-1.5">Any preferences?</p>
@@ -1114,7 +1155,7 @@ export function ConciergeClient({ availableCuisines, availableTags, members }: P
         </button>
       </div>
 
-      {activeTab === "recipe" ? <FindRecipeTab members={members} /> : <PlanMyWeekTab availableCuisines={availableCuisines} availableTags={availableTags} />}
+      {activeTab === "recipe" ? <FindRecipeTab members={members} /> : <PlanMyWeekTab availableCuisines={availableCuisines} availableTags={availableTags} members={members} />}
     </div>
   );
 }

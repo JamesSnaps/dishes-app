@@ -92,7 +92,7 @@ household_members
 - [x] Slug removed from settings household card
 - [x] "Who did you cook for?" multi-select in post-cooking debrief (unblocked — wire to existing members)
 - [x] "Who's eating?" selector on AI recipe generation — inject constraints into AI system prompt
-- [ ] "Who's eating?" selector on meal plan day
+- [x] "Who's eating?" selector on meal plan day
 
 ---
 
@@ -117,11 +117,11 @@ After cooking, the user can photograph their result. The photo is stored on S3, 
 
 ### Tasks
 
-- [ ] Post-cooking flow: "Upload a photo of your dish" button — uses `<input type="file" accept="image/*" capture="environment">` for mobile camera access
-- [ ] Server action: `uploadCookPhoto(cookId, file)` — uploads to S3 under `cook-history/{cookId}/dish.jpg`, updates `cook_history.photo_url`
-- [ ] AI review: after upload, optionally call OpenAI vision API with the image + recipe context; return short feedback (presentation, colour, suggested improvements)
-- [ ] Display AI feedback in a card beneath the photo on the post-cooking screen
-- [ ] Recipe detail: "Your versions" gallery — grid of dish photos from cook history, tapping shows the cook's date, rating, and notes
+- [x] Post-cooking flow: "Upload a photo of your dish" button — uses `<input type="file" accept="image/*" capture="environment">` for mobile camera access
+- [x] Server action: `uploadCookPhoto(cookId, file)` — uploads to S3 under `cook-history/{cookId}/dish.jpg`, updates `cook_history.photo_url`
+- [x] AI review: after upload, optionally call OpenAI vision API with the image + recipe context; return short feedback (presentation, colour, suggested improvements)
+- [x] Display AI feedback in a card beneath the photo on the post-cooking screen
+- [x] Recipe detail: "Your versions" gallery — grid of dish photos from cook history, tapping shows the cook's date, rating, and notes
 - [ ] AI feedback is generated server-side only; image is never sent client-side to OpenAI
 
 ---
