@@ -176,6 +176,52 @@ Scores are weighted averages of ratings for recipes that contain each attribute,
 
 ---
 
+## 8. External Recipe Sharing
+
+Share individual recipes with people outside the household via a public link or email. Auth is handled by Authelia at the proxy layer, so public routes require a one-time Authelia bypass rule for `/share/*`.
+
+### Data model
+
+New table: `share_tokens`
+
+```
+share_tokens
+  id            uuid PK
+  household_id  uuid FK → households
+  recipe_id     uuid FK → recipes
+  token         varchar(64)   -- cryptographically random, unique index
+  created_by    varchar(255)  -- Authelia username
+  expires_at    timestamptz   -- nullable = never expires
+  revoked       boolean       -- default false
+  created_at    timestamptz
+```
+
+### Tasks
+
+**Infrastructure**
+- [x] Migration: create `share_tokens` + `smtp_configurations` tables (`packages/db/drizzle/0011_sharing.sql`)
+- [ ] Authelia config: add bypass rule for `/share/*` routes — document in `README.md` as a one-time manual step
+
+**Share link**
+- [x] Server action: `createShareToken(recipeId)` — generates a `crypto.randomBytes(32).toString('hex')` token, inserts into `share_tokens`, returns the full URL
+- [x] Server action: `revokeShareToken(tokenId)` — sets `revoked = true`
+- [x] Public page: `/share/[token]` — validates token (exists, not revoked, not expired); returns 404 if invalid; renders read-only recipe view with no app nav, no edit controls, and no household data exposed
+- [x] Read-only recipe view: title, image, description, ingredients, steps — clean layout
+- [x] Share button on recipe detail page — opens a bottom sheet offering "Copy link" and "Send via email" (email option shown only if SMTP is configured)
+- [x] "Copy link" — calls `createShareToken()` then copies URL to clipboard; shows confirmation
+
+**Email sharing (SMTP)**
+- [x] Settings page: SMTP configuration section (`/settings/email`) — host, port, username, password (stored encrypted server-side, same pattern as AI key), from address, optional display name
+- [x] Server action: `sendRecipeEmail(recipeId, toAddress)` — generates or reuses a share token, composes a plain-text + HTML email with recipe title, description, ingredient list, and the share link; sends via nodemailer using household SMTP config
+- [x] "Send via email" in share sheet — text input for recipient address, send button; shows success/error toast
+- [x] Email template: includes recipe title, description, image, ingredient list, and link to share page
+
+**Share management**
+- [x] Share sheet: lists active share links per recipe with copy and revoke buttons
+- [x] Settings page: `/settings/shares` — household-wide list of all active share tokens across all recipes; revoke option
+
+---
+
 ## Infrastructure & Cross-cutting
 
 - [ ] `cook_history` must be household-scoped in all queries — enforce at the query layer, same rule as recipes
@@ -203,4 +249,8 @@ Rating system + cook_history table
                 └─► Personalised AI generation
 
 Family member profiles  ──► "Who's eating?" AI injection
+
+External sharing (standalone — no dependencies on other Phase 3 sections)
+  ├─► Share link (Authelia bypass + share_tokens table)
+  └─► Email sharing (requires SMTP settings)
 ```

@@ -19,13 +19,15 @@ import {
 } from "@dishes/ui";
 import { deleteRecipe } from "@/app/actions/recipes";
 import { AddToCollectionDialog } from "./add-to-collection-dialog";
+import { ShareRecipeSheet } from "./share-recipe-sheet";
 
 interface Props {
   recipeId: string;
   recipeTitle: string;
+  hasSmtp: boolean;
 }
 
-export function RecipeActionsMenu({ recipeId, recipeTitle }: Props) {
+export function RecipeActionsMenu({ recipeId, recipeTitle, hasSmtp }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -65,6 +67,11 @@ export function RecipeActionsMenu({ recipeId, recipeTitle }: Props) {
               Add note
             </Link>
           </DropdownMenuItem>
+          <ShareRecipeSheet
+            recipeId={recipeId}
+            recipeTitle={recipeTitle}
+            hasSmtp={hasSmtp}
+          />
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive flex items-center gap-2"

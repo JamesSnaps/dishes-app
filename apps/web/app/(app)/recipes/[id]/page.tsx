@@ -31,6 +31,7 @@ import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
 import { GenerateImageButton } from "./_components/generate-image-button";
 import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/app/actions/cook-history";
+import { getSmtpConfig } from "@/app/actions/sharing";
 import type { GeneratedRecipe } from "@/app/actions/ai";
 
 export const metadata = { title: "Recipe" };
@@ -46,7 +47,7 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration] = await Promise.all([
+  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration, smtpConfig] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -90,6 +91,7 @@ export default async function RecipeDetailPage({ params }: Props) {
       .where(and(eq(notes.recipeId, id), eq(notes.householdId, householdId)))
       .orderBy(desc(notes.updatedAt)),
     getAverageDuration(id, householdId),
+    getSmtpConfig(householdId),
   ]);
 
   if (!recipe) notFound();
@@ -251,7 +253,7 @@ export default async function RecipeDetailPage({ params }: Props) {
             </button>
           </form>
 
-          <RecipeActionsMenu recipeId={id} recipeTitle={recipe.title} />
+          <RecipeActionsMenu recipeId={id} recipeTitle={recipe.title} hasSmtp={!!smtpConfig} />
         </div>
       </div>
 

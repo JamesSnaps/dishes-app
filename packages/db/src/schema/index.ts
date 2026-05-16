@@ -9,3 +9,4 @@ export * from "./collections";
 export * from "./notes";
 export * from "./notifications";
 export * from "./app-settings";
+export * from "./sharing";

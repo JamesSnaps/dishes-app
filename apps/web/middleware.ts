@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Integration API routes use bearer token auth — skip Authelia header check
-const INTEGRATION_PATH_PREFIX = "/api/integrations";
+// These routes are publicly accessible — they validate access themselves
+const PUBLIC_PATH_PREFIXES = ["/api/integrations", "/share/"];
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -11,14 +11,18 @@ const CORS_HEADERS = {
 };
 
 export function middleware(request: NextRequest) {
-  // Let integration API routes through — they verify tokens themselves
-  if (request.nextUrl.pathname.startsWith(INTEGRATION_PATH_PREFIX)) {
-    // Handle CORS preflight
+  const { pathname } = request.nextUrl;
+
+  // Let public routes through — they verify access themselves
+  if (PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))) {
+    // Handle CORS preflight (integration API only)
     if (request.method === "OPTIONS") {
       return new NextResponse(null, { status: 200, headers: CORS_HEADERS });
     }
     const response = NextResponse.next();
-    Object.entries(CORS_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
+    if (pathname.startsWith("/api/integrations")) {
+      Object.entries(CORS_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
+    }
     return response;
   }
 
