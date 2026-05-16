@@ -106,7 +106,7 @@ The app uses recipe-specified durations for planning, but learns each household'
 - [x] Server query: `getAverageDuration(recipeId, householdId)` — average of non-null `actual_duration` values, minimum 2 data points before surfacing
 - [x] Recipe detail: show "Usually takes you ~X mins" beneath recipe's stated time once 2+ cooks logged
 - [ ] Meal plan: use household average duration (if available) when planning day timings
-- [ ] Cooking mode: show "Last time this took you X mins" as a subtle note on the start screen
+- [x] Cooking mode: show "Last time this took you X mins" as a subtle note on the start screen
 - [ ] Integration API: include `household_avg_duration` in recipe responses where available
 
 ---

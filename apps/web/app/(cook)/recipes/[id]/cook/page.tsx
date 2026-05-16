@@ -5,6 +5,7 @@ import { recipes, recipeIngredients, recipeSteps, householdMembers } from "@dish
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { CookingMode } from "./_components/cooking-mode";
+import { getAverageDuration } from "@/app/actions/cook-history";
 
 export const metadata = { title: "Cooking Mode" };
 
@@ -17,7 +18,7 @@ export default async function CookPage({ params }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps, members] = await Promise.all([
+  const [recipe, ingredients, steps, members, avgDuration] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -39,6 +40,7 @@ export default async function CookPage({ params }: Props) {
       .from(householdMembers)
       .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
       .orderBy(householdMembers.displayName),
+    getAverageDuration(id, householdId),
   ]);
 
   if (!recipe) notFound();
@@ -49,6 +51,7 @@ export default async function CookPage({ params }: Props) {
       ingredients={ingredients}
       steps={steps}
       householdMembers={members}
+      avgDuration={avgDuration}
     />
   );
 }

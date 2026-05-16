@@ -9,6 +9,7 @@ import {
   Pause,
   RotateCcw,
   Timer,
+  Clock,
   Minus,
   Plus,
   CheckCircle2,
@@ -32,6 +33,7 @@ interface Props {
   ingredients: Ingredient[];
   steps: Step[];
   householdMembers?: HouseholdMember[];
+  avgDuration?: number | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -656,7 +658,7 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CookingMode({ recipe, ingredients, steps, householdMembers = [] }: Props) {
+export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const cookStartRef = useRef<number>(Date.now());
@@ -882,6 +884,14 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [] 
             )}
 
             <div className="px-4 py-6 lg:px-10 lg:py-10">
+              {/* Avg duration hint — mobile only, step 1 only */}
+              {avgDuration && stepIndex === 0 && (
+                <div className="mb-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground lg:hidden">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  Usually takes you ~{avgDuration < 60 ? `${avgDuration} min` : `${Math.floor(avgDuration / 60)}h${avgDuration % 60 > 0 ? ` ${avgDuration % 60}m` : ""}`}
+                </div>
+              )}
+
               {/* Step dot nav (mobile only) */}
               <div className="mb-8 flex justify-center gap-1 lg:hidden">
                 {steps.map((_, i) => (
@@ -1027,6 +1037,12 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [] 
                 style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
               />
             </div>
+            {avgDuration && (
+              <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 shrink-0" />
+                Usually takes you ~{avgDuration < 60 ? `${avgDuration} min` : `${Math.floor(avgDuration / 60)}h${avgDuration % 60 > 0 ? ` ${avgDuration % 60}m` : ""}`}
+              </p>
+            )}
           </div>
 
           {/* Scaling */}
