@@ -8,6 +8,7 @@ import { MembersList } from "./_components/members-list";
 import { AddMemberForm } from "./_components/add-member-form";
 import { AppearanceSection } from "./_components/appearance-section";
 import { LogLevelSection } from "./_components/log-level-section";
+import { BackfillThumbnailsButton } from "./_components/backfill-thumbnails-button";
 
 export const metadata = { title: "Settings" };
 
@@ -87,7 +88,19 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      {isAdmin && <LogLevelSection current={logLevel} />}
+      {isAdmin && (
+        <>
+          <LogLevelSection current={logLevel} />
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Maintenance
+            </h2>
+            <div className="rounded-lg border bg-card p-4">
+              <BackfillThumbnailsButton />
+            </div>
+          </section>
+        </>
+      )}
 
       <p className="mt-8 text-xs text-muted-foreground">
         Version {APP_VERSION}
