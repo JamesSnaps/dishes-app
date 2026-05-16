@@ -3,8 +3,8 @@
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { aiConfigurations, recipes, mealPlanEntries, mealPlans } from "@dishes/db/schema";
-import { eq, and, count, max, lte, desc } from "drizzle-orm";
+import { aiConfigurations, recipes, mealPlanEntries, mealPlans, cookHistory, recipeTags } from "@dishes/db/schema";
+import { eq, and, count, max, lte, desc, avg, inArray } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -360,8 +360,12 @@ export async function generateMealPlanConcepts(params: {
   days: number[];
   mealTypes: string[];
   preferences: string;
+  cuisineFilter?: string;
+  tagFilter?: string;
+  unusedOnly?: boolean;
+  ratedOnly?: boolean;
 }): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
-  const { days, mealTypes, preferences } = params;
+  const { days, mealTypes, preferences, cuisineFilter, tagFilter, unusedOnly, ratedOnly } = params;
   if (!days.length || !mealTypes.length)
     return { error: "Please select at least one day and one meal type." };
 
@@ -372,30 +376,87 @@ export async function generateMealPlanConcepts(params: {
       await getOpenAiClient(householdId);
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
 
-    // Build recipe library context with planner history
+    // Build recipe library context with planner history + ratings
     const today = new Date().toISOString().split("T")[0]!;
-    const libraryRecipes = await db
-      .select({
-        id: recipes.id,
-        title: recipes.title,
-        cuisine: recipes.cuisine,
-        difficulty: recipes.difficulty,
-        timesPlanned: count(mealPlanEntries.id),
-        lastPlannedDate: max(mealPlans.weekStartDate),
+
+    // Resolve tag filter to recipe IDs (household-scoped)
+    const taggedIds = tagFilter
+      ? await db
+          .select({ recipeId: recipeTags.recipeId })
+          .from(recipeTags)
+          .innerJoin(recipes, eq(recipeTags.recipeId, recipes.id))
+          .where(and(eq(recipes.householdId, householdId), eq(recipeTags.tag, tagFilter)))
+          .then((rows) => rows.map((r) => r.recipeId))
+      : null;
+
+    const noTagMatches = tagFilter && taggedIds !== null && taggedIds.length === 0;
+
+    const rawLibrary = noTagMatches
+      ? []
+      : await db
+          .select({
+            id: recipes.id,
+            title: recipes.title,
+            cuisine: recipes.cuisine,
+            difficulty: recipes.difficulty,
+            timesPlanned: count(mealPlanEntries.id),
+            lastPlannedDate: max(mealPlans.weekStartDate),
+            avgRating: avg(cookHistory.rating),
+          })
+          .from(recipes)
+          .leftJoin(mealPlanEntries, eq(mealPlanEntries.recipeId, recipes.id))
+          .leftJoin(
+            mealPlans,
+            and(
+              eq(mealPlanEntries.mealPlanId, mealPlans.id),
+              lte(mealPlans.weekStartDate, today)
+            )
+          )
+          .leftJoin(cookHistory, eq(cookHistory.recipeId, recipes.id))
+          .where(
+            and(
+              eq(recipes.householdId, householdId),
+              cuisineFilter ? eq(recipes.cuisine, cuisineFilter) : undefined,
+              taggedIds && taggedIds.length > 0 ? inArray(recipes.id, taggedIds) : undefined,
+            )
+          )
+          .groupBy(recipes.id, recipes.title, recipes.cuisine, recipes.difficulty)
+          .limit(200);
+
+    const filteredLibrary = rawLibrary.filter((r) => {
+      if (unusedOnly && Number(r.timesPlanned) > 0) return false;
+      if (ratedOnly && !r.avgRating) return false;
+      return true;
+    });
+
+    // Score: rating (primary signal), cook frequency (stability), mild recency penalty
+    function scoreRecipe(r: { avgRating: string | null; timesPlanned: number; lastPlannedDate: string | null }): number {
+      const rating = r.avgRating ? parseFloat(r.avgRating) : 3.5;
+      const planned = Math.min(Number(r.timesPlanned), 10);
+      const weeksAgo = r.lastPlannedDate
+        ? Math.floor((Date.now() - new Date(r.lastPlannedDate + "T00:00:00").getTime()) / (7 * 24 * 60 * 60 * 1000))
+        : 999;
+      return rating * 15 + planned * 2 - Math.min(weeksAgo, 52) * 0.2;
+    }
+
+    const scored = [...filteredLibrary].sort((a, b) => scoreRecipe(b) - scoreRecipe(a));
+    const top55 = scored.slice(0, 55);
+
+    // Variety bucket: most-neglected recipes from the remainder
+    const variety20 = scored
+      .slice(55)
+      .sort((a, b) => {
+        const wa = a.lastPlannedDate
+          ? Math.floor((Date.now() - new Date(a.lastPlannedDate + "T00:00:00").getTime()) / (7 * 24 * 60 * 60 * 1000))
+          : 999;
+        const wb = b.lastPlannedDate
+          ? Math.floor((Date.now() - new Date(b.lastPlannedDate + "T00:00:00").getTime()) / (7 * 24 * 60 * 60 * 1000))
+          : 999;
+        return wb - wa;
       })
-      .from(recipes)
-      .leftJoin(mealPlanEntries, eq(mealPlanEntries.recipeId, recipes.id))
-      .leftJoin(
-        mealPlans,
-        and(
-          eq(mealPlanEntries.mealPlanId, mealPlans.id),
-          lte(mealPlans.weekStartDate, today)
-        )
-      )
-      .where(eq(recipes.householdId, householdId))
-      .groupBy(recipes.id, recipes.title, recipes.cuisine, recipes.difficulty)
-      .orderBy(desc(count(mealPlanEntries.id)))
-      .limit(50);
+      .slice(0, 20);
+
+    const libraryRecipes = [...top55, ...variety20];
 
     function relativeWeeks(dateStr: string | null): string {
       if (!dateStr) return "never tried";
@@ -414,12 +475,21 @@ export async function generateMealPlanConcepts(params: {
         libraryRecipes
           .map((r, i) => {
             const times = Number(r.timesPlanned);
+            const rating = r.avgRating ? `⭐${parseFloat(r.avgRating).toFixed(1)}` : "unrated";
             const history = times === 0 ? "never tried" : `cooked ${times}×, ${relativeWeeks(r.lastPlannedDate)}`;
-            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}] — ${history}`;
+            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}] — ${history}`;
           })
           .join("\n") +
         `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe.`
       : "";
+
+    const filterHints = [
+      cuisineFilter ? `When suggesting new recipes (libraryIndex 0), prefer ${cuisineFilter} cuisine.` : "",
+      tagFilter ? `New recipe suggestions should fit the theme or tag "${tagFilter}".` : "",
+      unusedOnly ? "Prefer library recipes marked as never tried (libraryIndex 0 is also fine for fresh ideas)." : "",
+      ratedOnly ? "Only reference library recipes that have a star rating; use libraryIndex 0 for any slot where you'd otherwise pick an unrated recipe." : "",
+    ].filter(Boolean).join(" ");
+    const fullAddendum = addendum + (filterHints ? `\n\n${filterHints}` : "");
 
     const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     const slots = days.flatMap((d) => mealTypes.map((m) => ({ dayOfWeek: d, mealType: m })));
@@ -437,7 +507,7 @@ export async function generateMealPlanConcepts(params: {
           content: `You are a meal planning chef helping a family plan their week. Return meal suggestions as JSON.
 Format: {"slots": [{"dayOfWeek": number, "mealType": string, "title": string, "description": "1-2 sentences", "cuisine": string, "difficulty": "easy"|"medium"|"hard", "libraryIndex": number}]}
 Make meals varied across the week. Consider meal type when suggesting (lighter for breakfast/lunch, heartier for dinner).
-dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.${libraryContext}${addendum}`,
+dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.${libraryContext}${fullAddendum}`,
         },
         {
           role: "user",

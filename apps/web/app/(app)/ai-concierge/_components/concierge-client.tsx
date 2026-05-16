@@ -343,6 +343,11 @@ function FilterChip({
 
 // ── Plan My Week tab ───────────────────────────────────────────────────────────
 
+type PlanMyWeekProps = {
+  availableCuisines: string[];
+  availableTags: string[];
+};
+
 type FrequencyMode = "favourites" | "new" | "mix" | null;
 
 const FREQUENCY_MODES: { mode: FrequencyMode; label: string; icon: React.ElementType; hint: string; activeClass: string; inactiveClass: string }[] = [
@@ -372,12 +377,16 @@ const FREQUENCY_MODES: { mode: FrequencyMode; label: string; icon: React.Element
   },
 ];
 
-function PlanMyWeekTab() {
+function PlanMyWeekTab({ availableCuisines, availableTags }: PlanMyWeekProps) {
   const router = useRouter();
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4]));
   const [selectedMealTypes, setSelectedMealTypes] = useState<Set<string>>(new Set(["dinner"]));
   const [preferences, setPreferences] = useState("");
   const [frequencyMode, setFrequencyMode] = useState<FrequencyMode>(null);
+  const [cuisineFilter, setCuisineFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [unusedOnly, setUnusedOnly] = useState(false);
+  const [ratedOnly, setRatedOnly] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [slots, setSlots] = useState<MealPlanSlot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -409,6 +418,13 @@ function PlanMyWeekTab() {
     return parts.join(". ");
   }
 
+  function handleClearLibraryFilters() {
+    setCuisineFilter("");
+    setTagFilter("");
+    setUnusedOnly(false);
+    setRatedOnly(false);
+  }
+
   function handleGenerate() {
     setError(null);
     setSlots(null);
@@ -418,6 +434,10 @@ function PlanMyWeekTab() {
         days: Array.from(selectedDays).sort(),
         mealTypes: Array.from(selectedMealTypes),
         preferences: buildFullPreferences(),
+        cuisineFilter: cuisineFilter || undefined,
+        tagFilter: tagFilter || undefined,
+        unusedOnly: unusedOnly || undefined,
+        ratedOnly: ratedOnly || undefined,
       });
       if (result.error) { setError(result.error); return; }
       setSlots(result.slots!);
@@ -515,6 +535,69 @@ function PlanMyWeekTab() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium mb-1.5">Filter your recipe library</p>
+          <div className="flex gap-2 flex-wrap">
+            {availableCuisines.length > 0 && (
+              <FilterChip
+                icon={Globe}
+                label="Cuisine"
+                value={cuisineFilter}
+                options={availableCuisines.map((c) => ({ label: c, value: c }))}
+                onChange={setCuisineFilter}
+                disabled={isGenerating || isAdding}
+              />
+            )}
+            {availableTags.length > 0 && (
+              <FilterChip
+                icon={Tag}
+                label="Tag"
+                value={tagFilter}
+                options={availableTags.map((t) => ({ label: t, value: t }))}
+                onChange={setTagFilter}
+                disabled={isGenerating || isAdding}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setUnusedOnly((v) => !v)}
+              disabled={isGenerating || isAdding}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
+                unusedOnly
+                  ? "border-teal-400 bg-teal-500 text-white"
+                  : "border-teal-200 bg-teal-50 text-teal-700 hover:border-teal-300 dark:border-teal-800 dark:bg-teal-950/50 dark:text-teal-400 dark:hover:border-teal-700"
+              )}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              Not yet tried
+            </button>
+            <button
+              type="button"
+              onClick={() => setRatedOnly((v) => !v)}
+              disabled={isGenerating || isAdding}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
+                ratedOnly
+                  ? "border-amber-400 bg-amber-500 text-white"
+                  : "border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-400 dark:hover:border-amber-700"
+              )}
+            >
+              <Star className="h-3.5 w-3.5" />
+              Rated only
+            </button>
+          </div>
+          {(cuisineFilter || tagFilter || unusedOnly || ratedOnly) && (
+            <button
+              type="button"
+              onClick={handleClearLibraryFilters}
+              className="mt-1.5 text-xs text-muted-foreground hover:text-foreground underline"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
 
         <div>
@@ -919,7 +1002,7 @@ function FindRecipeTab() {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function ConciergeClient() {
+export function ConciergeClient({ availableCuisines, availableTags }: PlanMyWeekProps) {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") === "plan" ? "plan" : "recipe";
   const [activeTab, setActiveTab] = useState<"recipe" | "plan">(initialTab);
@@ -987,7 +1070,7 @@ export function ConciergeClient() {
         </button>
       </div>
 
-      {activeTab === "recipe" ? <FindRecipeTab /> : <PlanMyWeekTab />}
+      {activeTab === "recipe" ? <FindRecipeTab /> : <PlanMyWeekTab availableCuisines={availableCuisines} availableTags={availableTags} />}
     </div>
   );
 }

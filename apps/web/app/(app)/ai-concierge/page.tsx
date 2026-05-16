@@ -5,6 +5,9 @@ import { Button } from "@dishes/ui";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getAiConfig } from "@/app/actions/settings";
+import { db } from "@/lib/db";
+import { recipes, recipeTags } from "@dishes/db/schema";
+import { eq, and, isNotNull } from "drizzle-orm";
 import { ConciergeClient } from "./_components/concierge-client";
 
 export const metadata = { title: "AI Concierge" };
@@ -12,7 +15,22 @@ export const metadata = { title: "AI Concierge" };
 export default async function AiConciergePage() {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
-  const aiConfig = await getAiConfig(householdId);
+  const [aiConfig, cuisineRows, tagRows] = await Promise.all([
+    getAiConfig(householdId),
+    db
+      .selectDistinct({ cuisine: recipes.cuisine })
+      .from(recipes)
+      .where(and(eq(recipes.householdId, householdId), isNotNull(recipes.cuisine)))
+      .orderBy(recipes.cuisine),
+    db
+      .selectDistinct({ tag: recipeTags.tag })
+      .from(recipeTags)
+      .innerJoin(recipes, eq(recipeTags.recipeId, recipes.id))
+      .where(eq(recipes.householdId, householdId))
+      .orderBy(recipeTags.tag),
+  ]);
+  const availableCuisines = cuisineRows.map((r) => r.cuisine).filter((c): c is string => c !== null);
+  const availableTags = tagRows.map((r) => r.tag);
 
   if (!aiConfig?.hasKey) {
     return (
@@ -33,7 +51,7 @@ export default async function AiConciergePage() {
 
   return (
     <Suspense>
-      <ConciergeClient />
+      <ConciergeClient availableCuisines={availableCuisines} availableTags={availableTags} />
     </Suspense>
   );
 }
