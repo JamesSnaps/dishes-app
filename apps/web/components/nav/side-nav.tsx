@@ -18,9 +18,17 @@ import {
   Sparkles,
   Sun,
   UtensilsCrossed,
-  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { cn } from "@dishes/ui";
+import {
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@dishes/ui";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 
 interface Props {
@@ -133,34 +141,47 @@ export function SideNav({ className, displayName = "User", avatarUrl = null }: P
 
       {/* Profile card */}
       <div className="border-t px-3 py-3 shrink-0">
-        <div className="flex items-center gap-1 px-1 mb-1">
-          <button
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-auto"
-            title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {resolvedTheme === "dark" ? (
-              <Sun className="h-3.5 w-3.5" />
-            ) : (
-              <Moon className="h-3.5 w-3.5" />
-            )}
-            {resolvedTheme === "dark" ? "Light" : "Dark"}
-          </button>
-        </div>
-        <Link href="/settings" className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted text-left">
-          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs overflow-hidden">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
-            ) : (
-              displayName.charAt(0).toUpperCase()
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-medium leading-tight truncate">{displayName.split(" ")[0]}</p>
-            <p className="text-xs text-muted-foreground leading-tight">View profile</p>
-          </div>
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        </Link>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted text-left">
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs overflow-hidden">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+                ) : (
+                  displayName.charAt(0).toUpperCase()
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium leading-tight truncate">{displayName.split(" ")[0]}</p>
+                <p className="text-xs text-muted-foreground leading-tight">View profile</p>
+              </div>
+              <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start" className="w-56 mb-1">
+            <DropdownMenuLabel className="font-normal">
+              <p className="font-medium">{displayName}</p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/settings" className="cursor-pointer">
+                Settings &amp; profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              className="cursor-pointer"
+            >
+              {resolvedTheme === "dark" ? (
+                <Sun className="h-4 w-4 mr-2" />
+              ) : (
+                <Moon className="h-4 w-4 mr-2" />
+              )}
+              {resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </nav>
   );

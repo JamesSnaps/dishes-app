@@ -31,7 +31,17 @@ export default async function RecipesPage({ searchParams }: Props) {
   const { q, cuisine, favourites, difficulty, maxTime, tags } = await searchParams;
 
   const conditions = [eq(recipes.householdId, householdId)];
-  if (q?.trim()) conditions.push(ilike(recipes.title, `%${q.trim()}%`));
+  if (q?.trim()) {
+    conditions.push(
+      or(
+        ilike(recipes.title, `%${q.trim()}%`),
+        inArray(
+          recipes.id,
+          db.select({ id: recipeTags.recipeId }).from(recipeTags).where(ilike(recipeTags.tag, `%${q.trim()}%`))
+        )
+      )!
+    );
+  }
   if (cuisine?.trim()) conditions.push(eq(recipes.cuisine, cuisine.trim()));
   if (favourites === "1") conditions.push(eq(recipes.isFavourite, true));
   if (difficulty?.trim() && ["easy", "medium", "hard"].includes(difficulty)) {
