@@ -85,6 +85,16 @@ export default async function SettingsPage() {
             </div>
             <span className="text-muted-foreground">›</span>
           </Link>
+          <Link
+            href="/settings/taste"
+            className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 hover:bg-accent transition-colors"
+          >
+            <div>
+              <p className="font-medium">Taste profile</p>
+              <p className="text-sm text-muted-foreground">See how the household&apos;s preferences shape AI suggestions</p>
+            </div>
+            <span className="text-muted-foreground">›</span>
+          </Link>
         </div>
       </section>
 

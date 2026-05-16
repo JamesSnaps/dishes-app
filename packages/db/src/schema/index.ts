@@ -10,3 +10,4 @@ export * from "./notes";
 export * from "./notifications";
 export * from "./app-settings";
 export * from "./sharing";
+export * from "./taste-profile";

@@ -18,6 +18,8 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Recipe photos** — upload images to MinIO/S3; shown on recipe cards and detail pages
 - **Household model** — multi-member households with role-based permissions (admin / adult / child); all data is household-scoped
 - **Pantry** — staples list (always-available ingredients excluded from shopping lists) and current stock tracking; automatically updated when cooking is completed or a shopping list is archived
+- **Cook history & ratings** — log every cook with a 0–5 star rating (half-star precision), duration, notes, occasion, and a dish photo; the app learns your actual pace over time
+- **Taste profiling** — builds a per-household preference model from accumulated cook history; scores cuisines, ingredients, and tags by recency-weighted average rating and uses it to personalise AI generation and surface recipe suggestions on the home screen
 - **Integrations API** — JSON API with bearer token auth for n8n, Home Assistant, dashboards, and other automation tools
 - **PWA** — installable on mobile via browser
 
@@ -231,6 +233,10 @@ Go to **Settings → AI**, enter your OpenAI API key, and enable AI features for
 
 Go to **Settings → Integrations** to create bearer tokens with granular scopes for n8n, Home Assistant, or other automation tools.
 
+### 8. Taste profile (builds automatically)
+
+The taste profile requires no setup. After you log ratings on cooked recipes, the profile is refreshed automatically in the background. Once you have at least 2 rated cooks, a **Suggested for you** section appears on the home screen. At 10+ rated cooks, the profile is also injected into AI generation prompts to skew concepts and recipes towards your household's preferences. View the profile at **Settings → Taste profile**; admins can reset it if it has drifted.
+
 ---
 
 ## MinIO Setup
@@ -317,6 +323,15 @@ curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/js
 - AI recipe concierge (OpenAI)
 - Household model with role-based permissions
 - Integrations API for n8n / Home Assistant
+
+### Phase 3 — personalisation (in progress)
+- Cook history and 0–5 star rating system
+- Post-cooking debrief flow (duration, notes, occasion, dish photo)
+- Family member profiles with dietary flags, dislikes, and preferences
+- Cooking time learning (household average vs. recipe estimate)
+- AI food memory (notable occasions and cook notes surfaced in AI prompts)
+- **Taste profiling** ✓ — recency-weighted preference model; personalises AI and home screen suggestions
+- External recipe sharing (public links and email)
 
 ### Phase 2 (planned)
 - Family profile picker with PIN-based switching

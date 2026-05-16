@@ -8,6 +8,7 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
+import { refreshTasteProfile } from "./taste-profile";
 
 export type LogCookInput = {
   rating?: number | null;
@@ -46,6 +47,7 @@ export async function logCook(
 
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
+  void refreshTasteProfile(householdId);
   return row!;
 }
 
@@ -73,6 +75,7 @@ export async function rateCook(
 
   revalidatePath(`/recipes/${row.recipeId}`);
   revalidatePath("/recipes");
+  void refreshTasteProfile(householdId);
 }
 
 export async function rateRecipe(
@@ -100,6 +103,7 @@ export async function rateRecipe(
 
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
+  void refreshTasteProfile(householdId);
 }
 
 export type CookStats = {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { desc, eq, isNotNull, and } from "drizzle-orm";
-import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone } from "lucide-react";
+import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone, Info } from "lucide-react";
 import { db } from "@/lib/db";
 import { recipes, mealPlans, mealPlanEntries, householdMembers } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
@@ -9,6 +9,7 @@ import { Badge, Button, Card } from "@dishes/ui";
 import { RecipeCard } from "../recipes/_components/recipe-card";
 import { HomeSearchBar } from "./_components/home-search-bar";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
+import { getSuggestedRecipes, type SuggestedRecipe } from "@/app/actions/taste-profile";
 
 export const metadata = { title: "Home" };
 
@@ -84,7 +85,7 @@ export default async function HomePage() {
   const weekStartDate = getMondayOfToday();
   const todayDayIndex = getTodayDayIndex();
 
-  const [recentRecipes, cuisineRows, todayPlan, memberRow] = await Promise.all([
+  const [recentRecipes, cuisineRows, todayPlan, memberRow, suggestedRecipes] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -117,6 +118,7 @@ export default async function HomePage() {
       .from(householdMembers)
       .where(eq(householdMembers.id, memberId))
       .limit(1),
+    getSuggestedRecipes(householdId).catch(() => [] as SuggestedRecipe[]),
   ]);
 
   const todayMeals = todayPlan[0]
@@ -246,6 +248,26 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* Suggested for you */}
+      {suggestedRecipes.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              Suggested for you
+            </h2>
+            <Link href="/settings/taste" className="text-sm text-primary hover:underline">
+              Your profile
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {suggestedRecipes.map((recipe) => (
+              <SuggestedRecipeCard key={recipe.id} recipe={recipe} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Recent recipes */}
       {recentRecipes.length > 0 && (
         <section>
@@ -337,6 +359,49 @@ export default async function HomePage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SuggestedRecipeCard({ recipe }: { recipe: SuggestedRecipe }) {
+  const total = (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0);
+  const timeLabel = total === 0 ? null : total < 60 ? `${total}m` : `${Math.floor(total / 60)}h${total % 60 > 0 ? ` ${total % 60}m` : ""}`;
+
+  return (
+    <div className="group relative flex flex-col">
+      <Link href={`/recipes/${recipe.id}`} className="block">
+        <Card className="overflow-hidden transition-shadow hover:shadow-md">
+          <div className="relative aspect-[4/3] bg-muted flex items-center justify-center">
+            {recipe.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={recipe.thumbnailUrl ?? recipe.imageUrl}
+                alt={recipe.title}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30" />
+            )}
+          </div>
+          <div className="p-3">
+            <h3 className="font-semibold leading-tight line-clamp-2 text-sm group-hover:text-primary transition-colors">
+              {recipe.title}
+            </h3>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              {timeLabel && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {timeLabel}
+                </span>
+              )}
+            </div>
+          </div>
+        </Card>
+      </Link>
+      <p className="mt-1.5 flex items-start gap-1 px-0.5 text-xs text-muted-foreground">
+        <Info className="h-3 w-3 mt-0.5 shrink-0 text-violet-400" />
+        <span className="line-clamp-2">{recipe.whyText}</span>
+      </p>
     </div>
   );
 }

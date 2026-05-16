@@ -166,13 +166,13 @@ Scores are weighted averages of ratings for recipes that contain each attribute,
 
 ### Tasks
 
-- [ ] Migration: create `taste_profile` table
-- [ ] Server function: `refreshTasteProfile(householdId)` — recomputes all scores from cook history; called after each new cook log or rating update
-- [ ] AI generation: inject top-5 cuisine preferences and top-10 liked/disliked ingredients into the system prompt when household has ≥10 rated cooks
-- [ ] Settings page: `/settings/taste` — read-only visualisation of the household's taste profile (bar charts or tag clouds per category); labelled "Your taste profile"
-- [ ] Recipe suggestions on home screen: rank uncooked recipes by taste profile similarity score
-- [ ] "Why this?" tooltip on suggested recipes — "We suggested this because you enjoy Thai cuisine and garlic-forward dishes"
-- [ ] Profile resets: admin can clear the taste profile from settings if it has drifted
+- [x] Migration: create `taste_profile` table (`packages/db/drizzle/0012_taste_profile.sql`)
+- [x] Server function: `refreshTasteProfile(householdId)` — recomputes all scores from cook history; called after each new cook log or rating update
+- [x] AI generation: inject top-5 cuisine preferences and top-10 liked/disliked ingredients into the system prompt when household has ≥10 rated cooks
+- [x] Settings page: `/settings/taste` — read-only visualisation of the household's taste profile (bar charts per category); labelled "Your taste profile"
+- [x] Recipe suggestions on home screen: rank uncooked recipes by taste profile similarity score
+- [x] "Why this?" inline note on suggested recipes — shows matching attributes below each card
+- [x] Profile resets: admin can clear the taste profile from settings if it has drifted
 
 ---
 

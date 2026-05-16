@@ -3,7 +3,7 @@
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { aiConfigurations, recipes, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers } from "@dishes/db/schema";
+import { aiConfigurations, recipes, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles } from "@dishes/db/schema";
 import { eq, and, count, max, lte, avg, inArray } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
@@ -141,6 +141,44 @@ function buildSystemAddendum(defaultPrompt: string | null, measurementSystem: st
   return parts.length ? `\n\nAdditional requirements: ${parts.join(" ")}` : "";
 }
 
+async function buildTasteProfileAddendum(householdId: string): Promise<string> {
+  const [profile] = await db
+    .select()
+    .from(tasteProfiles)
+    .where(eq(tasteProfiles.householdId, householdId))
+    .limit(1);
+
+  if (!profile || profile.ratedCookCount < 10) return "";
+
+  const cuisines = profile.cuisines as Record<string, number>;
+  const ingredients = profile.ingredients as Record<string, number>;
+
+  const topCuisines = Object.entries(cuisines)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([name, score]) => `${name} (${score}/5)`);
+
+  const likedIngredients = Object.entries(ingredients)
+    .filter(([, s]) => s >= 3.0)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 10)
+    .map(([name]) => name);
+
+  const dislikedIngredients = Object.entries(ingredients)
+    .filter(([, s]) => s <= 1.5)
+    .sort(([, a], [, b]) => a - b)
+    .slice(0, 5)
+    .map(([name]) => name);
+
+  const lines: string[] = [`\n\nHousehold taste profile (from ${profile.ratedCookCount} rated cooks):`];
+  if (topCuisines.length) lines.push(`- Preferred cuisines: ${topCuisines.join(", ")}`);
+  if (likedIngredients.length) lines.push(`- Loved ingredients: ${likedIngredients.join(", ")}`);
+  if (dislikedIngredients.length) lines.push(`- Disliked ingredients: ${dislikedIngredients.join(", ")}`);
+  lines.push("Lean towards their preferred cuisines and loved ingredients. Strictly avoid their disliked ingredients.");
+
+  return lines.join("\n");
+}
+
 // ── Step 1: Generate 5 concept cards ──────────────────────────────────────────
 
 export async function generateConcepts(
@@ -153,12 +191,13 @@ export async function generateConcepts(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints] = await Promise.all([
+    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),
       buildMemberConstraints(memberIds ?? [], householdId),
+      buildTasteProfileAddendum(householdId),
     ]);
 
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + memberConstraints;
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum + memberConstraints;
 
     const completion = await client.chat.completions.create({
       model,
@@ -265,12 +304,13 @@ export async function generateFullRecipe(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints] = await Promise.all([
+    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),
       buildMemberConstraints(memberIds ?? [], householdId),
+      buildTasteProfileAddendum(householdId),
     ]);
 
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + memberConstraints;
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum + memberConstraints;
 
     const completion = await client.chat.completions.create({
       model,
@@ -411,11 +451,12 @@ export async function generateMealPlanConcepts(params: {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
     const safePreferences = preferences.slice(0, 500);
-    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints] = await Promise.all([
+    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),
       buildMemberConstraints((memberIds ?? []).slice(0, 20), householdId),
+      buildTasteProfileAddendum(householdId),
     ]);
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum;
 
     // Build recipe library context with planner history + ratings
     const today = new Date().toISOString().split("T")[0]!;
