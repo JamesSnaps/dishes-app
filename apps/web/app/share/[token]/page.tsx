@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { Clock, Users, ChefHat } from "lucide-react";
 import { getSharedRecipe } from "@/app/actions/sharing";
 
@@ -33,10 +34,11 @@ export default async function SharedRecipePage({ params }: Props) {
       {/* Hero */}
       {recipe.imageUrl && (
         <div className="relative w-full aspect-video max-h-72 overflow-hidden">
-          <img
+          <Image
             src={recipe.imageUrl}
             alt={recipe.title}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
           />
         </div>
       )}
@@ -59,7 +61,7 @@ export default async function SharedRecipePage({ params }: Props) {
           {recipe.servings && (
             <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />
-              {recipe.servings} {recipe.servingsUnit ?? "servings"}
+              {parseFloat(recipe.servings)} {recipe.servingsUnit ?? "servings"}
             </span>
           )}
           {recipe.difficulty && (

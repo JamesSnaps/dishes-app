@@ -13,7 +13,6 @@ import {
   HelpCircle,
   Home,
   Moon,
-  Package,
   Settings,
   ShoppingCart,
   Sparkles,
@@ -26,6 +25,8 @@ import { NotificationsBell } from "@/components/notifications/notifications-bell
 
 interface Props {
   className?: string;
+  displayName?: string;
+  avatarUrl?: string | null;
 }
 
 interface NavItem {
@@ -40,7 +41,6 @@ const MAIN_NAV: NavItem[] = [
   { href: "/recipes", label: "Recipes", icon: BookOpen },
   { href: "/meal-plan", label: "Meal Planner", icon: CalendarDays },
   { href: "/shopping", label: "Shopping List", icon: ShoppingCart },
-  { href: "/pantry", label: "Pantry", icon: Package },
   { href: "/ai-concierge", label: "AI Concierge", icon: Sparkles },
   { href: "/what-can-i-cook", label: "What Can I Cook?", icon: ChefHat, disabled: true },
 ];
@@ -82,7 +82,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   );
 }
 
-export function SideNav({ className }: Props) {
+export function SideNav({ className, displayName = "User", avatarUrl = null }: Props) {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -147,16 +147,20 @@ export function SideNav({ className }: Props) {
             {resolvedTheme === "dark" ? "Light" : "Dark"}
           </button>
         </div>
-        <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted text-left">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs">
-            JC
+        <Link href="/settings" className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted text-left">
+          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs overflow-hidden">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+            ) : (
+              displayName.charAt(0).toUpperCase()
+            )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-medium leading-tight truncate">James</p>
+            <p className="font-medium leading-tight truncate">{displayName.split(" ")[0]}</p>
             <p className="text-xs text-muted-foreground leading-tight">View profile</p>
           </div>
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        </button>
+        </Link>
       </div>
     </nav>
   );

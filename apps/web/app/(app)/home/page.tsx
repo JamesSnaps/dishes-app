@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc, eq, isNotNull, and } from "drizzle-orm";
 import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes, mealPlans, mealPlanEntries } from "@dishes/db/schema";
+import { recipes, mealPlans, mealPlanEntries, householdMembers } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Badge, Button, Card } from "@dishes/ui";
@@ -79,12 +79,12 @@ function initials(name: string): string {
 export default async function HomePage() {
   const user = await getAutheliaUser();
   const firstName = user.displayName.split(" ")[0];
-  const { householdId } = await requireHousehold(user);
+  const { householdId, memberId } = await requireHousehold(user);
 
   const weekStartDate = getMondayOfToday();
   const todayDayIndex = getTodayDayIndex();
 
-  const [recentRecipes, cuisineRows, todayPlan] = await Promise.all([
+  const [recentRecipes, cuisineRows, todayPlan, memberRow] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -111,6 +111,11 @@ export default async function HomePage() {
       .select({ id: mealPlans.id })
       .from(mealPlans)
       .where(and(eq(mealPlans.householdId, householdId), eq(mealPlans.weekStartDate, weekStartDate)))
+      .limit(1),
+    db
+      .select({ avatarUrl: householdMembers.avatarUrl })
+      .from(householdMembers)
+      .where(eq(householdMembers.id, memberId))
       .limit(1),
   ]);
 
@@ -154,10 +159,15 @@ export default async function HomePage() {
           <NotificationsBell />
           <Link
             href="/settings"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground overflow-hidden"
             title="Settings"
           >
-            {initials(user.displayName)}
+            {memberRow[0]?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={memberRow[0].avatarUrl} alt={user.displayName} className="h-full w-full object-cover" />
+            ) : (
+              initials(user.displayName)
+            )}
           </Link>
         </div>
       </div>
@@ -184,7 +194,8 @@ export default async function HomePage() {
                 (entry.recipe.prepTimeMinutes ?? 0) + (entry.recipe.cookTimeMinutes ?? 0);
               const timeLabel = total === 0 ? null : total < 60 ? `${total}m` : `${Math.floor(total / 60)}h${total % 60 > 0 ? ` ${total % 60}m` : ""}`;
               return (
-                <div key={entry.id} className="group block">
+                <div key={entry.id} className="group relative block">
+                  <Link href={`/recipes/${entry.recipe.id}`} className="absolute inset-0 z-0" aria-label={entry.recipe.title} />
                   <div className="rounded-xl border bg-card overflow-hidden transition-shadow hover:shadow-md h-full flex flex-col">
                     {/* Image */}
                     <div className="relative aspect-[4/3] bg-muted flex items-center justify-center">
@@ -220,7 +231,7 @@ export default async function HomePage() {
                         )}
                         <Link
                           href={`/recipes/${entry.recipe.id}/cook`}
-                          className="ml-auto flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                          className="relative z-10 ml-auto flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
                         >
                           <ChefHat className="h-3 w-3" />
                           Cook

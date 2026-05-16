@@ -75,9 +75,14 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const handleSearchChange = useCallback(
     (value: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => push({ q: value }), 300);
+      debounceRef.current = setTimeout(() => {
+        const next = new URLSearchParams(params.toString());
+        if (value) next.set("q", value);
+        else next.delete("q");
+        router.push(`/recipes?${next.toString()}`);
+      }, 300);
     },
-    [params],
+    [params, router],
   );
 
   const [sheetOpen, setSheetOpen] = useState(false);

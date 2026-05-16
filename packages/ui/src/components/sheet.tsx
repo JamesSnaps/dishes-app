@@ -32,8 +32,8 @@ const sideStyles: Record<Side, string> = {
     "fixed bottom-0 left-0 right-0 rounded-t-2xl data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
   top: "fixed top-0 left-0 right-0 rounded-b-2xl data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
   right:
-    "fixed right-0 top-0 bottom-0 h-full rounded-l-2xl data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
-  left: "fixed left-0 top-0 bottom-0 h-full rounded-r-2xl data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+    "fixed right-0 top-0 bottom-0 h-full sm:rounded-l-2xl data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+  left: "fixed left-0 top-0 bottom-0 h-full sm:rounded-r-2xl data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
 };
 
 interface SheetContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {

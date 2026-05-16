@@ -9,7 +9,7 @@ export const metadata = { title: "Shared Links" };
 
 export default async function SharesPage() {
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  await requireHousehold(user);
 
   const tokens = await getAllShareTokens();
   const active = tokens.filter((t) => t.active);
