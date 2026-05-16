@@ -203,6 +203,48 @@ Items with an empty `ingredientName` are silently skipped.
 
 ---
 
+### `POST /api/integrations/shopping-list/quick-add`
+
+Adds a single item from a plain-text string. Designed for Siri Shortcuts and voice input — no array wrapping required. Creates a new list automatically if none is active.
+
+**Scope:** `write:shopping_list`
+
+**Request body**
+
+```json
+{ "text": "2 pints of milk" }
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `text` | string | yes | The item to add, exactly as spoken or typed |
+
+**Response `201`**
+
+```json
+{
+  "added": "2 pints of milk",
+  "listId": "uuid",
+  "itemId": "uuid"
+}
+```
+
+**Error `400`** — body is not valid JSON or `text` is empty.
+
+**iOS Shortcut setup**
+
+1. Create a new Shortcut in the Shortcuts app
+2. Add **Ask for Input** — prompt: "What do you want to add?"
+3. Add **Get Contents of URL**:
+   - URL: `https://dishes.collardserver.co.uk/api/integrations/shopping-list/quick-add`
+   - Method: `POST`
+   - Headers: `Authorization` → `Bearer <your-token>`
+   - Request body: JSON → `{ "text": "<Provided Input>" }`
+4. Add **Show Notification** — `Added <Provided Input> to shopping list`
+5. Name the Shortcut **"Add to shopping list"** — Siri will pick it up automatically
+
+---
+
 ### `POST /api/integrations/meal-plan/generate`
 
 Triggers AI meal plan generation for a given week. Creates stub recipes and adds them to the meal plan. The household must have an AI API key configured in **Settings → AI**.
