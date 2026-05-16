@@ -156,6 +156,28 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   const toggleAction = toggleFavourite.bind(null, id);
 
+  // Memorable cooks — entries with occasion or notes
+  const memorableCooks = cookHistoryRows.filter((e) => e.occasion || e.notes);
+
+  // Cook context string for AI Tweak (last 3 memorable cooks)
+  function buildCookContext(): string | undefined {
+    if (!memorableCooks.length) return undefined;
+    return memorableCooks.slice(0, 3).map((e, i) => {
+      const parts: string[] = [];
+      const date = new Date(e.cookedAt).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+      if (e.rating != null) parts.push(`rated ${e.rating / 2}/5`);
+      if (e.actualDuration) parts.push(`took ${e.actualDuration} min`);
+      if (e.cookedFor?.length) parts.push(`cooked for ${e.cookedFor.join(", ")}`);
+      const header = `${i + 1}) ${date}${parts.length ? ` (${parts.join(", ")})` : ""}`;
+      const lines = [header];
+      if (e.occasion) lines.push(`Occasion: ${e.occasion}`);
+      if (e.notes) lines.push(`Notes: ${e.notes}`);
+      return lines.join(" — ");
+    }).join("\n");
+  }
+
+  const cookContext = buildCookContext();
+
   const recipeForTweak: GeneratedRecipe = {
     title: recipe.title,
     description: recipe.description ?? "",
@@ -308,7 +330,7 @@ export default async function RecipeDetailPage({ params }: Props) {
               Start Cooking
             </Link>
           </Button>
-          <TweakRecipeButton recipeId={id} recipe={recipeForTweak} />
+          <TweakRecipeButton recipeId={id} recipe={recipeForTweak} cookContext={cookContext} />
         </div>
       )}
 
@@ -367,6 +389,79 @@ export default async function RecipeDetailPage({ params }: Props) {
           </div>
         )}
       </section>
+
+      {/* Memories */}
+      {memorableCooks.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+            <span className="text-lg">✨</span>
+            Memories
+          </h2>
+          <div className="relative pl-5">
+            {/* Vertical timeline line */}
+            <div className="absolute left-1.5 top-2 bottom-2 w-px bg-border" />
+
+            <div className="space-y-6">
+              {memorableCooks.map((entry) => {
+                const date = new Date(entry.cookedAt);
+                const diffDays = Math.floor((Date.now() - date.getTime()) / 86400000);
+                const relDate =
+                  diffDays === 0 ? "Today" :
+                  diffDays === 1 ? "Yesterday" :
+                  diffDays < 7 ? `${diffDays} days ago` :
+                  diffDays < 14 ? "1 week ago" :
+                  diffDays < 30 ? `${Math.floor(diffDays / 7)} weeks ago` :
+                  diffDays < 60 ? "1 month ago" :
+                  diffDays < 365 ? `${Math.floor(diffDays / 30)} months ago` :
+                  diffDays < 730 ? "1 year ago" :
+                  `${Math.floor(diffDays / 365)} years ago`;
+                const fullDate = date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+                return (
+                  <div key={entry.id} className="relative">
+                    {/* Timeline dot */}
+                    <div className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-primary/60 ring-2 ring-background" />
+
+                    <div className="flex flex-col gap-1.5">
+                      {/* Date + rating */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground" title={fullDate}>
+                          {relDate}
+                        </span>
+                        {entry.occasion && (
+                          <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
+                            {entry.occasion}
+                          </span>
+                        )}
+                        {entry.cookedFor && entry.cookedFor.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            with {entry.cookedFor.join(", ")}
+                          </span>
+                        )}
+                        {entry.rating != null && (
+                          <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                            ★ {entry.rating / 2}/5
+                          </span>
+                        )}
+                        {entry.actualDuration && (
+                          <span className="text-xs text-muted-foreground">· {entry.actualDuration} min</span>
+                        )}
+                      </div>
+
+                      {/* Notes */}
+                      {entry.notes && (
+                        <p className="text-sm text-muted-foreground leading-relaxed italic">
+                          &ldquo;{entry.notes}&rdquo;
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Related recipes */}
       {relatedRecipes.length > 0 && (

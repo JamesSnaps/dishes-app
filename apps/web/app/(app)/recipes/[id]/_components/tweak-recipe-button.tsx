@@ -17,6 +17,7 @@ import { saveRecipeAsCopy, applyTweakToRecipe } from "@/app/actions/recipes";
 interface Props {
   recipeId: string;
   recipe: GeneratedRecipe;
+  cookContext?: string;
 }
 
 type Phase = "idle" | "loading" | "result";
@@ -33,7 +34,7 @@ function useIsDesktop() {
   return isDesktop;
 }
 
-export function TweakRecipeButton({ recipeId, recipe }: Props) {
+export function TweakRecipeButton({ recipeId, recipe, cookContext }: Props) {
   const isDesktop = useIsDesktop();
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -72,7 +73,7 @@ export function TweakRecipeButton({ recipeId, recipe }: Props) {
     if (!prompt.trim()) return;
     setPhase("loading");
     setError(null);
-    const result = await improveRecipe(recipe, prompt);
+    const result = await improveRecipe(recipe, prompt, cookContext);
     if (result.error || !result.recipe) {
       setError(result.error ?? "Something went wrong.");
       setPhase("idle");

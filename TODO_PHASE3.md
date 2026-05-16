@@ -133,8 +133,8 @@ The app accumulates a structured memory of notable cooks — occasions, improvem
 ### Tasks
 
 - [ ] `occasion` and `notes` fields already on `cook_history` (see section 1)
-- [ ] Recipe detail: "Memories" section — timeline of past cooks that have an occasion or note; e.g. "Anniversary dinner · March 2025 · Rated 9.5 · You added orange zest"
-- [ ] AI generation prompt: when generating a recipe variant or tweak, include relevant cook history context (e.g. "Last time, user added X and rated it 9.5")
+- [x] Recipe detail: "Memories" section — timeline of past cooks that have an occasion or note; e.g. "Anniversary dinner · March 2025 · Rated 9.5 · You added orange zest"
+- [x] AI generation prompt: when generating a recipe variant or tweak, include relevant cook history context (e.g. "Last time, user added X and rated it 9.5")
 - [ ] Meal plan AI: when suggesting recipes, surface occasion history — "You made this for Alice's birthday last year"
 - [ ] "On this day" hook (Phase 2 worker): notify if a recipe was cooked on this calendar date in a previous year (anniversary meals)
 - [ ] Search: filter recipes by occasion keyword ("anniversary", "birthday") via cook history join

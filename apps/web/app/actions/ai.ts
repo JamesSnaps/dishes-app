@@ -190,7 +190,8 @@ Make the 5 concepts meaningfully different from each other in style, cuisine, or
 
 export async function improveRecipe(
   current: GeneratedRecipe,
-  instruction: string
+  instruction: string,
+  cookContext?: string
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   if (!instruction.trim())
     return { error: "Please describe how you'd like to improve the recipe." };
@@ -200,7 +201,8 @@ export async function improveRecipe(
     const { householdId } = await requireHousehold(user);
     const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = await getOpenAiClient(householdId);
 
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) +
+      (cookContext ? `\n\nCook history for this recipe:\n${cookContext}` : "");
 
     const completion = await client.chat.completions.create({
       model,
