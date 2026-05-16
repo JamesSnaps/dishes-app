@@ -43,6 +43,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Clear checked items
 - [x] Archive/complete a list
 - [x] Category grouping (produce, dairy, etc.)
+- [x] "Search on Sainsbury's" link per item — opens Sainsbury's search results in new tab
 
 ## Meal Planner
 - [x] Meal plan week view (`/meal-plan`) — day tabs + meal list per day

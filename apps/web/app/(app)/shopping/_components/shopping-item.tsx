@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { Trash2 } from "lucide-react";
+import { ShoppingCart, Trash2 } from "lucide-react";
 import { toggleItem, deleteItem } from "@/app/actions/shopping";
 import { formatQuantity } from "@/lib/format-quantity";
 
@@ -56,6 +56,17 @@ export function ShoppingItem({ item }: Props) {
           </span>
         )}
       </span>
+      {!item.isChecked && (
+        <a
+          href={`https://www.sainsburys.co.uk/gol-ui/SearchResults/${encodeURIComponent(item.ingredientName)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0 p-1 text-muted-foreground hover:text-orange-500 transition-colors"
+          aria-label={`Search for ${item.ingredientName} on Sainsbury's`}
+        >
+          <ShoppingCart className="h-4 w-4" />
+        </a>
+      )}
       <button
         onClick={handleDelete}
         disabled={pending}
