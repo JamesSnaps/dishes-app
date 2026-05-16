@@ -46,23 +46,34 @@ Recipe: ${recipeTitle}
 Current step (step ${stepNumber}): ${stepInstruction}
 Ingredients used in this step: ${ingredientList}`;
 
-    const stream = await client.chat.completions.create({
-      model: config.model,
-      stream: true,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: question.trim() },
-      ],
-    });
+    const abort = new AbortController();
+    const stream = await client.chat.completions.create(
+      {
+        model: config.model,
+        stream: true,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: question.trim() },
+        ],
+      },
+      { signal: abort.signal }
+    );
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const chunk of stream) {
-          const text = chunk.choices[0]?.delta?.content ?? "";
-          if (text) controller.enqueue(encoder.encode(text));
+        try {
+          for await (const chunk of stream) {
+            const text = chunk.choices[0]?.delta?.content ?? "";
+            if (text) controller.enqueue(encoder.encode(text));
+          }
+        } catch {
+          // Stream was aborted or errored — swallow to avoid unhandled rejection
         }
         controller.close();
+      },
+      cancel() {
+        abort.abort();
       },
     });
 

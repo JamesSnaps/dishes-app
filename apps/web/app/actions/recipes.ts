@@ -155,7 +155,7 @@ export async function updateRecipe(recipeId: string, formData: FormData) {
   await db
     .update(recipes)
     .set(fields)
-    .where(eq(recipes.id, recipeId));
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
 
   await db
     .delete(recipeIngredients)
@@ -289,7 +289,7 @@ export async function applyTweakToRecipe(
         difficulty: tweaked.difficulty || null,
         notes: tweaked.notes,
       })
-      .where(eq(recipes.id, recipeId));
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
 
     await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
     await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
@@ -349,7 +349,7 @@ export async function toggleFavourite(recipeId: string) {
   await db
     .update(recipes)
     .set({ isFavourite: !recipe.isFavourite })
-    .where(eq(recipes.id, recipeId));
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
 
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
@@ -373,7 +373,7 @@ export async function updateRecipeCookTime(
   await db
     .update(recipes)
     .set({ cookTimeMinutes })
-    .where(eq(recipes.id, recipeId));
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
 
   revalidatePath(`/recipes/${recipeId}`);
 }

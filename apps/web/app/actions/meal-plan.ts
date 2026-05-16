@@ -54,6 +54,9 @@ export async function addMealEntry(
   dayOfWeek: number,
   mealType: MealType
 ) {
+  if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+    throw new Error("dayOfWeek must be an integer between 0 (Mon) and 6 (Sun)");
+  }
   const user = await getAutheliaUser();
   const { householdId, memberId } = await requireHousehold(user);
 
@@ -196,7 +199,8 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
       unit: recipeIngredients.unit,
     })
     .from(recipeIngredients)
-    .where(inArray(recipeIngredients.recipeId, recipeIds));
+    .innerJoin(recipes, eq(recipeIngredients.recipeId, recipes.id))
+    .where(and(inArray(recipeIngredients.recipeId, recipeIds), eq(recipes.householdId, householdId)));
 
   const [existingList] = await db
     .select({ id: shoppingLists.id })
@@ -250,7 +254,7 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
 
     if (match && match.amount !== null && ing.amount !== null) {
       const newAmount = (
-        parseFloat(match.amount) + parseFloat(ing.amount)
+        Math.round((parseFloat(match.amount) + parseFloat(ing.amount)) * 1000) / 1000
       ).toString();
       await db
         .update(shoppingListItems)

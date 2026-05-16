@@ -45,6 +45,9 @@ export const POST = withIntegrationAuth(
         { status: 400 }
       );
     }
+    if (items.length > 200) {
+      return NextResponse.json({ error: "Maximum 200 items per request" }, { status: 400 });
+    }
 
     const list = await getOrCreateActiveList(ctx.householdId);
 

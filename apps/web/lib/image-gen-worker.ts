@@ -73,7 +73,7 @@ export async function generateImageBackground(
     await db
       .update(recipes)
       .set({ imageUrl: url, thumbnailUrl: thumbnailUrl ?? null })
-      .where(eq(recipes.id, recipeId));
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
 
     // Update the notification to "ready"
     await db

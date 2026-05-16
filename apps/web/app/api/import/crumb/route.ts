@@ -112,8 +112,28 @@ export async function POST(req: NextRequest) {
     if (!stored) {
       return NextResponse.json({ error: "Session expired — please re-upload the file" }, { status: 410 });
     }
-    allParsed = JSON.parse(stored) as ParsedCrumbRecipe[];
+    try {
+      allParsed = JSON.parse(stored) as ParsedCrumbRecipe[];
+    } catch {
+      return NextResponse.json({ error: "Session data corrupted — please re-upload the file" }, { status: 410 });
+    }
   } else if (fullData) {
+    if (
+      !Array.isArray(fullData) ||
+      fullData.length > 200 ||
+      fullData.some(
+        (r) =>
+          typeof r !== "object" ||
+          r === null ||
+          typeof r.title !== "string" ||
+          !r.title.trim() ||
+          !Array.isArray(r.ingredients) ||
+          !Array.isArray(r.steps) ||
+          !Array.isArray(r.tags)
+      )
+    ) {
+      return NextResponse.json({ error: "Invalid recipe data" }, { status: 400 });
+    }
     allParsed = fullData;
   } else {
     return NextResponse.json({ error: "No session or recipe data provided" }, { status: 400 });

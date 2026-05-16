@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { integrationTokens } from "@dishes/db/schema";
 import { eq } from "drizzle-orm";
@@ -83,10 +83,7 @@ export function withIntegrationAuth(requiredScope: string, handler: RouteHandler
 }
 
 export function generateToken(): { raw: string; hash: string } {
-  const raw = createHash("sha256")
-    .update(crypto.randomUUID())
-    .update(crypto.randomUUID())
-    .digest("hex");
+  const raw = randomBytes(32).toString("hex");
   const hash = hashToken(raw);
   return { raw, hash };
 }

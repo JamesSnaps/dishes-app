@@ -8,7 +8,7 @@ import { eq, and, count, max, lte, avg, inArray } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { uploadFile, isStorageAvailable } from "@/lib/storage";
+import { uploadFile, isStorageAvailable, keyFromUrl } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import { revalidatePath } from "next/cache";
 
@@ -410,9 +410,10 @@ export async function generateMealPlanConcepts(params: {
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
+    const safePreferences = preferences.slice(0, 500);
     const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints] = await Promise.all([
       getOpenAiClient(householdId),
-      buildMemberConstraints(memberIds ?? [], householdId),
+      buildMemberConstraints((memberIds ?? []).slice(0, 20), householdId),
     ]);
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
 
@@ -551,7 +552,7 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
         },
         {
           role: "user",
-          content: `Plan these meals: ${slotsDesc}.${preferences ? ` Preferences: ${preferences}` : ""} Return exactly ${slots.length} suggestions.`,
+          content: `Plan these meals: ${slotsDesc}.${safePreferences ? ` Preferences: ${safePreferences}` : ""} Return exactly ${slots.length} suggestions.`,
         },
       ],
     });
@@ -593,6 +594,9 @@ export async function reviewDishPhoto(
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
     const { client, model } = await getOpenAiClient(householdId);
+
+    // Only fetch from our own storage to prevent SSRF
+    if (!keyFromUrl(photoUrl)) return { error: "Invalid photo URL." };
 
     // Fetch image server-side (handles internal MinIO URLs unreachable by OpenAI)
     const res = await fetch(photoUrl);
@@ -649,7 +653,7 @@ export async function generateAndSaveRecipeImage(
     const { url, error } = await generateRecipeImageUrl(recipe.title, recipe.description);
     if (error || !url) return { error: error ?? "Image generation failed." };
 
-    await db.update(recipes).set({ imageUrl: url }).where(eq(recipes.id, recipeId));
+    await db.update(recipes).set({ imageUrl: url }).where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
     console.log(`[AI] Saved image URL to recipe ${recipeId}: ${url}`);
     revalidatePath(`/recipes/${recipeId}`);
     revalidatePath("/recipes");

@@ -24,6 +24,13 @@ export async function logCook(
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
+  const [recipe] = await db
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+    .limit(1);
+  if (!recipe) throw new Error("Recipe not found");
+
   const [row] = await db
     .insert(cookHistory)
     .values({
@@ -62,7 +69,7 @@ export async function rateCook(
   await db
     .update(cookHistory)
     .set({ rating: String(rating) })
-    .where(eq(cookHistory.id, cookId));
+    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)));
 
   revalidatePath(`/recipes/${row.recipeId}`);
   revalidatePath("/recipes");
@@ -206,6 +213,7 @@ export async function uploadCookPhoto(
 
   const file = formData.get("photo") as File | null;
   if (!file || file.size === 0) return { error: "No photo provided." };
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return { error: "Only JPEG, PNG, and WebP images are allowed." };
   if (file.size > 15 * 1024 * 1024) return { error: "Photo must be under 15 MB." };
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -219,7 +227,7 @@ export async function uploadCookPhoto(
     ).catch(() => null),
   ]);
 
-  await db.update(cookHistory).set({ photoUrl: url }).where(eq(cookHistory.id, cookId));
+  await db.update(cookHistory).set({ photoUrl: url }).where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)));
   revalidatePath(`/recipes/${row.recipeId}`);
 
   return { url };

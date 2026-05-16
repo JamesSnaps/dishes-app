@@ -81,7 +81,7 @@ export async function POST(
   await db
     .update(householdMembers)
     .set({ avatarUrl: url })
-    .where(eq(householdMembers.id, memberId));
+    .where(and(eq(householdMembers.id, memberId), eq(householdMembers.householdId, householdId)));
 
   revalidatePath("/settings");
 

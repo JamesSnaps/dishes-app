@@ -1,6 +1,7 @@
 import {
   boolean,
   decimal,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -36,23 +37,27 @@ export const shoppingLists = pgTable("shopping_lists", {
     .$onUpdate(() => new Date()),
 });
 
-export const shoppingListItems = pgTable("shopping_list_items", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  listId: uuid("list_id")
-    .notNull()
-    .references(() => shoppingLists.id, { onDelete: "cascade" }),
-  recipeId: uuid("recipe_id").references(() => recipes.id, {
-    onDelete: "set null",
-  }),
-  ingredientName: varchar("ingredient_name", { length: 255 }).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 3 }),
-  unit: varchar("unit", { length: 50 }),
-  notes: text("notes"),
-  isChecked: boolean("is_checked").notNull().default(false),
-  position: integer("position").notNull().default(0),
-  category: varchar("category", { length: 100 }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const shoppingListItems = pgTable(
+  "shopping_list_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listId: uuid("list_id")
+      .notNull()
+      .references(() => shoppingLists.id, { onDelete: "cascade" }),
+    recipeId: uuid("recipe_id").references(() => recipes.id, {
+      onDelete: "set null",
+    }),
+    ingredientName: varchar("ingredient_name", { length: 255 }).notNull(),
+    amount: decimal("amount", { precision: 10, scale: 3 }),
+    unit: varchar("unit", { length: 50 }),
+    notes: text("notes"),
+    isChecked: boolean("is_checked").notNull().default(false),
+    position: integer("position").notNull().default(0),
+    category: varchar("category", { length: 100 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("shopping_list_items_list_id_idx").on(t.listId)]
+);
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 

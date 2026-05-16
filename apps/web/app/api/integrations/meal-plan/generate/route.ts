@@ -61,7 +61,11 @@ export const POST = withIntegrationAuth(
     // ── Parse + validate inputs ────────────────────────────────────────────────
 
     const prompt = String(body.prompt ?? "family-friendly weeknight dinners");
-    const weekStartDate = String(body.week ?? mondayOf(new Date()));
+    const rawWeek = body.week ? String(body.week) : mondayOf(new Date());
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawWeek)) {
+      return NextResponse.json({ error: "`week` must be a date in YYYY-MM-DD format" }, { status: 400 });
+    }
+    const weekStartDate = rawWeek;
     const overwrite = body.overwrite === true;
 
     const mealType: MealType = VALID_MEAL_TYPES.includes(body.mealType as MealType)

@@ -20,6 +20,10 @@ import nodemailer from "nodemailer";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function buildShareUrl(token: string): string {
   const base = env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
   return `${base}/share/${token}`;
@@ -151,18 +155,48 @@ export async function getSharedRecipe(token: string) {
 
   const [recipe, ingredients, steps] = await Promise.all([
     db
-      .select()
+      .select({
+        id: recipes.id,
+        title: recipes.title,
+        description: recipes.description,
+        cuisine: recipes.cuisine,
+        prepTimeMinutes: recipes.prepTimeMinutes,
+        cookTimeMinutes: recipes.cookTimeMinutes,
+        servings: recipes.servings,
+        servingsUnit: recipes.servingsUnit,
+        difficulty: recipes.difficulty,
+        imageUrl: recipes.imageUrl,
+        thumbnailUrl: recipes.thumbnailUrl,
+        notes: recipes.notes,
+        createdAt: recipes.createdAt,
+      })
       .from(recipes)
       .where(eq(recipes.id, row.recipeId))
       .limit(1)
       .then((r) => r[0] ?? null),
     db
-      .select()
+      .select({
+        id: recipeIngredients.id,
+        position: recipeIngredients.position,
+        ingredientName: recipeIngredients.ingredientName,
+        amount: recipeIngredients.amount,
+        unit: recipeIngredients.unit,
+        preparation: recipeIngredients.preparation,
+        isOptional: recipeIngredients.isOptional,
+        groupLabel: recipeIngredients.groupLabel,
+      })
       .from(recipeIngredients)
       .where(eq(recipeIngredients.recipeId, row.recipeId))
       .orderBy(recipeIngredients.position),
     db
-      .select()
+      .select({
+        id: recipeSteps.id,
+        position: recipeSteps.position,
+        instruction: recipeSteps.instruction,
+        durationMinutes: recipeSteps.durationMinutes,
+        timerLabel: recipeSteps.timerLabel,
+        ingredientIds: recipeSteps.ingredientIds,
+      })
       .from(recipeSteps)
       .where(eq(recipeSteps.recipeId, row.recipeId))
       .orderBy(recipeSteps.position),
@@ -272,9 +306,9 @@ export async function deleteSmtpConfig(): Promise<void> {
 
 export async function sendRecipeEmail(recipeId: string, toAddress: string): Promise<void> {
   const user = await getAutheliaUser();
-  const { householdId, memberId } = await requireHousehold(user);
+  const { householdId } = await requireHousehold(user);
 
-  if (!toAddress || !toAddress.includes("@")) throw new Error("Valid email address required");
+  if (!toAddress || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toAddress)) throw new Error("Valid email address required");
 
   const [smtpRow] = await db
     .select()
@@ -337,25 +371,31 @@ export async function sendRecipeEmail(recipeId: string, toAddress: string): Prom
 
   const htmlIngredients = ingredients
     .map((i) => {
-      const amount = i.amount ? `<strong>${i.amount}${i.unit ? " " + i.unit : ""}</strong> ` : "";
-      return `<li>${amount}${i.ingredientName}${i.preparation ? ` <em>(${i.preparation})</em>` : ""}${i.isOptional ? " <span style='color:#888'>(optional)</span>" : ""}</li>`;
+      const amount = i.amount ? `<strong>${escapeHtml(i.amount)}${i.unit ? " " + escapeHtml(i.unit) : ""}</strong> ` : "";
+      return `<li>${amount}${escapeHtml(i.ingredientName)}${i.preparation ? ` <em>(${escapeHtml(i.preparation)})</em>` : ""}${i.isOptional ? " <span style='color:#888'>(optional)</span>" : ""}</li>`;
     })
     .join("");
 
   const fromName = smtpRow.fromName || "Dishes";
   const subject = `Recipe: ${recipe.title}`;
 
+  const eTitle = escapeHtml(recipe.title);
+  const eDesc = recipe.description ? escapeHtml(recipe.description) : null;
+  const eImgUrl = recipe.imageUrl ? escapeHtml(recipe.imageUrl) : null;
+  const eShareUrl = escapeHtml(shareUrl);
+  const eFromName = escapeHtml(fromName);
+
   const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
-  <h1 style="font-size:24px;margin-bottom:8px">${recipe.title}</h1>
-  ${recipe.description ? `<p style="color:#555;margin-bottom:24px">${recipe.description}</p>` : ""}
-  ${recipe.imageUrl ? `<img src="${recipe.imageUrl}" alt="${recipe.title}" style="width:100%;border-radius:8px;margin-bottom:24px">` : ""}
+  <h1 style="font-size:24px;margin-bottom:8px">${eTitle}</h1>
+  ${eDesc ? `<p style="color:#555;margin-bottom:24px">${eDesc}</p>` : ""}
+  ${eImgUrl ? `<img src="${eImgUrl}" alt="${eTitle}" style="width:100%;border-radius:8px;margin-bottom:24px">` : ""}
   <h2 style="font-size:18px;margin-bottom:8px">Ingredients</h2>
   <ul style="padding-left:20px;margin-bottom:24px">${htmlIngredients}</ul>
-  <a href="${shareUrl}" style="display:inline-block;background:#000;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">View full recipe →</a>
-  <p style="margin-top:32px;font-size:12px;color:#999">Shared from ${fromName}</p>
+  <a href="${eShareUrl}" style="display:inline-block;background:#000;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">View full recipe →</a>
+  <p style="margin-top:32px;font-size:12px;color:#999">Shared from ${eFromName}</p>
 </body>
 </html>`;
 

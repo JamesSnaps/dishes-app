@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isNull, isNotNull, eq } from "drizzle-orm";
+import { isNull, eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { recipes } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
@@ -27,7 +27,10 @@ export async function POST() {
     .select({ id: recipes.id, imageUrl: recipes.imageUrl })
     .from(recipes)
     .where(
-      isNull(recipes.thumbnailUrl) as ReturnType<typeof isNull>
+      and(
+        eq(recipes.householdId, householdId),
+        isNull(recipes.thumbnailUrl) as ReturnType<typeof isNull>
+      )
     )
     .then((rows) => rows.filter((r) => r.imageUrl !== null)) as Array<{ id: string; imageUrl: string }>;
 
@@ -37,6 +40,10 @@ export async function POST() {
 
   for (const recipe of pending) {
     try {
+      if (!keyFromUrl(recipe.imageUrl)) {
+        results.push({ id: recipe.id, ok: false, error: "Image URL is not from configured storage" });
+        continue;
+      }
       const res = await fetch(recipe.imageUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching image`);
       const srcBuffer = Buffer.from(await res.arrayBuffer());

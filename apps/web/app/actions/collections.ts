@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { collections, recipeCollections } from "@dishes/db/schema";
+import { collections, recipeCollections, recipes } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
@@ -82,6 +82,13 @@ export async function addRecipeToCollection(collectionId: string, recipeId: stri
     .limit(1);
 
   if (!col[0]) throw new Error("Collection not found");
+
+  const rec = await db
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+    .limit(1);
+  if (!rec[0]) throw new Error("Recipe not found");
 
   await db
     .insert(recipeCollections)

@@ -5,7 +5,9 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
 
 function getKey(): Buffer {
-  return Buffer.from(env.ENCRYPTION_KEY.slice(0, 32), "utf8");
+  const keyBytes = Buffer.from(env.ENCRYPTION_KEY, "utf8");
+  if (keyBytes.length < 32) throw new Error("ENCRYPTION_KEY must be at least 32 bytes");
+  return keyBytes.subarray(0, 32);
 }
 
 export function encrypt(plaintext: string): string {

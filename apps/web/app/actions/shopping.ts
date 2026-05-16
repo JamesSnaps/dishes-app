@@ -426,7 +426,7 @@ export async function generateFromRecipe(
 
     if (match && match.amount !== null && scaledAmountStr !== null) {
       const newAmount = (
-        parseFloat(match.amount) + parseFloat(scaledAmountStr)
+        Math.round((parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000) / 1000
       ).toString();
       await db
         .update(shoppingListItems)
