@@ -243,6 +243,11 @@ export function WeekPlanner({
   const prevWeek = addDays(weekStartDate, -7);
   const nextWeek = addDays(weekStartDate, 7);
 
+  function navigate(target: string, direction: "prev" | "next") {
+    console.debug("[meal-plan] navigate", { direction, from: weekStartDate, to: target });
+    router.push(`/meal-plan?week=${target}`);
+  }
+
   const totalMeals = entries.length;
   const totalTime = entries.reduce(
     (sum, e) => sum + (e.recipe.prepTimeMinutes ?? 0) + (e.recipe.cookTimeMinutes ?? 0),
@@ -269,41 +274,31 @@ export function WeekPlanner({
   return (
     <div className="p-4 lg:p-8">
       {/* Week navigation header */}
-      <div className="mb-5 flex items-center gap-3">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => router.push(`/meal-plan?week=${prevWeek}`)}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-            aria-label="Previous week"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-
-          <div className="px-1">
-            <h1 className="text-xl font-bold leading-tight">
-              {isCurrentWeek ? "This Week" : "Meal Plan"}
-            </h1>
-            <p className="text-sm text-muted-foreground">{formatWeekRange(weekStartDate)}</p>
-          </div>
-
-          <button
-            onClick={() => router.push(`/meal-plan?week=${nextWeek}`)}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-            aria-label="Next week"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
+      <div className="mb-4">
+        <div className="flex items-start justify-between mb-0.5">
+          <h1 className="text-xl font-bold leading-tight">
+            {isCurrentWeek ? "This Week" : "Meal Plan"}
+          </h1>
+          {!isCurrentWeek && (
+            <Button variant="ghost" size="sm" onClick={() => router.push("/meal-plan")}>
+              Today
+            </Button>
+          )}
         </div>
-
-        {!isCurrentWeek && (
-          <Button variant="ghost" size="sm" onClick={() => router.push("/meal-plan")}>
-            Today
-          </Button>
-        )}
+        <p className="text-sm text-muted-foreground">{formatWeekRange(weekStartDate)}</p>
       </div>
 
-      {/* Horizontal day strip — acts as tab selector */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-5 scrollbar-hide">
+      {/* Horizontal day strip with prev/next flanking */}
+      <div className="flex items-center gap-1 mb-5">
+        <button
+          onClick={() => navigate(prevWeek, "prev")}
+          className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors"
+          aria-label="Previous week"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+
+        <div className="flex flex-1 gap-2 overflow-x-auto pb-2 -mb-2 scrollbar-hide">
         {Array.from({ length: 7 }, (_, i) => {
           const { short, date } = formatDayChip(weekStartDate, i);
           const isTodayChip = isCurrentWeek && todayDayIndex === i;
@@ -356,6 +351,15 @@ export function WeekPlanner({
             </button>
           );
         })}
+        </div>
+
+        <button
+          onClick={() => navigate(nextWeek, "next")}
+          className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors"
+          aria-label="Next week"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Stats bar — icon left, value + label right */}
