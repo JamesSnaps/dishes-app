@@ -389,6 +389,8 @@ export function WeekPlanner({
 }: Props) {
   const router = useRouter();
   const contentRef = useRef<HTMLDivElement>(null);
+  const isFirstMount = useRef(true);
+  const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const lastWheelMs = useRef(0);
@@ -403,30 +405,69 @@ export function WeekPlanner({
     setSelectedDay(isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0);
   }, [weekStartDate, isCurrentWeek, todayDayIndex]);
 
-  // Entry animation: runs once on mount, reads the module-level direction set by navigate()
+  // Entry animation.
+  // Next.js App Router reuses the same component instance across client-side
+  // navigations (it updates props, not unmount/remount), so useEffect([]) only
+  // fires once on the initial page load. By depending on weekStartDate we run
+  // this whenever the week changes and can play the slide-in animation.
   useEffect(() => {
     const el = contentRef.current;
-    if (!el || !pendingEnterDirection) return;
-    const startX = pendingEnterDirection === "from-right" ? 48 : -48;
+    if (!el) return;
+
+    // Skip animation on first page load
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+
+    const direction = pendingEnterDirection;
     pendingEnterDirection = null;
-    // Start offscreen with no transition
+
+    if (!direction) {
+      // Navigation without our animate-then-push flow (browser back/forward etc.)
+      // Just ensure the content is fully visible.
+      el.style.transition = "";
+      el.style.transform = "";
+      el.style.opacity = "";
+      return;
+    }
+
+    const startX = direction === "from-right" ? 48 : -48;
+    el.style.transition = "none";
     el.style.transform = `translateX(${startX}px)`;
     el.style.opacity = "0";
-    el.style.transition = "none";
-    // Next frame: slide into place
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+
+    let raf1 = 0, raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
         el.style.transition = "transform 240ms cubic-bezier(0.25,0.46,0.45,0.94), opacity 200ms ease-out";
         el.style.transform = "translateX(0)";
         el.style.opacity = "1";
       });
     });
-  }, []);
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      // Always restore visibility on cleanup so a rapidly-cancelled animation
+      // never leaves the page invisible.
+      el.style.transition = "";
+      el.style.transform = "";
+      el.style.opacity = "";
+    };
+  }, [weekStartDate]);
 
   const prevWeek = addDays(weekStartDate, -7);
   const nextWeek = addDays(weekStartDate, 7);
 
   const navigate = useCallback((target: string, direction: "prev" | "next") => {
+    // Cancel any in-progress exit animation so rapid navigation can't queue
+    // multiple pushes or leave a partially-animated element behind.
+    if (exitTimeoutRef.current !== null) {
+      clearTimeout(exitTimeoutRef.current);
+      exitTimeoutRef.current = null;
+    }
+
     pendingEnterDirection = direction === "next" ? "from-right" : "from-left";
     const el = contentRef.current;
     const exitX = direction === "next" ? -48 : 48;
@@ -434,7 +475,10 @@ export function WeekPlanner({
       el.style.transition = "transform 200ms cubic-bezier(0.55,0,1,0.45), opacity 180ms ease-in";
       el.style.transform = `translateX(${exitX}px)`;
       el.style.opacity = "0";
-      setTimeout(() => router.push(`/meal-plan?week=${target}`), 190);
+      exitTimeoutRef.current = setTimeout(() => {
+        exitTimeoutRef.current = null;
+        router.push(`/meal-plan?week=${target}`);
+      }, 190);
     } else {
       router.push(`/meal-plan?week=${target}`);
     }
