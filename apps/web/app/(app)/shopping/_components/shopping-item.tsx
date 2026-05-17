@@ -17,12 +17,14 @@ interface Props {
     recipeId: string | null;
     recipeTitle: string | null;
   };
+  onChecked?: () => void;
 }
 
-export function ShoppingItem({ item }: Props) {
+export function ShoppingItem({ item, onChecked }: Props) {
   const [pending, startTransition] = useTransition();
 
   function handleToggle(checked: boolean) {
+    if (checked) onChecked?.();
     startTransition(() => toggleItem(item.id, checked));
   }
 

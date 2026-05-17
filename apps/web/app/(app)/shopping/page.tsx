@@ -124,61 +124,78 @@ export default async function ShoppingPage() {
   const checkedCount = items.filter((i) => i.isChecked).length;
 
   return (
-    <div className="p-4 lg:p-8 max-w-2xl mx-auto">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Shopping List</h1>
-          {activeList && (
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {activeList.name} · {items.length} item{items.length !== 1 ? "s" : ""}
-              {checkedCount > 0 && `, ${checkedCount} checked`}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/pantry"
-            className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <Package className="h-4 w-4" />
-            Pantry
-          </Link>
-          <GenerateFromRecipeButton recipes={allRecipes} />
-        </div>
-      </div>
+    <div className="p-4 lg:p-8">
+      <div className="lg:flex lg:gap-8 lg:justify-center lg:items-start">
+        {/* Main list column */}
+        <div className="w-full max-w-2xl lg:flex-1 lg:max-w-[672px]">
+          <div className="mb-6 flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Shopping List</h1>
+              {activeList && (
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {activeList.name} · {items.length} item{items.length !== 1 ? "s" : ""}
+                  {checkedCount > 0 && `, ${checkedCount} checked`}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/pantry"
+                className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Package className="h-4 w-4" />
+                Pantry
+              </Link>
+              <GenerateFromRecipeButton recipes={allRecipes} />
+            </div>
+          </div>
 
-      {!activeList ? (
-        <div className="flex flex-col items-center gap-4 py-16 text-center">
-          <p className="text-muted-foreground">No active shopping list.</p>
-          <form action={createList}>
-            <Button type="submit">
-              <Plus className="mr-1.5 h-4 w-4" />
-              New list
-            </Button>
-          </form>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <AddItemForm />
-
-          {items.length === 0 ? (
-            <p className="py-8 text-center text-muted-foreground text-sm">
-              Your list is empty — add an item or pull in a recipe above.
-            </p>
+          {!activeList ? (
+            <div className="flex flex-col items-center gap-4 py-16 text-center">
+              <p className="text-muted-foreground">No active shopping list.</p>
+              <form action={createList}>
+                <Button type="submit">
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  New list
+                </Button>
+              </form>
+            </div>
           ) : (
-            <ShoppingListView groups={groups} />
-          )}
+            <div className="flex flex-col gap-4">
+              <AddItemForm />
 
-          {items.length > 0 && (
-            <ListActions
-              listId={activeList.id}
-              hasChecked={hasChecked}
-            />
-          )}
+              {items.length === 0 ? (
+                <p className="py-8 text-center text-muted-foreground text-sm">
+                  Your list is empty — add an item or pull in a recipe above.
+                </p>
+              ) : (
+                <ShoppingListView groups={groups} />
+              )}
 
-          <OrderHistory items={mostOrdered} />
+              {items.length > 0 && (
+                <ListActions
+                  listId={activeList.id}
+                  hasChecked={hasChecked}
+                />
+              )}
+
+              {/* Frequently bought — mobile only (desktop gets the sidebar) */}
+              <div className="lg:hidden border-t pt-4">
+                <OrderHistory items={mostOrdered} />
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Frequently bought sidebar — desktop only */}
+        {activeList && mostOrdered.length > 0 && (
+          <aside className="hidden lg:block w-72 shrink-0 sticky top-8">
+            <div className="rounded-lg border bg-card p-4">
+              <OrderHistory items={mostOrdered} defaultOpen />
+            </div>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
