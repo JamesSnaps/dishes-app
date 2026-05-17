@@ -2,8 +2,30 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Clock, Users, Sun, Moon, Sunrise, Cookie, IceCreamCone, ChefHat } from "lucide-react";
-import { removeMealEntry } from "@/app/actions/meal-plan";
+import {
+  Clock,
+  Users,
+  Sun,
+  Moon,
+  Sunrise,
+  Cookie,
+  IceCreamCone,
+  ChefHat,
+  MoreVertical,
+  Trash2,
+  CalendarDays,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@dishes/ui";
+import { removeMealEntry, moveMealEntry } from "@/app/actions/meal-plan";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
@@ -39,6 +61,8 @@ const MEAL_BG: Record<MealType, string> = {
   snack: "bg-muted/30",
 };
 
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
 function formatServings(servings: string | null): string | null {
   if (!servings) return null;
   const n = parseFloat(servings);
@@ -46,9 +70,16 @@ function formatServings(servings: string | null): string | null {
   return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
 }
 
+function getDayLabel(weekStartDate: string, dayIndex: number): string {
+  const d = new Date(weekStartDate + "T00:00:00");
+  d.setDate(d.getDate() + dayIndex);
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
+}
+
 interface Props {
   entry: {
     id: string;
+    dayOfWeek: number;
     mealType: MealType;
     recipe: {
       id: string;
@@ -60,9 +91,10 @@ interface Props {
       thumbnailUrl: string | null;
     };
   };
+  weekStartDate: string;
 }
 
-export function EntryCard({ entry }: Props) {
+export function EntryCard({ entry, weekStartDate }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { recipe } = entry;
@@ -70,9 +102,12 @@ export function EntryCard({ entry }: Props) {
   const totalTime = (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0);
   const servings = formatServings(recipe.servings);
 
-  function handleRemove(e: React.MouseEvent) {
-    e.stopPropagation();
+  function handleRemove() {
     startTransition(() => removeMealEntry(entry.id));
+  }
+
+  function handleMove(newDay: number) {
+    startTransition(() => moveMealEntry(entry.id, newDay));
   }
 
   function handleNavigate() {
@@ -129,27 +164,65 @@ export function EntryCard({ entry }: Props) {
         )}
       </div>
 
-      <div className="flex-shrink-0 flex flex-col items-center justify-center gap-2 px-3 border-l">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            router.push(`/recipes/${recipe.id}/cook`);
-          }}
-          disabled={pending}
-          className="flex flex-col items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-          aria-label={`Start cooking ${recipe.title}`}
-        >
-          <ChefHat className="h-5 w-5" />
-          <span>Cook</span>
-        </button>
-        <button
-          onClick={handleRemove}
-          disabled={pending}
-          className="flex items-center text-muted-foreground hover:text-destructive transition-colors"
-          aria-label={`Remove ${recipe.title}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+      <div className="flex-shrink-0 flex flex-col items-center justify-center px-2 border-l">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              disabled={pending}
+              className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Meal options"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DropdownMenuItem
+              onClick={() => router.push(`/recipes/${recipe.id}/cook`)}
+            >
+              <ChefHat className="h-4 w-4 mr-2" />
+              Cook
+            </DropdownMenuItem>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <CalendarDays className="h-4 w-4 mr-2" />
+                Move to…
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {DAY_NAMES.map((name, i) => (
+                  <DropdownMenuItem
+                    key={i}
+                    disabled={i === entry.dayOfWeek}
+                    onClick={() => handleMove(i)}
+                    className={i === entry.dayOfWeek ? "opacity-50" : ""}
+                  >
+                    <span className="w-5 text-[10px] font-semibold text-muted-foreground uppercase mr-2">
+                      {getDayLabel(weekStartDate, i).split(" ")[0]}
+                    </span>
+                    {name}
+                    {i === entry.dayOfWeek && (
+                      <span className="ml-auto text-xs text-muted-foreground">current</span>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem
+              onClick={handleRemove}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remove
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </li>
   );

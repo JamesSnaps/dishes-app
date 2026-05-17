@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { mealPlans, mealPlanEntries, recipes, recipeIngredients, shoppingLists, shoppingListItems } from "@dishes/db/schema";
-import { eq, and, inArray, count } from "drizzle-orm";
+import { mealPlans, mealPlanEntries, recipes, recipeTags, recipeIngredients, cookHistory, shoppingLists, shoppingListItems } from "@dishes/db/schema";
+import { eq, and, inArray, count, avg } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { WeekPlanner } from "./_components/week-planner";
@@ -47,7 +47,7 @@ export default async function MealPlanPage({
     )
     .limit(1);
 
-  const [allEntries, allRecipes] = await Promise.all([
+  const [allEntries, allRecipesRaw] = await Promise.all([
     plan
       ? db
           .select({
@@ -71,7 +71,7 @@ export default async function MealPlanPage({
           [] as {
             id: string;
             dayOfWeek: number;
-            mealType: "breakfast" | "lunch" | "dinner" | "snack";
+            mealType: "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
             recipe: {
               id: string;
               title: string;
@@ -88,11 +88,61 @@ export default async function MealPlanPage({
         id: recipes.id,
         title: recipes.title,
         cuisine: recipes.cuisine,
+        difficulty: recipes.difficulty,
+        thumbnailUrl: recipes.thumbnailUrl,
+        imageUrl: recipes.imageUrl,
+        prepTimeMinutes: recipes.prepTimeMinutes,
+        cookTimeMinutes: recipes.cookTimeMinutes,
+        isFavourite: recipes.isFavourite,
       })
       .from(recipes)
       .where(eq(recipes.householdId, householdId))
       .orderBy(recipes.title),
   ]);
+
+  // Fetch tags and avg ratings for picker
+  const allRecipeIds = allRecipesRaw.map((r) => r.id);
+
+  const [allTagRows, ratingRows] = await Promise.all([
+    allRecipeIds.length
+      ? db
+          .select({ recipeId: recipeTags.recipeId, tag: recipeTags.tag })
+          .from(recipeTags)
+          .where(inArray(recipeTags.recipeId, allRecipeIds))
+      : Promise.resolve([]),
+    allRecipeIds.length
+      ? db
+          .select({ recipeId: cookHistory.recipeId, avgRating: avg(cookHistory.rating) })
+          .from(cookHistory)
+          .where(
+            and(
+              eq(cookHistory.householdId, householdId),
+              inArray(cookHistory.recipeId, allRecipeIds)
+            )
+          )
+          .groupBy(cookHistory.recipeId)
+      : Promise.resolve([]),
+  ]);
+
+  const tagsByRecipe = new Map<string, string[]>();
+  for (const row of allTagRows) {
+    const arr = tagsByRecipe.get(row.recipeId) ?? [];
+    arr.push(row.tag);
+    tagsByRecipe.set(row.recipeId, arr);
+  }
+
+  const ratingByRecipe = new Map<string, number>();
+  for (const row of ratingRows) {
+    if (row.avgRating !== null) {
+      ratingByRecipe.set(row.recipeId, parseFloat(String(row.avgRating)));
+    }
+  }
+
+  const allRecipes = allRecipesRaw.map((r) => ({
+    ...r,
+    tags: tagsByRecipe.get(r.id) ?? [],
+    avgRating: ratingByRecipe.get(r.id) ?? null,
+  }));
 
   // Compute top ingredients for the week
   const recipeIds = [...new Set(allEntries.map((e) => e.recipe.id))];

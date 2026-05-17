@@ -77,30 +77,54 @@ export async function addMealEntry(
   revalidatePath("/meal-plan");
 }
 
-export async function removeMealEntry(entryId: string) {
+export async function moveMealEntry(entryId: string, newDayOfWeek: number) {
+  if (!Number.isInteger(newDayOfWeek) || newDayOfWeek < 0 || newDayOfWeek > 6) {
+    throw new Error("dayOfWeek must be between 0 and 6");
+  }
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
+  // Single query verifies the entry exists and belongs to this household atomically
   const [entry] = await db
-    .select({ mealPlanId: mealPlanEntries.mealPlanId })
+    .select({ id: mealPlanEntries.id })
     .from(mealPlanEntries)
-    .where(eq(mealPlanEntries.id, entryId))
-    .limit(1);
-
-  if (!entry) return;
-
-  const [plan] = await db
-    .select({ id: mealPlans.id })
-    .from(mealPlans)
+    .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
     .where(
       and(
-        eq(mealPlans.id, entry.mealPlanId),
+        eq(mealPlanEntries.id, entryId),
         eq(mealPlans.householdId, householdId)
       )
     )
     .limit(1);
 
-  if (!plan) return;
+  if (!entry) return;
+
+  await db
+    .update(mealPlanEntries)
+    .set({ dayOfWeek: newDayOfWeek })
+    .where(eq(mealPlanEntries.id, entryId));
+
+  revalidatePath("/meal-plan");
+}
+
+export async function removeMealEntry(entryId: string) {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  // Single query verifies the entry exists and belongs to this household atomically
+  const [entry] = await db
+    .select({ id: mealPlanEntries.id })
+    .from(mealPlanEntries)
+    .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
+    .where(
+      and(
+        eq(mealPlanEntries.id, entryId),
+        eq(mealPlans.householdId, householdId)
+      )
+    )
+    .limit(1);
+
+  if (!entry) return;
 
   await db.delete(mealPlanEntries).where(eq(mealPlanEntries.id, entryId));
 
