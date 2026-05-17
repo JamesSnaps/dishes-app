@@ -12,13 +12,16 @@ import { createLogger } from "@/lib/logger";
 const log = createLogger("image-gen-route");
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: recipeId } = await params;
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
+
+    const body = await req.json().catch(() => ({})) as { style?: string };
+    const style = typeof body.style === "string" ? body.style : null;
 
     const [recipe] = await db
       .select({ title: recipes.title })
@@ -52,6 +55,7 @@ export async function POST(
           status: "pending",
           recipeId,
           householdId,
+          style,
           startedAt: Date.now(),
         }),
         "EX",
@@ -60,7 +64,7 @@ export async function POST(
     }
 
     // Fire and forget — returns before the image is ready
-    generateImageBackground(jobId, recipeId, householdId, notif.id).catch((err) => {
+    generateImageBackground(jobId, recipeId, householdId, notif.id, style).catch((err) => {
       log.error(`Background job ${jobId} threw:`, err);
     });
 

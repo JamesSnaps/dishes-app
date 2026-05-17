@@ -7,13 +7,15 @@ import { decrypt } from "@/lib/crypto";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import { createLogger } from "@/lib/logger";
+import { getStyleSuffix } from "@/lib/image-styles";
 
 const log = createLogger("image-gen");
 
 export async function generateRecipeImageCore(
   householdId: string,
   title: string,
-  description: string | null
+  description: string | null,
+  style?: string | null
 ): Promise<{ url?: string; thumbnailUrl?: string; error?: string }> {
   if (!isStorageAvailable()) {
     return {
@@ -26,6 +28,7 @@ export async function generateRecipeImageCore(
     .select({
       encryptedApiKey: aiConfigurations.encryptedApiKey,
       imageModel: aiConfigurations.imageModel,
+      imageStyle: aiConfigurations.imageStyle,
     })
     .from(aiConfigurations)
     .where(eq(aiConfigurations.householdId, householdId))
@@ -38,9 +41,10 @@ export async function generateRecipeImageCore(
   const client = new OpenAI({ apiKey });
   const imageModel = config.imageModel ?? "dall-e-3";
 
+  const styleSuffix = getStyleSuffix(style ?? config.imageStyle);
   const prompt = `Professional food photography of "${title}". ${
     description ? description + " " : ""
-  }Beautifully plated, appetising, clean background, natural lighting. No text, no labels, no watermarks.`;
+  }${styleSuffix}`;
 
   log.info(`Generating image with model=${imageModel} for "${title}"`);
 

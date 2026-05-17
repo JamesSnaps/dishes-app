@@ -26,6 +26,7 @@ export const aiConfigurations = pgTable("ai_configurations", {
   defaultPrompt: text("default_prompt"),
   kitchenEquipment: text("kitchen_equipment"),
   measurementSystem: varchar("measurement_system", { length: 20 }).notNull().default("metric"),
+  imageStyle: varchar("image_style", { length: 50 }).notNull().default("studio"),
   monthlyLimitUsd: decimal("monthly_limit_usd", {
     precision: 8,
     scale: 2,

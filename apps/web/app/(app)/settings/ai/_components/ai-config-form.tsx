@@ -5,11 +5,13 @@ import { Button } from "@dishes/ui";
 import { Input } from "@dishes/ui";
 import { Textarea } from "@dishes/ui";
 import { saveAiConfig } from "@/app/actions/settings";
+import { IMAGE_STYLES } from "@/lib/image-styles";
 
 type Props = {
   config: {
     model: string;
     imageModel: string;
+    imageStyle: string;
     monthlyLimitUsd: string | null;
     defaultPrompt: string | null;
     kitchenEquipment: string | null;
@@ -108,6 +110,26 @@ export function AiConfigForm({ config, isAdmin }: Props) {
         >
           {IMAGE_MODELS.map((m) => (
             <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Default image style */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Default image style</label>
+        <p className="text-xs text-muted-foreground">
+          Pre-selected when you generate an image — you can override it per recipe.
+        </p>
+        <select
+          name="imageStyle"
+          defaultValue={config?.imageStyle ?? "studio"}
+          disabled={isPending}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+        >
+          {IMAGE_STYLES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label} — {s.description}
+            </option>
           ))}
         </select>
       </div>

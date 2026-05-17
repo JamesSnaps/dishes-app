@@ -158,6 +158,7 @@ export async function saveAiConfig(formData: FormData) {
   const defaultPrompt = (formData.get("defaultPrompt") as string)?.trim() || null;
   const kitchenEquipment = (formData.get("kitchenEquipment") as string)?.trim() || null;
   const measurementSystem = (formData.get("measurementSystem") as string)?.trim() || "metric";
+  const imageStyle = (formData.get("imageStyle") as string)?.trim() || "studio";
 
   const existing = await db
     .select({ id: aiConfigurations.id, encryptedApiKey: aiConfigurations.encryptedApiKey })
@@ -178,7 +179,7 @@ export async function saveAiConfig(formData: FormData) {
   if (existing.length) {
     await db
       .update(aiConfigurations)
-      .set({ encryptedApiKey, model, imageModel, monthlyLimitUsd: monthlyLimit, defaultPrompt, kitchenEquipment, measurementSystem })
+      .set({ encryptedApiKey, model, imageModel, monthlyLimitUsd: monthlyLimit, defaultPrompt, kitchenEquipment, measurementSystem, imageStyle })
       .where(eq(aiConfigurations.id, existing[0]!.id));
   } else {
     await db.insert(aiConfigurations).values({
@@ -190,6 +191,7 @@ export async function saveAiConfig(formData: FormData) {
       defaultPrompt,
       kitchenEquipment,
       measurementSystem,
+      imageStyle,
     });
   }
 
@@ -271,6 +273,7 @@ export async function getAiConfig(householdId: string) {
       defaultPrompt: aiConfigurations.defaultPrompt,
       kitchenEquipment: aiConfigurations.kitchenEquipment,
       measurementSystem: aiConfigurations.measurementSystem,
+      imageStyle: aiConfigurations.imageStyle,
       encryptedApiKey: aiConfigurations.encryptedApiKey,
     })
     .from(aiConfigurations)
@@ -288,6 +291,7 @@ export async function getAiConfig(householdId: string) {
     defaultPrompt: config.defaultPrompt,
     kitchenEquipment: config.kitchenEquipment,
     measurementSystem: config.measurementSystem,
+    imageStyle: config.imageStyle,
     hasKey: true,
     // Short hint: first 8 chars only — enough to identify the key, won't overflow on mobile
     keyHint: (() => {

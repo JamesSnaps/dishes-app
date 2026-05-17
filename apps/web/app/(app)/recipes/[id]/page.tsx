@@ -23,6 +23,8 @@ import {
 } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { aiConfigurations } from "@dishes/db/schema";
+import type { ImageStyleValue } from "@/lib/image-styles";
 import { Badge, Button } from "@dishes/ui";
 import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
@@ -47,7 +49,7 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration, smtpConfig] = await Promise.all([
+  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration, smtpConfig, aiConfig] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -92,6 +94,12 @@ export default async function RecipeDetailPage({ params }: Props) {
       .orderBy(desc(notes.updatedAt)),
     getAverageDuration(id, householdId),
     getSmtpConfig(householdId),
+    db
+      .select({ imageStyle: aiConfigurations.imageStyle })
+      .from(aiConfigurations)
+      .where(eq(aiConfigurations.householdId, householdId))
+      .limit(1)
+      .then((r) => r[0] ?? null),
   ]);
 
   if (!recipe) notFound();
@@ -233,7 +241,11 @@ export default async function RecipeDetailPage({ params }: Props) {
           />
         </div>
       ) : (
-        <GenerateImageButton recipeId={id} recipeTitle={recipe.title} />
+        <GenerateImageButton
+          recipeId={id}
+          recipeTitle={recipe.title}
+          defaultStyle={(aiConfig?.imageStyle as ImageStyleValue | undefined) ?? "studio"}
+        />
       )}
 
       {/* Title + actions */}

@@ -264,9 +264,14 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
         e.unit === ing.unit
     );
 
-    if (match && match.amount !== null && ing.amount !== null) {
+    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+    const isNumeric = !isNaN(rawNum);
+    const numericAmount = isNumeric ? ing.amount : null;
+    const textNote = !isNumeric && ing.amount ? ing.amount : null;
+
+    if (match && match.amount !== null && numericAmount !== null) {
       const newAmount = (
-        Math.round((parseFloat(match.amount) + parseFloat(ing.amount)) * 1000) / 1000
+        Math.round((parseFloat(match.amount) + parseFloat(numericAmount)) * 1000) / 1000
       ).toString();
       await db
         .update(shoppingListItems)
@@ -276,8 +281,9 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
       await db.insert(shoppingListItems).values({
         listId,
         ingredientName: ing.ingredientName,
-        amount: ing.amount,
+        amount: numericAmount,
         unit: ing.unit,
+        notes: textNote,
         position: posCounter++,
       });
     }
