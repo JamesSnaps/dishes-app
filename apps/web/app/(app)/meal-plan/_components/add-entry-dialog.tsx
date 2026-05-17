@@ -59,8 +59,8 @@ export function AddEntryDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full">
-          <Plus className="mr-1.5 h-4 w-4" />
+        <Button className="w-full gap-2 bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white border-0 shadow-sm">
+          <Plus className="h-4 w-4" />
           Add meal
         </Button>
       </DialogTrigger>

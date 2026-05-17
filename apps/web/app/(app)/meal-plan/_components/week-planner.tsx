@@ -12,6 +12,7 @@ import {
   Bell,
   Users,
   Clock,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { generateShoppingFromWeek } from "@/app/actions/meal-plan";
@@ -118,11 +119,21 @@ function MealTypePieChart({ entries }: { entries: Entry[] }) {
 
   if (total === 0) return null;
 
-  const SIZE = 80;
+  const SIZE = 140;
   const cx = SIZE / 2;
   const cy = SIZE / 2;
-  const r = 28;
-  const innerR = 16;
+  const r = 52;
+  const innerR = 32;
+  const strokeW = r - innerR;
+  const midR = innerR + strokeW / 2;
+
+  const MEAL_LABELS: Record<MealType, string> = {
+    breakfast: "Breakfast",
+    lunch: "Lunch",
+    dinner: "Dinner",
+    dessert: "Dessert",
+    snack: "Snacks",
+  };
 
   let cumAngle = -Math.PI / 2;
   const slices = types.map(([type, count]) => {
@@ -133,10 +144,7 @@ function MealTypePieChart({ entries }: { entries: Entry[] }) {
   });
 
   function polarToXY(angle: number, radius: number) {
-    return {
-      x: cx + radius * Math.cos(angle),
-      y: cy + radius * Math.sin(angle),
-    };
+    return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
   }
 
   function slicePath(start: number, end: number) {
@@ -154,62 +162,44 @@ function MealTypePieChart({ entries }: { entries: Entry[] }) {
     ].join(" ");
   }
 
-  const MEAL_LABELS: Record<MealType, string> = {
-    breakfast: "Breakfast",
-    lunch: "Lunch",
-    dinner: "Dinner",
-    dessert: "Dessert",
-    snack: "Snacks",
-  };
-
   return (
-    <div className="rounded-xl border bg-card p-4">
-      <h3 className="font-semibold text-sm mb-3">Week Overview</h3>
-      <div className="flex items-center gap-4">
-        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="flex-shrink-0">
-          {slices.map(({ type, start, end }) => (
-            <path
-              key={type}
-              d={slicePath(start, end)}
-              fill={MEAL_TYPE_COLOR[type]}
-              className="opacity-90"
+    <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-900/60 dark:to-slate-800/40 p-4 border border-slate-200/60 dark:border-slate-700/40">
+      <h3 className="font-semibold text-sm mb-4">Week Overview</h3>
+      <div className="flex items-center gap-5">
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="flex-shrink-0 drop-shadow-sm">
+          {slices.length === 1 ? (
+            <circle
+              cx={cx}
+              cy={cy}
+              r={midR}
+              fill="none"
+              stroke={MEAL_TYPE_COLOR[slices[0].type]}
+              strokeWidth={strokeW}
+              opacity={0.9}
             />
-          ))}
-          <text
-            x={cx}
-            y={cy + 1}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize="11"
-            fontWeight="700"
-            fill="currentColor"
-            className="fill-foreground"
-          >
+          ) : (
+            slices.map(({ type, start, end }) => (
+              <path key={type} d={slicePath(start, end)} fill={MEAL_TYPE_COLOR[type]} opacity={0.9} />
+            ))
+          )}
+          <text x={cx} y={cy - 4} textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="700" className="fill-foreground">
             {total}
           </text>
-          <text
-            x={cx}
-            y={cy + 10}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize="6"
-            fill="currentColor"
-            className="fill-muted-foreground"
-          >
+          <text x={cx} y={cy + 12} textAnchor="middle" dominantBaseline="middle" fontSize="9" className="fill-muted-foreground">
             meals
           </text>
         </svg>
-        <div className="flex flex-col gap-1 flex-1 min-w-0">
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
           {slices.map(({ type, count }) => (
-            <div key={type} className="flex items-center gap-2">
+            <div key={type} className="flex items-center gap-2.5">
               <span
-                className="flex-shrink-0 h-2 w-2 rounded-full"
+                className="flex-shrink-0 h-2.5 w-2.5 rounded-full shadow-sm"
                 style={{ backgroundColor: MEAL_TYPE_COLOR[type] }}
               />
-              <span className="text-xs text-muted-foreground flex-1 min-w-0 truncate">
+              <span className="text-sm text-muted-foreground flex-1 min-w-0 truncate">
                 {MEAL_LABELS[type]}
               </span>
-              <span className="text-xs font-semibold tabular-nums">{count}</span>
+              <span className="text-sm font-bold tabular-nums">{count}</span>
             </div>
           ))}
         </div>
@@ -280,7 +270,12 @@ export function WeekPlanner({
             {isCurrentWeek ? "This Week" : "Meal Plan"}
           </h1>
           {!isCurrentWeek && (
-            <Button variant="ghost" size="sm" onClick={() => router.push("/meal-plan")}>
+            <Button
+              size="sm"
+              onClick={() => router.push("/meal-plan")}
+              className="gap-1.5 bg-orange-500 hover:bg-orange-600 text-white border-0 shadow-sm"
+            >
+              <Calendar className="h-3.5 w-3.5" />
               Today
             </Button>
           )}
@@ -289,7 +284,7 @@ export function WeekPlanner({
       </div>
 
       {/* Horizontal day strip with prev/next flanking */}
-      <div className="flex items-center gap-1 mb-5">
+      <div className="flex lg:inline-flex items-center gap-1 mb-5">
         <button
           onClick={() => navigate(prevWeek, "prev")}
           className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors"
@@ -362,61 +357,59 @@ export function WeekPlanner({
         </button>
       </div>
 
-      {/* Stats bar — icon left, value + label right */}
-      <div className="rounded-xl border bg-card overflow-hidden mb-6 shadow-sm">
-        <div className="grid grid-cols-4 divide-x">
-          <div className="flex items-center gap-2.5 px-3 py-3">
-            <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-violet-100 dark:bg-violet-950/40 flex items-center justify-center">
-              <Bell className="h-4 w-4 text-violet-500" />
-            </div>
-            <div>
-              <p className="text-lg font-bold leading-none text-violet-700 dark:text-violet-400">
-                {totalMeals || "—"}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Meals</p>
-            </div>
+      {/* Stats bar */}
+      <div className="grid grid-cols-4 gap-2 mb-6">
+        <div className="rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 dark:from-violet-500/20 dark:to-violet-600/10 px-3 py-4 flex flex-col gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-violet-500/15 dark:bg-violet-500/25 flex items-center justify-center">
+            <Bell className="h-4 w-4 text-violet-600 dark:text-violet-400" />
           </div>
-
-          <div className="flex items-center gap-2.5 px-3 py-3">
-            <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
-              <Users className="h-4 w-4 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-lg font-bold leading-none text-emerald-700 dark:text-emerald-400">
-                {avgServings || "—"}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Avg serves</p>
-            </div>
+          <div>
+            <p className="text-2xl font-bold leading-none text-violet-700 dark:text-violet-300">
+              {totalMeals || "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">Meals</p>
           </div>
-
-          <div className="flex items-center gap-2.5 px-3 py-3">
-            <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
-              <Clock className="h-4 w-4 text-orange-500" />
-            </div>
-            <div>
-              <p className="text-lg font-bold leading-none text-orange-700 dark:text-orange-400">
-                {totalTime > 0 ? formatTotalTime(totalTime) : "—"}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Cook time</p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => router.push("/shopping")}
-            className="flex items-center gap-2.5 px-3 py-3 hover:bg-muted/50 transition-colors relative"
-          >
-            <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center">
-              <ShoppingCart className="h-4 w-4 text-blue-500" />
-            </div>
-            <div className="text-left">
-              <p className="text-lg font-bold leading-none text-blue-700 dark:text-blue-400">
-                {shoppingItemCount || "—"}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">To buy</p>
-            </div>
-            <ChevronRight className="h-3 w-3 text-muted-foreground absolute right-1.5 top-1/2 -translate-y-1/2" />
-          </button>
         </div>
+
+        <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 dark:from-emerald-500/20 dark:to-emerald-600/10 px-3 py-4 flex flex-col gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-emerald-500/15 dark:bg-emerald-500/25 flex items-center justify-center">
+            <Users className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold leading-none text-emerald-700 dark:text-emerald-300">
+              {avgServings || "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">Avg serves</p>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 dark:from-orange-500/20 dark:to-orange-600/10 px-3 py-4 flex flex-col gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-orange-500/15 dark:bg-orange-500/25 flex items-center justify-center">
+            <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold leading-none text-orange-700 dark:text-orange-300">
+              {totalTime > 0 ? formatTotalTime(totalTime) : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">Cook time</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => router.push("/shopping")}
+          className="rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 dark:from-blue-500/20 dark:to-blue-600/10 hover:from-blue-500/20 hover:to-blue-600/10 dark:hover:from-blue-500/30 transition-all px-3 py-4 flex flex-col gap-2.5 text-left relative"
+        >
+          <div className="h-8 w-8 rounded-lg bg-blue-500/15 dark:bg-blue-500/25 flex items-center justify-center">
+            <ShoppingCart className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold leading-none text-blue-700 dark:text-blue-300">
+              {shoppingItemCount || "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">To buy</p>
+          </div>
+          <ChevronRight className="h-3.5 w-3.5 text-blue-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+        </button>
       </div>
 
       {/* Main layout: day view + sidebar */}

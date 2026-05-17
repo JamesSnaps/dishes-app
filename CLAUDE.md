@@ -107,6 +107,7 @@ The family profile picker (Phase 2) is a household-level UX feature — switchin
 - Server Actions or API route handlers for all AI, import, and write operations — never client-side
 - Tailwind for all styling — no CSS modules or styled-components
 - All database queries scoped to household — this is not optional
+- **No wireframe/white-box UI.** Avoid flat white cards with just a border. Use gradient backgrounds, coloured tints, shadows, and visual weight to make the UI feel alive. Interactive elements (buttons, cards) must look obviously clickable — solid fills, gradients, or strong outlines, never bare text or ghost-only styling for primary actions.
 
 ## Keeping Docs Updated
 
