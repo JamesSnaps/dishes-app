@@ -35,6 +35,8 @@ interface Props {
   className?: string;
   displayName?: string;
   avatarUrl?: string | null;
+  shoppingItemCount?: number;
+  todayMealCount?: number;
 }
 
 interface NavItem {
@@ -59,7 +61,7 @@ const PERSONAL_NAV: NavItem[] = [
   { href: "/notes", label: "My Notes", icon: FileText },
 ];
 
-function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; badge?: number }) {
   const active = !item.disabled && (pathname === item.href || pathname.startsWith(`${item.href}/`));
   const Icon = item.icon;
 
@@ -86,11 +88,19 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
     >
       <Icon className="h-4 w-4 shrink-0" strokeWidth={active ? 2.5 : 1.75} />
       {item.label}
+      {badge != null && badge > 0 && (
+        <span className={cn(
+          "ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center leading-tight",
+          active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+        )}>
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
 
-export function SideNav({ className, displayName = "User", avatarUrl = null }: Props) {
+export function SideNav({ className, displayName = "User", avatarUrl = null, shoppingItemCount, todayMealCount }: Props) {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -112,9 +122,13 @@ export function SideNav({ className, displayName = "User", avatarUrl = null }: P
       <div className="flex flex-col flex-1 overflow-y-auto">
         {/* Main nav */}
         <div className="flex flex-col gap-1 p-3">
-          {MAIN_NAV.map((item) => (
-            <NavLink key={item.href} item={item} pathname={pathname} />
-          ))}
+          {MAIN_NAV.map((item) => {
+            const badge =
+              item.href === "/shopping" ? shoppingItemCount
+              : item.href === "/meal-plan" ? todayMealCount
+              : undefined;
+            return <NavLink key={item.href} item={item} pathname={pathname} badge={badge} />;
+          })}
         </div>
 
         {/* Personal section */}

@@ -35,7 +35,7 @@ export function ShoppingItem({ item }: Props) {
 
   return (
     <li
-      className={`flex items-center gap-3 py-3 px-1 transition-opacity ${pending ? "opacity-50" : ""}`}
+      className={`flex items-center gap-3 py-3 px-4 transition-opacity ${pending ? "opacity-50" : ""}`}
     >
       <input
         type="checkbox"
