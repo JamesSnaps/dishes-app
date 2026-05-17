@@ -399,6 +399,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
   const [isGenerating, startGenTransition] = useTransition();
   const [isAdding, startAddTransition] = useTransition();
   const [added, setAdded] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
 
   function toggleDay(i: number) {
     setSelectedDays((prev) => {
@@ -464,9 +465,10 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
     const weekStart = getMondayOf(weekOffset);
     startAddTransition(async () => {
       const result = await addAiGeneratedMealPlan(weekStart, slots);
+      if (result.debug) setDebugInfo(result.debug);
       if (result.error) { setError(result.error); return; }
       setAdded(true);
-      setTimeout(() => router.push("/meal-plan"), 1500);
+      setTimeout(() => router.push(`/meal-plan?week=${weekStart}`), 3000);
     });
   }
 
@@ -750,7 +752,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
             })}
           </div>
 
-          <div className="px-5 py-4 border-t bg-muted/30">
+          <div className="px-5 py-4 border-t bg-muted/30 space-y-3">
             {added ? (
               <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium">
                 <BadgeCheck className="h-4 w-4" />
@@ -769,6 +771,14 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
                   <><CalendarDays className="h-4 w-4" />Add to Meal Plan</>
                 )}
               </Button>
+            )}
+            {debugInfo && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-muted-foreground font-medium">Debug info</summary>
+                <pre className="mt-2 p-3 rounded bg-muted overflow-auto max-h-64 text-left">
+                  {JSON.stringify(debugInfo, null, 2)}
+                </pre>
+              </details>
             )}
           </div>
         </div>

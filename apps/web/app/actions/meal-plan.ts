@@ -110,12 +110,16 @@ export async function removeMealEntry(entryId: string) {
 export async function addAiGeneratedMealPlan(
   weekStartDate: string,
   slots: MealPlanSlot[]
-): Promise<{ success?: boolean; error?: string }> {
+): Promise<{ success?: boolean; error?: string; debug?: Record<string, unknown> }> {
+  const debug: Record<string, unknown> = { weekStartDate, slotsReceived: slots.length };
   try {
     const user = await getAutheliaUser();
     const { householdId, memberId } = await requireHousehold(user);
+    debug.householdId = householdId;
+    debug.memberId = memberId;
 
     const plan = await getOrCreatePlan(householdId, memberId, weekStartDate);
+    debug.planId = plan.id;
 
     // Verify any proposed existing recipe IDs actually belong to this household
     const proposedIds = slots.map((s) => s.recipeId).filter((id): id is string => !!id);
@@ -126,6 +130,8 @@ export async function addAiGeneratedMealPlan(
           .where(and(eq(recipes.householdId, householdId), inArray(recipes.id, proposedIds)))
           .then((rows) => new Set(rows.map((r) => r.id)))
       : new Set<string>();
+    debug.proposedRecipeIds = proposedIds;
+    debug.verifiedRecipeIds = [...verifiedIds];
 
     // For library slots use the existing recipe; for new slots create a stub
     const resolvedSlots = await Promise.all(
@@ -148,21 +154,27 @@ export async function addAiGeneratedMealPlan(
         return { dayOfWeek: slot.dayOfWeek, mealType: slot.mealType, recipeId: recipe!.id };
       })
     );
+    debug.resolvedSlots = resolvedSlots;
 
-    await db.insert(mealPlanEntries).values(
+    const insertedEntries = await db.insert(mealPlanEntries).values(
       resolvedSlots.map((r) => ({
         mealPlanId: plan.id,
         recipeId: r.recipeId,
         dayOfWeek: r.dayOfWeek,
         mealType: r.mealType as MealType,
       }))
-    );
+    ).returning();
+    debug.insertedEntries = insertedEntries;
+
+    console.log("[addAiGeneratedMealPlan] debug:", JSON.stringify(debug, null, 2));
 
     revalidatePath("/meal-plan");
     revalidatePath("/recipes");
-    return { success: true };
+    return { success: true, debug };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Failed to add meal plan." };
+    debug.error = err instanceof Error ? err.message : String(err);
+    console.error("[addAiGeneratedMealPlan] error:", JSON.stringify(debug, null, 2));
+    return { error: err instanceof Error ? err.message : "Failed to add meal plan.", debug };
   }
 }
 
