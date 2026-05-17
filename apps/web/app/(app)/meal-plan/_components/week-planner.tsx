@@ -165,8 +165,8 @@ function MealTypePieChart({ entries }: { entries: Entry[] }) {
   return (
     <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-900/60 dark:to-slate-800/40 p-4 border border-slate-200/60 dark:border-slate-700/40">
       <h3 className="font-semibold text-sm mb-4">Week Overview</h3>
-      <div className="flex items-center gap-5">
-        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="flex-shrink-0 drop-shadow-sm">
+      <div className="flex flex-col items-center gap-4">
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="drop-shadow-sm">
           {slices.length === 1 ? (
             <circle
               cx={cx}
@@ -189,14 +189,14 @@ function MealTypePieChart({ entries }: { entries: Entry[] }) {
             meals
           </text>
         </svg>
-        <div className="flex flex-col gap-2 flex-1 min-w-0">
+        <div className="w-full flex flex-col gap-2">
           {slices.map(({ type, count }) => (
             <div key={type} className="flex items-center gap-2.5">
               <span
                 className="flex-shrink-0 h-2.5 w-2.5 rounded-full shadow-sm"
                 style={{ backgroundColor: MEAL_TYPE_COLOR[type] }}
               />
-              <span className="text-sm text-muted-foreground flex-1 min-w-0 truncate">
+              <span className="text-sm text-muted-foreground flex-1">
                 {MEAL_LABELS[type]}
               </span>
               <span className="text-sm font-bold tabular-nums">{count}</span>
