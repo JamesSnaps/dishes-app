@@ -49,7 +49,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   const [shoppingCountResult, mealCountResult] = await Promise.all([
     activeList
-      ? db.select({ value: count() }).from(shoppingListItems).where(eq(shoppingListItems.listId, activeList.id))
+      ? db.select({ value: count() }).from(shoppingListItems).where(and(eq(shoppingListItems.listId, activeList.id), eq(shoppingListItems.isChecked, false)))
       : Promise.resolve([{ value: 0 }]),
     currentPlan
       ? db.select({ value: count() }).from(mealPlanEntries).where(and(eq(mealPlanEntries.mealPlanId, currentPlan.id), eq(mealPlanEntries.dayOfWeek, dayIndex)))

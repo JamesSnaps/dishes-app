@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Home,
   Moon,
+  Package,
   Settings,
   ShoppingCart,
   Sparkles,
@@ -52,6 +53,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/meal-plan", label: "Meal Planner", icon: CalendarDays },
   { href: "/shopping", label: "Shopping List", icon: ShoppingCart },
   { href: "/ai-concierge", label: "AI Concierge", icon: Sparkles },
+  { href: "/pantry", label: "Pantry", icon: Package },
   { href: "/what-can-i-cook", label: "What Can I Cook?", icon: ChefHat, disabled: true },
 ];
 

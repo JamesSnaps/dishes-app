@@ -14,6 +14,8 @@ interface Props {
     notes: string | null;
     isChecked: boolean;
     category: string | null;
+    recipeId: string | null;
+    recipeTitle: string | null;
   };
 }
 
@@ -45,7 +47,7 @@ export function ShoppingItem({ item }: Props) {
         aria-label={`Mark ${item.ingredientName} as ${item.isChecked ? "unchecked" : "checked"}`}
       />
       <span
-        className={`flex-1 text-base leading-snug ${
+        className={`flex-1 min-w-0 text-base leading-snug ${
           item.isChecked ? "line-through text-muted-foreground" : ""
         }`}
       >
@@ -53,6 +55,11 @@ export function ShoppingItem({ item }: Props) {
         {item.notes && (
           <span className="ml-1 text-sm text-muted-foreground">
             ({item.notes})
+          </span>
+        )}
+        {item.recipeTitle && (
+          <span className="block text-xs text-muted-foreground/60 leading-tight mt-0.5">
+            from {item.recipeTitle}
           </span>
         )}
       </span>

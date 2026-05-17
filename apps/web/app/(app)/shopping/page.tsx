@@ -1,13 +1,15 @@
-import { Plus } from "lucide-react";
+import { Package, Plus } from "lucide-react";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { shoppingLists, shoppingListItems, recipes } from "@dishes/db/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
 import { AddItemForm } from "./_components/add-item-form";
 import { GenerateFromRecipeButton } from "./_components/generate-from-recipe-button";
-import { ShoppingItem } from "./_components/shopping-item";
+import { ShoppingListView } from "./_components/shopping-list-view";
+import { OrderHistory } from "./_components/order-history";
 import { ListActions } from "./_components/list-actions";
 import { createList } from "@/app/actions/shopping";
 
@@ -45,7 +47,20 @@ export default async function ShoppingPage() {
     )
     .limit(1);
 
-  const [items, allRecipes] = await Promise.all([
+  type Item = {
+    id: string;
+    ingredientName: string;
+    amount: string | null;
+    unit: string | null;
+    notes: string | null;
+    isChecked: boolean;
+    category: string | null;
+    position: number;
+    recipeId: string | null;
+    recipeTitle: string | null;
+  };
+
+  const [items, allRecipes, mostOrdered] = await Promise.all([
     activeList
       ? db
           .select({
@@ -57,11 +72,14 @@ export default async function ShoppingPage() {
             isChecked: shoppingListItems.isChecked,
             category: shoppingListItems.category,
             position: shoppingListItems.position,
+            recipeId: shoppingListItems.recipeId,
+            recipeTitle: recipes.title,
           })
           .from(shoppingListItems)
+          .leftJoin(recipes, eq(shoppingListItems.recipeId, recipes.id))
           .where(eq(shoppingListItems.listId, activeList.id))
           .orderBy(asc(shoppingListItems.position))
-      : Promise.resolve([] as { id: string; ingredientName: string; amount: string | null; unit: string | null; notes: string | null; isChecked: boolean; category: string | null; position: number }[]),
+      : Promise.resolve([] as Item[]),
     db
       .select({
         id: recipes.id,
@@ -73,21 +91,34 @@ export default async function ShoppingPage() {
       .from(recipes)
       .where(eq(recipes.householdId, householdId))
       .orderBy(recipes.title),
+    db
+      .select({
+        ingredientName: shoppingListItems.ingredientName,
+        timesOrdered: sql<number>`cast(count(*) as int)`,
+      })
+      .from(shoppingListItems)
+      .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
+      .where(eq(shoppingLists.householdId, householdId))
+      .groupBy(shoppingListItems.ingredientName)
+      .orderBy(desc(sql`count(*)`))
+      .limit(10),
   ]);
 
   // Group items by category
-  const grouped = new Map<string | null, typeof items>();
+  const grouped = new Map<string | null, Item[]>();
   for (const item of items) {
     const key = item.category ?? null;
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(item);
   }
 
-  const sortedGroups = [...grouped.entries()].sort(([a], [b]) => {
-    const ai = CATEGORY_ORDER.indexOf(a);
-    const bi = CATEGORY_ORDER.indexOf(b);
-    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-  });
+  const groups = [...grouped.entries()]
+    .sort(([a], [b]) => {
+      const ai = CATEGORY_ORDER.indexOf(a);
+      const bi = CATEGORY_ORDER.indexOf(b);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    })
+    .map(([category, groupItems]) => ({ category, items: groupItems }));
 
   const hasChecked = items.some((i) => i.isChecked);
   const checkedCount = items.filter((i) => i.isChecked).length;
@@ -104,7 +135,16 @@ export default async function ShoppingPage() {
             </p>
           )}
         </div>
-        <GenerateFromRecipeButton recipes={allRecipes} />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/pantry"
+            className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Package className="h-4 w-4" />
+            Pantry
+          </Link>
+          <GenerateFromRecipeButton recipes={allRecipes} />
+        </div>
       </div>
 
       {!activeList ? (
@@ -126,22 +166,7 @@ export default async function ShoppingPage() {
               Your list is empty — add an item or pull in a recipe above.
             </p>
           ) : (
-            <div className="flex flex-col gap-4">
-              {sortedGroups.map(([category, groupItems]) => (
-                <section key={category ?? "__none__"}>
-                  {category && (
-                    <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {category}
-                    </h2>
-                  )}
-                  <ul className="divide-y rounded-lg border bg-card">
-                    {groupItems.map((item) => (
-                      <ShoppingItem key={item.id} item={item} />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
+            <ShoppingListView groups={groups} />
           )}
 
           {items.length > 0 && (
@@ -150,6 +175,8 @@ export default async function ShoppingPage() {
               hasChecked={hasChecked}
             />
           )}
+
+          <OrderHistory items={mostOrdered} />
         </div>
       )}
     </div>
