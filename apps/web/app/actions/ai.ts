@@ -11,6 +11,7 @@ import { requireHousehold } from "@/lib/household";
 import { uploadFile, isStorageAvailable, keyFromUrl } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import { revalidatePath } from "next/cache";
+import { getStyleSuffix } from "@/lib/image-styles";
 
 // ── Shared types ───────────────────────────────────────────────────────────────
 
@@ -369,7 +370,8 @@ Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.
 
 export async function generateRecipeImageUrl(
   title: string,
-  description: string | null
+  description: string | null,
+  style?: string | null
 ): Promise<{ url?: string; thumbnailUrl?: string; error?: string }> {
   try {
     const user = await getAutheliaUser();
@@ -380,7 +382,8 @@ export async function generateRecipeImageUrl(
       return { error: "Image storage is not configured — add S3 settings to enable AI image generation." };
     }
 
-    const prompt = `Professional food photography of "${title}". ${description ? description + " " : ""}Beautifully plated, appetising, clean background, natural lighting. No text, no labels, no watermarks.`;
+    const styleSuffix = getStyleSuffix(style);
+    const prompt = `Professional food photography of "${title}". ${description ? description + " " : ""}${styleSuffix}`;
 
     console.log(`[AI] Generating image with model=${imageModel} for "${title}"`);
 

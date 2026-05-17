@@ -12,7 +12,9 @@ import {
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { updateRecipe } from "@/app/actions/recipes";
+import { getAiConfig } from "@/app/actions/settings";
 import { RecipeForm } from "../../_components/recipe-form";
+import type { ImageStyleValue } from "@/lib/image-styles";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -27,7 +29,7 @@ export default async function EditRecipePage({ params }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps, tags] = await Promise.all([
+  const [recipe, ingredients, steps, tags, aiConfig] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -48,6 +50,7 @@ export default async function EditRecipePage({ params }: Props) {
       .select({ tag: recipeTags.tag })
       .from(recipeTags)
       .where(eq(recipeTags.recipeId, id)),
+    getAiConfig(householdId),
   ]);
 
   if (!recipe) notFound();
@@ -69,6 +72,7 @@ export default async function EditRecipePage({ params }: Props) {
         heading="Edit Recipe"
         submitLabel="Save Changes"
         recipeId={id}
+        defaultImageStyle={aiConfig?.imageStyle as ImageStyleValue | undefined}
         defaults={{
           title: recipe.title,
           description: recipe.description ?? undefined,

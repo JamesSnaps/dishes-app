@@ -3,13 +3,15 @@
 import { useState, useEffect } from "react";
 import { createRecipe } from "@/app/actions/recipes";
 import { RecipeForm, type RecipeFormDefaults } from "../_components/recipe-form";
+import type { ImageStyleValue } from "@/lib/image-styles";
 import { AiConcierge } from "../_components/ai-concierge";
 
 interface NewRecipeClientProps {
   hasAi: boolean;
+  defaultImageStyle?: ImageStyleValue;
 }
 
-export function NewRecipeClient({ hasAi }: NewRecipeClientProps) {
+export function NewRecipeClient({ hasAi, defaultImageStyle }: NewRecipeClientProps) {
   const [defaults, setDefaults] = useState<RecipeFormDefaults>({});
   const [formKey, setFormKey] = useState(0);
 
@@ -50,6 +52,7 @@ export function NewRecipeClient({ hasAi }: NewRecipeClientProps) {
         heading="New Recipe"
         submitLabel="Create Recipe"
         mode="create"
+        defaultImageStyle={defaultImageStyle}
       />
     </div>
   );

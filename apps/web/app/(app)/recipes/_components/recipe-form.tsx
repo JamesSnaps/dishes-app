@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@dishes/ui";
 import { improveRecipe, generateRecipeImageUrl, type GeneratedRecipe } from "@/app/actions/ai";
+import { IMAGE_STYLES } from "@/lib/image-styles";
+import type { ImageStyleValue } from "@/lib/image-styles";
 import { addPendingImageJob } from "@/components/providers/jobs-provider";
 import { toast } from "@/hooks/use-toast";
 import { PasteImportModal } from "./paste-import-modal";
@@ -93,6 +95,7 @@ interface RecipeFormProps {
   heading?: string;
   mode?: "create" | "edit";
   recipeId?: string;
+  defaultImageStyle?: ImageStyleValue;
 }
 
 export function RecipeForm({
@@ -102,6 +105,7 @@ export function RecipeForm({
   heading = "Edit Recipe",
   mode = "edit",
   recipeId,
+  defaultImageStyle = "studio",
 }: RecipeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -146,6 +150,7 @@ export function RecipeForm({
 
   const [imageUrl, setImageUrl] = useState<string>(defaults.imageUrl ?? "");
   const [thumbnailUrl, setThumbnailUrl] = useState<string>(defaults.thumbnailUrl ?? "");
+  const [imageStyle, setImageStyle] = useState<ImageStyleValue>(defaultImageStyle);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageGenerating, setImageGenerating] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -250,7 +255,11 @@ export function RecipeForm({
     if (recipeId) {
       // Background job — fire-and-forget so the user can navigate away
       try {
-        const res = await fetch(`/api/recipes/${recipeId}/generate-image`, { method: "POST" });
+        const res = await fetch(`/api/recipes/${recipeId}/generate-image`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ style: imageStyle }),
+        });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error((body as { error?: string }).error ?? "Failed to start image generation");
@@ -270,7 +279,7 @@ export function RecipeForm({
 
     // Create mode — synchronous, URL stored in form state
     setImageGenerating(true);
-    const result = await generateRecipeImageUrl(title || "Recipe", description || null);
+    const result = await generateRecipeImageUrl(title || "Recipe", description || null, imageStyle);
     setImageGenerating(false);
     if (result.error) {
       setImageError(result.error);
@@ -435,15 +444,28 @@ export function RecipeForm({
             <ImagePlus className="h-5 w-5" />
             {imageUploading ? "Uploading…" : "Upload photo"}
           </button>
-          <button
-            type="button"
-            onClick={() => void handleGenerateImage()}
-            disabled={imageUploading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 py-2 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <Wand2 className="h-4 w-4" />
-            Generate with AI
-          </button>
+          <div className="flex gap-2">
+            <select
+              value={imageStyle}
+              onChange={(e) => setImageStyle(e.target.value as ImageStyleValue)}
+              disabled={imageUploading || imageGenerating}
+              className="rounded-lg border border-dashed border-input bg-muted/30 px-2 py-2 text-sm text-muted-foreground"
+              aria-label="Image style"
+            >
+              {IMAGE_STYLES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => void handleGenerateImage()}
+              disabled={imageUploading || imageGenerating}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 py-2 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              <Wand2 className="h-4 w-4" />
+              Generate with AI
+            </button>
+          </div>
         </div>
       )}
 

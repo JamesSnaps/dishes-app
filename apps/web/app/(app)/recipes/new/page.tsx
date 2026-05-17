@@ -22,7 +22,7 @@ export default async function NewRecipePage() {
         Recipes
       </Link>
 
-      <NewRecipeClient hasAi={!!aiConfig?.hasKey} />
+      <NewRecipeClient hasAi={!!aiConfig?.hasKey} defaultImageStyle={aiConfig?.imageStyle as import("@/lib/image-styles").ImageStyleValue | undefined} />
     </div>
   );
 }
