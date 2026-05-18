@@ -72,6 +72,7 @@ export function CookDebrief({
   // Submit state
   const [submitting, setSubmitting] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Post-submit review state
   const [phase, setPhase] = useState<Phase>("form");
@@ -105,26 +106,36 @@ export function CookDebrief({
 
   async function handleSubmit() {
     setSubmitting(true);
+    setSubmitError(null);
     setLoadingMessage("Saving…");
 
+    let cookId: string;
     try {
       const cookedForNames = householdMembers
         .filter((m) => cookedForIds.has(m.id))
         .map((m) => m.displayName);
 
-      const { id: cookId } = await logCook(recipeId, {
+      const result = await logCook(recipeId, {
         rating: rating ?? null,
         actualDuration: duration,
         notes: notes.trim() || null,
         occasion: occasion.trim() || null,
         cookedFor: cookedForNames.length ? cookedForNames : null,
       });
+      cookId = result.id;
+    } catch {
+      setSubmitting(false);
+      setLoadingMessage("");
+      setSubmitError("Couldn't save your cook — please try again.");
+      return;
+    }
 
-      if (cookTimeDiffers) {
-        updateRecipeCookTime(recipeId, duration).catch(() => {});
-      }
+    if (cookTimeDiffers) {
+      updateRecipeCookTime(recipeId, duration).catch(() => {});
+    }
 
-      if (photoFile && storageAvailable) {
+    if (photoFile && storageAvailable) {
+      try {
         setLoadingMessage("Uploading photo…");
         const fd = new FormData();
         fd.append("photo", photoFile);
@@ -141,13 +152,12 @@ export function CookDebrief({
             return;
           }
         }
+      } catch {
+        // photo upload or AI review failed — navigate anyway
       }
-
-      router.push(`/recipes/${recipeId}`);
-    } catch {
-      setSubmitting(false);
-      setLoadingMessage("");
     }
+
+    router.push(`/recipes/${recipeId}`);
   }
 
   async function handleDeduct() {
@@ -392,6 +402,9 @@ export function CookDebrief({
 
         {/* Actions */}
         <div className="space-y-2 pt-2">
+          {submitError && (
+            <p className="text-center text-sm text-destructive">{submitError}</p>
+          )}
           <Button className="w-full" onClick={handleSubmit} disabled={submitting}>
             {submitting ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{loadingMessage}</>
