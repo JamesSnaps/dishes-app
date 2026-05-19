@@ -1,35 +1,20 @@
 "use client";
 
-import { useTransition } from "react";
 import { ShoppingCart, Trash2 } from "lucide-react";
-import { toggleItem, deleteItem } from "@/app/actions/shopping";
 import { formatQuantity } from "@/lib/format-quantity";
+import type { ShoppingItem as ShoppingItemType } from "@/hooks/use-shopping-list";
 
 interface Props {
-  item: {
-    id: string;
-    ingredientName: string;
-    amount: string | null;
-    unit: string | null;
-    notes: string | null;
-    isChecked: boolean;
-    category: string | null;
-    recipeId: string | null;
-    recipeTitle: string | null;
-  };
+  item: ShoppingItemType;
+  onToggle: (checked: boolean) => void;
+  onDelete: () => void;
   onChecked?: () => void;
 }
 
-export function ShoppingItem({ item, onChecked }: Props) {
-  const [pending, startTransition] = useTransition();
-
+export function ShoppingItem({ item, onToggle, onDelete, onChecked }: Props) {
   function handleToggle(checked: boolean) {
     if (checked) onChecked?.();
-    startTransition(() => toggleItem(item.id, checked));
-  }
-
-  function handleDelete() {
-    startTransition(() => deleteItem(item.id));
+    onToggle(checked);
   }
 
   const { amount: displayAmount, unit: displayUnit } = formatQuantity(item.amount, item.unit);
@@ -38,9 +23,7 @@ export function ShoppingItem({ item, onChecked }: Props) {
     .join(" ");
 
   return (
-    <li
-      className={`flex items-center gap-3 py-3 px-4 transition-opacity ${pending ? "opacity-50" : ""}`}
-    >
+    <li className="flex items-center gap-3 py-3 px-4">
       <input
         type="checkbox"
         checked={item.isChecked}
@@ -77,8 +60,7 @@ export function ShoppingItem({ item, onChecked }: Props) {
         </a>
       )}
       <button
-        onClick={handleDelete}
-        disabled={pending}
+        onClick={onDelete}
         className="flex-shrink-0 p-1 text-muted-foreground hover:text-destructive transition-colors"
         aria-label={`Remove ${item.ingredientName}`}
       >

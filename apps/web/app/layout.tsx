@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/toaster";
+import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 
 export const metadata: Metadata = {
   title: {
@@ -14,6 +15,9 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "Dishes",
+  },
+  icons: {
+    apple: "/apple-touch-icon.png",
   },
 };
 
@@ -38,6 +42,7 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <Toaster />
+          <ServiceWorkerRegistrar />
         </ThemeProvider>
       </body>
     </html>

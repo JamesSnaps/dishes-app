@@ -44,6 +44,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Archive/complete a list
 - [x] Category grouping (produce, dairy, etc.)
 - [x] "Search on Sainsbury's" link per item — opens Sainsbury's search results in new tab
+- [x] Offline-first shopping list (IndexedDB via Dexie, optimistic mutations, Background Sync, SW page-shell cache)
 
 ## Meal Planner
 - [x] Meal plan week view (`/meal-plan`) — day tabs + meal list per day
@@ -92,3 +93,14 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] `.env.local` validation on startup (zod, fail fast)
 - [x] Error boundary + 404/500 pages
 - [x] `README.md` — local dev setup, Docker deploy instructions
+
+---
+
+## Future — Mobile App (Expo / React Native)
+
+Pre-work required before starting `/apps/mobile`:
+
+- [ ] **Auth for native**: `getAutheliaUser()` reads reverse-proxy headers — won't work for a native app hitting the server directly. Design a mobile auth flow, likely extending the existing household-scoped integration token system (see `lib/integration-auth.ts`). Authelia OIDC is an option too.
+- [ ] **Complete the shopping REST API**: `clearChecked`, `archiveList`, and `generateFromRecipe` are still server actions with no JSON endpoint. A native app needs these as proper REST routes alongside the existing `/api/shopping/*` routes added in v0.21.0.
+- [ ] **Native offline layer**: The web offline stack (Dexie, service worker, Background Sync) is browser-only. Native equivalent would be MMKV or expo-sqlite for local storage, and Expo Background Fetch for background sync.
+- [ ] **Push notifications**: The web app has no push notification infrastructure yet. Design this once for both targets (web push + APNs) rather than twice.

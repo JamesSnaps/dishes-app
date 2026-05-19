@@ -18,12 +18,14 @@ import { addCheckedItemsToStock } from "@/app/actions/pantry";
 interface Props {
   listId: string;
   hasChecked: boolean;
+  onClearChecked?: () => void;
 }
 
-export function ListActions({ listId, hasChecked }: Props) {
+export function ListActions({ listId, hasChecked, onClearChecked }: Props) {
   const [pending, startTransition] = useTransition();
 
   function handleClearChecked() {
+    onClearChecked?.();
     startTransition(() => clearChecked(listId));
   }
 
@@ -78,7 +80,11 @@ export function ListActions({ listId, hasChecked }: Props) {
                 {pending ? "Saving…" : "Complete & add to pantry"}
               </Button>
             )}
-            <Button onClick={handleArchive} disabled={pending} className="w-full sm:w-auto">
+            <Button
+              onClick={handleArchive}
+              disabled={pending}
+              className="w-full sm:w-auto"
+            >
               {pending ? "Archiving…" : "Complete"}
             </Button>
           </DialogFooter>

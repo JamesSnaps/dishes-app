@@ -1,6 +1,6 @@
 {
   "name": "@dishes/web",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -19,6 +19,7 @@
     "@types/nodemailer": "^8.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dexie": "^4.4.2",
     "drizzle-orm": "^0.38.3",
     "ioredis": "^5.10.1",
     "jszip": "^3.10.1",

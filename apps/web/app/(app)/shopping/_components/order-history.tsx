@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { addItem } from "@/app/actions/shopping";
 
 interface HistoryItem {
   ingredientName: string;
@@ -12,19 +11,13 @@ interface HistoryItem {
 interface Props {
   items: HistoryItem[];
   defaultOpen?: boolean;
+  onAdd?: (ingredientName: string) => void;
 }
 
-export function OrderHistory({ items, defaultOpen = false }: Props) {
+export function OrderHistory({ items, defaultOpen = false, onAdd }: Props) {
   const [open, setOpen] = useState(defaultOpen);
-  const [pending, startTransition] = useTransition();
 
   if (items.length === 0) return null;
-
-  function handleAdd(ingredientName: string) {
-    const formData = new FormData();
-    formData.set("ingredientName", ingredientName);
-    startTransition(() => addItem(formData));
-  }
 
   return (
     <section>
@@ -46,8 +39,8 @@ export function OrderHistory({ items, defaultOpen = false }: Props) {
           {items.map((item) => (
             <button
               key={item.ingredientName}
-              onClick={() => handleAdd(item.ingredientName)}
-              disabled={pending}
+              onClick={() => onAdd?.(item.ingredientName)}
+              disabled={!onAdd}
               className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm text-left hover:bg-muted transition-colors disabled:opacity-50 w-full"
             >
               <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

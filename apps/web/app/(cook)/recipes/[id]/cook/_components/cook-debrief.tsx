@@ -100,8 +100,23 @@ export function CookDebrief({
     setPhotoPreviewUrl(file ? URL.createObjectURL(file) : null);
   }
 
-  function handleSkip() {
-    router.push(`/recipes/${recipeId}`);
+  async function handleReviewLater() {
+    try {
+      const cookedForNames = householdMembers
+        .filter((m) => cookedForIds.has(m.id))
+        .map((m) => m.displayName);
+      const result = await logCook(recipeId, {
+        actualDuration: duration,
+        occasion: occasion.trim() || null,
+        cookedFor: cookedForNames.length ? cookedForNames : null,
+      });
+      if (cookTimeDiffers) {
+        updateRecipeCookTime(recipeId, duration).catch(() => {});
+      }
+      router.push(`/recipes/${recipeId}?pendingReview=${result.id}`);
+    } catch {
+      router.push(`/recipes/${recipeId}`);
+    }
   }
 
   async function handleSubmit() {
@@ -415,10 +430,10 @@ export function CookDebrief({
           <Button
             variant="ghost"
             className="w-full text-muted-foreground"
-            onClick={handleSkip}
+            onClick={handleReviewLater}
             disabled={submitting}
           >
-            Skip
+            Review later
           </Button>
         </div>
       </div>

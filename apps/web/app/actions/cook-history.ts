@@ -199,6 +199,40 @@ export async function getRecipeCookHistory(
   }));
 }
 
+export type UpdateCookEntryInput = {
+  rating?: number | null;
+  notes?: string | null;
+  occasion?: string | null;
+};
+
+export async function updateCookEntry(
+  cookId: string,
+  data: UpdateCookEntryInput
+): Promise<void> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const [row] = await db
+    .select({ recipeId: cookHistory.recipeId })
+    .from(cookHistory)
+    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)))
+    .limit(1);
+  if (!row) throw new Error("Cook record not found");
+
+  await db
+    .update(cookHistory)
+    .set({
+      ...(data.rating !== undefined ? { rating: data.rating != null ? String(data.rating) : null } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
+      ...(data.occasion !== undefined ? { occasion: data.occasion?.trim() || null } : {}),
+    })
+    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)));
+
+  revalidatePath(`/recipes/${row.recipeId}`);
+  revalidatePath("/recipes");
+  void refreshTasteProfile(householdId);
+}
+
 export async function uploadCookPhoto(
   cookId: string,
   formData: FormData

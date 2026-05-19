@@ -6,38 +6,19 @@ import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
-import { AddItemForm } from "./_components/add-item-form";
 import { GenerateFromRecipeButton } from "./_components/generate-from-recipe-button";
-import { ShoppingListView } from "./_components/shopping-list-view";
-import { OrderHistory } from "./_components/order-history";
-import { ListActions } from "./_components/list-actions";
+import { ShoppingListClient } from "./_components/shopping-list-client";
 import { createList } from "@/app/actions/shopping";
+import type { ShoppingItem } from "@/hooks/use-shopping-list";
 
 export const metadata = { title: "Shopping" };
-
-const CATEGORY_ORDER = [
-  "Produce",
-  "Dairy",
-  "Meat",
-  "Fish",
-  "Bakery",
-  "Pantry",
-  "Frozen",
-  "Drinks",
-  "Cleaning",
-  "Other",
-  null,
-];
 
 export default async function ShoppingPage() {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
   const [activeList] = await db
-    .select({
-      id: shoppingLists.id,
-      name: shoppingLists.name,
-    })
+    .select({ id: shoppingLists.id, name: shoppingLists.name })
     .from(shoppingLists)
     .where(
       and(
@@ -47,24 +28,12 @@ export default async function ShoppingPage() {
     )
     .limit(1);
 
-  type Item = {
-    id: string;
-    ingredientName: string;
-    amount: string | null;
-    unit: string | null;
-    notes: string | null;
-    isChecked: boolean;
-    category: string | null;
-    position: number;
-    recipeId: string | null;
-    recipeTitle: string | null;
-  };
-
   const [items, allRecipes, mostOrdered] = await Promise.all([
     activeList
       ? db
           .select({
             id: shoppingListItems.id,
+            listId: shoppingListItems.listId,
             ingredientName: shoppingListItems.ingredientName,
             amount: shoppingListItems.amount,
             unit: shoppingListItems.unit,
@@ -79,7 +48,7 @@ export default async function ShoppingPage() {
           .leftJoin(recipes, eq(shoppingListItems.recipeId, recipes.id))
           .where(eq(shoppingListItems.listId, activeList.id))
           .orderBy(asc(shoppingListItems.position))
-      : Promise.resolve([] as Item[]),
+      : Promise.resolve([] as ShoppingItem[]),
     db
       .select({
         id: recipes.id,
@@ -104,24 +73,15 @@ export default async function ShoppingPage() {
       .limit(10),
   ]);
 
-  // Group items by category
-  const grouped = new Map<string | null, Item[]>();
-  for (const item of items) {
-    const key = item.category ?? null;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key)!.push(item);
-  }
+  const initialItems: ShoppingItem[] = items.map((i) => ({
+    ...i,
+    recipeTitle: i.recipeTitle ?? null,
+  }));
 
-  const groups = [...grouped.entries()]
-    .sort(([a], [b]) => {
-      const ai = CATEGORY_ORDER.indexOf(a);
-      const bi = CATEGORY_ORDER.indexOf(b);
-      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    })
-    .map(([category, groupItems]) => ({ category, items: groupItems }));
+  const checkedCount = initialItems.filter((i) => i.isChecked).length;
 
-  const hasChecked = items.some((i) => i.isChecked);
-  const checkedCount = items.filter((i) => i.isChecked).length;
+  // Key changes when items are deleted (clearChecked/archive), triggering a clean re-mount
+  const syncKey = activeList ? `${activeList.id}-${initialItems.length}` : "empty";
 
   return (
     <div className="p-4 lg:p-8">
@@ -133,7 +93,7 @@ export default async function ShoppingPage() {
               <h1 className="text-2xl font-bold">Shopping List</h1>
               {activeList && (
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  {activeList.name} · {items.length} item{items.length !== 1 ? "s" : ""}
+                  {activeList.name} · {initialItems.length} item{initialItems.length !== 1 ? "s" : ""}
                   {checkedCount > 0 && `, ${checkedCount} checked`}
                 </p>
               )}
@@ -161,40 +121,15 @@ export default async function ShoppingPage() {
               </form>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
-              <AddItemForm />
-
-              {items.length === 0 ? (
-                <p className="py-8 text-center text-muted-foreground text-sm">
-                  Your list is empty — add an item or pull in a recipe above.
-                </p>
-              ) : (
-                <ShoppingListView groups={groups} />
-              )}
-
-              {items.length > 0 && (
-                <ListActions
-                  listId={activeList.id}
-                  hasChecked={hasChecked}
-                />
-              )}
-
-              {/* Frequently bought — mobile only (desktop gets the sidebar) */}
-              <div className="lg:hidden border-t pt-4">
-                <OrderHistory items={mostOrdered} />
-              </div>
-            </div>
+            <ShoppingListClient
+              key={syncKey}
+              listId={activeList.id}
+              initialItems={initialItems}
+              mostOrdered={mostOrdered}
+            />
           )}
-        </div>
 
-        {/* Frequently bought sidebar — desktop only */}
-        {activeList && mostOrdered.length > 0 && (
-          <aside className="hidden lg:block w-72 shrink-0 sticky top-8">
-            <div className="rounded-lg border bg-card p-4">
-              <OrderHistory items={mostOrdered} defaultOpen />
-            </div>
-          </aside>
-        )}
+        </div>
       </div>
     </div>
   );

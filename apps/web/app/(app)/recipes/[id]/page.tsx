@@ -30,20 +30,24 @@ import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
 import { TweakRecipeButton } from "./_components/tweak-recipe-button";
 import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
+import { AddCookReviewSheet } from "./_components/add-cook-review-sheet";
 import { GenerateImageButton } from "./_components/generate-image-button";
 import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/app/actions/cook-history";
 import { getSmtpConfig } from "@/app/actions/sharing";
+import { isStorageAvailable } from "@/lib/storage";
 import type { GeneratedRecipe } from "@/app/actions/ai";
 
 export const metadata = { title: "Recipe" };
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ pendingReview?: string }>;
 }
 
-export default async function RecipeDetailPage({ params }: Props) {
+export default async function RecipeDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { pendingReview } = await searchParams;
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
@@ -319,7 +323,7 @@ export default async function RecipeDetailPage({ params }: Props) {
       )}
 
       {/* Rating row */}
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex items-center gap-3 flex-wrap">
         <RateRecipeSheet
           recipeId={id}
           recipeTitle={recipe.title}
@@ -333,6 +337,12 @@ export default async function RecipeDetailPage({ params }: Props) {
             Cooked {cookStats.cookCount === 1 ? "once" : `${cookStats.cookCount} times`}
           </span>
         ) : null}
+        <AddCookReviewSheet
+          recipeId={id}
+          recipeTitle={recipe.title}
+          pendingCookId={pendingReview ?? null}
+          storageAvailable={isStorageAvailable()}
+        />
       </div>
 
       {/* Start Cooking + Tweak CTAs */}

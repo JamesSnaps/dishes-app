@@ -3,33 +3,31 @@
 import { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { ShoppingItem } from "./shopping-item";
+import type { ShoppingItem as ShoppingItemType } from "@/hooks/use-shopping-list";
 
-type Item = {
-  id: string;
-  ingredientName: string;
-  amount: string | null;
-  unit: string | null;
-  notes: string | null;
-  isChecked: boolean;
+interface Group {
   category: string | null;
-  recipeId: string | null;
-  recipeTitle: string | null;
-};
+  items: ShoppingItemType[];
+}
 
 interface Props {
-  groups: Array<{ category: string | null; items: Item[] }>;
+  groups: Group[];
+  onToggle: (id: string, checked: boolean) => void;
+  onDelete: (id: string) => void;
 }
 
 const HIDE_DELAY_MS = 1500;
 
-export function ShoppingListView({ groups }: Props) {
+export function ShoppingListView({ groups, onToggle, onDelete }: Props) {
   const [hideChecked, setHideChecked] = useState(true);
   const [recentlyChecked, setRecentlyChecked] = useState<Set<string>>(new Set());
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     const t = timers.current;
-    return () => { for (const id of t.values()) clearTimeout(id); };
+    return () => {
+      for (const id of t.values()) clearTimeout(id);
+    };
   }, []);
 
   function handleItemChecked(itemId: string) {
@@ -99,6 +97,8 @@ export function ShoppingListView({ groups }: Props) {
                 <ShoppingItem
                   key={item.id}
                   item={item}
+                  onToggle={(checked) => onToggle(item.id, checked)}
+                  onDelete={() => onDelete(item.id)}
                   onChecked={() => handleItemChecked(item.id)}
                 />
               ))}
