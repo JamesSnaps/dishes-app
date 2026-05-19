@@ -12,6 +12,7 @@ import {
   Heart,
   HelpCircle,
   Home,
+  LogOut,
   Moon,
   Package,
   Settings,
@@ -101,6 +102,8 @@ function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; b
     </Link>
   );
 }
+
+const AUTHELIA_URL = process.env.NEXT_PUBLIC_AUTHELIA_URL ?? "";
 
 export function SideNav({ className, displayName = "User", avatarUrl = null, shoppingItemCount, todayMealCount }: Props) {
   const pathname = usePathname();
@@ -197,6 +200,17 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
               )}
               {resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             </DropdownMenuItem>
+            {AUTHELIA_URL && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <a href={`${AUTHELIA_URL}/logout`} className="cursor-pointer text-destructive focus:text-destructive">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Log out
+                  </a>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

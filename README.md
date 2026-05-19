@@ -268,6 +268,7 @@ mc anonymous set download dishes/dishes   # for public image URLs
 | `AUTHELIA_USER_HEADER` | No | Header name for username. Default: `Remote-User` |
 | `AUTHELIA_NAME_HEADER` | No | Header name for display name. Default: `Remote-Name` |
 | `AUTHELIA_GROUPS_HEADER` | No | Header name for groups. Default: `Remote-Groups` |
+| `NEXT_PUBLIC_AUTHELIA_URL` | No | Authelia portal URL (e.g. `https://auth.example.com`). Enables the Log out option in the sidebar. Leave blank to hide it. |
 | `POSTGRES_PASSWORD` | Compose only | PostgreSQL password (used by Docker Compose) |
 | `S3_ENDPOINT` | No | S3-compatible storage endpoint |
 | `S3_ACCESS_KEY` | No | S3 access key |
