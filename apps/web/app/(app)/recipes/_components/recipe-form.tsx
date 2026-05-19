@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star } from "lucide-react";
+import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2 } from "lucide-react";
 import {
   Button,
   Input,
@@ -86,6 +86,13 @@ function emptyStep(): StepRow {
   };
 }
 
+// Extract the first integer from a duration string — handles AI ranges like "55-60"
+function sanitizeDuration(val: string | undefined | null): string {
+  if (!val) return "";
+  const match = val.match(/\d+/);
+  return match ? match[0] : "";
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface RecipeFormProps {
@@ -140,7 +147,7 @@ export function RecipeForm({
 
   const [steps, setSteps] = useState<StepRow[]>(() =>
     defaults.steps?.length
-      ? defaults.steps.map((s) => ({ ...s, key: nextKey() }))
+      ? defaults.steps.map((s) => ({ ...s, durationMinutes: sanitizeDuration(s.durationMinutes), key: nextKey() }))
       : [emptyStep()]
   );
 
@@ -172,6 +179,11 @@ export function RecipeForm({
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageGenerating]);
+
+  // ── Submit state ────────────────────────────────────────────────────────────
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // ── AI improve state ────────────────────────────────────────────────────────
 
@@ -223,7 +235,7 @@ export function RecipeForm({
     setTags(r.tags);
     setNotes(r.notes ?? "");
     setIngredients(r.ingredients.map((i) => ({ ...i, key: nextKey() })));
-    setSteps(r.steps.map((s) => ({ ...s, key: nextKey() })));
+    setSteps(r.steps.map((s) => ({ ...s, durationMinutes: sanitizeDuration(s.durationMinutes), key: nextKey() })));
     setAiApplied(true);
     setAiSummary(result.summary ?? null);
     setAiPrompt("");
@@ -352,32 +364,53 @@ export function RecipeForm({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = formRef.current!;
-    const formData = new FormData(form);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    formData.set("title", title);
-    formData.set("description", description);
-    formData.set("cuisine", cuisine);
-    formData.set("prepTimeMinutes", prepTimeMinutes);
-    formData.set("cookTimeMinutes", cookTimeMinutes);
-    formData.set("servings", servings);
-    formData.set("servingsUnit", servingsUnit);
-    formData.set("sourceUrl", sourceUrl);
-    formData.set("tags", tags.join(", "));
-    formData.set("notes", notes);
-    formData.set(
-      "ingredients",
-      JSON.stringify(ingredients.map(({ key: _key, ...rest }) => rest))
-    );
-    formData.set(
-      "steps",
-      JSON.stringify(steps.map(({ key: _key, ...rest }) => rest))
-    );
-    formData.set("difficulty", difficulty);
-    formData.set("imageUrl", imageUrl);
-    formData.set("thumbnailUrl", thumbnailUrl);
+    try {
+      const form = formRef.current!;
+      const formData = new FormData(form);
 
-    await action(formData);
+      formData.set("title", title);
+      formData.set("description", description);
+      formData.set("cuisine", cuisine);
+      formData.set("prepTimeMinutes", prepTimeMinutes);
+      formData.set("cookTimeMinutes", cookTimeMinutes);
+      formData.set("servings", servings);
+      formData.set("servingsUnit", servingsUnit);
+      formData.set("sourceUrl", sourceUrl);
+      formData.set("tags", tags.join(", "));
+      formData.set("notes", notes);
+      formData.set(
+        "ingredients",
+        JSON.stringify(ingredients.map(({ key: _key, ...rest }) => rest))
+      );
+      formData.set(
+        "steps",
+        JSON.stringify(steps.map(({ key: _key, ...rest }) => rest))
+      );
+      formData.set("difficulty", difficulty);
+      formData.set("imageUrl", imageUrl);
+      formData.set("thumbnailUrl", thumbnailUrl);
+
+      await action(formData);
+    } catch (err) {
+      // next/navigation redirect() throws a special error — let Next.js handle it
+      if (
+        err &&
+        typeof err === "object" &&
+        "digest" in err &&
+        typeof (err as { digest: unknown }).digest === "string" &&
+        (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+      ) {
+        throw err;
+      }
+      const message =
+        err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      setSubmitError(message);
+      setIsSubmitting(false);
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -872,14 +905,23 @@ export function RecipeForm({
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">{heading}</h1>
         <div className="hidden lg:flex items-center gap-2">
+          {submitError && (
+            <p className="max-w-xs rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
+              {submitError}
+            </p>
+          )}
           <Button
             type="button"
             variant="ghost"
+            disabled={isSubmitting}
             onClick={() => window.history.back()}
           >
             Cancel
           </Button>
-          <Button type="submit">{submitLabel}</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            {isSubmitting ? "Saving…" : submitLabel}
+          </Button>
         </div>
       </div>
 
@@ -957,15 +999,26 @@ export function RecipeForm({
       </div>
 
       {/* ── Submit (mobile only — desktop uses header buttons) ── */}
-      <div className="flex gap-3 pt-2 lg:hidden">
-        <Button type="submit">{submitLabel}</Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => window.history.back()}
-        >
-          Cancel
-        </Button>
+      <div className="space-y-2 pt-2 lg:hidden">
+        {submitError && (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {submitError}
+          </p>
+        )}
+        <div className="flex gap-3">
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            {isSubmitting ? "Saving…" : submitLabel}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={isSubmitting}
+            onClick={() => window.history.back()}
+          >
+            Cancel
+          </Button>
+        </div>
       </div>
     </form>
   );
