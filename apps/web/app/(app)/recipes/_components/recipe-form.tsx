@@ -179,12 +179,14 @@ export function RecipeForm({
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiApplied, setAiApplied] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
 
   async function handleAiImprove() {
     if (!aiPrompt.trim()) return;
     setAiLoading(true);
     setAiError(null);
     setAiApplied(false);
+    setAiSummary(null);
 
     const current: GeneratedRecipe = {
       title,
@@ -223,6 +225,7 @@ export function RecipeForm({
     setIngredients(r.ingredients.map((i) => ({ ...i, key: nextKey() })));
     setSteps(r.steps.map((s) => ({ ...s, key: nextKey() })));
     setAiApplied(true);
+    setAiSummary(result.summary ?? null);
     setAiPrompt("");
   }
 
@@ -896,6 +899,7 @@ export function RecipeForm({
               onChange={(e) => {
                 setAiPrompt(e.target.value);
                 setAiApplied(false);
+                setAiSummary(null);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -919,9 +923,9 @@ export function RecipeForm({
           </div>
           {aiError && <p className="text-sm text-destructive">{aiError}</p>}
           {aiApplied && (
-            <p className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              Recipe updated — review the changes below and save when ready.
+            <p className="flex items-start gap-1.5 text-sm text-green-600 dark:text-green-400">
+              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+              {aiSummary ?? "Recipe updated — review the changes below and save when ready."}
             </p>
           )}
         </section>

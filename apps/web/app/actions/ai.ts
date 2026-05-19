@@ -232,7 +232,7 @@ export async function improveRecipe(
   current: GeneratedRecipe,
   instruction: string,
   cookContext?: string
-): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
+): Promise<{ recipe?: GeneratedRecipe; summary?: string; error?: string }> {
   if (!instruction.trim())
     return { error: "Please describe how you'd like to improve the recipe." };
 
@@ -251,7 +251,9 @@ export async function improveRecipe(
       messages: [
         {
           role: "system",
-          content: `You are a chef editing an existing recipe based on a user's request. Return the complete modified recipe as JSON matching this exact schema:
+          content: `You are a chef editing an existing recipe based on a user's request. Return JSON with two top-level keys:
+1. "changeSummary": a single sentence (first person, e.g. "I've added sweetcorn…") describing what you changed and why.
+2. "recipe": the complete modified recipe matching this exact schema:
 {
   "title": string,
   "description": string,
@@ -280,7 +282,11 @@ Only change what is necessary to satisfy the user's request. Preserve everything
     });
 
     const raw = completion.choices[0]?.message?.content ?? "";
-    const recipe = JSON.parse(raw) as GeneratedRecipe;
+    const parsed = JSON.parse(raw) as { recipe?: GeneratedRecipe; changeSummary?: string } & GeneratedRecipe;
+
+    // Support both wrapped ({ recipe, changeSummary }) and legacy flat response shapes
+    const recipe: GeneratedRecipe = parsed.recipe ?? (parsed as GeneratedRecipe);
+    const summary: string | undefined = parsed.changeSummary ?? undefined;
 
     if (
       !recipe.title ||
@@ -290,7 +296,7 @@ Only change what is necessary to satisfy the user's request. Preserve everything
       throw new Error("Incomplete recipe returned by AI.");
     }
 
-    return { recipe };
+    return { recipe, summary };
   } catch (err) {
     return { error: classifyError(err) };
   }
