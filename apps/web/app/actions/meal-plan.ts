@@ -10,7 +10,7 @@ import {
   shoppingListItems,
 } from "@dishes/db/schema";
 import type { MealPlanSlot } from "./ai";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -22,30 +22,16 @@ async function getOrCreatePlan(
   memberId: string,
   weekStartDate: string
 ) {
-  const [existing] = await db
-    .select({ id: mealPlans.id })
-    .from(mealPlans)
-    .where(
-      and(
-        eq(mealPlans.householdId, householdId),
-        eq(mealPlans.weekStartDate, weekStartDate)
-      )
-    )
-    .limit(1);
-
-  if (existing) return existing;
-
-  const [created] = await db
+  const [row] = await db
     .insert(mealPlans)
-    .values({
-      householdId,
-      createdById: memberId,
-      weekStartDate,
-      status: "active",
+    .values({ householdId, createdById: memberId, weekStartDate, status: "active" })
+    .onConflictDoUpdate({
+      target: [mealPlans.householdId, mealPlans.weekStartDate],
+      set: { updatedAt: sql`now()` },
     })
     .returning({ id: mealPlans.id });
 
-  return created!;
+  return row!;
 }
 
 export async function addMealEntry(

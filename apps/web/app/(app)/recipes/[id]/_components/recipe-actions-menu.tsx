@@ -2,7 +2,7 @@
 
 import { useTransition, useState } from "react";
 import Link from "next/link";
-import { MoreVertical, Edit, Trash2, FolderOpen, FileText } from "lucide-react";
+import { MoreVertical, Edit, Trash2, FolderOpen, FileText, CalendarDays } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -19,6 +19,7 @@ import {
 } from "@dishes/ui";
 import { deleteRecipe } from "@/app/actions/recipes";
 import { AddToCollectionDialog } from "./add-to-collection-dialog";
+import { AddToMealPlanDialog } from "./add-to-meal-plan-dialog";
 import { ShareRecipeSheet } from "./share-recipe-sheet";
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
 export function RecipeActionsMenu({ recipeId, recipeTitle, hasSmtp }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
+  const [mealPlanOpen, setMealPlanOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function handleDelete() {
@@ -61,6 +63,13 @@ export function RecipeActionsMenu({ recipeId, recipeTitle, hasSmtp }: Props) {
             <FolderOpen className="h-4 w-4" />
             Add to collection
           </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2"
+            onSelect={() => setMealPlanOpen(true)}
+          >
+            <CalendarDays className="h-4 w-4" />
+            Add to meal plan
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href={`/notes/new?recipeId=${recipeId}`} className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
@@ -87,6 +96,12 @@ export function RecipeActionsMenu({ recipeId, recipeTitle, hasSmtp }: Props) {
         recipeId={recipeId}
         open={collectionOpen}
         onOpenChange={setCollectionOpen}
+      />
+
+      <AddToMealPlanDialog
+        recipeId={recipeId}
+        open={mealPlanOpen}
+        onOpenChange={setMealPlanOpen}
       />
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

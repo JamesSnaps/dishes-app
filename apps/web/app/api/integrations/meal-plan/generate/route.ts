@@ -7,7 +7,7 @@ import {
   mealPlanEntries,
   recipes,
 } from "@dishes/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import OpenAI from "openai";
 
@@ -92,24 +92,19 @@ export const POST = withIntegrationAuth(
 
     // ── Upsert the week plan ───────────────────────────────────────────────────
 
-    const [existingPlan] = await db
-      .select({ id: mealPlans.id })
-      .from(mealPlans)
-      .where(
-        and(
-          eq(mealPlans.householdId, ctx.householdId),
-          eq(mealPlans.weekStartDate, weekStartDate)
-        )
-      )
-      .limit(1);
+    const [upsertedPlan] = await db
+      .insert(mealPlans)
+      .values({ householdId: ctx.householdId, weekStartDate, status: "draft" })
+      .onConflictDoUpdate({
+        target: [mealPlans.householdId, mealPlans.weekStartDate],
+        set: { updatedAt: sql`now()` },
+      })
+      .returning({ id: mealPlans.id });
 
-    let planId: string;
+    const planId = upsertedPlan!.id;
 
-    if (existingPlan) {
-      planId = existingPlan.id;
-
-      // Check for slot conflicts
-      const conflicting = await db
+    // Check for slot conflicts only when plan already had entries
+    const conflicting = await db
         .select({ id: mealPlanEntries.id, dayOfWeek: mealPlanEntries.dayOfWeek })
         .from(mealPlanEntries)
         .where(
@@ -120,30 +115,23 @@ export const POST = withIntegrationAuth(
           )
         );
 
-      if (conflicting.length > 0) {
-        if (!overwrite) {
-          const conflictDays = conflicting.map((e) => dayName(e.dayOfWeek)).join(", ");
-          return NextResponse.json(
-            {
-              error: `Entries already exist for ${mealType} on: ${conflictDays}. Pass overwrite: true to replace them.`,
-            },
-            { status: 409 }
-          );
-        }
-        // Remove only the conflicting slots — leave other meal types intact
-        await db.delete(mealPlanEntries).where(
-          inArray(
-            mealPlanEntries.id,
-            conflicting.map((e) => e.id)
-          )
+    if (conflicting.length > 0) {
+      if (!overwrite) {
+        const conflictDays = conflicting.map((e) => dayName(e.dayOfWeek)).join(", ");
+        return NextResponse.json(
+          {
+            error: `Entries already exist for ${mealType} on: ${conflictDays}. Pass overwrite: true to replace them.`,
+          },
+          { status: 409 }
         );
       }
-    } else {
-      const [plan] = await db
-        .insert(mealPlans)
-        .values({ householdId: ctx.householdId, weekStartDate, status: "draft" })
-        .returning({ id: mealPlans.id });
-      planId = plan!.id;
+      // Remove only the conflicting slots — leave other meal types intact
+      await db.delete(mealPlanEntries).where(
+        inArray(
+          mealPlanEntries.id,
+          conflicting.map((e) => e.id)
+        )
+      );
     }
 
     // ── Ask AI for N concepts ──────────────────────────────────────────────────

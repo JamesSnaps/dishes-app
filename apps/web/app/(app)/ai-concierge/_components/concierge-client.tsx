@@ -26,6 +26,7 @@ import {
   Shuffle,
   Lightbulb,
   BookOpen,
+  Target,
 } from "lucide-react";
 import { Button, Textarea, cn } from "@dishes/ui";
 import {
@@ -791,6 +792,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
 
 function FindRecipeTab({ members }: { members: Member[] }) {
   const router = useRouter();
+  const [mode, setMode] = useState<"inspire" | "direct">("inspire");
   const [promptText, setPromptText] = useState("");
   const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set());
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
@@ -798,6 +800,13 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const [error, setError] = useState<string | null>(null);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function switchMode(next: "inspire" | "direct") {
+    setMode(next);
+    setConcepts(null);
+    setError(null);
+    setGeneratingIdx(null);
+  }
 
   // Refine preferences state (filter chips)
   const [cuisine, setCuisine] = useState("");
@@ -870,6 +879,27 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     });
   }
 
+  function handleDirectGenerate() {
+    const title = promptText.trim();
+    if (!title) return;
+    setError(null);
+    setGeneratingIdx(0);
+    const directConcept: ConceptCard = {
+      title,
+      description: title,
+      cuisine: "",
+      tags: [],
+      difficulty: "medium",
+    };
+    startTransition(async () => {
+      const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds));
+      if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
+      const defaults = recipeToDefaults(result.recipe!);
+      sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
+      router.push("/recipes/new");
+    });
+  }
+
   const hasFilter = !!(cuisine || dietary || cookTime || spiceLevel || budget || servings);
   const canGenerate = promptText.trim().length > 0 || selectedPrefs.size > 0 || hasFilter;
   const isConceptLoading = isPending && generatingIdx === null;
@@ -877,149 +907,256 @@ function FindRecipeTab({ members }: { members: Member[] }) {
 
   return (
     <div>
-      {/* Mobile: quick prompts horizontal scroll */}
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-        {QUICK_PROMPTS.map(({ label, description, prompt, icon: Icon, iconBg }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => handleQuickPrompt(prompt)}
-            disabled={isPending}
-            className="flex-shrink-0 flex items-center gap-2 rounded-xl border bg-card px-3 py-2.5 text-left disabled:opacity-50"
-          >
-            <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>
-              <Icon className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-sm font-medium whitespace-nowrap">{label}</div>
-              <div className="text-xs text-muted-foreground whitespace-nowrap">{description}</div>
-            </div>
-          </button>
-        ))}
-      </div>
+      {/* Mobile: quick prompts horizontal scroll (inspire mode only) */}
+      {mode === "inspire" && (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+          {QUICK_PROMPTS.map(({ label, description, prompt, icon: Icon, iconBg }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => handleQuickPrompt(prompt)}
+              disabled={isPending}
+              className="flex-shrink-0 flex items-center gap-2 rounded-xl border bg-card px-3 py-2.5 text-left disabled:opacity-50"
+            >
+              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>
+                <Icon className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-sm font-medium whitespace-nowrap">{label}</div>
+                <div className="text-xs text-muted-foreground whitespace-nowrap">{description}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_256px]">
+      <div className={cn("grid grid-cols-1 gap-6", mode === "inspire" && "lg:grid-cols-[1fr_256px]")}>
       {/* ── Main column ── */}
       <div className="space-y-5 min-w-0">
         {/* Input card */}
         <div className="rounded-xl border bg-card p-5 space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">
-              Describe what you&apos;re looking for
-            </label>
-            <Textarea
-              value={promptText}
-              onChange={(e) => setPromptText(e.target.value)}
-              placeholder="e.g. Easy vegetarian dinner for 2, under 30 minutes, not too spicy"
-              rows={3}
-              className="resize-none"
+
+          {/* Mode toggle */}
+          <div className="flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => switchMode("inspire")}
               disabled={isPending}
-              maxLength={300}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  runGenerate();
-                }
-              }}
-            />
-            <div className="mt-1 text-right text-xs text-muted-foreground">
-              {promptText.length}/300
-            </div>
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                mode === "inspire" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Inspire me
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode("direct")}
+              disabled={isPending}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                mode === "direct" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Target className="h-3.5 w-3.5" />
+              I know what I want
+            </button>
           </div>
 
-          {/* Preference pills */}
-          <div className="flex flex-wrap gap-2">
-            {PREFERENCES.map(({ label, icon: Icon, activeClass, inactiveClass }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => togglePref(label)}
-                disabled={isPending}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
-                  selectedPrefs.has(label) ? activeClass : inactiveClass
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
+          {mode === "inspire" ? (
+            <>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Describe what you&apos;re looking for
+                </label>
+                <Textarea
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  placeholder="e.g. Easy vegetarian dinner for 2, under 30 minutes, not too spicy"
+                  rows={3}
+                  className="resize-none"
+                  disabled={isPending}
+                  maxLength={300}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      runGenerate();
+                    }
+                  }}
+                />
+                <div className="mt-1 text-right text-xs text-muted-foreground">
+                  {promptText.length}/300
+                </div>
+              </div>
 
-          {/* Who's eating? */}
-          {members.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Who&apos;s eating?</p>
+              {/* Preference pills */}
               <div className="flex flex-wrap gap-2">
-                {members.map((m) => (
+                {PREFERENCES.map(({ label, icon: Icon, activeClass, inactiveClass }) => (
                   <button
-                    key={m.id}
+                    key={label}
                     type="button"
-                    onClick={() => toggleMember(m.id)}
+                    onClick={() => togglePref(label)}
                     disabled={isPending}
                     className={cn(
                       "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
-                      selectedMemberIds.has(m.id)
-                        ? "border-blue-400 bg-blue-500 text-white"
-                        : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                      selectedPrefs.has(label) ? activeClass : inactiveClass
                     )}
                   >
-                    <Users className="h-3.5 w-3.5" />
-                    {m.displayName}
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
                   </button>
                 ))}
               </div>
-              {selectedMemberIds.size > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  AI will respect their dietary needs and preferences
-                </p>
+
+              {/* Who's eating? */}
+              {members.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Who&apos;s eating?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {members.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleMember(m.id)}
+                        disabled={isPending}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                          selectedMemberIds.has(m.id)
+                            ? "border-blue-400 bg-blue-500 text-white"
+                            : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                        )}
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        {m.displayName}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedMemberIds.size > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      AI will respect their dietary needs and preferences
+                    </p>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-          {/* Refine your preferences */}
-          <div className="space-y-2 border-t pt-4">
-            <div>
-              <p className="text-sm font-medium">Refine your preferences</p>
-              <p className="text-xs text-muted-foreground">The more details you add, the better I can tailor the suggestions.</p>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-              <FilterChip icon={Globe} label="Cuisine" value={cuisine} options={CUISINE_OPTIONS} onChange={setCuisine} disabled={isPending} />
-              <FilterChip icon={Leaf} label="Dietary" value={dietary} options={DIETARY_OPTIONS} onChange={setDietary} disabled={isPending} />
-              <FilterChip icon={Clock} label="Cook time" value={cookTime} options={COOK_TIME_OPTIONS} onChange={setCookTime} disabled={isPending} />
-              <FilterChip icon={Flame} label="Spice level" value={spiceLevel} options={SPICE_OPTIONS} onChange={setSpiceLevel} disabled={isPending} />
-              <FilterChip icon={Tag} label="Budget" value={budget} options={BUDGET_OPTIONS} onChange={setBudget} disabled={isPending} />
-              <FilterChip icon={Users} label="Servings" value={servings} options={SERVINGS_OPTIONS} onChange={setServings} disabled={isPending} />
-            </div>
-            {hasFilter && (
-              <button
-                type="button"
-                onClick={() => { setCuisine(""); setDietary(""); setCookTime(""); setSpiceLevel(""); setBudget(""); setServings(""); }}
-                className="text-xs text-muted-foreground hover:text-foreground underline"
+              {/* Refine your preferences */}
+              <div className="space-y-2 border-t pt-4">
+                <div>
+                  <p className="text-sm font-medium">Refine your preferences</p>
+                  <p className="text-xs text-muted-foreground">The more details you add, the better I can tailor the suggestions.</p>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  <FilterChip icon={Globe} label="Cuisine" value={cuisine} options={CUISINE_OPTIONS} onChange={setCuisine} disabled={isPending} />
+                  <FilterChip icon={Leaf} label="Dietary" value={dietary} options={DIETARY_OPTIONS} onChange={setDietary} disabled={isPending} />
+                  <FilterChip icon={Clock} label="Cook time" value={cookTime} options={COOK_TIME_OPTIONS} onChange={setCookTime} disabled={isPending} />
+                  <FilterChip icon={Flame} label="Spice level" value={spiceLevel} options={SPICE_OPTIONS} onChange={setSpiceLevel} disabled={isPending} />
+                  <FilterChip icon={Tag} label="Budget" value={budget} options={BUDGET_OPTIONS} onChange={setBudget} disabled={isPending} />
+                  <FilterChip icon={Users} label="Servings" value={servings} options={SERVINGS_OPTIONS} onChange={setServings} disabled={isPending} />
+                </div>
+                {hasFilter && (
+                  <button
+                    type="button"
+                    onClick={() => { setCuisine(""); setDietary(""); setCookTime(""); setSpiceLevel(""); setBudget(""); setServings(""); }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+
+              {error && <ErrorBanner message={error} />}
+
+              <Button
+                onClick={() => runGenerate()}
+                disabled={isPending || !canGenerate}
+                className="gap-2 w-full bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                size="lg"
               >
-                Clear all filters
-              </button>
-            )}
-          </div>
+                {isConceptLoading ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Thinking…</>
+                ) : (
+                  <><Sparkles className="h-4 w-4" />Generate Ideas</>
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  What do you want to make?
+                </label>
+                <Textarea
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  placeholder="e.g. Chicken tikka masala, beef bourguignon, pad thai…"
+                  rows={3}
+                  className="resize-none"
+                  disabled={isPending}
+                  maxLength={300}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      handleDirectGenerate();
+                    }
+                  }}
+                />
+                <div className="mt-1 text-right text-xs text-muted-foreground">
+                  {promptText.length}/300
+                </div>
+              </div>
 
-          {error && <ErrorBanner message={error} />}
+              {/* Who's eating? */}
+              {members.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Who&apos;s eating?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {members.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleMember(m.id)}
+                        disabled={isPending}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                          selectedMemberIds.has(m.id)
+                            ? "border-blue-400 bg-blue-500 text-white"
+                            : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                        )}
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        {m.displayName}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedMemberIds.size > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      AI will respect their dietary needs and preferences
+                    </p>
+                  )}
+                </div>
+              )}
 
-          <Button
-            onClick={() => runGenerate()}
-            disabled={isPending || !canGenerate}
-            className="gap-2 w-full bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
-            size="lg"
-          >
-            {isConceptLoading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" />Thinking…</>
-            ) : (
-              <><Sparkles className="h-4 w-4" />Generate Ideas</>
-            )}
-          </Button>
+              {error && <ErrorBanner message={error} />}
+
+              <Button
+                onClick={handleDirectGenerate}
+                disabled={isPending || !promptText.trim()}
+                className="gap-2 w-full bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                size="lg"
+              >
+                {isPending ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Writing your recipe…</>
+                ) : (
+                  <><Sparkles className="h-4 w-4" />Create Recipe</>
+                )}
+              </Button>
+            </>
+          )}
         </div>
 
-        {/* Recipe generation overlay banner */}
-        {isRecipeLoading && (
+        {/* Recipe generation overlay banner (inspire mode) */}
+        {mode === "inspire" && isRecipeLoading && (
           <div className="flex items-center gap-3 rounded-xl border bg-violet-50 border-violet-200 px-4 py-3 dark:bg-violet-950/40 dark:border-violet-800">
             <Loader2 className="h-5 w-5 animate-spin text-violet-600 shrink-0" />
             <div>
@@ -1031,8 +1168,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
           </div>
         )}
 
-        {/* Concept results */}
-        {concepts && (
+        {/* Concept results (inspire mode only) */}
+        {mode === "inspire" && concepts && (
           <div id="concierge-results">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -1068,28 +1205,30 @@ function FindRecipeTab({ members }: { members: Member[] }) {
         )}
       </div>
 
-      {/* ── Desktop sidebar: quick prompts ── */}
-      <div className="hidden lg:flex flex-col gap-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Quick prompts
-        </h3>
-        {QUICK_PROMPTS.map(({ label, description, prompt, icon, iconBg }) => (
-          <QuickPromptButton
-            key={label}
-            label={label}
-            description={description}
-            icon={icon}
-            iconBg={iconBg}
-            onClick={() => handleQuickPrompt(prompt)}
-            disabled={isPending}
-          />
-        ))}
-        <div className="mt-1 border-t pt-3">
-          <p className="text-xs text-muted-foreground text-center">
-            Or describe anything in the box — the AI handles the rest.
-          </p>
+      {/* ── Desktop sidebar: quick prompts (inspire mode only) ── */}
+      {mode === "inspire" && (
+        <div className="hidden lg:flex flex-col gap-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Quick prompts
+          </h3>
+          {QUICK_PROMPTS.map(({ label, description, prompt, icon, iconBg }) => (
+            <QuickPromptButton
+              key={label}
+              label={label}
+              description={description}
+              icon={icon}
+              iconBg={iconBg}
+              onClick={() => handleQuickPrompt(prompt)}
+              disabled={isPending}
+            />
+          ))}
+          <div className="mt-1 border-t pt-3">
+            <p className="text-xs text-muted-foreground text-center">
+              Or describe anything in the box — the AI handles the rest.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
     </div>
   );

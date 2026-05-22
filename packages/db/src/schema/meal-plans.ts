@@ -6,6 +6,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -27,23 +28,27 @@ export const mealTypeEnum = pgEnum("meal_type", [
   "snack",
 ]);
 
-export const mealPlans = pgTable("meal_plans", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  householdId: uuid("household_id")
-    .notNull()
-    .references(() => households.id, { onDelete: "cascade" }),
-  createdById: uuid("created_by_id").references(() => householdMembers.id, {
-    onDelete: "set null",
-  }),
-  weekStartDate: date("week_start_date").notNull(),
-  status: mealPlanStatusEnum("status").notNull().default("draft"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .notNull()
-    .$onUpdate(() => new Date()),
-});
+export const mealPlans = pgTable(
+  "meal_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    createdById: uuid("created_by_id").references(() => householdMembers.id, {
+      onDelete: "set null",
+    }),
+    weekStartDate: date("week_start_date").notNull(),
+    status: mealPlanStatusEnum("status").notNull().default("draft"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [unique("meal_plans_household_week_unique").on(t.householdId, t.weekStartDate)]
+);
 
 export const mealPlanEntries = pgTable("meal_plan_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
