@@ -22,7 +22,11 @@ type Phase = "idle" | "analyzing" | "error";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-/** Resize to ≤ 1600 px on the long edge and re-encode as JPEG before sending. */
+/**
+ * Resize to ≤ 1200 px on the long edge and re-encode as JPEG at 80% quality.
+ * This keeps the base64 payload well under Next.js's server-action body limit
+ * while still providing enough resolution for accurate AI text extraction.
+ */
 async function resizeToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -31,7 +35,7 @@ async function resizeToBase64(file: File): Promise<{ base64: string; mimeType: s
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
 
-      const MAX = 1600;
+      const MAX = 1200;
       let { width, height } = img;
       if (width > MAX || height > MAX) {
         if (width >= height) {
@@ -48,7 +52,7 @@ async function resizeToBase64(file: File): Promise<{ base64: string; mimeType: s
       canvas.height = height;
       canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
 
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.80);
       // Use indexOf to safely extract base64 data regardless of any commas in metadata
       const commaIdx = dataUrl.indexOf(",");
       resolve({

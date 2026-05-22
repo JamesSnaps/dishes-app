@@ -8,6 +8,11 @@ const config: NextConfig = {
     middlewareClientMaxBodySize: 1024 * 1024 * 1024, // 1 GB
   },
 
+  serverActions: {
+    // Base64-encoded recipe photos can be several MB after client-side resize
+    bodySizeLimit: "10mb",
+  },
+
   transpilePackages: ["@dishes/ui", "@dishes/db", "@dishes/shared", "@dishes/api"],
 
   images: {
