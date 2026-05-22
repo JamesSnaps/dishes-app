@@ -3,7 +3,7 @@
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { aiConfigurations, recipes, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles } from "@dishes/db/schema";
+import { aiConfigurations, recipes, recipeIngredients, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles } from "@dishes/db/schema";
 import { eq, and, count, max, lte, avg, inArray } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
@@ -212,6 +212,73 @@ Format: {"concepts": [{"title": "...", "description": "1-2 sentences", "cuisine"
 Make the 5 concepts meaningfully different from each other in style, cuisine, or complexity.${addendum}`,
         },
         { role: "user", content: prompt },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const parsed = JSON.parse(raw) as { concepts: ConceptCard[] };
+    if (!Array.isArray(parsed.concepts) || parsed.concepts.length === 0)
+      throw new Error("Unexpected response format from AI.");
+
+    return { concepts: parsed.concepts.slice(0, 5) };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Generate similar recipe concepts from an existing recipe ──────────────────
+
+export async function generateSimilarConcepts(
+  recipeId: string,
+  userNote?: string
+): Promise<{ concepts?: ConceptCard[]; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+
+    const [recipe] = await db
+      .select()
+      .from(recipes)
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+      .limit(1);
+    if (!recipe) return { error: "Recipe not found." };
+
+    const [ingredientRows, tagRows, aiConfig, tasteAddendum] = await Promise.all([
+      db.select({ ingredientName: recipeIngredients.ingredientName }).from(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId)),
+      db.select({ tag: recipeTags.tag }).from(recipeTags).where(eq(recipeTags.recipeId, recipeId)),
+      getOpenAiClient(householdId),
+      buildTasteProfileAddendum(householdId),
+    ]);
+
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = aiConfig;
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum;
+
+    const sourceLines = [
+      `Title: ${recipe.title}`,
+      recipe.description ? `Description: ${recipe.description}` : null,
+      recipe.cuisine ? `Cuisine: ${recipe.cuisine}` : null,
+      recipe.difficulty ? `Difficulty: ${recipe.difficulty}` : null,
+      ingredientRows.length ? `Key ingredients: ${ingredientRows.slice(0, 12).map((r) => r.ingredientName).join(", ")}` : null,
+      tagRows.length ? `Tags: ${tagRows.map((r) => r.tag).join(", ")}` : null,
+    ].filter(Boolean).join("\n");
+
+    const userContext = userNote?.trim() ? `\n\nSpecific request from the user: ${userNote.trim()}` : "";
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      max_tokens: 1200,
+      messages: [
+        {
+          role: "system",
+          content: `You are a creative chef helping a family discover new recipes inspired by one they already love. Return exactly 5 distinct recipe concepts as JSON.
+Format: {"concepts": [{"title": "...", "description": "1-2 sentences", "cuisine": "...", "tags": ["..."], "difficulty": "easy"|"medium"|"hard"}]}
+Each concept should be inspired by the source recipe — similar flavour profile, complementary techniques, or the same cuisine family — but a clearly different dish. Make the 5 concepts meaningfully different from each other.${addendum}`,
+        },
+        {
+          role: "user",
+          content: `Here is the recipe to use as inspiration:\n${sourceLines}${userContext}\n\nGenerate 5 similar recipe concepts.`,
+        },
       ],
     });
 
@@ -514,20 +581,37 @@ export async function generateMealPlanConcepts(params: {
           .groupBy(recipes.id, recipes.title, recipes.cuisine, recipes.difficulty)
           .limit(200);
 
+    // Recipes used in the last 2 weeks are excluded from the selectable library
+    // and passed to the AI as a "do not repeat" list
+    const COOLDOWN_WEEKS = 2;
+    const recentlyCookedTitles: string[] = [];
+
     const filteredLibrary = rawLibrary.filter((r) => {
       if (unusedOnly && Number(r.timesPlanned) > 0) return false;
       if (ratedOnly && !r.avgRating) return false;
+      if (r.lastPlannedDate) {
+        const weeksAgo = Math.floor(
+          (Date.now() - new Date(r.lastPlannedDate + "T00:00:00").getTime()) /
+            (7 * 24 * 60 * 60 * 1000)
+        );
+        if (weeksAgo < COOLDOWN_WEEKS) {
+          recentlyCookedTitles.push(r.title);
+          return false;
+        }
+      }
       return true;
     });
 
-    // Score: rating (primary signal), cook frequency (stability), mild recency penalty
+    // Score: rating (primary signal), cook frequency (stability), recency penalty
     function scoreRecipe(r: { avgRating: string | null; timesPlanned: number; lastPlannedDate: string | null }): number {
       const rating = r.avgRating ? parseFloat(r.avgRating) : 3.5;
       const planned = Math.min(Number(r.timesPlanned), 10);
       const weeksAgo = r.lastPlannedDate
         ? Math.floor((Date.now() - new Date(r.lastPlannedDate + "T00:00:00").getTime()) / (7 * 24 * 60 * 60 * 1000))
         : 999;
-      return rating * 15 + planned * 2 - Math.min(weeksAgo, 52) * 0.2;
+      // Stronger recency penalty: -3 per week for the first 8 weeks, then tapers
+      const recencyPenalty = Math.min(weeksAgo, 8) * 3 + Math.max(0, Math.min(weeksAgo - 8, 44)) * 0.5;
+      return rating * 15 + planned * 2 - recencyPenalty;
     }
 
     const scored = [...filteredLibrary].sort((a, b) => scoreRecipe(b) - scoreRecipe(a));
@@ -574,13 +658,17 @@ export async function generateMealPlanConcepts(params: {
         `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe.`
       : "";
 
+    const recentlyUsedBlock = recentlyCookedTitles.length > 0
+      ? `\n\nRECENTLY COOKED (last ${COOLDOWN_WEEKS} weeks) — do NOT suggest these again this week: ${recentlyCookedTitles.join(", ")}.`
+      : "";
+
     const filterHints = [
       cuisineFilter ? `When suggesting new recipes (libraryIndex 0), prefer ${cuisineFilter} cuisine.` : "",
       tagFilter ? `New recipe suggestions should fit the theme or tag "${tagFilter}".` : "",
       unusedOnly ? "Prefer library recipes marked as never tried (libraryIndex 0 is also fine for fresh ideas)." : "",
       ratedOnly ? "Only reference library recipes that have a star rating; use libraryIndex 0 for any slot where you'd otherwise pick an unrated recipe." : "",
     ].filter(Boolean).join(" ");
-    const fullAddendum = addendum + (filterHints ? `\n\n${filterHints}` : "") + memberConstraints;
+    const fullAddendum = addendum + recentlyUsedBlock + (filterHints ? `\n\n${filterHints}` : "") + memberConstraints;
 
     const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     const slots = days.flatMap((d) => mealTypes.map((m) => ({ dayOfWeek: d, mealType: m })));
@@ -629,6 +717,91 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
     });
 
     return { slots: resolvedSlots };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Scan a recipe photo and extract a full structured recipe ──────────────────
+
+export async function analyzeRecipePhoto(
+  base64Image: string,
+  mimeType: string
+): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } =
+      await getOpenAiClient(householdId);
+
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      max_tokens: 3000,
+      messages: [
+        {
+          role: "system",
+          content: `You are a recipe digitisation assistant. Extract the complete recipe from the provided image and return it as JSON matching this exact schema:
+{
+  "title": string,
+  "description": string (1–2 sentences summarising the dish),
+  "cuisine": string (e.g. "Italian", "British", "Asian"),
+  "difficulty": "easy"|"medium"|"hard",
+  "prepTimeMinutes": number|null,
+  "cookTimeMinutes": number|null,
+  "servings": string (numeric string, e.g. "4"),
+  "servingsUnit": string (e.g. "servings", "portions", "pieces"),
+  "tags": string[],
+  "ingredients": [
+    {
+      "ingredientName": string,
+      "amount": string (numeric string or empty if not specified),
+      "unit": string (e.g. "g", "ml", "tsp", "tbsp", "cup", or empty string),
+      "preparation": string (e.g. "finely chopped" — use empty string if none, never "none"),
+      "isOptional": boolean,
+      "groupLabel": string (section heading such as "For the sauce" — empty string if none)
+    }
+  ],
+  "steps": [
+    {
+      "instruction": string,
+      "durationMinutes": string (numeric string or empty if no duration mentioned),
+      "timerLabel": string (short label for a timer e.g. "simmer" — empty string if no timer)
+    }
+  ],
+  "notes": string|null (any tips, storage advice, or variations shown in the image)
+}
+If a value is not present in the image use null for nullable fields or an empty string/array for others. Never invent information not visible in the image.${addendum}`,
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${mimeType};base64,${base64Image}`,
+                detail: "high",
+              },
+            },
+            {
+              type: "text",
+              text: "Please extract the complete recipe from this image.",
+            },
+          ],
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const parsed = JSON.parse(raw) as GeneratedRecipe;
+
+    if (!parsed.title || !Array.isArray(parsed.ingredients) || !Array.isArray(parsed.steps)) {
+      throw new Error("Could not extract a complete recipe from the image.");
+    }
+
+    return { recipe: parsed };
   } catch (err) {
     return { error: classifyError(err) };
   }

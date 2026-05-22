@@ -220,7 +220,10 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
   if (!plan) throw new Error("Meal plan not found");
 
   const entries = await db
-    .select({ recipeId: mealPlanEntries.recipeId })
+    .select({
+      recipeId: mealPlanEntries.recipeId,
+      servings: mealPlanEntries.servings,
+    })
     .from(mealPlanEntries)
     .where(eq(mealPlanEntries.mealPlanId, mealPlanId));
 
@@ -228,8 +231,18 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
 
   const recipeIds = [...new Set(entries.map((e) => e.recipeId))];
 
-  const ingredients = await db
+  const recipeBaseServings = await db
+    .select({ id: recipes.id, servings: recipes.servings })
+    .from(recipes)
+    .where(and(inArray(recipes.id, recipeIds), eq(recipes.householdId, householdId)));
+
+  const baseServingsMap = new Map(
+    recipeBaseServings.map((r) => [r.id, r.servings ? parseFloat(r.servings) : null])
+  );
+
+  const allIngredients = await db
     .select({
+      recipeId: recipeIngredients.recipeId,
       ingredientName: recipeIngredients.ingredientName,
       amount: recipeIngredients.amount,
       unit: recipeIngredients.unit,
@@ -237,6 +250,54 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     .from(recipeIngredients)
     .innerJoin(recipes, eq(recipeIngredients.recipeId, recipes.id))
     .where(and(inArray(recipeIngredients.recipeId, recipeIds), eq(recipes.householdId, householdId)));
+
+  const ingredientsByRecipe = new Map<string, typeof allIngredients>();
+  for (const ing of allIngredients) {
+    const list = ingredientsByRecipe.get(ing.recipeId) ?? [];
+    list.push(ing);
+    ingredientsByRecipe.set(ing.recipeId, list);
+  }
+
+  // Accumulate scaled ingredient totals across all meal plan entries
+  type Accumulated = { amount: number | null; unit: string | null; notes: string | null };
+  const totals = new Map<string, Accumulated>();
+
+  for (const entry of entries) {
+    const baseServings = baseServingsMap.get(entry.recipeId) ?? null;
+    const entryServings = entry.servings ? parseFloat(entry.servings) : null;
+    const scale =
+      entryServings && baseServings && baseServings > 0
+        ? entryServings / baseServings
+        : 1;
+
+    for (const ing of ingredientsByRecipe.get(entry.recipeId) ?? []) {
+      const key = `${ing.ingredientName.toLowerCase().trim()}||${ing.unit ?? ""}`;
+      const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+      const isNumeric = !isNaN(rawNum);
+
+      const existing = totals.get(key);
+      if (existing) {
+        totals.set(key, {
+          amount: existing.amount !== null && isNumeric ? existing.amount + rawNum * scale : existing.amount,
+          unit: ing.unit,
+          notes: existing.notes,
+        });
+      } else {
+        totals.set(key, {
+          amount: isNumeric ? rawNum * scale : null,
+          unit: ing.unit,
+          notes: !isNumeric && ing.amount ? ing.amount : null,
+        });
+      }
+    }
+  }
+
+  // Rebuild a flat list using canonical ingredient names
+  const nameMap = new Map<string, string>();
+  for (const ing of allIngredients) {
+    const key = `${ing.ingredientName.toLowerCase().trim()}||${ing.unit ?? ""}`;
+    if (!nameMap.has(key)) nameMap.set(key, ing.ingredientName);
+  }
 
   const [existingList] = await db
     .select({ id: shoppingLists.id })
@@ -264,7 +325,7 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     listId = newList!.id;
   }
 
-  const existing = await db
+  const existingItems = await db
     .select({
       id: shoppingListItems.id,
       ingredientName: shoppingListItems.ingredientName,
@@ -275,27 +336,28 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     .from(shoppingListItems)
     .where(eq(shoppingListItems.listId, listId));
 
-  const maxPos = existing.length
-    ? Math.max(...existing.map((i) => i.position))
+  const maxPos = existingItems.length
+    ? Math.max(...existingItems.map((i) => i.position))
     : -1;
   let posCounter = maxPos + 1;
 
-  for (const ing of ingredients) {
-    const normalName = ing.ingredientName.toLowerCase().trim();
-    const match = existing.find(
+  for (const [key, total] of totals) {
+    const ingredientName = nameMap.get(key) ?? key.split("||")[0]!;
+    const normalName = ingredientName.toLowerCase().trim();
+    const match = existingItems.find(
       (e) =>
         e.ingredientName.toLowerCase().trim() === normalName &&
-        e.unit === ing.unit
+        e.unit === total.unit
     );
 
-    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
-    const isNumeric = !isNaN(rawNum);
-    const numericAmount = isNumeric ? ing.amount : null;
-    const textNote = !isNumeric && ing.amount ? ing.amount : null;
+    const scaledAmountStr =
+      total.amount !== null
+        ? (Math.round(total.amount * 1000) / 1000).toString()
+        : null;
 
-    if (match && match.amount !== null && numericAmount !== null) {
+    if (match && match.amount !== null && scaledAmountStr !== null) {
       const newAmount = (
-        Math.round((parseFloat(match.amount) + parseFloat(numericAmount)) * 1000) / 1000
+        Math.round((parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000) / 1000
       ).toString();
       await db
         .update(shoppingListItems)
@@ -304,10 +366,10 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     } else {
       await db.insert(shoppingListItems).values({
         listId,
-        ingredientName: ing.ingredientName,
-        amount: numericAmount,
-        unit: ing.unit,
-        notes: textNote,
+        ingredientName,
+        amount: scaledAmountStr,
+        unit: total.unit,
+        notes: total.notes,
         position: posCounter++,
       });
     }

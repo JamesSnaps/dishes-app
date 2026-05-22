@@ -5,6 +5,8 @@ import { createRecipe } from "@/app/actions/recipes";
 import { RecipeForm, type RecipeFormDefaults } from "../_components/recipe-form";
 import type { ImageStyleValue } from "@/lib/image-styles";
 import { AiConcierge } from "../_components/ai-concierge";
+import { PhotoImportModal } from "../_components/photo-import-modal";
+import type { GeneratedRecipe } from "@/app/actions/ai";
 
 interface NewRecipeClientProps {
   hasAi: boolean;
@@ -34,14 +36,28 @@ export function NewRecipeClient({ hasAi, defaultImageStyle }: NewRecipeClientPro
     setFormKey((k) => k + 1);
   }
 
+  function handlePhotoImport(recipe: GeneratedRecipe) {
+    // GeneratedRecipe is structurally compatible with RecipeFormDefaults
+    setDefaults(recipe as RecipeFormDefaults);
+    setFormKey((k) => k + 1);
+  }
+
   return (
     <div className="space-y-6">
       {hasAi && (
-        <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
-          <p className="text-sm text-muted-foreground">
-            Not sure what to cook? Let AI suggest ideas.
-          </p>
-          <AiConcierge onRecipeGenerated={handleRecipeGenerated} />
+        <div className="rounded-xl border bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-blue-500/10 px-4 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-medium">AI Recipe Tools</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Scan a recipe photo, or let AI generate ideas from a prompt.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <PhotoImportModal onImport={handlePhotoImport} />
+              <AiConcierge onRecipeGenerated={handleRecipeGenerated} />
+            </div>
+          </div>
         </div>
       )}
 

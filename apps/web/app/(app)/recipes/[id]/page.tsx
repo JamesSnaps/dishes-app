@@ -29,6 +29,7 @@ import { Badge, Button } from "@dishes/ui";
 import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
 import { TweakRecipeButton } from "./_components/tweak-recipe-button";
+import { SimilarRecipesButton } from "./_components/similar-recipes-button";
 import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
 import { AddCookReviewSheet } from "./_components/add-cook-review-sheet";
 import { GenerateImageButton } from "./_components/generate-image-button";
@@ -345,7 +346,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         />
       </div>
 
-      {/* Start Cooking + Tweak CTAs */}
+      {/* Start Cooking + Tweak + Similar CTAs */}
       {steps.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-2">
           <Button asChild size="lg" className="w-full sm:w-auto">
@@ -355,6 +356,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
             </Link>
           </Button>
           <TweakRecipeButton recipeId={id} recipe={recipeForTweak} cookContext={cookContext} />
+          <SimilarRecipesButton recipeId={id} />
         </div>
       )}
 

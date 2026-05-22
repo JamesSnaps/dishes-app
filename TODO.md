@@ -61,6 +61,12 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Save generated recipe to the library
 - [x] Handle OpenAI errors gracefully (quota, key invalid, timeout)
 
+## AI — Photo Recipe Import
+- [x] Scan a recipe photo (camera or gallery) from the New Recipe page
+- [x] Client-side image resize before sending (≤ 1600 px JPEG)
+- [x] AI vision extracts full structured recipe (title, cuisine, ingredients, steps, times)
+- [x] Pre-fills the recipe form for review before saving
+
 ## Household & Settings
 - [x] Household settings page (`/settings`) — name, members
 - [x] Invite / add member (links Authelia username to household)
