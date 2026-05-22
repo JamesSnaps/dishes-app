@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Sparkles, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { Sparkles, ChevronRight, Loader2, AlertCircle, Target } from "lucide-react";
+import { cn } from "@dishes/ui";
 import {
   Button,
   Dialog,
@@ -12,6 +13,7 @@ import {
   Textarea,
   Badge,
 } from "@dishes/ui";
+
 import {
   generateConcepts,
   generateFullRecipe,
@@ -112,6 +114,7 @@ type Step = "prompt" | "concepts" | "generating";
 
 export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"inspire" | "direct">("inspire");
   const [step, setStep] = useState<Step>("prompt");
   const [promptText, setPromptText] = useState("");
   const [concepts, setConcepts] = useState<ConceptCard[]>([]);
@@ -120,6 +123,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
 
   function handleOpen() {
     setOpen(true);
+    setMode("inspire");
     setStep("prompt");
     setPromptText("");
     setConcepts([]);
@@ -159,6 +163,30 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
     });
   }
 
+  function handleDirectGenerate() {
+    const title = promptText.trim();
+    if (!title) return;
+    setError(null);
+    setStep("generating");
+    const directConcept: ConceptCard = {
+      title,
+      description: title,
+      cuisine: "",
+      tags: [],
+      difficulty: "medium",
+    };
+    startTransition(async () => {
+      const result = await generateFullRecipe(directConcept);
+      if (result.error) {
+        setError(result.error);
+        setStep("prompt");
+        return;
+      }
+      setOpen(false);
+      onRecipeGenerated(recipeToDefaults(result.recipe!));
+    });
+  }
+
   return (
     <>
       <Button type="button" variant="outline" onClick={handleOpen} className="gap-2">
@@ -178,22 +206,56 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                   AI recipe concierge
                 </DialogTitle>
                 <DialogDescription>
-                  Describe what you feel like cooking and we&apos;ll suggest 5 ideas.
+                  {mode === "inspire"
+                    ? "Describe what you feel like cooking and we'll suggest 5 ideas."
+                    : "Name the recipe you want and we'll build it for you."}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 pt-2">
+                {/* Mode toggle */}
+                <div className="flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setMode("inspire")}
+                    disabled={isPending}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                      mode === "inspire" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Inspire me
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("direct")}
+                    disabled={isPending}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                      mode === "direct" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Target className="h-3.5 w-3.5" />
+                    I know what I want
+                  </button>
+                </div>
+
                 <Textarea
                   value={promptText}
                   onChange={(e) => setPromptText(e.target.value)}
-                  placeholder="e.g. Something quick and vegetarian, maybe Asian-inspired, for 2 people on a weeknight…"
+                  placeholder={
+                    mode === "inspire"
+                      ? "e.g. Something quick and vegetarian, maybe Asian-inspired, for 2 people on a weeknight…"
+                      : "e.g. Chicken tikka masala, beef bourguignon, pad thai…"
+                  }
                   rows={4}
                   className="resize-none"
                   disabled={isPending}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault();
-                      handleGenerateConcepts();
+                      mode === "inspire" ? handleGenerateConcepts() : handleDirectGenerate();
                     }
                   }}
                 />
@@ -205,19 +267,24 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleGenerateConcepts}
+                    onClick={mode === "inspire" ? handleGenerateConcepts : handleDirectGenerate}
                     disabled={isPending || !promptText.trim()}
                     className="gap-2"
                   >
                     {isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Thinking…
+                        {mode === "inspire" ? "Thinking…" : "Writing recipe…"}
+                      </>
+                    ) : mode === "inspire" ? (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Suggest ideas
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4" />
-                        Suggest ideas
+                        Create recipe
                       </>
                     )}
                   </Button>
