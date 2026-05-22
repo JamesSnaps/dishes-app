@@ -49,6 +49,16 @@
   }
 }
 
+@layer utilities {
+  /* iOS PWA safe area helpers — used by bottom nav and main scroll area */
+  .pb-nav-safe {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+  .pb-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

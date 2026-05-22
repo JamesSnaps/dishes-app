@@ -72,7 +72,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       />
 
       {/* Main content */}
-      <main id="main-scroll" className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+      <main id="main-scroll" className="flex-1 overflow-y-auto pb-nav-safe lg:pb-0">
         <ScrollReset targetSelector="#main-scroll" />
         {children}
       </main>
