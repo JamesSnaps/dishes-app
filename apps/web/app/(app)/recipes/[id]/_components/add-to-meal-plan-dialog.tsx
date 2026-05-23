@@ -91,7 +91,7 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {/* No max-w-sm — let the dialog fill naturally on mobile so content isn't cramped */}
-      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
@@ -114,26 +114,37 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 py-1 min-w-0">
+          <div className="flex flex-col gap-4 py-1">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Date</label>
-              {/* min-w-0 prevents iOS date inputs from overflowing the grid cell.
-                  text-base stops iOS Safari zooming in on focus. h-11 gives a
-                  comfortable tap target and proper vertical centering on iOS. */}
-              <div className="min-w-0">
+              {/* Overlay pattern: a styled display div sits on top; the actual
+                  <input type="date"> is absolutely positioned beneath it with
+                  opacity-0 so it's invisible but fully tappable. iOS opens the
+                  native date picker on tap without the input ever affecting layout. */}
+              <div className="relative h-10">
+                <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 text-sm pointer-events-none select-none">
+                  {date
+                    ? new Date(date + "T00:00:00").toLocaleDateString("en-GB", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })
+                    : "Select a date"}
+                </div>
                 <input
                   type="date"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
                   min={todayIso()}
-                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-base ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  onChange={(e) => setDate(e.target.value)}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Meal</label>
               <Select value={mealType} onValueChange={(v) => setMealType(v as MealType)}>
-                <SelectTrigger className="h-11 text-base">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
