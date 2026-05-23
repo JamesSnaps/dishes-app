@@ -91,7 +91,7 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {/* No max-w-sm — let the dialog fill naturally on mobile so content isn't cramped */}
-      <DialogContent className="overflow-hidden" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg" onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
