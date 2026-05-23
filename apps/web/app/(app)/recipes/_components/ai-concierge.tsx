@@ -112,11 +112,20 @@ interface AiConciergeProps {
 
 type Step = "prompt" | "concepts" | "generating";
 
+const MEAL_TYPES = [
+  { value: "breakfast", label: "Breakfast" },
+  { value: "lunch", label: "Lunch" },
+  { value: "dinner", label: "Dinner" },
+  { value: "dessert", label: "Dessert" },
+  { value: "snack", label: "Snack" },
+] as const;
+
 export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"inspire" | "direct">("inspire");
   const [step, setStep] = useState<Step>("prompt");
   const [promptText, setPromptText] = useState("");
+  const [mealType, setMealType] = useState<string>("");
   const [concepts, setConcepts] = useState<ConceptCard[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -126,6 +135,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
     setMode("inspire");
     setStep("prompt");
     setPromptText("");
+    setMealType("");
     setConcepts([]);
     setError(null);
   }
@@ -138,7 +148,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   function handleGenerateConcepts() {
     setError(null);
     startTransition(async () => {
-      const result = await generateConcepts(promptText);
+      const result = await generateConcepts(promptText, undefined, mealType || undefined);
       if (result.error) {
         setError(result.error);
         return;
@@ -152,7 +162,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
     setError(null);
     setStep("generating");
     startTransition(async () => {
-      const result = await generateFullRecipe(concept);
+      const result = await generateFullRecipe(concept, undefined, mealType || undefined);
       if (result.error) {
         setError(result.error);
         setStep("concepts");
@@ -176,7 +186,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       difficulty: "medium",
     };
     startTransition(async () => {
-      const result = await generateFullRecipe(directConcept);
+      const result = await generateFullRecipe(directConcept, undefined, mealType || undefined);
       if (result.error) {
         setError(result.error);
         setStep("prompt");
@@ -239,6 +249,29 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                     <Target className="h-3.5 w-3.5" />
                     I know what I want
                   </button>
+                </div>
+
+                {/* Meal type selector */}
+                <div>
+                  <p className="mb-1.5 text-sm font-medium text-muted-foreground">Meal type</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {MEAL_TYPES.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => setMealType((prev) => (prev === value ? "" : value))}
+                        className={cn(
+                          "capitalize rounded-full border px-3 py-1 text-xs font-medium transition-all disabled:pointer-events-none",
+                          mealType === value
+                            ? "border-orange-400 bg-orange-500 text-white"
+                            : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <Textarea

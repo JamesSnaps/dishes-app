@@ -191,7 +191,8 @@ async function buildTasteProfileAddendum(householdId: string): Promise<string> {
 
 export async function generateConcepts(
   prompt: string,
-  memberIds?: string[]
+  memberIds?: string[],
+  mealType?: string
 ): Promise<{ concepts?: ConceptCard[]; error?: string }> {
   if (!prompt.trim())
     return { error: "Please describe what you'd like to cook." };
@@ -206,6 +207,9 @@ export async function generateConcepts(
     ]);
 
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum + memberConstraints;
+    const mealTypeInstruction = mealType
+      ? `\nIMPORTANT: All 5 concepts must be ${mealType} recipes. Only suggest dishes that are appropriate for ${mealType}.`
+      : "";
 
     const completion = await client.chat.completions.create({
       model,
@@ -216,7 +220,7 @@ export async function generateConcepts(
           role: "system",
           content: `You are a creative chef helping a family choose what to cook. Return exactly 5 distinct recipe concepts as JSON.
 Format: {"concepts": [{"title": "...", "description": "1-2 sentences", "cuisine": "...", "tags": ["..."], "difficulty": "easy"|"medium"|"hard"}]}
-Make the 5 concepts meaningfully different from each other in style, cuisine, or complexity.${addendum}`,
+Make the 5 concepts meaningfully different from each other in style, cuisine, or complexity.${mealTypeInstruction}${addendum}`,
         },
         { role: "user", content: prompt },
       ],
@@ -380,7 +384,8 @@ Only change what is necessary to satisfy the user's request. Preserve everything
 
 export async function generateFullRecipe(
   concept: ConceptCard,
-  memberIds?: string[]
+  memberIds?: string[],
+  mealType?: string
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
     const user = await getAutheliaUser();
@@ -423,7 +428,7 @@ Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.
         },
         {
           role: "user",
-          content: `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}`,
+          content: `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}`,
         },
       ],
     });

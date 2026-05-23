@@ -794,6 +794,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const router = useRouter();
   const [mode, setMode] = useState<"inspire" | "direct">("inspire");
   const [promptText, setPromptText] = useState("");
+  const [mealType, setMealType] = useState<string>("");
   const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set());
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
   const [concepts, setConcepts] = useState<ConceptCard[] | null>(null);
@@ -806,6 +807,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     setConcepts(null);
     setError(null);
     setGeneratingIdx(null);
+    setMealType("");
   }
 
   // Refine preferences state (filter chips)
@@ -837,7 +839,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     setConcepts(null);
     setGeneratingIdx(null);
     startTransition(async () => {
-      const result = await generateConcepts(full, Array.from(selectedMemberIds));
+      const result = await generateConcepts(full, Array.from(selectedMemberIds), mealType || undefined);
       if (result.error) { setError(result.error); return; }
       setConcepts(result.concepts!);
       setTimeout(() => {
@@ -871,7 +873,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     setError(null);
     setGeneratingIdx(idx);
     startTransition(async () => {
-      const result = await generateFullRecipe(concept, Array.from(selectedMemberIds));
+      const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined);
       if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
       const defaults = recipeToDefaults(result.recipe!);
       sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
@@ -892,7 +894,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       difficulty: "medium",
     };
     startTransition(async () => {
-      const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds));
+      const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds), mealType || undefined);
       if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
       const defaults = recipeToDefaults(result.recipe!);
       sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
@@ -1007,6 +1009,29 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                     {label}
                   </button>
                 ))}
+              </div>
+
+              {/* Meal type */}
+              <div>
+                <p className="text-sm font-medium mb-1.5">Meal type</p>
+                <div className="flex flex-wrap gap-2">
+                  {MEAL_TYPES.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setMealType((prev) => (prev === type ? "" : type))}
+                      disabled={isPending}
+                      className={cn(
+                        "capitalize rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                        mealType === type
+                          ? "border-orange-400 bg-orange-500 text-white"
+                          : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
+                      )}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Who's eating? */}
@@ -1136,6 +1161,29 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                   )}
                 </div>
               )}
+
+              {/* Meal type */}
+              <div>
+                <p className="text-sm font-medium mb-1.5">Meal type</p>
+                <div className="flex flex-wrap gap-2">
+                  {MEAL_TYPES.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setMealType((prev) => (prev === type ? "" : type))}
+                      disabled={isPending}
+                      className={cn(
+                        "capitalize rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                        mealType === type
+                          ? "border-orange-400 bg-orange-500 text-white"
+                          : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
+                      )}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {error && <ErrorBanner message={error} />}
 
