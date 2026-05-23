@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { CalendarDays, CheckCircle2 } from "lucide-react";
 import {
   Button,
@@ -59,6 +59,15 @@ function toWeekStartAndDay(dateStr: string): { weekStartDate: string; dayOfWeek:
 export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
   const [date, setDate] = useState(todayIso);
   const [mealType, setMealType] = useState<MealType>("dinner");
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  function openDatePicker() {
+    try {
+      dateInputRef.current?.showPicker();
+    } catch {
+      dateInputRef.current?.focus();
+    }
+  }
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -117,12 +126,16 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
           <div className="flex flex-col gap-4 py-1">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Date</label>
-              {/* Overlay pattern: a styled display div sits on top; the actual
-                  <input type="date"> is absolutely positioned beneath it with
-                  opacity-0 so it's invisible but fully tappable. iOS opens the
-                  native date picker on tap without the input ever affecting layout. */}
-              <div className="relative h-10">
-                <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 text-sm pointer-events-none select-none">
+              {/* showPicker() pattern: a styled button triggers the native date
+                  picker programmatically on both iOS and desktop. The actual input
+                  is a tiny hidden element (not display:none, which breaks showPicker)
+                  that holds the value and fires onChange. */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={openDatePicker}
+                  className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 text-sm text-left transition-colors hover:bg-accent/50"
+                >
                   {date
                     ? new Date(date + "T00:00:00").toLocaleDateString("en-GB", {
                         weekday: "short",
@@ -131,13 +144,15 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
                         year: "numeric",
                       })
                     : "Select a date"}
-                </div>
+                </button>
                 <input
+                  ref={dateInputRef}
                   type="date"
                   value={date}
                   min={todayIso()}
                   onChange={(e) => setDate(e.target.value)}
-                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  tabIndex={-1}
+                  className="absolute left-0 top-0 h-px w-px opacity-0"
                 />
               </div>
             </div>
