@@ -88,6 +88,13 @@ async function getOpenAiClient(householdId: string): Promise<AiConfig> {
   };
 }
 
+// gpt-4.1-x, gpt-5.x, and o-series models use max_completion_tokens; everything else uses max_tokens
+function maxTokensParam(model: string, tokens: number): { max_tokens?: number; max_completion_tokens?: number } {
+  return /^gpt-5/i.test(model)
+    ? { max_completion_tokens: tokens }
+    : { max_tokens: tokens };
+}
+
 function classifyError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   if (msg.includes("Incorrect API key") || msg.includes("invalid_api_key"))
@@ -203,7 +210,7 @@ export async function generateConcepts(
     const completion = await client.chat.completions.create({
       model,
       response_format: { type: "json_object" },
-      max_tokens: 1200,
+      ...maxTokensParam(model, 1200),
       messages: [
         {
           role: "system",
@@ -267,7 +274,7 @@ export async function generateSimilarConcepts(
     const completion = await client.chat.completions.create({
       model,
       response_format: { type: "json_object" },
-      max_tokens: 1200,
+      ...maxTokensParam(model, 1200),
       messages: [
         {
           role: "system",
@@ -314,7 +321,7 @@ export async function improveRecipe(
     const completion = await client.chat.completions.create({
       model,
       response_format: { type: "json_object" },
-      max_tokens: 3000,
+      ...maxTokensParam(model, 3000),
       messages: [
         {
           role: "system",
@@ -389,7 +396,7 @@ export async function generateFullRecipe(
     const completion = await client.chat.completions.create({
       model,
       response_format: { type: "json_object" },
-      max_tokens: 2500,
+      ...maxTokensParam(model, 2500),
       messages: [
         {
           role: "system",
@@ -679,7 +686,7 @@ export async function generateMealPlanConcepts(params: {
     const completion = await client.chat.completions.create({
       model,
       response_format: { type: "json_object" },
-      max_tokens: 2000,
+      ...maxTokensParam(model, 2000),
       messages: [
         {
           role: "system",
@@ -739,7 +746,7 @@ export async function analyzeRecipePhoto(
     const completion = await client.chat.completions.create({
       model,
       response_format: { type: "json_object" },
-      max_tokens: 3000,
+      ...maxTokensParam(model, 3000),
       messages: [
         {
           role: "system",
@@ -829,7 +836,7 @@ export async function reviewDishPhoto(
 
     const completion = await client.chat.completions.create({
       model,
-      max_tokens: 200,
+      ...maxTokensParam(model, 200),
       messages: [
         {
           role: "user",

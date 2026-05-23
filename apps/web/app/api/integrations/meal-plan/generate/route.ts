@@ -25,6 +25,12 @@ async function getOpenAiClient(householdId: string) {
   return { client: new OpenAI({ apiKey: decrypt(config.encryptedApiKey) }), model: config.model };
 }
 
+function maxTokensParam(model: string, tokens: number): { max_tokens?: number; max_completion_tokens?: number } {
+  return /^gpt-5/i.test(model)
+    ? { max_completion_tokens: tokens }
+    : { max_tokens: tokens };
+}
+
 function mondayOf(date: Date): string {
   const d = new Date(date);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
@@ -142,7 +148,7 @@ export const POST = withIntegrationAuth(
     const completion = await client.chat.completions.create({
       model,
       response_format: { type: "json_object" },
-      max_tokens: 300 * targetDays.length,
+      ...maxTokensParam(model, 300 * targetDays.length),
       messages: [
         {
           role: "system",
