@@ -86,7 +86,7 @@ export function RecipeTabs({
   return (
     <div>
       {/* Tab bar */}
-      <div className="border-b flex gap-0 overflow-x-auto">
+      <div className="border-b flex gap-0 overflow-x-auto touch-pan-x">
         {tabs.map((tab) => (
           <button
             key={tab.id}
