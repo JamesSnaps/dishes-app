@@ -91,7 +91,7 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {/* No max-w-sm — let the dialog fill naturally on mobile so content isn't cramped */}
-      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent className="overflow-hidden" onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
@@ -114,7 +114,7 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 py-1">
+          <div className="flex flex-col gap-4 py-1 min-w-0">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Date</label>
               {/* min-w-0 prevents iOS date inputs from overflowing the grid cell.
