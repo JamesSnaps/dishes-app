@@ -6,7 +6,6 @@ import {
   Button,
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   Select,
@@ -91,7 +90,8 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm">
+      {/* No max-w-sm — let the dialog fill naturally on mobile so content isn't cramped */}
+      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
@@ -117,18 +117,23 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
           <div className="flex flex-col gap-4 py-1">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Date</label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                min={todayIso()}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              />
+              {/* min-w-0 prevents iOS date inputs from overflowing the grid cell.
+                  text-base stops iOS Safari zooming in on focus. h-11 gives a
+                  comfortable tap target and proper vertical centering on iOS. */}
+              <div className="min-w-0">
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  min={todayIso()}
+                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-base ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Meal</label>
               <Select value={mealType} onValueChange={(v) => setMealType(v as MealType)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-11 text-base">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -147,20 +152,21 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
           <p className="text-sm text-destructive px-1">{error}</p>
         )}
 
-        <DialogFooter>
+        {/* Custom footer — DialogFooter's flex-col-reverse has no gap, so we manage layout ourselves */}
+        <div className="flex flex-col gap-3 pt-1">
           {done ? (
             <Button onClick={() => handleOpenChange(false)}>Done</Button>
           ) : (
             <>
-              <Button variant="outline" disabled={pending} onClick={() => handleOpenChange(false)}>
-                Cancel
-              </Button>
               <Button disabled={pending || !date} onClick={handleSubmit}>
                 {pending ? "Adding…" : "Add to plan"}
               </Button>
+              <Button variant="ghost" disabled={pending} onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Button>
             </>
           )}
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
