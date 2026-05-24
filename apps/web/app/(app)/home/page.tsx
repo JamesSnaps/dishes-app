@@ -127,8 +127,14 @@ export default async function HomePage() {
       .limit(1),
     getSuggestedRecipes(householdId).catch(() => [] as SuggestedRecipe[]),
     db
-      .select({ id: cookHistory.id, photoUrl: cookHistory.photoUrl })
+      .select({
+        id: cookHistory.id,
+        photoUrl: cookHistory.photoUrl,
+        recipeId: cookHistory.recipeId,
+        recipeName: recipes.title,
+      })
       .from(cookHistory)
+      .innerJoin(recipes, eq(cookHistory.recipeId, recipes.id))
       .where(and(eq(cookHistory.householdId, householdId), isNotNull(cookHistory.photoUrl)))
       .orderBy(desc(cookHistory.cookedAt))
       .limit(8),
@@ -345,7 +351,7 @@ export default async function HomePage() {
               {recentPhotos.map((photo, i) => (
                 <Link
                   key={photo.id}
-                  href="/memories"
+                  href={`/recipes/${photo.recipeId}`}
                   className="block shrink-0 hover:scale-105 transition-transform duration-150"
                   style={{ transform: `rotate(${photoTilt(photo.id, i)}deg)`, transformOrigin: "center 35%" }}
                 >
@@ -357,12 +363,14 @@ export default async function HomePage() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={photo.photoUrl!}
-                        alt=""
+                        alt={photo.recipeName}
                         className="w-full aspect-square object-cover"
                         style={{ filter: "sepia(0.2) saturate(1.15)" }}
                       />
                     </div>
-                    <div className="h-5" />
+                    <div className="px-1.5 pt-1 pb-2.5">
+                      <p className="text-[10px] leading-tight text-zinc-600 truncate">{photo.recipeName}</p>
+                    </div>
                   </div>
                 </Link>
               ))}
