@@ -6,11 +6,12 @@ import { Wand2 } from "lucide-react";
 
 const caveat = Caveat({ subsets: ["latin"], variable: "--font-caveat", display: "swap" });
 
-// Deterministic tilt so cards don't shift on re-render
-function getTilt(id: string): number {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  return ((Math.abs(hash) % 11) - 5) * 0.55; // ~-2.75 to +2.75 deg
+// Mix ID hash with index so adjacent cards always get different angles
+function getTilt(id: string, index: number): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  h ^= index * 2654435761; // Knuth multiplicative mixing
+  return ((Math.abs(h) % 111) - 55) * 0.1; // -5.5 to +5.5 deg in 0.1 steps
 }
 
 function starString(rating: number): string {
@@ -32,16 +33,17 @@ export interface MemoryEntry {
 
 interface MemoryCardProps {
   entry: MemoryEntry;
+  index: number;
 }
 
-export function MemoryCard({ entry }: MemoryCardProps) {
+export function MemoryCard({ entry, index }: MemoryCardProps) {
   const [filterOn, setFilterOn] = useState(true);
-  const tilt = getTilt(entry.id);
+  const tilt = getTilt(entry.id, index);
 
   return (
     <div
-      className={`${caveat.variable} relative mx-auto w-full max-w-[260px]`}
-      style={{ transform: `rotate(${tilt}deg)` }}
+      className={`${caveat.variable} relative w-full`}
+      style={{ transform: `rotate(${tilt}deg)`, transformOrigin: "center 30%" }}
     >
       {/* Polaroid frame */}
       <div

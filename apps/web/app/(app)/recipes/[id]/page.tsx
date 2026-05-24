@@ -424,8 +424,8 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
             <span className="text-lg">✨</span>
             Memories
           </h2>
-          <div className="space-y-10 py-2">
-            {memorableCooks.map((entry) => {
+          {(() => {
+            const cards = memorableCooks.map((entry, index) => {
               const date = new Date(entry.cookedAt);
               const diffDays = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
               const relDate =
@@ -439,25 +439,51 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
                 diffDays < 730 ? "Last year" :
                 `${Math.floor(diffDays / 365)} years ago`;
               const fullDate = date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+              return { entry, index, relDate, fullDate };
+            });
 
+            const leftCards = cards.filter((_, i) => i % 2 === 0);
+            const rightCards = cards.filter((_, i) => i % 2 === 1);
+
+            // Single card: centred
+            if (cards.length === 1) {
+              const { entry, index, relDate, fullDate } = cards[0]!;
               return (
-                <MemoryCard
-                  key={entry.id}
-                  entry={{
-                    id: entry.id,
-                    photoUrl: entry.photoUrl,
-                    relDate,
-                    fullDate,
-                    rating: entry.rating,
-                    notes: entry.notes,
-                    occasion: entry.occasion,
-                    cookedFor: entry.cookedFor,
-                    actualDuration: entry.actualDuration,
-                  }}
-                />
+                <div className="flex justify-center py-4">
+                  <div className="w-56">
+                    <MemoryCard index={index} entry={{ id: entry.id, photoUrl: entry.photoUrl, relDate, fullDate, rating: entry.rating, notes: entry.notes, occasion: entry.occasion, cookedFor: entry.cookedFor, actualDuration: entry.actualDuration }} />
+                  </div>
+                </div>
               );
-            })}
-          </div>
+            }
+
+            const renderColumn = (col: typeof leftCards, colOffset?: string) => (
+              <div className={`flex-1 flex flex-col ${colOffset ?? ""}`}>
+                {col.map(({ entry, index, relDate, fullDate }, colIdx) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      marginTop: colIdx === 0 ? 0 : "-1.25rem",
+                      zIndex: cards.length - index,
+                      position: "relative",
+                    }}
+                  >
+                    <MemoryCard
+                      index={index}
+                      entry={{ id: entry.id, photoUrl: entry.photoUrl, relDate, fullDate, rating: entry.rating, notes: entry.notes, occasion: entry.occasion, cookedFor: entry.cookedFor, actualDuration: entry.actualDuration }}
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+
+            return (
+              <div className="flex gap-3 overflow-visible pb-10 pt-2">
+                {renderColumn(leftCards)}
+                {renderColumn(rightCards, "mt-14")}
+              </div>
+            );
+          })()}
         </section>
       )}
 
