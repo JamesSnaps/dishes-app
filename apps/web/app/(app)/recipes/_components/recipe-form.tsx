@@ -18,6 +18,7 @@ import { IMAGE_STYLES } from "@/lib/image-styles";
 import type { ImageStyleValue } from "@/lib/image-styles";
 import { addPendingImageJob } from "@/components/providers/jobs-provider";
 import { toast } from "@/hooks/use-toast";
+import { useUnsavedChanges } from "@/components/unsaved-changes-context";
 import { PasteImportModal } from "./paste-import-modal";
 import type { ParsedIngredient, ParsedStep } from "@/lib/recipe-parser";
 
@@ -184,6 +185,39 @@ export function RecipeForm({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // ── Unsaved-changes guard ────────────────────────────────────────────────────
+
+  const { setDirty } = useUnsavedChanges();
+
+  const hasMeaningfulContent = Boolean(
+    title.trim() ||
+    description.trim() ||
+    ingredients.some((i) => i.ingredientName.trim()) ||
+    steps.some((s) => s.instruction.trim()) ||
+    imageUrl
+  );
+
+  useEffect(() => {
+    setDirty(hasMeaningfulContent);
+  }, [hasMeaningfulContent, setDirty]);
+
+  // Clear dirty state when the form unmounts (successful submit navigates away)
+  useEffect(() => {
+    return () => setDirty(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Block browser back/refresh when there's content worth keeping
+  useEffect(() => {
+    if (!hasMeaningfulContent) return;
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasMeaningfulContent]);
 
   // ── AI improve state ────────────────────────────────────────────────────────
 

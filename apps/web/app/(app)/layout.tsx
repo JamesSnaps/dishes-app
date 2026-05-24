@@ -3,6 +3,7 @@ import { BottomNav } from "@/components/nav/bottom-nav";
 import { SideNav } from "@/components/nav/side-nav";
 import { ScrollReset } from "@/components/scroll-reset";
 import { JobsProvider } from "@/components/providers/jobs-provider";
+import { UnsavedChangesProvider } from "@/components/unsaved-changes-context";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { db } from "@/lib/db";
@@ -61,6 +62,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <JobsProvider>
+    <UnsavedChangesProvider>
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <SideNav
@@ -80,6 +82,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       {/* Mobile bottom nav */}
       <BottomNav className="lg:hidden" />
     </div>
+    </UnsavedChangesProvider>
     </JobsProvider>
   );
 }
