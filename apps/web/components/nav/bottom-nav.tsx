@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, Home, ShoppingCart, Sparkles } from "lucide-react";
+import { BookOpen, CalendarDays, Home, Images, ShoppingCart, Sparkles } from "lucide-react";
 import { cn } from "@dishes/ui";
 import { NAV_ITEMS } from "./nav-items";
+import { useUnsavedChanges } from "@/components/unsaved-changes-context";
 
-const ICONS = { BookOpen, CalendarDays, Home, ShoppingCart, Sparkles };
+const ICONS = { BookOpen, CalendarDays, Home, Images, ShoppingCart, Sparkles };
 
 interface Props {
   className?: string;
@@ -18,13 +18,14 @@ const RIGHT_ITEMS = NAV_ITEMS.slice(2);
 
 export function BottomNav({ className }: Props) {
   const pathname = usePathname();
+  const { requestNavigation } = useUnsavedChanges();
 
   function NavLink({ href, label, icon }: { href: string; label: string; icon: keyof typeof ICONS }) {
     const Icon = ICONS[icon];
     const active = pathname === href || pathname.startsWith(`${href}/`);
     return (
-      <Link
-        href={href}
+      <button
+        onClick={() => requestNavigation(href)}
         className={cn(
           "flex flex-1 flex-col items-center gap-1 py-2 text-xs transition-colors",
           active
@@ -34,7 +35,7 @@ export function BottomNav({ className }: Props) {
       >
         <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 1.75} />
         <span>{label}</span>
-      </Link>
+      </button>
     );
   }
 
@@ -53,13 +54,13 @@ export function BottomNav({ className }: Props) {
 
         {/* Central FAB — AI Concierge */}
         <div className="flex flex-1 flex-col items-center">
-          <Link
-            href="/ai-concierge"
+          <button
+            onClick={() => requestNavigation("/ai-concierge")}
             className="flex h-12 w-12 -translate-y-3 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/30 transition-transform active:scale-95"
             aria-label="AI Concierge"
           >
             <Sparkles className="h-6 w-6 text-primary-foreground" strokeWidth={2} />
-          </Link>
+          </button>
         </div>
 
         {/* Right items */}

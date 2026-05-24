@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
@@ -12,6 +11,7 @@ import {
   Heart,
   HelpCircle,
   Home,
+  Images,
   LogOut,
   Moon,
   Package,
@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@dishes/ui";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
+import { useUnsavedChanges } from "@/components/unsaved-changes-context";
 
 interface Props {
   className?: string;
@@ -61,10 +62,21 @@ const MAIN_NAV: NavItem[] = [
 const PERSONAL_NAV: NavItem[] = [
   { href: "/favourites", label: "Favourites", icon: Heart },
   { href: "/collections", label: "Collections", icon: FolderOpen },
+  { href: "/memories", label: "Memories", icon: Images },
   { href: "/notes", label: "My Notes", icon: FileText },
 ];
 
-function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; badge?: number }) {
+function NavLink({
+  item,
+  pathname,
+  badge,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  badge?: number;
+  onNavigate: (href: string) => void;
+}) {
   const active = !item.disabled && (pathname === item.href || pathname.startsWith(`${item.href}/`));
   const Icon = item.icon;
 
@@ -80,10 +92,10 @@ function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; b
   }
 
   return (
-    <Link
-      href={item.href}
+    <button
+      onClick={() => onNavigate(item.href)}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
         active
           ? "bg-primary/10 text-primary font-medium"
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -99,7 +111,7 @@ function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; b
           {badge}
         </span>
       )}
-    </Link>
+    </button>
   );
 }
 
@@ -108,6 +120,7 @@ const AUTHELIA_URL = process.env.NEXT_PUBLIC_AUTHELIA_URL ?? "";
 export function SideNav({ className, displayName = "User", avatarUrl = null, shoppingItemCount, todayMealCount }: Props) {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
+  const { requestNavigation } = useUnsavedChanges();
 
   return (
     <nav
@@ -132,7 +145,7 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
               item.href === "/shopping" ? shoppingItemCount
               : item.href === "/meal-plan" ? todayMealCount
               : undefined;
-            return <NavLink key={item.href} item={item} pathname={pathname} badge={badge} />;
+            return <NavLink key={item.href} item={item} pathname={pathname} badge={badge} onNavigate={requestNavigation} />;
           })}
         </div>
 
@@ -143,7 +156,7 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
           </p>
           <div className="flex flex-col gap-1">
             {PERSONAL_NAV.map((item) => (
-              <NavLink key={item.href} item={item} pathname={pathname} />
+              <NavLink key={item.href} item={item} pathname={pathname} onNavigate={requestNavigation} />
             ))}
           </div>
         </div>
@@ -153,8 +166,8 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
 
         {/* Settings + Help */}
         <div className="border-t p-3 flex flex-col gap-1">
-          <NavLink item={{ href: "/settings", label: "Settings", icon: Settings }} pathname={pathname} />
-          <NavLink item={{ href: "/help", label: "Help & Support", icon: HelpCircle, disabled: true }} pathname={pathname} />
+          <NavLink item={{ href: "/settings", label: "Settings", icon: Settings }} pathname={pathname} onNavigate={requestNavigation} />
+          <NavLink item={{ href: "/help", label: "Help & Support", icon: HelpCircle, disabled: true }} pathname={pathname} onNavigate={requestNavigation} />
         </div>
       </div>
 
@@ -183,10 +196,8 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
               <p className="font-medium">{displayName}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings" className="cursor-pointer">
-                Settings &amp; profile
-              </Link>
+            <DropdownMenuItem onClick={() => requestNavigation("/settings")} className="cursor-pointer">
+              Settings &amp; profile
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
