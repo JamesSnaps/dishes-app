@@ -62,11 +62,20 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   function openDatePicker() {
-    try {
-      dateInputRef.current?.showPicker();
-    } catch {
-      dateInputRef.current?.focus();
+    const input = dateInputRef.current;
+    if (!input) return;
+    // Check existence explicitly — optional chaining ?.showPicker() returns
+    // undefined silently on older iOS, so the catch never fires and focus()
+    // never runs. This way focus() is always the fallback.
+    if (typeof input.showPicker === "function") {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+        // showPicker exists but failed (e.g. not in a secure context), fall through
+      }
     }
+    input.focus();
   }
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
