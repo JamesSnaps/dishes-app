@@ -32,6 +32,7 @@ import { TweakRecipeButton } from "./_components/tweak-recipe-button";
 import { SimilarRecipesButton } from "./_components/similar-recipes-button";
 import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
 import { AddCookReviewSheet } from "./_components/add-cook-review-sheet";
+import { MemoryCard } from "./_components/memory-card";
 import { GenerateImageButton } from "./_components/generate-image-button";
 import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/app/actions/cook-history";
@@ -419,86 +420,43 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
       {/* Memories */}
       {memorableCooks.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-base font-semibold mb-6 flex items-center gap-2">
             <span className="text-lg">✨</span>
             Memories
           </h2>
-          <div className="relative pl-5">
-            {/* Vertical timeline line */}
-            <div className="absolute left-1.5 top-2 bottom-2 w-px bg-border" />
+          <div className="space-y-10 py-2">
+            {memorableCooks.map((entry) => {
+              const date = new Date(entry.cookedAt);
+              const diffDays = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
+              const relDate =
+                diffDays === 0 ? "Today" :
+                diffDays === 1 ? "Yesterday" :
+                diffDays < 7 ? `${diffDays} days ago` :
+                diffDays < 14 ? "Last week" :
+                diffDays < 30 ? `${Math.floor(diffDays / 7)} weeks ago` :
+                diffDays < 60 ? "Last month" :
+                diffDays < 365 ? `${Math.floor(diffDays / 30)} months ago` :
+                diffDays < 730 ? "Last year" :
+                `${Math.floor(diffDays / 365)} years ago`;
+              const fullDate = date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
-            <div className="space-y-6">
-              {memorableCooks.map((entry) => {
-                const date = new Date(entry.cookedAt);
-                const diffDays = Math.floor((Date.now() - date.getTime()) / 86400000);
-                const relDate =
-                  diffDays === 0 ? "Today" :
-                  diffDays === 1 ? "Yesterday" :
-                  diffDays < 7 ? `${diffDays} days ago` :
-                  diffDays < 14 ? "1 week ago" :
-                  diffDays < 30 ? `${Math.floor(diffDays / 7)} weeks ago` :
-                  diffDays < 60 ? "1 month ago" :
-                  diffDays < 365 ? `${Math.floor(diffDays / 30)} months ago` :
-                  diffDays < 730 ? "1 year ago" :
-                  `${Math.floor(diffDays / 365)} years ago`;
-                const fullDate = date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-
-                return (
-                  <div key={entry.id} className="relative">
-                    {/* Timeline dot */}
-                    <div className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-primary/60 ring-2 ring-background" />
-
-                    <div className="flex gap-3">
-                      {/* Photo thumbnail */}
-                      {entry.photoUrl && (
-                        <div className="shrink-0 h-16 w-16 rounded-lg overflow-hidden bg-muted">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={entry.photoUrl}
-                            alt="Dish photo"
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      )}
-
-                      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                        {/* Date + metadata */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-medium text-muted-foreground" title={fullDate}>
-                            {relDate}
-                          </span>
-                          {entry.occasion && (
-                            <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
-                              {entry.occasion}
-                            </span>
-                          )}
-                          {entry.cookedFor && entry.cookedFor.length > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              with {entry.cookedFor.join(", ")}
-                            </span>
-                          )}
-                          {entry.rating != null && (
-                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                              ★ {entry.rating / 2}/5
-                            </span>
-                          )}
-                          {entry.actualDuration && (
-                            <span className="text-xs text-muted-foreground">· {entry.actualDuration} min</span>
-                          )}
-                        </div>
-
-                        {/* Notes */}
-                        {entry.notes && (
-                          <p className="text-sm text-muted-foreground leading-relaxed italic">
-                            &ldquo;{entry.notes}&rdquo;
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+              return (
+                <MemoryCard
+                  key={entry.id}
+                  entry={{
+                    id: entry.id,
+                    photoUrl: entry.photoUrl,
+                    relDate,
+                    fullDate,
+                    rating: entry.rating,
+                    notes: entry.notes,
+                    occasion: entry.occasion,
+                    cookedFor: entry.cookedFor,
+                    actualDuration: entry.actualDuration,
+                  }}
+                />
+              );
+            })}
           </div>
         </section>
       )}

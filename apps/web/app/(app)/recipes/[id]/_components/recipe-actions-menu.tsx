@@ -2,7 +2,7 @@
 
 import { useTransition, useState } from "react";
 import Link from "next/link";
-import { MoreVertical, Edit, Trash2, FolderOpen, FileText, CalendarDays } from "lucide-react";
+import { MoreVertical, Edit, Trash2, FolderOpen, FileText, CalendarDays, Share2, Printer, Download } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -15,6 +15,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@dishes/ui";
 import { deleteRecipe } from "@/app/actions/recipes";
@@ -81,6 +84,35 @@ export function RecipeActionsMenu({ recipeId, recipeTitle, hasSmtp }: Props) {
             recipeTitle={recipeTitle}
             hasSmtp={hasSmtp}
           />
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="flex items-center gap-2">
+              <Share2 className="h-4 w-4" />
+              Export
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem asChild>
+                <a
+                  href={`/recipes/${recipeId}/print`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2"
+                >
+                  <Printer className="h-4 w-4" />
+                  PDF
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a
+                  href={`/api/recipes/${recipeId}/export`}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Plain text
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive flex items-center gap-2"

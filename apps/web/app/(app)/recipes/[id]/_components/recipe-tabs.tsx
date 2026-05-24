@@ -48,11 +48,14 @@ function formatTime(minutes: number): string {
 }
 
 function formatDate(isoString: string): string {
-  return new Date(isoString).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const date = new Date(isoString);
+  const diffDays = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 14) return "Last week";
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
 export function RecipeTabs({
@@ -276,14 +279,19 @@ export function RecipeTabs({
                   )}
 
                   {entry.photoUrl && (
-                    <div className="mt-2 rounded-lg overflow-hidden">
+                    <a
+                      href={entry.photoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 rounded-lg overflow-hidden block"
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={entry.photoUrl}
                         alt="Dish photo"
                         className="w-full aspect-video object-cover"
                       />
-                    </div>
+                    </a>
                   )}
 
                   {entry.notes && (
