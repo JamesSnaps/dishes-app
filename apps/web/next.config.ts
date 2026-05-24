@@ -3,14 +3,13 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
 
-  // Allow large .crumb zip uploads (Crouton exports can be several hundred MB)
   experimental: {
+    // Allow large .crumb zip uploads (Crouton exports can be several hundred MB)
     middlewareClientMaxBodySize: 1024 * 1024 * 1024, // 1 GB
-  },
-
-  serverActions: {
-    // Base64-encoded recipe photos can be several MB after client-side resize
-    bodySizeLimit: "10mb",
+    serverActions: {
+      // Photos uploaded via cook review can be up to 15 MB (validated server-side)
+      bodySizeLimit: "20mb",
+    },
   },
 
   transpilePackages: ["@dishes/ui", "@dishes/db", "@dishes/shared", "@dishes/api"],

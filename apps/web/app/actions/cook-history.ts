@@ -8,6 +8,7 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
+import sharp from "sharp";
 import { refreshTasteProfile } from "./taste-profile";
 
 export type LogCookInput = {
@@ -254,13 +255,19 @@ export async function uploadCookPhoto(
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return { error: "Only JPEG, PNG, and WebP images are allowed." };
   if (file.size > 15 * 1024 * 1024) return { error: "Photo must be under 15 MB." };
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const ext = file.type === "image/png" ? "png" : "jpg";
-  const key = `households/${householdId}/cook-history/${cookId}/dish.${ext}`;
+  const raw = Buffer.from(await file.arrayBuffer());
+
+  // Resize to max 1600 px wide and convert to JPEG before storing
+  const resized = await sharp(raw)
+    .resize(1600, null, { withoutEnlargement: true })
+    .jpeg({ quality: 85, mozjpeg: true })
+    .toBuffer();
+
+  const key = `households/${householdId}/cook-history/${cookId}/dish.jpg`;
 
   const [url] = await Promise.all([
-    uploadFile(key, buffer, file.type),
-    makeThumbnail(buffer).then((thumb) =>
+    uploadFile(key, resized, "image/jpeg"),
+    makeThumbnail(raw).then((thumb) =>
       uploadFile(`households/${householdId}/cook-history/${cookId}/dish_thumb.jpg`, thumb, "image/jpeg")
     ).catch(() => null),
   ]);
