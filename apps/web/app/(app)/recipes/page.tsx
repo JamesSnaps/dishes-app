@@ -7,8 +7,8 @@ import { eq, and, ilike, isNotNull, or, inArray, avg, count, sql } from "drizzle
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
-import { RecipeCard } from "./_components/recipe-card";
 import { RecipeFilters } from "./_components/recipe-filters";
+import { RecipesGrid } from "./_components/recipes-grid";
 import { CrumbImportModal } from "./_components/crumb-import-modal";
 
 export const metadata = { title: "Recipes" };
@@ -168,19 +168,17 @@ export default async function RecipesPage({ searchParams }: Props) {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {allRecipes.map((recipe) => {
+        <RecipesGrid
+          recipes={allRecipes.map((recipe) => {
             const stats = cookStatsByRecipe.get(recipe.id);
-            return (
-              <RecipeCard
-                key={recipe.id}
-                {...recipe}
-                averageRating={stats?.averageRating ?? null}
-                cookCount={stats?.cookCount ?? 0}
-              />
-            );
+            return {
+              ...recipe,
+              averageRating: stats?.averageRating ?? null,
+              cookCount: stats?.cookCount ?? 0,
+            };
           })}
-        </div>
+          allTags={allTags}
+        />
       )}
     </div>
   );

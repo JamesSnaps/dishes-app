@@ -7,7 +7,7 @@ import {
   recipeSteps,
   recipeTags,
 } from "@dishes/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
@@ -332,6 +332,59 @@ export async function applyTweakToRecipe(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to update recipe." };
   }
+}
+
+export async function bulkAddTags(recipeIds: string[], tags: string[]): Promise<void> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  if (!recipeIds.length || !tags.length) return;
+
+  const owned = await db
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.householdId, householdId), inArray(recipes.id, recipeIds)));
+  const ownedIds = owned.map((r) => r.id);
+  if (!ownedIds.length) return;
+
+  const existing = await db
+    .select({ recipeId: recipeTags.recipeId, tag: recipeTags.tag })
+    .from(recipeTags)
+    .where(and(inArray(recipeTags.recipeId, ownedIds), inArray(recipeTags.tag, tags)));
+
+  const existingSet = new Set(existing.map((e) => `${e.recipeId}:${e.tag}`));
+
+  const toInsert = ownedIds.flatMap((recipeId) =>
+    tags
+      .filter((tag) => !existingSet.has(`${recipeId}:${tag}`))
+      .map((tag) => ({ recipeId, tag }))
+  );
+
+  if (toInsert.length) {
+    await db.insert(recipeTags).values(toInsert);
+  }
+
+  revalidatePath("/recipes");
+}
+
+export async function bulkRemoveTags(recipeIds: string[], tags: string[]): Promise<void> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  if (!recipeIds.length || !tags.length) return;
+
+  const owned = await db
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.householdId, householdId), inArray(recipes.id, recipeIds)));
+  const ownedIds = owned.map((r) => r.id);
+  if (!ownedIds.length) return;
+
+  await db
+    .delete(recipeTags)
+    .where(and(inArray(recipeTags.recipeId, ownedIds), inArray(recipeTags.tag, tags)));
+
+  revalidatePath("/recipes");
 }
 
 export async function toggleFavourite(recipeId: string) {

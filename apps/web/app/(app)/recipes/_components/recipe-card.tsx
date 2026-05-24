@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Clock, UtensilsCrossed } from "lucide-react";
-import { Badge, Card } from "@dishes/ui";
+import { Check, Clock, UtensilsCrossed } from "lucide-react";
+import { Badge, Card, cn } from "@dishes/ui";
 import { FavouriteButton } from "./favourite-button";
 import { StarRating } from "../[id]/_components/star-rating";
 
@@ -17,6 +17,9 @@ type RecipeCardProps = {
   isAiGenerated: boolean;
   averageRating?: number | null;
   cookCount?: number;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggle?: (id: string) => void;
 };
 
 function totalTime(prep: number | null, cook: number | null): string | null {
@@ -41,72 +44,108 @@ export function RecipeCard({
   isAiGenerated,
   averageRating,
   cookCount,
+  selectable = false,
+  selected = false,
+  onToggle,
 }: RecipeCardProps) {
   const time = totalTime(prepTimeMinutes, cookTimeMinutes);
 
-  return (
-    <Link href={`/recipes/${id}`} className="group block">
-      <Card className="overflow-hidden transition-shadow hover:shadow-md h-full">
-        {/* Image / placeholder */}
-        <div className="relative aspect-[4/3] bg-muted flex items-center justify-center">
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={thumbnailUrl ?? imageUrl}
-              alt={title}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30" />
-          )}
+  const cardContent = (
+    <Card className={cn(
+      "overflow-hidden transition-all hover:shadow-md h-full",
+      selectable && selected && "ring-2 ring-primary ring-offset-2"
+    )}>
+      {/* Image / placeholder */}
+      <div className="relative aspect-[4/3] bg-muted flex items-center justify-center">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumbnailUrl ?? imageUrl}
+            alt={title}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30" />
+        )}
 
+        {selectable ? (
+          <div className={cn(
+            "absolute top-2 left-2 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all shadow-sm",
+            selected
+              ? "bg-primary border-primary text-primary-foreground"
+              : "bg-white/90 border-gray-300"
+          )}>
+            {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+          </div>
+        ) : (
           <div className="absolute top-2 right-2">
             <FavouriteButton recipeId={id} isFavourite={isFavourite} size="sm" />
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Content */}
-        <div className="p-3">
-          <h3 className="font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-            {title}
-          </h3>
+      {/* Content */}
+      <div className="p-3">
+        <h3 className="font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+          {title}
+        </h3>
 
-          {description && (
-            <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-              {description}
-            </p>
-          )}
+        {description && (
+          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+            {description}
+          </p>
+        )}
 
-          {/* Rating row */}
-          {(cookCount ?? 0) > 0 && (
-            <div className="mt-2 flex items-center gap-1.5">
-              <StarRating value={averageRating ?? null} readonly size="sm" />
-              {averageRating != null && (
-                <span className="text-xs text-muted-foreground">{averageRating / 2}/5</span>
-              )}
-            </div>
-          )}
-
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {cuisine && (
-              <Badge variant="secondary" className="text-xs">
-                {cuisine}
-              </Badge>
-            )}
-            {isAiGenerated && (
-              <Badge variant="outline" className="text-xs">
-                AI
-              </Badge>
-            )}
-            {time && (
-              <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                {time}
-              </span>
+        {/* Rating row */}
+        {(cookCount ?? 0) > 0 && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <StarRating value={averageRating ?? null} readonly size="sm" />
+            {averageRating != null && (
+              <span className="text-xs text-muted-foreground">{averageRating / 2}/5</span>
             )}
           </div>
+        )}
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {cuisine && (
+            <Badge variant="secondary" className="text-xs">
+              {cuisine}
+            </Badge>
+          )}
+          {isAiGenerated && (
+            <Badge variant="outline" className="text-xs">
+              AI
+            </Badge>
+          )}
+          {time && (
+            <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {time}
+            </span>
+          )}
         </div>
-      </Card>
+      </div>
+    </Card>
+  );
+
+  if (selectable) {
+    return (
+      <div
+        className="group block cursor-pointer select-none"
+        onClick={() => onToggle?.(id)}
+        role="checkbox"
+        aria-checked={selected}
+        tabIndex={0}
+        onKeyDown={(e) => e.key === " " && onToggle?.(id)}
+      >
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/recipes/${id}`} className="group block">
+      {cardContent}
     </Link>
   );
 }
