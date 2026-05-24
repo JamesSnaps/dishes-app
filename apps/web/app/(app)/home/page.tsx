@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { desc, eq, isNotNull, and } from "drizzle-orm";
-import { CalendarDays, ShoppingCart, Sparkles, UtensilsCrossed, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone, Info } from "lucide-react";
+import { desc, eq, isNotNull, and, count } from "drizzle-orm";
+import { CalendarDays, FolderOpen, Heart, ShoppingCart, Sparkles, UtensilsCrossed, ChefHat, Clock, Moon, Sun, Sunrise, Cookie, IceCreamCone, Info } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes, mealPlans, mealPlanEntries, householdMembers } from "@dishes/db/schema";
+import { recipes, mealPlans, mealPlanEntries, householdMembers, cookHistory, collections, recipeCollections } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Badge, Button, Card } from "@dishes/ui";
@@ -67,6 +67,13 @@ function timeGreeting() {
   return "Good evening";
 }
 
+function photoTilt(id: string, index: number): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  h ^= index * 2654435761;
+  return ((Math.abs(h) % 71) - 35) * 0.08; // -2.8 to +2.8 deg
+}
+
 function initials(name: string): string {
   return name
     .split(" ")
@@ -85,7 +92,7 @@ export default async function HomePage() {
   const weekStartDate = getMondayOfToday();
   const todayDayIndex = getTodayDayIndex();
 
-  const [recentRecipes, cuisineRows, todayPlan, memberRow, suggestedRecipes] = await Promise.all([
+  const [recentRecipes, cuisineRows, todayPlan, memberRow, suggestedRecipes, recentPhotos, favouriteRecipes, userCollections] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -119,6 +126,42 @@ export default async function HomePage() {
       .where(eq(householdMembers.id, memberId))
       .limit(1),
     getSuggestedRecipes(householdId).catch(() => [] as SuggestedRecipe[]),
+    db
+      .select({ id: cookHistory.id, photoUrl: cookHistory.photoUrl })
+      .from(cookHistory)
+      .where(and(eq(cookHistory.householdId, householdId), isNotNull(cookHistory.photoUrl)))
+      .orderBy(desc(cookHistory.cookedAt))
+      .limit(8),
+    db
+      .select({
+        id: recipes.id,
+        title: recipes.title,
+        description: recipes.description,
+        cuisine: recipes.cuisine,
+        prepTimeMinutes: recipes.prepTimeMinutes,
+        cookTimeMinutes: recipes.cookTimeMinutes,
+        imageUrl: recipes.imageUrl,
+        thumbnailUrl: recipes.thumbnailUrl,
+        isFavourite: recipes.isFavourite,
+        isAiGenerated: recipes.isAiGenerated,
+      })
+      .from(recipes)
+      .where(and(eq(recipes.householdId, householdId), eq(recipes.isFavourite, true)))
+      .orderBy(recipes.title)
+      .limit(4),
+    db
+      .select({
+        id: collections.id,
+        name: collections.name,
+        icon: collections.icon,
+        recipeCount: count(recipeCollections.recipeId),
+      })
+      .from(collections)
+      .leftJoin(recipeCollections, eq(recipeCollections.collectionId, collections.id))
+      .where(eq(collections.householdId, householdId))
+      .groupBy(collections.id, collections.name, collections.icon)
+      .orderBy(collections.name)
+      .limit(4),
   ]);
 
   const todayMeals = todayPlan[0]
@@ -248,6 +291,24 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* Favourites */}
+      {favouriteRecipes.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-1.5">
+              <Heart className="h-4 w-4 text-red-500 fill-red-400" />
+              Favourites
+            </h2>
+            <Link href="/favourites" className="text-sm text-primary hover:underline">See all</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {favouriteRecipes.map((recipe) => (
+              <RecipeCard key={recipe.id} {...recipe} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Suggested for you */}
       {suggestedRecipes.length > 0 && (
         <section>
@@ -264,6 +325,57 @@ export default async function HomePage() {
             {suggestedRecipes.map((recipe) => (
               <SuggestedRecipeCard key={recipe.id} recipe={recipe} />
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Memories strip */}
+      {recentPhotos.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-1.5">
+              <span className="text-base leading-none">✨</span>
+              Memories
+            </h2>
+            <Link href="/memories" className="text-sm text-primary hover:underline">See all</Link>
+          </div>
+          {/* Horizontal polaroid strip — extend to screen edges */}
+          <div className="overflow-x-auto -mx-4 px-4 scrollbar-hide">
+            <div className="flex gap-4 py-4 w-max">
+              {recentPhotos.map((photo, i) => (
+                <Link
+                  key={photo.id}
+                  href="/memories"
+                  className="block shrink-0 hover:scale-105 transition-transform duration-150"
+                  style={{ transform: `rotate(${photoTilt(photo.id, i)}deg)`, transformOrigin: "center 35%" }}
+                >
+                  <div
+                    className="bg-white rounded-sm"
+                    style={{ width: 90, boxShadow: "0 3px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.04)" }}
+                  >
+                    <div className="p-1.5 pb-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo.photoUrl!}
+                        alt=""
+                        className="w-full aspect-square object-cover"
+                        style={{ filter: "sepia(0.2) saturate(1.15)" }}
+                      />
+                    </div>
+                    <div className="h-5" />
+                  </div>
+                </Link>
+              ))}
+              {/* View all tile */}
+              <Link
+                href="/memories"
+                className="shrink-0 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-muted-foreground/20 text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                style={{ width: 90, height: 90 + 8 + 20 }}
+              >
+                <span className="text-xl">✨</span>
+                <span className="text-xs font-medium">View all</span>
+              </Link>
+            </div>
           </div>
         </section>
       )}
@@ -301,6 +413,40 @@ export default async function HomePage() {
                 >
                   {c}
                 </Badge>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Collections */}
+      {userCollections.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold flex items-center gap-1.5">
+              <FolderOpen className="h-4 w-4 text-primary" strokeWidth={1.75} />
+              Collections
+            </h2>
+            <Link href="/collections" className="text-sm text-primary hover:underline">See all</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {userCollections.map((col) => (
+              <Link
+                key={col.id}
+                href={`/collections/${col.id}`}
+                className="group flex items-center gap-3 rounded-xl border bg-card p-4 hover:border-primary/40 hover:shadow-sm transition-all"
+              >
+                <span className="text-2xl shrink-0 leading-none">
+                  {col.icon ?? "📁"}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-medium text-sm truncate group-hover:text-primary transition-colors">
+                    {col.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {Number(col.recipeCount)} recipe{Number(col.recipeCount) !== 1 ? "s" : ""}
+                  </div>
+                </div>
               </Link>
             ))}
           </div>

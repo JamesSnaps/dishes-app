@@ -1,12 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, Home, Images, ShoppingCart, Sparkles } from "lucide-react";
+import { BookOpen, CalendarDays, Home, ShoppingCart, Sparkles } from "lucide-react";
 import { cn } from "@dishes/ui";
 import { NAV_ITEMS } from "./nav-items";
 import { useUnsavedChanges } from "@/components/unsaved-changes-context";
 
-const ICONS = { BookOpen, CalendarDays, Home, Images, ShoppingCart, Sparkles };
+const ICONS = { BookOpen, CalendarDays, Home, ShoppingCart, Sparkles };
 
 interface Props {
   className?: string;
