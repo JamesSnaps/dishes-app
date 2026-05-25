@@ -85,6 +85,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     [params, router],
   );
 
+  const [showAllTags, setShowAllTags] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingCuisine, setPendingCuisine] = useState(cuisine);
   const [pendingFavourites, setPendingFavourites] = useState(favourites === "1");
@@ -396,25 +397,51 @@ export function RecipeFilters({ cuisines, tags }: Props) {
         )}
 
         {/* Tags */}
-        {tags.length > 0 && (
-          <>
-            <div className="h-4 w-px bg-border mx-2" />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Tags</span>
-              <div className="flex flex-wrap gap-1">
-                {tags.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => toggleTagUrl(t)}
-                    className={pill(activeTags.includes(t))}
-                  >
-                    {t}
-                  </button>
-                ))}
+        {tags.length > 0 && (() => {
+          const VISIBLE = 6;
+          // Active tags always shown first, then the rest alphabetically
+          const sorted = [
+            ...tags.filter((t) => activeTags.includes(t)),
+            ...tags.filter((t) => !activeTags.includes(t)),
+          ];
+          const visible = showAllTags ? sorted : sorted.slice(0, VISIBLE);
+          const hiddenCount = sorted.length - VISIBLE;
+          return (
+            <>
+              <div className="h-4 w-px bg-border mx-2" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Tags</span>
+                <div className="flex flex-wrap gap-1">
+                  {visible.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => toggleTagUrl(t)}
+                      className={pill(activeTags.includes(t))}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                  {!showAllTags && hiddenCount > 0 && (
+                    <button
+                      onClick={() => setShowAllTags(true)}
+                      className="rounded-full px-3 py-1 text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/70 border border-dashed border-muted-foreground/30"
+                    >
+                      +{hiddenCount} more
+                    </button>
+                  )}
+                  {showAllTags && tags.length > VISIBLE && (
+                    <button
+                      onClick={() => setShowAllTags(false)}
+                      className="rounded-full px-3 py-1 text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/70"
+                    >
+                      Show less
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          );
+        })()}
 
         {/* Clear all */}
         {hasActiveFilters && (
