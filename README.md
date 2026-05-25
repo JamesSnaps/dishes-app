@@ -275,6 +275,9 @@ mc anonymous set download dishes/dishes   # for public image URLs
 | `S3_SECRET_KEY` | No | S3 secret key |
 | `S3_BUCKET` | No | S3 bucket name. Default: `dishes` |
 | `S3_PUBLIC_URL` | No | Public base URL for serving images (e.g. `https://media.yourdomain.com`). Falls back to `S3_ENDPOINT` if absent. |
+| `VAPID_SUBJECT` | No | Contact URI for push notifications (e.g. `mailto:you@example.com`). Required to enable push. |
+| `VAPID_PUBLIC_KEY` | No | VAPID public key for Web Push. Generate with `npx web-push generate-vapid-keys`. |
+| `VAPID_PRIVATE_KEY` | No | VAPID private key for Web Push. Keep secret and stable — rotating this invalidates all existing subscriptions. |
 
 ---
 

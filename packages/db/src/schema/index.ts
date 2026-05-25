@@ -11,3 +11,4 @@ export * from "./notifications";
 export * from "./app-settings";
 export * from "./sharing";
 export * from "./taste-profile";
+export * from "./push-subscriptions";

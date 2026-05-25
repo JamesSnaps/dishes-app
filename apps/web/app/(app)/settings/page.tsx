@@ -9,6 +9,7 @@ import { AddMemberForm } from "./_components/add-member-form";
 import { AppearanceSection } from "./_components/appearance-section";
 import { LogLevelSection } from "./_components/log-level-section";
 import { BackfillThumbnailsButton } from "./_components/backfill-thumbnails-button";
+import { PushNotificationManager } from "@/components/push-notification-manager";
 
 export const metadata = { title: "Settings" };
 
@@ -26,6 +27,16 @@ export default async function SettingsPage() {
       <h1 className="mb-6 text-2xl font-bold">Settings</h1>
 
       <AppearanceSection />
+
+      {/* Notifications */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Notifications
+        </h2>
+        <div className="rounded-lg border bg-card p-4">
+          <PushNotificationManager />
+        </div>
+      </section>
 
       {/* Household */}
       <section className="mb-8">

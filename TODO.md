@@ -109,4 +109,5 @@ Pre-work required before starting `/apps/mobile`:
 - [ ] **Auth for native**: `getAutheliaUser()` reads reverse-proxy headers — won't work for a native app hitting the server directly. Design a mobile auth flow, likely extending the existing household-scoped integration token system (see `lib/integration-auth.ts`). Authelia OIDC is an option too.
 - [ ] **Complete the shopping REST API**: `clearChecked`, `archiveList`, and `generateFromRecipe` are still server actions with no JSON endpoint. A native app needs these as proper REST routes alongside the existing `/api/shopping/*` routes added in v0.21.0.
 - [ ] **Native offline layer**: The web offline stack (Dexie, service worker, Background Sync) is browser-only. Native equivalent would be MMKV or expo-sqlite for local storage, and Expo Background Fetch for background sync.
-- [ ] **Push notifications**: The web app has no push notification infrastructure yet. Design this once for both targets (web push + APNs) rather than twice.
+- [x] **Push notifications (PWA)**: Web Push API implemented — VAPID keys, `push_subscriptions` table, service worker handlers, subscribe/unsubscribe API routes, `sendPushToHousehold` helper, settings UI toggle. (v0.27.0)
+- [ ] **Push notifications (native)**: APNs integration still needed for the future Expo app — design once for both targets.

@@ -37,6 +37,32 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
+self.addEventListener("push", (e) => {
+  const data = e.data?.json() ?? {};
+  e.waitUntil(
+    self.registration.showNotification(data.title ?? "Dishes", {
+      body: data.body ?? "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      data: { url: data.url ?? "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url ?? "/";
+  e.waitUntil(
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windowClients) => {
+        const existing = windowClients.find((c) => c.url === url && "focus" in c);
+        if (existing) return existing.focus();
+        return clients.openWindow(url);
+      })
+  );
+});
+
 // Background Sync — flush any mutations queued while offline
 self.addEventListener("sync", (e) => {
   if (e.tag === "sync-shopping") {
