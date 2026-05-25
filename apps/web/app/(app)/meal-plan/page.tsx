@@ -54,6 +54,7 @@ export default async function MealPlanPage({
             id: mealPlanEntries.id,
             dayOfWeek: mealPlanEntries.dayOfWeek,
             mealType: mealPlanEntries.mealType,
+            entryServings: mealPlanEntries.servings,
             recipe: {
               id: recipes.id,
               title: recipes.title,
@@ -72,6 +73,7 @@ export default async function MealPlanPage({
             id: string;
             dayOfWeek: number;
             mealType: "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
+            entryServings: string | null;
             recipe: {
               id: string;
               title: string;

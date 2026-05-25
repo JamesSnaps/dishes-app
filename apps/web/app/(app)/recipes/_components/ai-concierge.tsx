@@ -288,7 +288,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault();
-                      mode === "inspire" ? handleGenerateConcepts() : handleDirectGenerate();
+                      if (mode === "inspire") { handleGenerateConcepts(); } else { handleDirectGenerate(); }
                     }
                   }}
                 />

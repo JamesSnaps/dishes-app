@@ -8,15 +8,9 @@ interface Props {
   item: ShoppingItemType;
   onToggle: (checked: boolean) => void;
   onDelete: () => void;
-  onChecked?: () => void;
 }
 
-export function ShoppingItem({ item, onToggle, onDelete, onChecked }: Props) {
-  function handleToggle(checked: boolean) {
-    if (checked) onChecked?.();
-    onToggle(checked);
-  }
-
+export function ShoppingItem({ item, onToggle, onDelete }: Props) {
   const { amount: displayAmount, unit: displayUnit } = formatQuantity(item.amount, item.unit);
   const label = [displayAmount, displayUnit, item.ingredientName]
     .filter(Boolean)
@@ -27,7 +21,7 @@ export function ShoppingItem({ item, onToggle, onDelete, onChecked }: Props) {
       <input
         type="checkbox"
         checked={item.isChecked}
-        onChange={(e) => handleToggle(e.target.checked)}
+        onChange={(e) => onToggle(e.target.checked)}
         className="h-5 w-5 flex-shrink-0 rounded border-gray-300 accent-primary cursor-pointer"
         aria-label={`Mark ${item.ingredientName} as ${item.isChecked ? "unchecked" : "checked"}`}
       />

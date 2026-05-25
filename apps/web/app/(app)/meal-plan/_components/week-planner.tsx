@@ -15,8 +15,21 @@ import {
   Clock,
   Plus,
 } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  useSensors,
+  useSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { Button } from "@dishes/ui";
-import { generateShoppingFromWeek } from "@/app/actions/meal-plan";
+import { generateShoppingFromWeek, moveMealEntry } from "@/app/actions/meal-plan";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { EntryCard } from "./entry-card";
 
@@ -31,10 +44,19 @@ const MEAL_TYPE_COLOR: Record<MealType, string> = {
   snack: "#94a3b8",
 };
 
+const OVERLAY_MEAL_LABEL: Record<MealType, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  dessert: "Dessert",
+  snack: "Snack",
+};
+
 type Entry = {
   id: string;
   dayOfWeek: number;
   mealType: MealType;
+  entryServings: string | null;
   recipe: {
     id: string;
     title: string;
@@ -158,7 +180,6 @@ function WeekCalendarPicker({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Close on outside click
   useEffect(() => {
     function handlePointerDown(e: PointerEvent) {
       if (calRef.current && !calRef.current.contains(e.target as Node)) {
@@ -169,7 +190,6 @@ function WeekCalendarPicker({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [onClose]);
 
-  // Close on Escape
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -187,7 +207,6 @@ function WeekCalendarPicker({
     else setViewMonth((m) => m + 1);
   }
 
-  // Build grid: start from the Monday of the week containing the 1st of the month
   const firstOfMonth = new Date(viewYear, viewMonth, 1);
   const gridStart = getMondayOf(firstOfMonth);
 
@@ -200,7 +219,6 @@ function WeekCalendarPicker({
       cur.setDate(cur.getDate() + 1);
     }
     weeks.push({ days, weekStart: toDateStr(days[0]) });
-    // Stop when we've passed the month and have at least 4 rows
     if (days[6].getMonth() !== viewMonth && w >= 3) break;
   }
 
@@ -210,7 +228,6 @@ function WeekCalendarPicker({
       className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border bg-popover shadow-xl p-3 animate-in fade-in slide-in-from-top-2 duration-150"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Month navigation */}
       <div className="flex items-center justify-between mb-2">
         <button
           onClick={prevMonth}
@@ -231,7 +248,6 @@ function WeekCalendarPicker({
         </button>
       </div>
 
-      {/* Day-of-week headers */}
       <div className="grid grid-cols-7 mb-1">
         {DAY_HEADERS.map((d, i) => (
           <div
@@ -243,7 +259,6 @@ function WeekCalendarPicker({
         ))}
       </div>
 
-      {/* Week rows — clicking any row picks that week */}
       <div className="space-y-0.5">
         {weeks.map(({ days, weekStart }) => {
           const isSelected = weekStart === weekStartDate;
@@ -282,7 +297,6 @@ function WeekCalendarPicker({
         })}
       </div>
 
-      {/* Jump to today */}
       <div className="mt-2 pt-2 border-t">
         <button
           onClick={() => {
@@ -299,7 +313,7 @@ function WeekCalendarPicker({
   );
 }
 
-// ─── Donut chart (unchanged) ──────────────────────────────────────────────────
+// ─── Donut chart ──────────────────────────────────────────────────────────────
 
 function MealTypePieChart({ entries }: { entries: Entry[] }) {
   const counts: Partial<Record<MealType, number>> = {};
@@ -375,6 +389,112 @@ function MealTypePieChart({ entries }: { entries: Entry[] }) {
   );
 }
 
+// ─── Droppable day chip ───────────────────────────────────────────────────────
+
+function DroppableDayChip({
+  dayIndex,
+  weekStart,
+  isCurrentWeek,
+  todayDayIndex,
+  isSelected,
+  mealCount,
+  isDragActive,
+  onClick,
+}: {
+  dayIndex: number;
+  weekStart: string;
+  isCurrentWeek: boolean;
+  todayDayIndex: number;
+  isSelected: boolean;
+  mealCount: number;
+  isDragActive: boolean;
+  onClick: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIndex}` });
+  const { short, date } = formatDayChip(weekStart, dayIndex);
+  const isTodayChip = isCurrentWeek && todayDayIndex === dayIndex;
+
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={onClick}
+      className={`flex flex-col items-center rounded-xl py-2.5 border-2 transition-all duration-150 ${
+        isOver
+          ? "border-orange-400 bg-orange-100 dark:bg-orange-950/50 scale-[1.06] shadow-lg"
+          : isDragActive
+            ? "border-dashed border-muted-foreground/30 bg-muted/50 hover:border-muted-foreground/50 hover:bg-muted/70"
+            : isSelected
+              ? isTodayChip
+                ? "border-orange-400 bg-orange-50 dark:bg-orange-950/30 shadow-sm"
+                : "border-primary bg-primary/5 shadow-sm"
+              : isTodayChip
+                ? "border-orange-300/60 bg-orange-50/50 dark:bg-orange-950/10"
+                : "border-transparent bg-muted/40 hover:bg-muted"
+      }`}
+    >
+      <span
+        className={`text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide leading-none ${
+          isOver
+            ? "text-orange-500"
+            : isSelected
+              ? isTodayChip ? "text-orange-500" : "text-primary"
+              : "text-muted-foreground"
+        }`}
+      >
+        {short}
+      </span>
+      <span
+        className={`text-lg sm:text-xl font-bold leading-none mt-1 ${
+          isOver
+            ? "text-orange-500"
+            : isSelected
+              ? isTodayChip ? "text-orange-500" : "text-primary"
+              : isTodayChip ? "text-orange-400" : ""
+        }`}
+      >
+        {date}
+      </span>
+      {mealCount > 0 ? (
+        <span
+          className={`mt-1.5 text-[9px] font-bold tabular-nums leading-none h-3.5 min-w-[14px] rounded-full flex items-center justify-center px-1 ${
+            isOver
+              ? "bg-orange-400 text-white"
+              : isTodayChip
+                ? "bg-orange-400 text-white"
+                : isSelected
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-primary/20 text-primary"
+          }`}
+        >
+          {mealCount}
+        </span>
+      ) : (
+        <span className="mt-1.5 h-3.5" />
+      )}
+    </button>
+  );
+}
+
+// ─── Draggable meal entry ─────────────────────────────────────────────────────
+
+function DraggableMealEntry({ entry, weekStartDate }: { entry: Entry; weekStartDate: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: entry.id,
+    data: { entry },
+  });
+
+  return (
+    <EntryCard
+      entry={entry}
+      weekStartDate={weekStartDate}
+      dragNodeRef={setNodeRef}
+      dragListeners={listeners as Record<string, unknown>}
+      dragAttributes={attributes as unknown as Record<string, unknown>}
+      isDragging={isDragging}
+    />
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function WeekPlanner({
@@ -396,25 +516,28 @@ export function WeekPlanner({
   const lastWheelMs = useRef(0);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [shoppingPending, startShoppingTransition] = useTransition();
+  const [, startMoveTransition] = useTransition();
 
   const [selectedDay, setSelectedDay] = useState<number>(() =>
     isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0
   );
 
+  // Local entries for optimistic drag updates
+  const [localEntries, setLocalEntries] = useState<Entry[]>(entries);
+  const [activeDragEntry, setActiveDragEntry] = useState<Entry | null>(null);
+
+  useEffect(() => {
+    setLocalEntries(entries);
+  }, [entries]);
+
   useEffect(() => {
     setSelectedDay(isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0);
   }, [weekStartDate, isCurrentWeek, todayDayIndex]);
 
-  // Entry animation.
-  // Next.js App Router reuses the same component instance across client-side
-  // navigations (it updates props, not unmount/remount), so useEffect([]) only
-  // fires once on the initial page load. By depending on weekStartDate we run
-  // this whenever the week changes and can play the slide-in animation.
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
 
-    // Skip animation on first page load
     if (isFirstMount.current) {
       isFirstMount.current = false;
       return;
@@ -424,8 +547,6 @@ export function WeekPlanner({
     pendingEnterDirection = null;
 
     if (!direction) {
-      // Navigation without our animate-then-push flow (browser back/forward etc.)
-      // Just ensure the content is fully visible.
       el.style.transition = "";
       el.style.transform = "";
       el.style.opacity = "";
@@ -449,8 +570,6 @@ export function WeekPlanner({
     return () => {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
-      // Always restore visibility on cleanup so a rapidly-cancelled animation
-      // never leaves the page invisible.
       el.style.transition = "";
       el.style.transform = "";
       el.style.opacity = "";
@@ -461,8 +580,6 @@ export function WeekPlanner({
   const nextWeek = addDays(weekStartDate, 7);
 
   const navigate = useCallback((target: string, direction: "prev" | "next") => {
-    // Cancel any in-progress exit animation so rapid navigation can't queue
-    // multiple pushes or leave a partially-animated element behind.
     if (exitTimeoutRef.current !== null) {
       clearTimeout(exitTimeoutRef.current);
       exitTimeoutRef.current = null;
@@ -484,21 +601,20 @@ export function WeekPlanner({
     }
   }, [router]);
 
-  // Touch swipe
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   }
   function handleTouchEnd(e: React.TouchEvent) {
+    // Don't navigate while a drag is in progress
+    if (activeDragEntry) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
-    // Only trigger if horizontal swipe dominates and exceeds threshold
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       navigate(dx > 0 ? prevWeek : nextWeek, dx > 0 ? "prev" : "next");
     }
   }
 
-  // Horizontal mouse/trackpad scroll (debounced)
   function handleWheel(e: React.WheelEvent) {
     if (Math.abs(e.deltaX) < 20 || Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
     const now = Date.now();
@@ -507,17 +623,47 @@ export function WeekPlanner({
     navigate(e.deltaX > 0 ? nextWeek : prevWeek, e.deltaX > 0 ? "next" : "prev");
   }
 
-  const totalMeals = entries.length;
-  const totalTime = entries.reduce(
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  function handleDragStart(event: DragStartEvent) {
+    const entry = localEntries.find((e) => e.id === event.active.id);
+    setActiveDragEntry(entry ?? null);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveDragEntry(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const entryId = active.id as string;
+    const newDay = parseInt((over.id as string).replace("day-", ""), 10);
+    const entry = localEntries.find((e) => e.id === entryId);
+    if (!entry || entry.dayOfWeek === newDay) return;
+
+    // Optimistic update + switch to the new day
+    setLocalEntries((prev) =>
+      prev.map((e) => (e.id === entryId ? { ...e, dayOfWeek: newDay } : e))
+    );
+    setSelectedDay(newDay);
+
+    startMoveTransition(() => moveMealEntry(entryId, newDay));
+  }
+
+  const totalMeals = localEntries.length;
+  const totalTime = localEntries.reduce(
     (sum, e) => sum + (e.recipe.prepTimeMinutes ?? 0) + (e.recipe.cookTimeMinutes ?? 0), 0
   );
-  const totalServings = entries.reduce((sum, e) => {
+  const totalServings = localEntries.reduce((sum, e) => {
     const s = parseInt(e.recipe.servings ?? "0", 10);
     return sum + (isNaN(s) ? 0 : s);
   }, 0);
   const avgServings = totalMeals > 0 ? Math.round(totalServings / totalMeals) : 0;
 
-  const selectedDayEntries = entries
+  const selectedDayEntries = localEntries
     .filter((e) => e.dayOfWeek === selectedDay)
     .sort((a, b) => MEAL_TYPE_ORDER.indexOf(a.mealType) - MEAL_TYPE_ORDER.indexOf(b.mealType));
 
@@ -538,297 +684,281 @@ export function WeekPlanner({
       onTouchEnd={handleTouchEnd}
       onWheel={handleWheel}
     >
-      <div ref={contentRef}>
-        {/* ── Header row ── */}
-        <div className="flex items-center gap-1 mb-1">
-          {/* Prev week */}
-          <button
-            onClick={() => navigate(prevWeek, "prev")}
-            className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            aria-label="Previous week"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-
-          {/* Title — opens calendar picker */}
-          <div className="relative flex-1 min-w-0">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div ref={contentRef}>
+          {/* ── Header row ── */}
+          <div className="flex items-center gap-1 mb-1">
             <button
-              onClick={() => setCalendarOpen((v) => !v)}
-              className="flex items-center gap-1 rounded-lg px-1 py-0.5 hover:bg-muted transition-colors group"
+              onClick={() => navigate(prevWeek, "prev")}
+              className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Previous week"
             >
-              <h1 className="text-xl font-bold leading-tight truncate">{weekTitle}</h1>
-              <ChevronDown
-                className={`h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${
-                  calendarOpen ? "rotate-180" : ""
-                }`}
-              />
+              <ChevronLeft className="h-5 w-5" />
             </button>
 
-            {calendarOpen && (
-              <WeekCalendarPicker
-                weekStartDate={weekStartDate}
-                onSelect={(ws) => navigate(ws, ws > weekStartDate ? "next" : "prev")}
-                onClose={() => setCalendarOpen(false)}
-              />
-            )}
-          </div>
-
-          {/* Next week */}
-          <button
-            onClick={() => navigate(nextWeek, "next")}
-            className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            aria-label="Next week"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-
-          {/* Add meal FAB */}
-          {recipes.length > 0 && (
-            <AddEntryDialog
-              weekStartDate={weekStartDate}
-              dayOfWeek={selectedDay}
-              dayLabel={selectedDayLabel}
-              recipes={recipes}
-              trigger={
-                <button
-                  className="flex-shrink-0 h-9 w-9 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md transition-colors ml-1"
-                  aria-label="Add meal"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              }
-            />
-          )}
-        </div>
-
-        {/* Week date range subtitle */}
-        <p className="text-sm text-muted-foreground mb-5 pl-9">
-          {isCurrentWeek ? formatWeekRange(weekStartDate) : ""}
-        </p>
-
-        {/* ── Day strip — evenly fills full width, no scroll ── */}
-        <div className="grid grid-cols-7 gap-1.5 mb-5">
-          {Array.from({ length: 7 }, (_, i) => {
-            const { short, date } = formatDayChip(weekStartDate, i);
-            const isTodayChip = isCurrentWeek && todayDayIndex === i;
-            const isSelected = selectedDay === i;
-            const mealCount = entries.filter((e) => e.dayOfWeek === i).length;
-
-            return (
+            <div className="relative flex-1 min-w-0">
               <button
-                key={`${weekStartDate}-${i}`}
-                onClick={() => setSelectedDay(i)}
-                className={`flex flex-col items-center rounded-xl py-2.5 border-2 transition-all ${
-                  isSelected
-                    ? isTodayChip
-                      ? "border-orange-400 bg-orange-50 dark:bg-orange-950/30 shadow-sm"
-                      : "border-primary bg-primary/5 shadow-sm"
-                    : isTodayChip
-                      ? "border-orange-300/60 bg-orange-50/50 dark:bg-orange-950/10"
-                      : "border-transparent bg-muted/40 hover:bg-muted"
-                }`}
+                onClick={() => setCalendarOpen((v) => !v)}
+                className="flex items-center gap-1 rounded-lg px-1 py-0.5 hover:bg-muted transition-colors group"
               >
-                <span
-                  className={`text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide leading-none ${
-                    isSelected ? (isTodayChip ? "text-orange-500" : "text-primary") : "text-muted-foreground"
+                <h1 className="text-xl font-bold leading-tight truncate">{weekTitle}</h1>
+                <ChevronDown
+                  className={`h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${
+                    calendarOpen ? "rotate-180" : ""
                   }`}
-                >
-                  {short}
-                </span>
-                <span
-                  className={`text-lg sm:text-xl font-bold leading-none mt-1 ${
-                    isSelected
-                      ? isTodayChip ? "text-orange-500" : "text-primary"
-                      : isTodayChip ? "text-orange-400" : ""
-                  }`}
-                >
-                  {date}
-                </span>
-                {/* Meal count indicator */}
-                {mealCount > 0 ? (
-                  <span
-                    className={`mt-1.5 text-[9px] font-bold tabular-nums leading-none h-3.5 min-w-[14px] rounded-full flex items-center justify-center px-1 ${
-                      isTodayChip
-                        ? "bg-orange-400 text-white"
-                        : isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-primary/20 text-primary"
-                    }`}
-                  >
-                    {mealCount}
-                  </span>
-                ) : (
-                  <span className="mt-1.5 h-3.5" />
-                )}
+                />
               </button>
-            );
-          })}
-        </div>
 
-        {/* ── Stats bar ── */}
-        <div className="grid grid-cols-4 gap-2 mb-6">
-          <div className="rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 dark:from-violet-500/20 dark:to-violet-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-violet-500/15 dark:bg-violet-500/25 flex items-center justify-center">
-              <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-600 dark:text-violet-400" />
-            </div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold leading-none text-violet-700 dark:text-violet-300">{totalMeals || "—"}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Meals</p>
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 dark:from-emerald-500/20 dark:to-emerald-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-emerald-500/15 dark:bg-emerald-500/25 flex items-center justify-center">
-              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{avgServings || "—"}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Avg serves</p>
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 dark:from-orange-500/20 dark:to-orange-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-orange-500/15 dark:bg-orange-500/25 flex items-center justify-center">
-              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold leading-none text-orange-700 dark:text-orange-300">
-                {totalTime > 0 ? formatTotalTime(totalTime) : "—"}
-              </p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Cook time</p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => router.push("/shopping")}
-            className="rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 dark:from-blue-500/20 dark:to-blue-600/10 hover:from-blue-500/20 hover:to-blue-600/10 dark:hover:from-blue-500/30 transition-all px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2 text-left relative"
-          >
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-500/15 dark:bg-blue-500/25 flex items-center justify-center">
-              <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold leading-none text-blue-700 dark:text-blue-300">{shoppingItemCount || "—"}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">To buy</p>
-            </div>
-            <ChevronRight className="h-3.5 w-3.5 text-blue-400 absolute right-2 top-1/2 -translate-y-1/2" />
-          </button>
-        </div>
-
-        {/* ── Main layout ── */}
-        <div className="lg:grid lg:grid-cols-[1fr_272px] lg:gap-8 lg:items-start">
-          <div>
-            {/* Day heading */}
-            <div className="flex items-center gap-3 mb-4">
-              <h2 className={`text-lg font-bold ${isToday ? "text-orange-500" : ""}`}>
-                {selectedDayLabel}
-              </h2>
-              {isToday && (
-                <span className="text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 px-2 py-0.5 rounded-full">
-                  Today
-                </span>
+              {calendarOpen && (
+                <WeekCalendarPicker
+                  weekStartDate={weekStartDate}
+                  onSelect={(ws) => navigate(ws, ws > weekStartDate ? "next" : "prev")}
+                  onClose={() => setCalendarOpen(false)}
+                />
               )}
             </div>
 
-            {/* Meal entries */}
-            {selectedDayEntries.length > 0 ? (
-              <ul className="space-y-3 mb-4">
-                {selectedDayEntries.map((entry) => (
-                  <EntryCard key={entry.id} entry={entry} weekStartDate={weekStartDate} />
-                ))}
-              </ul>
-            ) : (
-              <div className="rounded-xl border border-dashed bg-muted/20 py-10 flex flex-col items-center gap-2 mb-4 text-muted-foreground">
-                <span className="text-3xl">🍽</span>
-                <p className="text-sm">No meals planned for this day</p>
-                {recipes.length === 0 && (
-                  <p className="text-xs mt-1">Add some recipes first to start planning meals.</p>
-                )}
-              </div>
-            )}
+            <button
+              onClick={() => navigate(nextWeek, "next")}
+              className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Next week"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
 
-            {/* Bottom add-meal button (wide, for discoverability) */}
             {recipes.length > 0 && (
               <AddEntryDialog
                 weekStartDate={weekStartDate}
                 dayOfWeek={selectedDay}
                 dayLabel={selectedDayLabel}
                 recipes={recipes}
+                trigger={
+                  <button
+                    className="flex-shrink-0 h-9 w-9 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md transition-colors ml-1"
+                    aria-label="Add meal"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                }
               />
             )}
           </div>
 
-          {/* Desktop sidebar */}
-          <div className="hidden lg:flex flex-col gap-4 sticky top-8">
-            <MealTypePieChart entries={entries} />
+          <p className="text-sm text-muted-foreground mb-5 pl-9">
+            {isCurrentWeek ? formatWeekRange(weekStartDate) : ""}
+          </p>
 
-            <div className="rounded-xl border bg-card p-4">
-              <h3 className="font-semibold text-sm mb-3">Tools &amp; Actions</h3>
-              <div className="space-y-2">
-                <Button
-                  className="w-full justify-start gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
-                  onClick={() => router.push("/ai-concierge?tab=plan")}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Generate Plan
-                </Button>
+          {/* ── Day strip — droppable chips ── */}
+          <div className="grid grid-cols-7 gap-1.5 mb-5">
+            {Array.from({ length: 7 }, (_, i) => {
+              const mealCount = localEntries.filter((e) => e.dayOfWeek === i).length;
+              return (
+                <DroppableDayChip
+                  key={`${weekStartDate}-${i}`}
+                  dayIndex={i}
+                  weekStart={weekStartDate}
+                  isCurrentWeek={isCurrentWeek}
+                  todayDayIndex={todayDayIndex}
+                  isSelected={selectedDay === i}
+                  mealCount={mealCount}
+                  isDragActive={activeDragEntry !== null}
+                  onClick={() => setSelectedDay(i)}
+                />
+              );
+            })}
+          </div>
 
-                {totalMeals > 0 && planId ? (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={handleGenerateShopping}
-                    disabled={shoppingPending}
-                  >
-                    <ShoppingCart className="mr-2 h-4 w-4" />
-                    {shoppingPending ? "Adding to list…" : "Generate shopping list"}
-                  </Button>
-                ) : (
-                  <div className="flex items-start gap-2 text-sm text-muted-foreground pt-1">
-                    <UtensilsCrossed className="h-4 w-4 mt-0.5 shrink-0" />
-                    <p>Add meals to generate a shopping list.</p>
-                  </div>
-                )}
+          {/* ── Stats bar ── */}
+          <div className="grid grid-cols-4 gap-2 mb-6">
+            <div className="rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 dark:from-violet-500/20 dark:to-violet-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
+              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-violet-500/15 dark:bg-violet-500/25 flex items-center justify-center">
+                <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-600 dark:text-violet-400" />
+              </div>
+              <div>
+                <p className="text-xl sm:text-2xl font-bold leading-none text-violet-700 dark:text-violet-300">{totalMeals || "—"}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Meals</p>
               </div>
             </div>
 
-            {topIngredients.length > 0 && (
-              <div className="rounded-xl border bg-card p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="font-semibold text-sm">Top Ingredients</h3>
-                </div>
-                <div className="space-y-1.5">
-                  {topIngredients.map(({ name, count }) => (
-                    <div key={name} className="flex items-center justify-between gap-2">
-                      <span className="text-sm capitalize truncate">{name}</span>
-                      {count > 1 && (
-                        <span className="text-xs shrink-0 rounded-full bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5">
-                          ×{count}
-                        </span>
-                      )}
-                    </div>
+            <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 dark:from-emerald-500/20 dark:to-emerald-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
+              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-emerald-500/15 dark:bg-emerald-500/25 flex items-center justify-center">
+                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xl sm:text-2xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{avgServings || "—"}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Avg serves</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 dark:from-orange-500/20 dark:to-orange-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
+              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-orange-500/15 dark:bg-orange-500/25 flex items-center justify-center">
+                <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="text-xl sm:text-2xl font-bold leading-none text-orange-700 dark:text-orange-300">
+                  {totalTime > 0 ? formatTotalTime(totalTime) : "—"}
+                </p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Cook time</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => router.push("/shopping")}
+              className="rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 dark:from-blue-500/20 dark:to-blue-600/10 hover:from-blue-500/20 hover:to-blue-600/10 dark:hover:from-blue-500/30 transition-all px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2 text-left relative"
+            >
+              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-500/15 dark:bg-blue-500/25 flex items-center justify-center">
+                <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-xl sm:text-2xl font-bold leading-none text-blue-700 dark:text-blue-300">{shoppingItemCount || "—"}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">To buy</p>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 text-blue-400 absolute right-2 top-1/2 -translate-y-1/2" />
+            </button>
+          </div>
+
+          {/* ── Main layout ── */}
+          <div className="lg:grid lg:grid-cols-[1fr_272px] lg:gap-8 lg:items-start">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <h2 className={`text-lg font-bold ${isToday ? "text-orange-500" : ""}`}>
+                  {selectedDayLabel}
+                </h2>
+                {isToday && (
+                  <span className="text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 px-2 py-0.5 rounded-full">
+                    Today
+                  </span>
+                )}
+              </div>
+
+              {selectedDayEntries.length > 0 ? (
+                <ul className="space-y-3 mb-4">
+                  {selectedDayEntries.map((entry) => (
+                    <DraggableMealEntry
+                      key={entry.id}
+                      entry={entry}
+                      weekStartDate={weekStartDate}
+                    />
                   ))}
+                </ul>
+              ) : (
+                <div className="rounded-xl border border-dashed bg-muted/20 py-10 flex flex-col items-center gap-2 mb-4 text-muted-foreground">
+                  <span className="text-3xl">🍽</span>
+                  <p className="text-sm">No meals planned for this day</p>
+                  {recipes.length === 0 && (
+                    <p className="text-xs mt-1">Add some recipes first to start planning meals.</p>
+                  )}
+                </div>
+              )}
+
+              {recipes.length > 0 && (
+                <AddEntryDialog
+                  weekStartDate={weekStartDate}
+                  dayOfWeek={selectedDay}
+                  dayLabel={selectedDayLabel}
+                  recipes={recipes}
+                />
+              )}
+            </div>
+
+            {/* Desktop sidebar */}
+            <div className="hidden lg:flex flex-col gap-4 sticky top-8">
+              <MealTypePieChart entries={localEntries} />
+
+              <div className="rounded-xl border bg-card p-4">
+                <h3 className="font-semibold text-sm mb-3">Tools &amp; Actions</h3>
+                <div className="space-y-2">
+                  <Button
+                    className="w-full justify-start gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                    onClick={() => router.push("/ai-concierge?tab=plan")}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Generate Plan
+                  </Button>
+
+                  {totalMeals > 0 && planId ? (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={handleGenerateShopping}
+                      disabled={shoppingPending}
+                    >
+                      <ShoppingCart className="mr-2 h-4 w-4" />
+                      {shoppingPending ? "Adding to list…" : "Generate shopping list"}
+                    </Button>
+                  ) : (
+                    <div className="flex items-start gap-2 text-sm text-muted-foreground pt-1">
+                      <UtensilsCrossed className="h-4 w-4 mt-0.5 shrink-0" />
+                      <p>Add meals to generate a shopping list.</p>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+
+              {topIngredients.length > 0 && (
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="font-semibold text-sm">Top Ingredients</h3>
+                  </div>
+                  <div className="space-y-1.5">
+                    {topIngredients.map(({ name, count }) => (
+                      <div key={name} className="flex items-center justify-between gap-2">
+                        <span className="text-sm capitalize truncate">{name}</span>
+                        {count > 1 && (
+                          <span className="text-xs shrink-0 rounded-full bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5">
+                            ×{count}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Mobile: generate shopping list */}
+          {totalMeals > 0 && planId && (
+            <div className="mt-6 lg:hidden">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleGenerateShopping}
+                disabled={shoppingPending}
+              >
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                {shoppingPending ? "Adding to list…" : "Generate shopping list"}
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* Mobile: generate shopping list */}
-        {totalMeals > 0 && planId && (
-          <div className="mt-6 lg:hidden">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleGenerateShopping}
-              disabled={shoppingPending}
-            >
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              {shoppingPending ? "Adding to list…" : "Generate shopping list"}
-            </Button>
-          </div>
-        )}
-      </div>
+        {/* Drag overlay — floating card shown while dragging */}
+        <DragOverlay dropAnimation={null}>
+          {activeDragEntry ? (
+            <div className="rounded-xl border-2 border-orange-400 bg-card shadow-2xl px-4 py-3 flex items-center gap-3 w-72 cursor-grabbing rotate-1">
+              <span
+                className="flex-shrink-0 h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: MEAL_TYPE_COLOR[activeDragEntry.mealType] }}
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  {OVERLAY_MEAL_LABEL[activeDragEntry.mealType]}
+                </p>
+                <p className="font-bold text-sm leading-snug line-clamp-1">
+                  {activeDragEntry.recipe.title}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }

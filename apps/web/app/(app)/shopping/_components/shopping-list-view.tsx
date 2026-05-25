@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { ShoppingItem } from "./shopping-item";
 import type { ShoppingItem as ShoppingItemType } from "@/hooks/use-shopping-list";
@@ -16,37 +16,8 @@ interface Props {
   onDelete: (id: string) => void;
 }
 
-const HIDE_DELAY_MS = 1500;
-
 export function ShoppingListView({ groups, onToggle, onDelete }: Props) {
   const [hideChecked, setHideChecked] = useState(true);
-  const [recentlyChecked, setRecentlyChecked] = useState<Set<string>>(new Set());
-  const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-
-  useEffect(() => {
-    const t = timers.current;
-    return () => {
-      for (const id of t.values()) clearTimeout(id);
-    };
-  }, []);
-
-  function handleItemChecked(itemId: string) {
-    const existing = timers.current.get(itemId);
-    if (existing) clearTimeout(existing);
-
-    setRecentlyChecked((prev) => new Set([...prev, itemId]));
-
-    const timer = setTimeout(() => {
-      setRecentlyChecked((prev) => {
-        const next = new Set(prev);
-        next.delete(itemId);
-        return next;
-      });
-      timers.current.delete(itemId);
-    }, HIDE_DELAY_MS);
-
-    timers.current.set(itemId, timer);
-  }
 
   const totalChecked = groups.reduce(
     (acc, g) => acc + g.items.filter((i) => i.isChecked).length,
@@ -56,9 +27,7 @@ export function ShoppingListView({ groups, onToggle, onDelete }: Props) {
   const visibleGroups = groups
     .map((g) => ({
       ...g,
-      items: hideChecked
-        ? g.items.filter((i) => !i.isChecked || recentlyChecked.has(i.id))
-        : g.items,
+      items: hideChecked ? g.items.filter((i) => !i.isChecked) : g.items,
     }))
     .filter((g) => g.items.length > 0);
 
@@ -99,7 +68,6 @@ export function ShoppingListView({ groups, onToggle, onDelete }: Props) {
                   item={item}
                   onToggle={(checked) => onToggle(item.id, checked)}
                   onDelete={() => onDelete(item.id)}
-                  onChecked={() => handleItemChecked(item.id)}
                 />
               ))}
             </ul>
