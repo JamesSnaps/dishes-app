@@ -28,6 +28,7 @@ import type { ImageStyleValue } from "@/lib/image-styles";
 import { Badge, Button } from "@dishes/ui";
 import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
+import { StartCookingButton } from "./_components/start-cooking-button";
 import { TweakRecipeButton } from "./_components/tweak-recipe-button";
 import { SimilarRecipesButton } from "./_components/similar-recipes-button";
 import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
@@ -350,12 +351,11 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
       {/* Start Cooking + Tweak + Similar CTAs */}
       {steps.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-2">
-          <Button asChild size="lg" className="w-full sm:w-auto">
-            <Link href={`/recipes/${id}/cook`}>
-              <ChefHat className="mr-2 h-5 w-5" />
-              Start Cooking
-            </Link>
-          </Button>
+          <StartCookingButton
+            recipeId={id}
+            servings={recipe.servings}
+            servingsUnit={recipe.servingsUnit ?? null}
+          />
           <TweakRecipeButton recipeId={id} recipe={recipeForTweak} cookContext={cookContext} />
           <SimilarRecipesButton recipeId={id} />
         </div>

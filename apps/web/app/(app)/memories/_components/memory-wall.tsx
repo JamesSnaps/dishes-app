@@ -124,7 +124,7 @@ export function MemoryWall({ photos }: Props) {
         style={{ opacity: fading ? 0 : 1, transform: fading ? "scale(0.97)" : "scale(1)" }}
       >
         {items.map((photo, i) => (
-          <div key={photo.id} className="break-inside-avoid mb-3">
+          <div key={photo.id} className="break-inside-avoid mb-3 overflow-hidden">
             <button
               type="button"
               className="w-full text-left focus:outline-none"

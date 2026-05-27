@@ -259,6 +259,7 @@ export async function uploadCookPhoto(
 
   // Resize to max 1600 px wide and convert to JPEG before storing
   const resized = await sharp(raw)
+    .rotate() // auto-rotate from EXIF orientation, then strip the tag
     .resize(1600, null, { withoutEnlargement: true })
     .jpeg({ quality: 85, mozjpeg: true })
     .toBuffer();

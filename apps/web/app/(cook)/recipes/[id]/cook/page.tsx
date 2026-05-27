@@ -12,10 +12,13 @@ export const metadata = { title: "Cooking Mode" };
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ servings?: string }>;
 }
 
-export default async function CookPage({ params }: Props) {
+export default async function CookPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { servings: servingsParam } = await searchParams;
+  const initialServings = servingsParam ? parseFloat(servingsParam) : undefined;
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
@@ -54,6 +57,7 @@ export default async function CookPage({ params }: Props) {
       householdMembers={members}
       avgDuration={avgDuration}
       storageAvailable={isStorageAvailable()}
+      initialServings={initialServings}
     />
   );
 }

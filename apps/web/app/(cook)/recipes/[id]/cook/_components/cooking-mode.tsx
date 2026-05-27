@@ -35,6 +35,7 @@ interface Props {
   householdMembers?: HouseholdMember[];
   avgDuration?: number | null;
   storageAvailable?: boolean;
+  initialServings?: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -659,14 +660,14 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration, storageAvailable }: Props) {
+export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration, storageAvailable, initialServings }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const cookStartRef = useRef<number>(Date.now());
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   const originalServings = recipe.servings ? parseFloat(recipe.servings) : null;
-  const [currentServings, setCurrentServings] = useState(originalServings ?? 4);
+  const [currentServings, setCurrentServings] = useState(initialServings ?? originalServings ?? 4);
 
   // Global timer state — timers persist across step navigation
   const [timers, setTimers] = useState<Map<number, TimerState>>(() => {
@@ -894,7 +895,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
               )}
 
               {/* Step dot nav (mobile only) */}
-              <div className="mb-8 flex justify-center gap-1 lg:hidden">
+              <div className="mb-4 flex justify-center gap-1 lg:hidden">
                 {steps.map((_, i) => (
                   <button
                     key={i}
@@ -906,6 +907,18 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                   />
                 ))}
               </div>
+
+              {/* Servings control (mobile only) */}
+              {originalServings && (
+                <div className="mb-6 flex justify-center lg:hidden">
+                  <ScalingControl
+                    originalServings={recipe.servings}
+                    servingsUnit={recipe.servingsUnit ?? null}
+                    currentServings={currentServings}
+                    onChange={setCurrentServings}
+                  />
+                </div>
+              )}
 
               {/* Step number badge + instruction */}
               {currentStep && (
