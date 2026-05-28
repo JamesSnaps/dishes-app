@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, startTransition } from "react";
+import { saveCookAssistThread, deleteCookAssistThread } from "@/app/actions/cook-assist-threads";
 import Link from "next/link";
 import {
   ChevronLeft,
@@ -17,6 +18,7 @@ import {
   X,
   Send,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { CookDebrief } from "./cook-debrief";
@@ -36,6 +38,7 @@ interface Props {
   avgDuration?: number | null;
   storageAvailable?: boolean;
   initialServings?: number;
+  initialAssistThreads?: Array<{ id: string; stepNumber: number; messages: Array<{ role: "user" | "assistant"; content: string }> }>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -93,6 +96,64 @@ function formatTimer(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// ─── Q&A history ─────────────────────────────────────────────────────────────
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+// ─── Lightweight markdown renderer ───────────────────────────────────────────
+
+function renderInline(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith("*") && part.endsWith("*")) return <em key={i}>{part.slice(1, -1)}</em>;
+    return part;
+  });
+}
+
+function MarkdownContent({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const blocks: Array<{ type: "p" | "ul" | "ol"; items: string[] }> = [];
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const ulMatch = line.match(/^[-*] (.+)/);
+    const olMatch = line.match(/^\d+\. (.+)/);
+    if (ulMatch) {
+      const last = blocks[blocks.length - 1];
+      if (last?.type === "ul") last.items.push(ulMatch[1]);
+      else blocks.push({ type: "ul", items: [ulMatch[1]] });
+    } else if (olMatch) {
+      const last = blocks[blocks.length - 1];
+      if (last?.type === "ol") last.items.push(olMatch[1]);
+      else blocks.push({ type: "ol", items: [olMatch[1]] });
+    } else {
+      blocks.push({ type: "p", items: [line] });
+    }
+  }
+
+  return (
+    <div className="text-sm leading-relaxed space-y-1.5">
+      {blocks.map((block, i) => {
+        if (block.type === "ul") return (
+          <ul key={i} className="list-disc pl-4 space-y-0.5">
+            {block.items.map((item, j) => <li key={j}>{renderInline(item)}</li>)}
+          </ul>
+        );
+        if (block.type === "ol") return (
+          <ol key={i} className="list-decimal pl-4 space-y-0.5">
+            {block.items.map((item, j) => <li key={j}>{renderInline(item)}</li>)}
+          </ol>
+        );
+        return <p key={i}>{renderInline(block.items[0])}</p>;
+      })}
+    </div>
+  );
 }
 
 // ─── Timer state ──────────────────────────────────────────────────────────────
@@ -419,26 +480,49 @@ interface CookAssistProps {
   stepNumber: number;
   stepInstruction: string;
   stepIngredients: Array<{ name: string; amount?: string; unit?: string }>;
+  history: Array<{ id?: string; messages: Message[] }>;
+  onSave: (thread: Message[]) => void;
+  onExchangeComplete: (thread: Message[]) => void;
+  onDeleteThread: (id: string) => void;
 }
 
-function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients }: CookAssistProps) {
+function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients, history, onSave, onExchangeComplete, onDeleteThread }: CookAssistProps) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState("");
+  // Current conversational thread for this step session
+  const [thread, setThread] = useState<Message[]>([]);
+  const [streamingAnswer, setStreamingAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Refs to access latest state in effects without adding them as deps
+  const threadRef = useRef<Message[]>([]);
+  threadRef.current = thread;
+  const onSaveRef = useRef(onSave);
+  useEffect(() => { onSaveRef.current = onSave; });
+  const onExchangeCompleteRef = useRef(onExchangeComplete);
+  useEffect(() => { onExchangeCompleteRef.current = onExchangeComplete; });
 
-  // Reset answer when step changes so old context doesn't linger
+  // When navigating to a different step: save the current thread to history, then clear
   useEffect(() => {
-    setAnswer("");
+    const currentThread = threadRef.current;
+    if (currentThread.length > 0) {
+      onSaveRef.current(currentThread);
+    }
+    setThread([]);
+    setStreamingAnswer("");
     setQuestion("");
     setError(null);
   }, [stepNumber]);
 
+  // Auto-scroll to bottom when thread or streaming content changes
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [thread, streamingAnswer]);
+
   function openModal() {
     setOpen(true);
-    // Focus input on next frame
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
@@ -448,8 +532,12 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients 
 
   async function submit() {
     if (!question.trim() || loading) return;
+    const userMsg: Message = { role: "user", content: question.trim() };
+    const newThread = [...thread, userMsg];
+    setThread(newThread);
+    setQuestion("");
+    setStreamingAnswer("");
     setLoading(true);
-    setAnswer("");
     setError(null);
 
     try {
@@ -461,25 +549,37 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients 
           stepNumber,
           stepInstruction,
           stepIngredients,
-          question: question.trim(),
+          messages: newThread,
         }),
       });
 
       if (!res.ok) {
         const msg = await res.text();
         setError(msg || "Something went wrong.");
+        setThread(newThread.slice(0, -1));
+        setQuestion(userMsg.content);
         return;
       }
 
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
+      let fullAnswer = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        setAnswer((prev) => prev + decoder.decode(value, { stream: true }));
+        fullAnswer += decoder.decode(value, { stream: true });
+        setStreamingAnswer(fullAnswer);
       }
+
+      // Commit the completed answer into the thread
+      const completedThread: Message[] = [...newThread, { role: "assistant" as const, content: fullAnswer }];
+      setThread(completedThread);
+      setStreamingAnswer("");
+      onExchangeCompleteRef.current(completedThread);
     } catch {
       setError("Could not reach the server. Check your connection.");
+      setThread(newThread.slice(0, -1));
+      setQuestion(userMsg.content);
     } finally {
       setLoading(false);
     }
@@ -496,17 +596,33 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients 
     ? stepInstruction.slice(0, 80).trimEnd() + "…"
     : stepInstruction;
 
+  const hasHistory = history.length > 0;
+  const hasThread = thread.length > 0 || !!streamingAnswer || !!error;
+
   return (
     <>
       {/* Trigger button */}
-      <button
-        onClick={openModal}
-        className="mt-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        aria-label="Ask a question about this step"
-      >
-        <HelpCircle className="h-4 w-4" />
-        Ask about this step
-      </button>
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          onClick={openModal}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Ask a question about this step"
+        >
+          <HelpCircle className="h-4 w-4" />
+          Ask about this step
+        </button>
+        {(hasHistory || thread.length > 0) && (
+          <span
+            onClick={openModal}
+            className="cursor-pointer text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+          >
+            {thread.length > 0
+              ? `· ${Math.floor(thread.length / 2)} ${Math.floor(thread.length / 2) === 1 ? "exchange" : "exchanges"} this session`
+              : `· ${history.length} previous ${history.length === 1 ? "session" : "sessions"}`
+            }
+          </span>
+        )}
+      </div>
 
       {/* Modal overlay */}
       {open && (
@@ -544,24 +660,74 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients 
               {stepPreview}
             </p>
 
-            {/* Answer area */}
-            {(answer || loading || error) && (
-              <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
-                {error ? (
-                  <p className="text-sm text-destructive">{error}</p>
-                ) : (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {answer}
-                    {loading && !answer && (
-                      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+            {/* Scrollable conversation area */}
+            {(hasHistory || hasThread) && (
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 min-h-0 space-y-5">
+                {/* Past sessions for this step */}
+                {hasHistory && (
+                  <div>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Previous sessions
+                    </p>
+                    <div className="space-y-4">
+                      {history.map(({ id, messages }, ti) => (
+                        <div key={id ?? ti} className={`space-y-3 ${ti < history.length - 1 ? "pb-4 border-b" : ""}`}>
+                          {messages.map((msg, mi) => (
+                            msg.role === "user" ? (
+                              <p key={mi} className="text-xs font-medium text-foreground/60">{msg.content}</p>
+                            ) : (
+                              <MarkdownContent key={mi} text={msg.content} />
+                            )
+                          ))}
+                          {id && (
+                            <button
+                              onClick={() => onDeleteThread(id)}
+                              className="flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-destructive transition-colors"
+                              aria-label="Delete this conversation"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {hasThread && <div className="mt-4 border-t" />}
+                  </div>
+                )}
+
+                {/* Current conversational thread */}
+                {hasThread && (
+                  <div className="space-y-3">
+                    {hasHistory && (
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        This session
+                      </p>
+                    )}
+                    {thread.map((msg, i) => (
+                      msg.role === "user" ? (
+                        <p key={i} className="text-xs font-medium text-foreground/60">{msg.content}</p>
+                      ) : (
+                        <MarkdownContent key={i} text={msg.content} />
+                      )
+                    ))}
+                    {/* Streaming answer */}
+                    {error ? (
+                      <p className="text-sm text-destructive">{error}</p>
+                    ) : loading && !streamingAnswer ? (
+                      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         Thinking…
                       </span>
-                    )}
-                    {loading && answer && (
-                      <span className="inline-block w-1.5 h-4 bg-foreground/50 animate-pulse ml-0.5 rounded-sm align-text-bottom" />
-                    )}
-                  </p>
+                    ) : streamingAnswer ? (
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {streamingAnswer}
+                        {loading && (
+                          <span className="inline-block w-1.5 h-4 bg-foreground/50 animate-pulse ml-0.5 rounded-sm align-text-bottom" />
+                        )}
+                      </p>
+                    ) : null}
+                  </div>
                 )}
               </div>
             )}
@@ -573,7 +739,7 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients 
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="e.g. Can I substitute Greek yogurt here?"
+                placeholder={thread.length > 0 ? "Ask a follow-up…" : "e.g. Can I substitute Greek yogurt here?"}
                 rows={2}
                 disabled={loading}
                 className="flex-1 resize-none rounded-xl border bg-muted/40 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
@@ -591,18 +757,6 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients 
                 }
               </Button>
             </div>
-
-            {/* Ask another — shown after answer */}
-            {answer && !loading && (
-              <div className="shrink-0 px-5 pb-4 -mt-2 flex justify-end">
-                <button
-                  onClick={() => { setQuestion(""); setAnswer(""); setError(null); inputRef.current?.focus(); }}
-                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-                >
-                  Ask another question
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -660,7 +814,7 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration, storageAvailable, initialServings }: Props) {
+export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration, storageAvailable, initialServings, initialAssistThreads }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const cookStartRef = useRef<number>(Date.now());
@@ -668,6 +822,50 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   const originalServings = recipe.servings ? parseFloat(recipe.servings) : null;
   const [currentServings, setCurrentServings] = useState(initialServings ?? originalServings ?? 4);
+  const [stepHistory, setStepHistory] = useState<Map<number, Array<{ id?: string; messages: Message[] }>>>(() => {
+    const map = new Map<number, Array<{ id?: string; messages: Message[] }>>();
+    for (const { id, stepNumber, messages } of initialAssistThreads ?? []) {
+      const idx = stepNumber - 1;
+      map.set(idx, [...(map.get(idx) ?? []), { id, messages: messages as Message[] }]);
+    }
+    return map;
+  });
+
+  // Tracks the active thread for the current step so we can save it on Done
+  const latestThreadRef = useRef<Message[]>([]);
+
+  const saveStepThread = useCallback((stepIdx: number, thread: Message[]) => {
+    setStepHistory((prev) => {
+      const next = new Map(prev);
+      next.set(stepIdx, [...(next.get(stepIdx) ?? []), { messages: thread }]);
+      return next;
+    });
+    latestThreadRef.current = [];
+    startTransition(() => {
+      saveCookAssistThread(recipe.id, stepIdx + 1, thread).catch(console.error);
+    });
+  }, [recipe.id]);
+
+  const deleteStepThread = useCallback((id: string) => {
+    setStepHistory((prev) => {
+      const next = new Map(prev);
+      for (const [idx, threads] of next) {
+        const filtered = threads.filter((t) => t.id !== id);
+        if (filtered.length !== threads.length) {
+          next.set(idx, filtered);
+          break;
+        }
+      }
+      return next;
+    });
+    startTransition(() => {
+      deleteCookAssistThread(id).catch(console.error);
+    });
+  }, []);
+
+  const handleExchangeComplete = useCallback((thread: Message[]) => {
+    latestThreadRef.current = thread;
+  }, []);
 
   // Global timer state — timers persist across step navigation
   const [timers, setTimers] = useState<Map<number, TimerState>>(() => {
@@ -771,9 +969,10 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     });
   };
 
-  // Keyboard navigation
+  // Keyboard navigation — skip when a modal/dialog is open
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (document.querySelector('[role="dialog"]')) return;
       if (e.key === "ArrowRight" || e.key === "ArrowDown") goNext();
       if (e.key === "ArrowLeft" || e.key === "ArrowUp") goPrev();
     };
@@ -812,6 +1011,11 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           size="lg"
           onClick={() => {
             if (isComplete) return;
+            // Save the current step's thread if it has at least one complete exchange
+            // (latestThreadRef is only updated on completed exchanges, but guard anyway)
+            if (latestThreadRef.current.length >= 2) {
+              saveStepThread(stepIndex, latestThreadRef.current);
+            }
             const mins = Math.max(1, Math.round((Date.now() - cookStartRef.current) / 60000));
             setElapsedMinutes(mins);
             setIsComplete(true);
@@ -956,6 +1160,10 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     amount: ing.amount ?? undefined,
                     unit: ing.unit ?? undefined,
                   }))}
+                  history={stepHistory.get(stepIndex) ?? []}
+                  onSave={(thread) => saveStepThread(stepIndex, thread)}
+                  onExchangeComplete={handleExchangeComplete}
+                  onDeleteThread={deleteStepThread}
                 />
               )}
 

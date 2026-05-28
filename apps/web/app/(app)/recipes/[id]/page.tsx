@@ -25,7 +25,7 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { aiConfigurations } from "@dishes/db/schema";
 import type { ImageStyleValue } from "@/lib/image-styles";
-import { Badge, Button } from "@dishes/ui";
+import { Badge } from "@dishes/ui";
 import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
 import { StartCookingButton } from "./_components/start-cooking-button";

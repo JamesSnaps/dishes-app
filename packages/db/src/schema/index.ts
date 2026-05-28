@@ -12,3 +12,4 @@ export * from "./app-settings";
 export * from "./sharing";
 export * from "./taste-profile";
 export * from "./push-subscriptions";
+export * from "./cook-assist-threads";

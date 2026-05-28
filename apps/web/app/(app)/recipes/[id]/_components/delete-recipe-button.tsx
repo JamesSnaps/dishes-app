@@ -40,8 +40,8 @@ export function DeleteRecipeButton({ recipeId, recipeTitle }: Props) {
         <DialogHeader>
           <DialogTitle>Delete recipe?</DialogTitle>
           <DialogDescription>
-            &ldquo;{recipeTitle}&rdquo; will be permanently deleted. This cannot
-            be undone.
+            &ldquo;{recipeTitle}&rdquo; will be permanently deleted along with
+            its cook assist conversation history. This cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

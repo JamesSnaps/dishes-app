@@ -12,11 +12,11 @@ export async function POST(request: NextRequest) {
     const user = await getAutheliaUser();
     const household = await requireHousehold(user);
 
-    const { recipeTitle, stepNumber, stepInstruction, stepIngredients, question } =
+    const { recipeTitle, stepNumber, stepInstruction, stepIngredients, messages } =
       await request.json();
 
-    if (!question?.trim()) {
-      return new Response("Question is required", { status: 400 });
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return new Response("Messages are required", { status: 400 });
     }
 
     const [config] = await db
@@ -53,7 +53,7 @@ Ingredients used in this step: ${ingredientList}`;
         stream: true,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: question.trim() },
+          ...(messages as Array<{ role: "user" | "assistant"; content: string }>),
         ],
       },
       { signal: abort.signal }

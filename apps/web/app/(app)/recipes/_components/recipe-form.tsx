@@ -4,6 +4,12 @@ import { useRef, useState, useEffect } from "react";
 import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2 } from "lucide-react";
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   Textarea,
@@ -13,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dishes/ui";
+import { deleteAllCookAssistThreadsForRecipe } from "@/app/actions/cook-assist-threads";
 import { improveRecipe, generateRecipeImageUrl, type GeneratedRecipe } from "@/app/actions/ai";
 import { IMAGE_STYLES } from "@/lib/image-styles";
 import type { ImageStyleValue } from "@/lib/image-styles";
@@ -104,6 +111,7 @@ interface RecipeFormProps {
   mode?: "create" | "edit";
   recipeId?: string;
   defaultImageStyle?: ImageStyleValue;
+  assistThreadCount?: number;
 }
 
 export function RecipeForm({
@@ -114,6 +122,7 @@ export function RecipeForm({
   mode = "edit",
   recipeId,
   defaultImageStyle = "studio",
+  assistThreadCount = 0,
 }: RecipeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,6 +194,8 @@ export function RecipeForm({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showHistoryConfirm, setShowHistoryConfirm] = useState(false);
+  const pendingFormDataRef = useRef<FormData | null>(null);
 
   // ── Unsaved-changes guard ────────────────────────────────────────────────────
 
@@ -396,38 +407,34 @@ export function RecipeForm({
 
   // ── Submit ──────────────────────────────────────────────────────────────────
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (isSubmitting) return;
+  function buildFormData(): FormData {
+    const form = formRef.current!;
+    const formData = new FormData(form);
+    formData.set("title", title);
+    formData.set("description", description);
+    formData.set("cuisine", cuisine);
+    formData.set("prepTimeMinutes", prepTimeMinutes);
+    formData.set("cookTimeMinutes", cookTimeMinutes);
+    formData.set("servings", servings);
+    formData.set("servingsUnit", servingsUnit);
+    formData.set("sourceUrl", sourceUrl);
+    formData.set("tags", tags.join(", "));
+    formData.set("notes", notes);
+    formData.set("ingredients", JSON.stringify(ingredients.map(({ key: _key, ...rest }) => rest)));
+    formData.set("steps", JSON.stringify(steps.map(({ key: _key, ...rest }) => rest)));
+    formData.set("difficulty", difficulty);
+    formData.set("imageUrl", imageUrl);
+    formData.set("thumbnailUrl", thumbnailUrl);
+    return formData;
+  }
+
+  async function executeSubmit(formData: FormData, clearHistory: boolean) {
     setIsSubmitting(true);
     setSubmitError(null);
-
     try {
-      const form = formRef.current!;
-      const formData = new FormData(form);
-
-      formData.set("title", title);
-      formData.set("description", description);
-      formData.set("cuisine", cuisine);
-      formData.set("prepTimeMinutes", prepTimeMinutes);
-      formData.set("cookTimeMinutes", cookTimeMinutes);
-      formData.set("servings", servings);
-      formData.set("servingsUnit", servingsUnit);
-      formData.set("sourceUrl", sourceUrl);
-      formData.set("tags", tags.join(", "));
-      formData.set("notes", notes);
-      formData.set(
-        "ingredients",
-        JSON.stringify(ingredients.map(({ key: _key, ...rest }) => rest))
-      );
-      formData.set(
-        "steps",
-        JSON.stringify(steps.map(({ key: _key, ...rest }) => rest))
-      );
-      formData.set("difficulty", difficulty);
-      formData.set("imageUrl", imageUrl);
-      formData.set("thumbnailUrl", thumbnailUrl);
-
+      if (clearHistory && recipeId) {
+        await deleteAllCookAssistThreadsForRecipe(recipeId);
+      }
       await action(formData);
     } catch (err) {
       // next/navigation redirect() throws a special error — let Next.js handle it
@@ -445,6 +452,22 @@ export function RecipeForm({
       setSubmitError(message);
       setIsSubmitting(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (isSubmitting) return;
+
+    const formData = buildFormData();
+
+    // In edit mode with existing conversation history, ask what to do with it
+    if (mode === "edit" && assistThreadCount > 0) {
+      pendingFormDataRef.current = formData;
+      setShowHistoryConfirm(true);
+      return;
+    }
+
+    await executeSubmit(formData, false);
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -930,6 +953,7 @@ export function RecipeForm({
   );
 
   return (
+    <>
     <form
       ref={formRef}
       onSubmit={handleSubmit}
@@ -1055,5 +1079,48 @@ export function RecipeForm({
         </div>
       </div>
     </form>
+
+      {/* Confirmation dialog when saving with existing conversation history */}
+      <Dialog open={showHistoryConfirm} onOpenChange={setShowHistoryConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save changes</DialogTitle>
+            <DialogDescription>
+              This recipe has {assistThreadCount} saved cooking conversation{assistThreadCount !== 1 ? "s" : ""}.
+              Since step numbers or content may have changed, you can clear the history now or keep it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={() => setShowHistoryConfirm(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={async () => {
+                await executeSubmit(pendingFormDataRef.current!, false);
+                setShowHistoryConfirm(false);
+              }}
+            >
+              Save &amp; keep history
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isSubmitting}
+              onClick={async () => {
+                await executeSubmit(pendingFormDataRef.current!, true);
+                setShowHistoryConfirm(false);
+              }}
+            >
+              Save &amp; clear history
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
