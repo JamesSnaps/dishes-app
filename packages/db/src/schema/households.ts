@@ -1,5 +1,6 @@
 import {
   boolean,
+  integer,
   pgEnum,
   pgTable,
   text,
@@ -30,6 +31,7 @@ export const householdMembers = pgTable("household_members", {
   autheliaUser: varchar("authelia_user", { length: 255 }).notNull(),
   role: memberRoleEnum("role").notNull().default("adult"),
   displayName: varchar("display_name", { length: 255 }).notNull(),
+  birthYear: integer("birth_year"),
   avatarUrl: text("avatar_url"),
   isActive: boolean("is_active").notNull().default(true),
   dietaryFlags: text("dietary_flags").array(),

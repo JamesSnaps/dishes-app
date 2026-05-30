@@ -9,8 +9,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@dishes/ui";
-import { Button, Textarea } from "@dishes/ui";
+import { Button, Input, Textarea } from "@dishes/ui";
 import { updateMemberPreferences } from "@/app/actions/settings";
+
+type MemberRole = "admin" | "adult" | "child";
 
 const DIETARY_FLAGS = [
   "Vegetarian",
@@ -28,6 +30,8 @@ const DIETARY_FLAGS = [
 interface Props {
   memberId: string;
   memberName: string;
+  initialRole: MemberRole;
+  initialBirthYear: number | null;
   initialDietaryFlags: string[];
   initialDislikes: string[];
   initialPreferences: string[];
@@ -99,12 +103,16 @@ function TagInput({
 export function MemberPreferencesSheet({
   memberId,
   memberName,
+  initialRole,
+  initialBirthYear,
   initialDietaryFlags,
   initialDislikes,
   initialPreferences,
   initialCustomNotes,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<MemberRole>(initialRole);
+  const [birthYear, setBirthYear] = useState(initialBirthYear ? String(initialBirthYear) : "");
   const [dietaryFlags, setDietaryFlags] = useState<string[]>(initialDietaryFlags);
   const [dislikes, setDislikes] = useState<string[]>(initialDislikes);
   const [preferences, setPreferences] = useState<string[]>(initialPreferences);
@@ -118,8 +126,11 @@ export function MemberPreferencesSheet({
   }
 
   function handleSave() {
+    const parsedYear = birthYear.trim() ? Number.parseInt(birthYear, 10) : null;
     startTransition(async () => {
       await updateMemberPreferences(memberId, {
+        role,
+        birthYear: Number.isFinite(parsedYear as number) ? (parsedYear as number) : null,
         dietaryFlags,
         dislikes,
         preferences,
@@ -131,6 +142,8 @@ export function MemberPreferencesSheet({
 
   function handleOpenChange(next: boolean) {
     if (next) {
+      setRole(initialRole);
+      setBirthYear(initialBirthYear ? String(initialBirthYear) : "");
       setDietaryFlags(initialDietaryFlags);
       setDislikes(initialDislikes);
       setPreferences(initialPreferences);
@@ -159,6 +172,37 @@ export function MemberPreferencesSheet({
         </SheetHeader>
 
         <div className="space-y-6">
+          {/* Role & age */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as MemberRole)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="admin">Admin</option>
+                <option value="adult">Adult</option>
+                <option value="child">Child</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Birth year</label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                placeholder="e.g. 2023"
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value)}
+                min={1900}
+                max={new Date().getFullYear()}
+              />
+            </div>
+          </div>
+          <p className="-mt-4 text-xs text-muted-foreground">
+            Helps the AI tailor suggestions — e.g. simple, mild meals for young children.
+          </p>
+
           {/* Dietary flags */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Dietary requirements</label>

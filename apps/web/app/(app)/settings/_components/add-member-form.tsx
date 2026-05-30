@@ -35,7 +35,7 @@ export function AddMemberForm() {
   return (
     <form ref={formRef} action={handleSubmit} className="rounded-lg border bg-card p-4">
       <h3 className="mb-3 font-semibold">Add household member</h3>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-muted-foreground">Authelia username</label>
           <Input name="autheliaUser" placeholder="jane.doe" disabled={isPending} required />
@@ -56,6 +56,18 @@ export function AddMemberForm() {
             <option value="adult">Adult</option>
             <option value="child">Child</option>
           </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Birth year</label>
+          <Input
+            name="birthYear"
+            type="number"
+            inputMode="numeric"
+            placeholder="e.g. 2023"
+            min={1900}
+            max={new Date().getFullYear()}
+            disabled={isPending}
+          />
         </div>
       </div>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}

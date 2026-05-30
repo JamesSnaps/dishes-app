@@ -819,17 +819,19 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const [servings, setServings] = useState("");
 
   function buildPrompt(basePrompt?: string) {
-    const parts: string[] = [];
-    if (selectedPrefs.size > 0) parts.push(Array.from(selectedPrefs).join(", "));
+    // Send labelled fields rather than one mashed-together sentence, so the
+    // user's own words carry clear weight alongside the chips and filters.
+    const lines: string[] = [];
     const text = (basePrompt ?? promptText).trim();
-    if (text) parts.push(text);
-    if (cuisine) parts.push(`${cuisine} cuisine`);
-    if (dietary) parts.push(dietary);
-    if (cookTime) parts.push(cookTime);
-    if (spiceLevel) parts.push(spiceLevel);
-    if (budget) parts.push(`${budget} budget`);
-    if (servings) parts.push(servings);
-    return parts.join(". ");
+    if (text) lines.push(`What they'd like: ${text}`);
+    if (selectedPrefs.size > 0) lines.push(`Preferences: ${Array.from(selectedPrefs).join(", ")}`);
+    if (cuisine) lines.push(`Cuisine: ${cuisine}`);
+    if (dietary) lines.push(`Dietary: ${dietary}`);
+    if (cookTime) lines.push(`Max cook time: ${cookTime}`);
+    if (spiceLevel) lines.push(`Spice level: ${spiceLevel}`);
+    if (budget) lines.push(`Budget: ${budget}`);
+    if (servings) lines.push(`Servings: ${servings}`);
+    return lines.join("\n");
   }
 
   function runGenerate(overridePrompt?: string) {

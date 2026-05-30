@@ -111,6 +111,8 @@ async function buildMemberConstraints(memberIds: string[], householdId: string):
   const members = await db
     .select({
       displayName: householdMembers.displayName,
+      role: householdMembers.role,
+      birthYear: householdMembers.birthYear,
       dietaryFlags: householdMembers.dietaryFlags,
       dislikes: householdMembers.dislikes,
       preferences: householdMembers.preferences,
@@ -121,8 +123,21 @@ async function buildMemberConstraints(memberIds: string[], householdId: string):
 
   if (!members.length) return "";
 
+  const currentYear = new Date().getFullYear();
+  let hasYoungChild = false;
+
   const lines = members.map((m) => {
-    const parts: string[] = [`${m.displayName}:`];
+    // Surface age / child status so suggestions can be tailored to who's eating.
+    const age = m.birthYear ? currentYear - m.birthYear : null;
+    let descriptor = m.displayName;
+    if (age !== null) {
+      descriptor += ` (age ${age})`;
+      if (age <= 8) hasYoungChild = true;
+    } else if (m.role === "child") {
+      descriptor += " (a child)";
+      hasYoungChild = true;
+    }
+    const parts: string[] = [`${descriptor}:`];
     if (m.dietaryFlags?.length) parts.push(`dietary requirements: ${m.dietaryFlags.join(", ")}`);
     if (m.dislikes?.length) parts.push(`dislikes: ${m.dislikes.join(", ")}`);
     if (m.preferences?.length) parts.push(`loves: ${m.preferences.join(", ")}`);
@@ -130,7 +145,12 @@ async function buildMemberConstraints(memberIds: string[], householdId: string):
     return parts.join(" — ");
   });
 
-  return `\n\nWho's eating: ${lines.join("; ")}. Please respect all dietary requirements, avoid any listed dislikes, and lean towards their preferences where possible.`;
+  let guidance = `\n\nWho's eating: ${lines.join("; ")}. Please respect all dietary requirements, avoid any listed dislikes, and lean towards their preferences where possible.`;
+  if (hasYoungChild) {
+    guidance +=
+      " One or more diners is a young child, so keep every suggestion genuinely simple, mild and child-friendly with small, age-appropriate portions and easy-to-eat textures. Do not suggest elaborate, rich or restaurant-style dishes, and avoid common choking hazards for very young children.";
+  }
+  return guidance;
 }
 
 function buildSystemAddendum(defaultPrompt: string | null, measurementSystem: string, kitchenEquipment: string | null): string {
@@ -207,8 +227,13 @@ export async function generateConcepts(
     ]);
 
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum + memberConstraints;
+    const isLightMeal = /breakfast|lunch|snack|brunch/i.test(mealType ?? "");
     const mealTypeInstruction = mealType
-      ? `\nIMPORTANT: All 5 concepts must be ${mealType} recipes. Only suggest dishes that are appropriate for ${mealType}.`
+      ? `\nIMPORTANT: All 5 concepts must be ${mealType} recipes that are genuinely appropriate for ${mealType}.${
+          isLightMeal
+            ? ` Keep them light and easy — ${mealType}-sized, not full dinner-style meals.`
+            : ""
+        }`
       : "";
 
     const completion = await client.chat.completions.create({
@@ -218,9 +243,9 @@ export async function generateConcepts(
       messages: [
         {
           role: "system",
-          content: `You are a creative chef helping a family choose what to cook. Return exactly 5 distinct recipe concepts as JSON.
+          content: `You are a helpful chef helping a family choose what to cook. Return exactly 5 distinct recipe concepts as JSON.
 Format: {"concepts": [{"title": "...", "description": "1-2 sentences", "cuisine": "...", "tags": ["..."], "difficulty": "easy"|"medium"|"hard"}]}
-Make the 5 concepts meaningfully different from each other in style, cuisine, or complexity.${mealTypeInstruction}${addendum}`,
+Make the 5 concepts meaningfully different from each other in style or cuisine, but always match their effort, richness and portion size to what the user actually asked for. If the user asks for something simple, quick, light or for a child, every concept must stay simple — do not pad the list with elaborate or restaurant-style dishes.${mealTypeInstruction}${addendum}`,
         },
         { role: "user", content: prompt },
       ],
@@ -350,7 +375,8 @@ export async function improveRecipe(
   ],
   "notes": string|null
 }
-Only change what is necessary to satisfy the user's request. Preserve everything else exactly. Return the full recipe even for fields you did not change.${addendum}`,
+Only change what is necessary to satisfy the user's request. Preserve everything else exactly. Return the full recipe even for fields you did not change.
+CRITICAL: When the user asks to add, remove, or change an ingredient, you MUST update the "ingredients" array directly — add a new object, remove the matching object, or edit the existing one. NEVER leave a removed ingredient in the list. NEVER write workaround instructions in steps such as "skip the X", "omit the X", or "ignore the X" — make the actual change to the data instead.${addendum}`,
         },
         {
           role: "user",

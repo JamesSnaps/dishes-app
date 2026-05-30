@@ -11,6 +11,7 @@ type Member = {
   autheliaUser: string;
   displayName: string;
   role: "admin" | "adult" | "child";
+  birthYear: number | null;
   avatarUrl: string | null;
   dietaryFlags: string[] | null;
   dislikes: string[] | null;
@@ -96,6 +97,8 @@ export function MembersList({
               <MemberPreferencesSheet
                 memberId={member.id}
                 memberName={member.displayName}
+                initialRole={member.role}
+                initialBirthYear={member.birthYear ?? null}
                 initialDietaryFlags={member.dietaryFlags ?? []}
                 initialDislikes={member.dislikes ?? []}
                 initialPreferences={member.preferences ?? []}

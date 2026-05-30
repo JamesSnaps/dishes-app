@@ -14,7 +14,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Recipe scaling** — change serving count and all ingredient amounts recalculate with smart fraction and unit handling
 - **Shopping lists** — auto-generated from recipes or meal plans, with ingredient consolidation, category grouping, and manual additions
 - **Meal planner** — weekly view with day/meal-type slots; navigate between weeks and generate shopping lists from the whole plan
-- **AI recipe concierge** — describe what you want, get 5 concept cards, pick one, and the app generates a complete structured recipe
+- **AI recipe concierge** — describe what you want, get 5 concept cards, pick one, and the app generates a complete structured recipe. Suggestions adapt to who's eating, so picking a young child yields simple, mild, age-appropriate ideas rather than full dinners
 - **Recipe photos** — upload images to MinIO/S3; shown on recipe cards and detail pages
 - **Household model** — multi-member households with role-based permissions (admin / adult / child); all data is household-scoped
 - **Pantry** — staples list (always-available ingredients excluded from shopping lists) and current stock tracking; automatically updated when cooking is completed or a shopping list is archived
@@ -331,7 +331,7 @@ curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/js
 ### Phase 3 — personalisation (in progress)
 - Cook history and 0–5 star rating system
 - Post-cooking debrief flow (duration, notes, occasion, dish photo)
-- Family member profiles with dietary flags, dislikes, and preferences
+- Family member profiles with role, age (birth year), dietary flags, dislikes, and preferences
 - Cooking time learning (household average vs. recipe estimate)
 - AI food memory (notable occasions and cook notes surfaced in AI prompts)
 - **Taste profiling** ✓ — recency-weighted preference model; personalises AI and home screen suggestions

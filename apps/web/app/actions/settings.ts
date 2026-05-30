@@ -43,6 +43,7 @@ export async function addMember(formData: FormData) {
   const autheliaUser = (formData.get("autheliaUser") as string)?.trim().toLowerCase();
   const displayName = (formData.get("displayName") as string)?.trim();
   const memberRole = (formData.get("role") as "admin" | "adult" | "child") ?? "adult";
+  const birthYear = parseBirthYear(formData.get("birthYear"));
 
   if (!autheliaUser) throw new Error("Username is required");
   if (!displayName) throw new Error("Display name is required");
@@ -67,9 +68,21 @@ export async function addMember(formData: FormData) {
     autheliaUser,
     displayName,
     role: memberRole,
+    birthYear,
   });
 
   revalidatePath("/settings");
+}
+
+// Parse an optional birth year from form/user input. Returns null when blank
+// or implausible so we never store junk that would mislead the AI.
+function parseBirthYear(raw: FormDataEntryValue | null | undefined): number | null {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!value) return null;
+  const year = Number.parseInt(value, 10);
+  const currentYear = new Date().getFullYear();
+  if (!Number.isFinite(year) || year < 1900 || year > currentYear) return null;
+  return year;
 }
 
 export async function updateMemberRole(memberId: string, newRole: "admin" | "adult" | "child") {
@@ -112,6 +125,8 @@ export async function removeMember(memberId: string) {
 }
 
 export type MemberPreferencesInput = {
+  role: "admin" | "adult" | "child";
+  birthYear: number | null;
   dietaryFlags: string[];
   dislikes: string[];
   preferences: string[];
@@ -128,6 +143,8 @@ export async function updateMemberPreferences(
   await db
     .update(householdMembers)
     .set({
+      role: data.role,
+      birthYear: parseBirthYear(data.birthYear == null ? null : String(data.birthYear)),
       dietaryFlags: data.dietaryFlags.length ? data.dietaryFlags : null,
       dislikes: data.dislikes.length ? data.dislikes : null,
       preferences: data.preferences.length ? data.preferences : null,
@@ -213,6 +230,7 @@ export async function getHouseholdWithMembers(householdId: string) {
       autheliaUser: householdMembers.autheliaUser,
       displayName: householdMembers.displayName,
       role: householdMembers.role,
+      birthYear: householdMembers.birthYear,
       avatarUrl: householdMembers.avatarUrl,
       dietaryFlags: householdMembers.dietaryFlags,
       dislikes: householdMembers.dislikes,
