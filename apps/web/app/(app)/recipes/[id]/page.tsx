@@ -45,13 +45,15 @@ export const metadata = { title: "Recipe" };
 
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ pendingReview?: string; from?: string; week?: string }>;
+  searchParams: Promise<{ pendingReview?: string; from?: string; week?: string; back?: string }>;
 }
 
 export default async function RecipeDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { pendingReview, from, week } = await searchParams;
-  const backHref = from === "meal-plan" && week ? `/meal-plan?week=${week}` : "/recipes";
+  const { pendingReview, from, week, back } = await searchParams;
+  // `back` carries the encoded search string from the recipe list (e.g. "q=pasta&sort=az")
+  const recipesBack = back && /^[a-zA-Z0-9%&=+._~-]*$/.test(back) ? `/recipes?${back}` : "/recipes";
+  const backHref = from === "meal-plan" && week ? `/meal-plan?week=${week}` : recipesBack;
   const backLabel = from === "meal-plan" ? "Meal Plan" : "Recipes";
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { CheckSquare2, Minus, Plus, Sparkles, Tag, X } from "lucide-react";
 import {
   Badge,
@@ -338,6 +339,22 @@ interface RecipesGridProps {
 }
 
 export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
+  const searchParams = useSearchParams();
+  const backSearch = searchParams.toString();
+
+  // Restore scroll position when returning from a recipe detail page
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("recipes-list-state");
+      if (!raw) return;
+      const { search, scrollY } = JSON.parse(raw) as { search: string; scrollY: number };
+      if (search === backSearch && scrollY > 0) {
+        window.scrollTo({ top: scrollY, behavior: "instant" });
+      }
+      sessionStorage.removeItem("recipes-list-state");
+    } catch {}
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialogMode, setDialogMode] = useState<"add" | "remove" | null>(null);
@@ -417,6 +434,7 @@ export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
             selectable={selectionMode}
             selected={selectedIds.has(recipe.id)}
             onToggle={toggleSelection}
+            backSearch={selectionMode ? undefined : backSearch}
           />
         ))}
       </div>

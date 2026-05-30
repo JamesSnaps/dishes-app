@@ -20,6 +20,7 @@ type RecipeCardProps = {
   selectable?: boolean;
   selected?: boolean;
   onToggle?: (id: string) => void;
+  backSearch?: string;
 };
 
 function totalTime(prep: number | null, cook: number | null): string | null {
@@ -47,6 +48,7 @@ export function RecipeCard({
   selectable = false,
   selected = false,
   onToggle,
+  backSearch,
 }: RecipeCardProps) {
   const time = totalTime(prepTimeMinutes, cookTimeMinutes);
 
@@ -143,8 +145,19 @@ export function RecipeCard({
     );
   }
 
+  const href = backSearch ? `/recipes/${id}?back=${encodeURIComponent(backSearch)}` : `/recipes/${id}`;
+
+  function handleClick() {
+    try {
+      sessionStorage.setItem(
+        "recipes-list-state",
+        JSON.stringify({ search: backSearch ?? "", scrollY: window.scrollY })
+      );
+    } catch {}
+  }
+
   return (
-    <Link href={`/recipes/${id}`} className="group block">
+    <Link href={href} className="group block" onClick={handleClick}>
       {cardContent}
     </Link>
   );
