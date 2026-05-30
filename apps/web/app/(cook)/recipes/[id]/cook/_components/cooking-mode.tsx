@@ -481,7 +481,7 @@ interface CookAssistProps {
   stepInstruction: string;
   stepIngredients: Array<{ name: string; amount?: string; unit?: string }>;
   history: Array<{ id?: string; messages: Message[] }>;
-  onSave: (thread: Message[]) => void;
+  onSave: (thread: Message[], stepNumber: number) => void;
   onExchangeComplete: (thread: Message[]) => void;
   onDeleteThread: (id: string) => void;
 }
@@ -504,12 +504,19 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients,
   const onExchangeCompleteRef = useRef(onExchangeComplete);
   useEffect(() => { onExchangeCompleteRef.current = onExchangeComplete; });
 
-  // When navigating to a different step: save the current thread to history, then clear
+  // When navigating to a different step: save the current thread to history, then clear.
+  // The thread must be attributed to the step we're *leaving*, not the one we're entering —
+  // so we save against the previous step number, not the (already-updated) `stepNumber` prop.
+  const prevStepRef = useRef(stepNumber);
   useEffect(() => {
-    const currentThread = threadRef.current;
-    if (currentThread.length > 0) {
-      onSaveRef.current(currentThread);
+    const prevStep = prevStepRef.current;
+    if (prevStep !== stepNumber) {
+      const currentThread = threadRef.current;
+      if (currentThread.length > 0) {
+        onSaveRef.current(currentThread, prevStep);
+      }
     }
+    prevStepRef.current = stepNumber;
     setThread([]);
     setStreamingAnswer("");
     setQuestion("");
@@ -590,6 +597,32 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients,
       e.preventDefault();
       submit();
     }
+  }
+
+  // Erase the most recent exchange from the working thread (assistant reply + its
+  // question, or a lone unanswered question). Kept in sync with the parent's
+  // save ref so a trimmed thread is what gets persisted on navigate/Done.
+  function deleteLastExchange() {
+    if (thread.length === 0 || loading) return;
+    const next = [...thread];
+    if (next[next.length - 1].role === "assistant") {
+      next.pop();
+      if (next.length && next[next.length - 1].role === "user") next.pop();
+    } else {
+      next.pop();
+    }
+    setThread(next);
+    setError(null);
+    onExchangeCompleteRef.current(next);
+  }
+
+  // Wipe the whole current session without saving it.
+  function clearThread() {
+    if (loading) return;
+    setThread([]);
+    setStreamingAnswer("");
+    setError(null);
+    onExchangeCompleteRef.current([]);
   }
 
   const stepPreview = stepInstruction.length > 80
@@ -727,6 +760,27 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients,
                         )}
                       </p>
                     ) : null}
+
+                    {/* Erase controls for the working thread */}
+                    {thread.length > 0 && !loading && !streamingAnswer && (
+                      <div className="flex items-center gap-3 pt-1">
+                        <button
+                          onClick={deleteLastExchange}
+                          className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-destructive transition-colors"
+                          aria-label="Delete the last exchange"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete last
+                        </button>
+                        <button
+                          onClick={clearThread}
+                          className="text-xs text-muted-foreground/60 hover:text-destructive transition-colors"
+                          aria-label="Clear this session"
+                        >
+                          Clear session
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1161,7 +1215,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     unit: ing.unit ?? undefined,
                   }))}
                   history={stepHistory.get(stepIndex) ?? []}
-                  onSave={(thread) => saveStepThread(stepIndex, thread)}
+                  onSave={(thread, stepNumber) => saveStepThread(stepNumber - 1, thread)}
                   onExchangeComplete={handleExchangeComplete}
                   onDeleteThread={deleteStepThread}
                 />
