@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Check, Clock, UtensilsCrossed } from "lucide-react";
 import { Badge, Card, cn } from "@dishes/ui";
