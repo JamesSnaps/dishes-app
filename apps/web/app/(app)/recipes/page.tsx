@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { Plus } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes, cookHistory, recipeTags } from "@dishes/db/schema";
+import { recipes, cookHistory, recipeTags, collections, recipeCollections } from "@dishes/db/schema";
 import { eq, and, ilike, isNotNull, or, inArray, avg, count, sql } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -70,7 +71,7 @@ export default async function RecipesPage({ searchParams }: Props) {
     }
   }
 
-  const [allRecipes, cuisineRows, cookStatsRows, tagRows] = await Promise.all([
+  const [allRecipes, cuisineRows, cookStatsRows, tagRows, collectionRows] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -109,6 +110,18 @@ export default async function RecipesPage({ searchParams }: Props) {
       .innerJoin(recipes, eq(recipeTags.recipeId, recipes.id))
       .where(eq(recipes.householdId, householdId))
       .orderBy(recipeTags.tag),
+    db
+      .select({
+        id: collections.id,
+        name: collections.name,
+        icon: collections.icon,
+        recipeCount: count(recipeCollections.recipeId),
+      })
+      .from(collections)
+      .leftJoin(recipeCollections, eq(recipeCollections.collectionId, collections.id))
+      .where(eq(collections.householdId, householdId))
+      .groupBy(collections.id, collections.icon)
+      .orderBy(collections.name),
   ]);
 
   const cookStatsByRecipe = new Map(
@@ -147,6 +160,35 @@ export default async function RecipesPage({ searchParams }: Props) {
           </Button>
         </div>
       </div>
+
+      {/* Collections strip */}
+      {collectionRows.length > 0 && (
+        <div className="mb-4 -mx-4 px-4 lg:-mx-8 lg:px-8">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <Link
+              href="/collections"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Collections
+            </Link>
+            <div className="w-px h-5 bg-border shrink-0" />
+            {collectionRows.map((col) => (
+              <Link
+                key={col.id}
+                href={`/collections/${col.id}`}
+                className="flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-sm hover:border-primary/40 hover:bg-primary/5 transition-colors"
+              >
+                <span className="leading-none">{col.icon ?? "📁"}</span>
+                <span className="font-medium">{col.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {Number(col.recipeCount)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <Suspense>

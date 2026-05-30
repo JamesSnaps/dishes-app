@@ -10,6 +10,7 @@ import { RecipeCard } from "../../recipes/_components/recipe-card";
 import { DeleteCollectionButton } from "../_components/delete-collection-button";
 import { RemoveFromCollectionButton } from "./_components/remove-from-collection-button";
 import { CollectionIconButton } from "./_components/collection-icon-button";
+import { AddRecipesDialog } from "./_components/add-recipes-dialog";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -104,7 +105,10 @@ export default async function CollectionDetailPage({ params }: Props) {
             </p>
           </div>
         </div>
-        <DeleteCollectionButton collectionId={col.id} collectionName={col.name} />
+        <div className="flex items-center gap-2 shrink-0">
+          <AddRecipesDialog collectionId={col.id} />
+          <DeleteCollectionButton collectionId={col.id} collectionName={col.name} />
+        </div>
       </div>
 
       {recipeRows.length === 0 ? (
@@ -112,7 +116,7 @@ export default async function CollectionDetailPage({ params }: Props) {
           <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30" />
           <p className="text-muted-foreground">No recipes in this collection yet.</p>
           <p className="text-sm text-muted-foreground/60">
-            Open a recipe and use the actions menu to add it here.
+            Use the &ldquo;Add recipes&rdquo; button above to search and add recipes.
           </p>
         </div>
       ) : (

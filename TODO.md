@@ -92,7 +92,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 
 ## Personal / Library Features
 - [x] Favourites page (`/favourites`) — filtered grid of favourited recipes
-- [x] Collections (`/collections`) — create named collections, add recipes via actions menu
+- [x] Collections (`/collections`) — create named collections, add recipes via actions menu or search dialog on collection page; collections strip on recipe list
 - [x] My Notes (`/notes`) — standalone notes or linked to a specific recipe; linked notes appear on recipe detail page
 
 ## Infrastructure / DevX

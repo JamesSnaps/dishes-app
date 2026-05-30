@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { collections, recipeCollections, recipes } from "@dishes/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ilike, sql as drizzleSql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -123,6 +123,35 @@ export async function removeRecipeFromCollection(collectionId: string, recipeId:
 
   revalidatePath(`/collections/${collectionId}`);
   revalidatePath(`/recipes/${recipeId}`);
+}
+
+export async function searchRecipesForCollection(collectionId: string, query: string) {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const rows = await db
+    .select({
+      id: recipes.id,
+      title: recipes.title,
+      imageUrl: recipes.imageUrl,
+      thumbnailUrl: recipes.thumbnailUrl,
+      alreadyAdded: drizzleSql<boolean>`EXISTS (
+        SELECT 1 FROM ${recipeCollections}
+        WHERE ${recipeCollections.collectionId} = ${collectionId}
+          AND ${recipeCollections.recipeId} = ${recipes.id}
+      )`,
+    })
+    .from(recipes)
+    .where(
+      and(
+        eq(recipes.householdId, householdId),
+        query.trim() ? ilike(recipes.title, `%${query.trim()}%`) : undefined
+      )
+    )
+    .orderBy(recipes.title)
+    .limit(20);
+
+  return rows;
 }
 
 export async function getHouseholdCollections() {
