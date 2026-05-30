@@ -153,7 +153,7 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
   }
 
   function handleNavigate() {
-    router.push(`/recipes/${recipe.id}`);
+    router.push(`/recipes/${recipe.id}?from=meal-plan&week=${weekStartDate}`);
   }
 
   return (

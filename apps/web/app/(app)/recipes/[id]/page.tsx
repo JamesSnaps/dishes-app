@@ -45,12 +45,14 @@ export const metadata = { title: "Recipe" };
 
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ pendingReview?: string }>;
+  searchParams: Promise<{ pendingReview?: string; from?: string; week?: string }>;
 }
 
 export default async function RecipeDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { pendingReview } = await searchParams;
+  const { pendingReview, from, week } = await searchParams;
+  const backHref = from === "meal-plan" && week ? `/meal-plan?week=${week}` : "/recipes";
+  const backLabel = from === "meal-plan" ? "Meal Plan" : "Recipes";
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
@@ -227,11 +229,11 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b">
         <div className="mx-auto max-w-4xl px-4 lg:px-8 py-3">
           <Link
-            href="/recipes"
+            href={backHref}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit"
           >
             <ChevronLeft className="h-4 w-4" />
-            Recipes
+            {backLabel}
           </Link>
         </div>
       </div>

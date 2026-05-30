@@ -24,7 +24,7 @@ import {
   useSensor,
   MouseSensor,
   TouchSensor,
-  closestCenter,
+  pointerWithin,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -686,7 +686,7 @@ export function WeekPlanner({
     >
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={pointerWithin}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
