@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { FolderOpen } from "lucide-react";
 import { db } from "@/lib/db";
 import { recipes, cookHistory, recipeTags, collections, recipeCollections } from "@dishes/db/schema";
-import { eq, and, ilike, isNotNull, or, inArray, avg, count, sql } from "drizzle-orm";
+import { eq, and, ilike, isNotNull, or, inArray, avg, count, sql, desc } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
@@ -22,6 +22,7 @@ interface Props {
     difficulty?: string;
     maxTime?: string;
     tags?: string;
+    sort?: string;
   }>;
 }
 
@@ -29,7 +30,7 @@ export default async function RecipesPage({ searchParams }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const { q, cuisine, favourites, difficulty, maxTime, tags } = await searchParams;
+  const { q, cuisine, favourites, difficulty, maxTime, tags, sort } = await searchParams;
 
   const conditions = [eq(recipes.householdId, householdId)];
   if (q?.trim()) {
@@ -87,7 +88,7 @@ export default async function RecipesPage({ searchParams }: Props) {
       })
       .from(recipes)
       .where(and(...conditions))
-      .orderBy(recipes.createdAt),
+      .orderBy(desc(recipes.createdAt)),
     db
       .selectDistinct({ cuisine: recipes.cuisine })
       .from(recipes)
@@ -211,14 +212,20 @@ export default async function RecipesPage({ searchParams }: Props) {
         </div>
       ) : (
         <RecipesGrid
-          recipes={allRecipes.map((recipe) => {
-            const stats = cookStatsByRecipe.get(recipe.id);
-            return {
-              ...recipe,
-              averageRating: stats?.averageRating ?? null,
-              cookCount: stats?.cookCount ?? 0,
-            };
-          })}
+          recipes={allRecipes
+            .map((recipe) => {
+              const stats = cookStatsByRecipe.get(recipe.id);
+              return {
+                ...recipe,
+                averageRating: stats?.averageRating ?? null,
+                cookCount: stats?.cookCount ?? 0,
+              };
+            })
+            .sort((a, b) => {
+              if (sort === "az") return a.title.localeCompare(b.title);
+              if (sort === "rating") return (b.averageRating ?? -1) - (a.averageRating ?? -1);
+              return 0; // newest: DB already returns desc(createdAt)
+            })}
           allTags={allTags}
         />
       )}

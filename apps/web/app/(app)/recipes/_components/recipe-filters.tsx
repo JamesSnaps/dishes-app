@@ -5,6 +5,12 @@ import { useRef, useState, useCallback } from "react";
 import { Heart, Search, SlidersHorizontal, X } from "lucide-react";
 import { Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@dishes/ui";
 
+const SORT_OPTIONS = [
+  { label: "Newest", value: "newest" },
+  { label: "A–Z", value: "az" },
+  { label: "Top rated", value: "rating" },
+];
+
 const TIME_OPTIONS = [
   { label: "Any", value: "" },
   { label: "≤ 30 min", value: "30" },
@@ -68,6 +74,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const difficulty = params.get("difficulty") ?? "";
   const maxTime = params.get("maxTime") ?? "";
   const activeTags = (params.get("tags") ?? "").split(",").filter(Boolean);
+  const sort = params.get("sort") ?? "newest";
 
   const searchRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,6 +99,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const [pendingDifficulty, setPendingDifficulty] = useState(difficulty);
   const [pendingMaxTime, setPendingMaxTime] = useState(maxTime);
   const [pendingTags, setPendingTags] = useState<string[]>(activeTags);
+  const [pendingSort, setPendingSort] = useState(sort);
 
   function push(updates: Record<string, string>) {
     const next = new URLSearchParams(params.toString());
@@ -108,6 +116,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     setPendingDifficulty(difficulty);
     setPendingMaxTime(maxTime);
     setPendingTags(activeTags);
+    setPendingSort(sort);
     setSheetOpen(true);
   }
 
@@ -120,6 +129,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     if (pendingDifficulty) next.set("difficulty", pendingDifficulty);
     if (pendingMaxTime) next.set("maxTime", pendingMaxTime);
     if (pendingTags.length > 0) next.set("tags", pendingTags.join(","));
+    if (pendingSort && pendingSort !== "newest") next.set("sort", pendingSort);
     setSheetOpen(false);
     router.push(`/recipes?${next.toString()}`);
   }
@@ -130,6 +140,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     setPendingDifficulty("");
     setPendingMaxTime("");
     setPendingTags([]);
+    setPendingSort("newest");
   }
 
   function togglePendingTag(tag: string) {
@@ -152,16 +163,18 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     (favourites === "1" ? 1 : 0) +
     (difficulty ? 1 : 0) +
     (maxTime ? 1 : 0) +
-    activeTags.length;
+    activeTags.length +
+    (sort !== "newest" ? 1 : 0);
 
   const pendingFilterCount =
     (pendingCuisine ? 1 : 0) +
     (pendingFavourites ? 1 : 0) +
     (pendingDifficulty ? 1 : 0) +
     (pendingMaxTime ? 1 : 0) +
-    pendingTags.length;
+    pendingTags.length +
+    (pendingSort !== "newest" ? 1 : 0);
 
-  const hasActiveFilters = !!(q || cuisine || favourites || difficulty || maxTime || activeTags.length);
+  const hasActiveFilters = !!(q || cuisine || favourites || difficulty || maxTime || activeTags.length || sort !== "newest");
 
   return (
     <div className="mb-6 space-y-3">
@@ -222,6 +235,22 @@ export function RecipeFilters({ cuisines, tags }: Props) {
             </SheetHeader>
 
             <div className="space-y-5 p-4">
+              {/* Sort */}
+              <div>
+                <p className="mb-2.5 text-sm font-medium">Sort by</p>
+                <div className="flex flex-wrap gap-2">
+                  {SORT_OPTIONS.map((o) => (
+                    <button
+                      key={o.value}
+                      onClick={() => setPendingSort(o.value)}
+                      className={sheetPill(pendingSort === o.value)}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Favourites */}
               <div>
                 <p className="mb-2.5 text-sm font-medium">Show</p>
@@ -332,6 +361,24 @@ export function RecipeFilters({ cuisines, tags }: Props) {
 
       {/* Desktop inline filter bar */}
       <div className="hidden lg:flex lg:flex-wrap lg:items-center lg:gap-x-1 lg:gap-y-2">
+        {/* Sort */}
+        <div className="flex items-center gap-2 mr-1">
+          <span className="text-xs text-muted-foreground">Sort</span>
+          <div className="flex gap-1">
+            {SORT_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                onClick={() => push({ sort: o.value === "newest" ? "" : o.value })}
+                className={pill(sort === o.value)}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-4 w-px bg-border mx-2" />
+
         {/* Favourites toggle */}
         <button
           onClick={() => push({ favourites: favourites === "1" ? "" : "1" })}
