@@ -384,7 +384,6 @@ export function CookDebrief({
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   className="sr-only"
                   onChange={(e) => handlePhotoChange(e.target.files?.[0] ?? null)}
                 />
