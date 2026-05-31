@@ -668,6 +668,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
   const [ratedOnly, setRatedOnly] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [generatedSlots, setGeneratedSlots] = useState<MealPlanSlot[] | null>(null);
+  const [rejectedSlots, setRejectedSlots] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, startGenTransition] = useTransition();
   const [isAdding, startAddTransition] = useTransition();
@@ -716,6 +717,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
   function handleGenerate() {
     setError(null);
     setGeneratedSlots(null);
+    setRejectedSlots(new Set());
     setAdded(false);
     const slots = Array.from(selectedSlots).map((key) => {
       const colon = key.indexOf(":");
@@ -736,11 +738,21 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
     });
   }
 
+  function toggleRejection(idx: number) {
+    setRejectedSlots((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }
+
   function handleAddToMealPlan() {
     if (!generatedSlots) return;
+    const slotsToAdd = generatedSlots.filter((_, idx) => !rejectedSlots.has(idx));
+    if (!slotsToAdd.length) return;
     const weekStart = getMondayOf(weekOffset);
     startAddTransition(async () => {
-      const result = await addAiGeneratedMealPlan(weekStart, generatedSlots);
+      const result = await addAiGeneratedMealPlan(weekStart, slotsToAdd);
       if (result.debug) setDebugInfo(result.debug);
       if (result.error) { setError(result.error); return; }
       setAdded(true);
@@ -750,6 +762,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
 
   const canGenerate = selectedSlots.size > 0;
   const weekLabel = weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : "Week after";
+  const includedCount = generatedSlots ? generatedSlots.length - rejectedSlots.size : 0;
 
   return (
     <div className="space-y-5">
@@ -940,7 +953,11 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
           <div className="bg-gradient-to-r from-violet-50 to-orange-50 border-b px-5 py-3 flex items-center justify-between dark:from-violet-950/60 dark:to-orange-950/40">
             <div>
               <h3 className="font-semibold text-sm">Your meal plan for {weekLabel}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">{generatedSlots.length} meals planned — review and add to your planner</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {rejectedSlots.size === 0
+                  ? `${generatedSlots.length} meals — tap any to remove`
+                  : `${includedCount} of ${generatedSlots.length} selected`}
+              </p>
             </div>
             <Button variant="ghost" size="sm" onClick={handleGenerate} disabled={isGenerating || isAdding} className="gap-1.5 text-muted-foreground">
               <RefreshCw className="h-3.5 w-3.5" />Redo
@@ -949,40 +966,72 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
 
           <div className="divide-y">
             {DAY_FULL.map((dayName, dayIdx) => {
-              const daySlots = generatedSlots.filter((s) => s.dayOfWeek === dayIdx);
+              const daySlots = generatedSlots
+                .map((slot, globalIdx) => ({ slot, globalIdx }))
+                .filter(({ slot }) => slot.dayOfWeek === dayIdx);
               if (!daySlots.length) return null;
               return (
                 <div key={dayIdx} className="px-5 py-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{dayName}</p>
                   <div className="space-y-2">
-                    {daySlots.map((slot, i) => (
-                      <div key={i} className="flex items-start gap-3">
-                        <span className="text-lg shrink-0 mt-0.5">{cuisineEmoji(slot.cuisine)}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium truncate">{slot.title}</p>
-                            <span className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] capitalize", difficultyClass(slot.difficulty))}>
-                              {slot.difficulty}
-                            </span>
-                            <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] capitalize text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400">
-                              {slot.mealType}
-                            </span>
-                            {slot.recipeId ? (
-                              <span className="inline-flex items-center gap-0.5 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400">
-                                <BookOpen className="h-2.5 w-2.5" />
-                                From your library
+                    {daySlots.map(({ slot, globalIdx }) => {
+                      const rejected = rejectedSlots.has(globalIdx);
+                      return (
+                        <button
+                          key={globalIdx}
+                          type="button"
+                          onClick={() => toggleRejection(globalIdx)}
+                          disabled={isAdding}
+                          className={cn(
+                            "w-full flex items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-all",
+                            rejected
+                              ? "opacity-40 bg-muted/30 line-through-children"
+                              : "hover:bg-muted/40"
+                          )}
+                        >
+                          {/* Toggle indicator */}
+                          <span
+                            className={cn(
+                              "mt-0.5 flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all",
+                              rejected
+                                ? "border-muted-foreground/30 bg-transparent"
+                                : "border-emerald-400 bg-emerald-500"
+                            )}
+                          >
+                            {!rejected && <Check className="h-3 w-3 text-white" />}
+                          </span>
+
+                          <span className="text-lg shrink-0 leading-none mt-0.5">{cuisineEmoji(slot.cuisine)}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className={cn("text-sm font-medium truncate", rejected && "line-through text-muted-foreground")}>
+                                {slot.title}
+                              </p>
+                              <span className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] capitalize", difficultyClass(slot.difficulty))}>
+                                {slot.difficulty}
                               </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400">
-                                <Sparkles className="h-2.5 w-2.5" />
-                                New recipe
+                              <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] capitalize text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400">
+                                {slot.mealType}
                               </span>
+                              {slot.recipeId ? (
+                                <span className="inline-flex items-center gap-0.5 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400">
+                                  <BookOpen className="h-2.5 w-2.5" />
+                                  From your library
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400">
+                                  <Sparkles className="h-2.5 w-2.5" />
+                                  New recipe
+                                </span>
+                              )}
+                            </div>
+                            {!rejected && (
+                              <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{slot.description}</p>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{slot.description}</p>
-                        </div>
-                      </div>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -998,14 +1047,14 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
             ) : (
               <Button
                 onClick={handleAddToMealPlan}
-                disabled={isAdding || isGenerating}
+                disabled={isAdding || isGenerating || includedCount === 0}
                 className="w-full gap-2"
                 size="lg"
               >
                 {isAdding ? (
                   <><Loader2 className="h-4 w-4 animate-spin" />Adding to planner…</>
                 ) : (
-                  <><CalendarDays className="h-4 w-4" />Add to Meal Plan</>
+                  <><CalendarDays className="h-4 w-4" />Add {includedCount} meal{includedCount !== 1 ? "s" : ""} to Meal Plan</>
                 )}
               </Button>
             )}
