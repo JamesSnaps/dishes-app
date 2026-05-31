@@ -16,6 +16,8 @@ import {
   Coffee,
   Package,
   ChevronDown,
+  ChevronUp,
+  Check,
   CalendarDays,
   Utensils,
   BadgeCheck,
@@ -39,6 +41,7 @@ import {
   type MealPlanSlot,
 } from "@/app/actions/ai";
 import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
+import { saveGeneratedRecipe } from "@/app/actions/recipes";
 import type { RecipeFormDefaults } from "../../recipes/_components/recipe-form";
 
 // ── Static data ────────────────────────────────────────────────────────────────
@@ -211,29 +214,63 @@ function ErrorBanner({ message }: { message: string }) {
 }
 
 function ConceptCardItem({
-  concept, onSelect, isGenerating, disabled,
+  concept,
+  selected,
+  onToggle,
+  isGenerating,
+  disabled,
 }: {
   concept: ConceptCard;
-  onSelect: () => void;
+  selected: boolean;
+  onToggle: () => void;
   isGenerating: boolean;
   disabled: boolean;
 }) {
-  const emoji = cuisineEmoji(concept.cuisine);
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = concept.description.length > 120 || concept.tags.length > 3;
+
   return (
     <div
       className={cn(
-        "flex flex-col rounded-xl border bg-card overflow-hidden transition-shadow hover:shadow-md",
+        "flex flex-col rounded-xl border bg-card overflow-hidden transition-shadow hover:shadow-sm",
+        selected ? "border-primary bg-primary/5" : "",
         disabled && !isGenerating && "opacity-60 pointer-events-none"
       )}
     >
-      <div className="flex h-28 items-center justify-center bg-gradient-to-br from-violet-50 via-orange-50 to-amber-50 dark:from-violet-950/60 dark:via-orange-950/40 dark:to-amber-950/50 text-5xl select-none">
-        {emoji}
-      </div>
       <div className="flex flex-col flex-1 gap-2 p-4">
-        <h3 className="font-semibold leading-snug">{concept.title}</h3>
-        <p className="text-xs text-muted-foreground line-clamp-2 flex-1">
+        <div className="flex items-start gap-3">
+          {/* Checkbox */}
+          <button
+            type="button"
+            onClick={onToggle}
+            disabled={disabled}
+            className={cn(
+              "mt-0.5 h-5 w-5 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+              selected
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-muted-foreground/40 hover:border-primary"
+            )}
+            aria-label={selected ? "Deselect" : "Select"}
+          >
+            {selected && <Check className="h-3 w-3" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={onToggle}
+            disabled={disabled}
+            className="flex-1 text-left"
+          >
+            <h3 className={cn("font-semibold leading-snug", selected && "text-primary")}>
+              {concept.title}
+            </h3>
+          </button>
+        </div>
+
+        <p className={cn("text-xs text-muted-foreground", !expanded && "line-clamp-2")}>
           {concept.description}
         </p>
+
         <div className="flex flex-wrap gap-1">
           {concept.cuisine && (
             <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
@@ -248,7 +285,7 @@ function ConceptCardItem({
           >
             {concept.difficulty}
           </span>
-          {concept.tags.slice(0, 2).map((tag) => (
+          {(expanded ? concept.tags : concept.tags.slice(0, 2)).map((tag) => (
             <span
               key={tag}
               className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
@@ -257,18 +294,27 @@ function ConceptCardItem({
             </span>
           ))}
         </div>
-        <Button
-          size="sm"
-          className="w-full gap-1.5 mt-1 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
-          onClick={onSelect}
-          disabled={disabled}
-        >
-          {isGenerating ? (
-            <><Loader2 className="h-3.5 w-3.5 animate-spin" />Creating recipe…</>
-          ) : (
-            <><Sparkles className="h-3.5 w-3.5" />Create recipe</>
-          )}
-        </Button>
+
+        {hasMore && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+            className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            {expanded ? (
+              <><ChevronUp className="h-3 w-3" />Less</>
+            ) : (
+              <><ChevronDown className="h-3 w-3" />More</>
+            )}
+          </button>
+        )}
+
+        {isGenerating && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Creating recipe…
+          </div>
+        )}
       </div>
     </div>
   );
@@ -354,6 +400,13 @@ function FilterChip({
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type Member = { id: string; displayName: string };
+
+type BatchItem = {
+  concept: ConceptCard;
+  status: "pending" | "generating" | "done" | "error";
+  recipeId?: string;
+  error?: string;
+};
 
 // ── Plan My Week tab ───────────────────────────────────────────────────────────
 
@@ -981,6 +1034,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set());
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
   const [concepts, setConcepts] = useState<ConceptCard[] | null>(null);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [batchItems, setBatchItems] = useState<BatchItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -1023,6 +1078,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     setError(null);
     setConcepts(null);
     setGeneratingIdx(null);
+    setSelectedIndices(new Set());
+    setBatchItems(null);
     startTransition(async () => {
       const result = await generateConcepts(full, Array.from(selectedMemberIds), mealType || undefined);
       if (result.error) { setError(result.error); return; }
@@ -1054,16 +1111,53 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     });
   }
 
-  function handleSelectConcept(concept: ConceptCard, idx: number) {
-    setError(null);
-    setGeneratingIdx(idx);
-    startTransition(async () => {
-      const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined);
-      if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
-      const defaults = recipeToDefaults(result.recipe!);
-      sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
-      router.push("/recipes/new");
+  function toggleIndex(i: number) {
+    setSelectedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
     });
+  }
+
+  function handleGenerate() {
+    if (!concepts || selectedIndices.size === 0) return;
+    const chosen = [...selectedIndices].sort((a, b) => a - b).map((i) => ({ idx: i, concept: concepts[i]! }));
+
+    if (selectedIndices.size === 1) {
+      const { idx, concept } = chosen[0]!;
+      setError(null);
+      setGeneratingIdx(idx);
+      startTransition(async () => {
+        const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined);
+        if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
+        const defaults = recipeToDefaults(result.recipe!);
+        sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
+        router.push("/recipes/new");
+      });
+    } else {
+      const items: BatchItem[] = chosen.map(({ concept }) => ({ concept, status: "pending" }));
+      setBatchItems(items);
+      void (async () => {
+        const updated = [...items];
+        for (let i = 0; i < updated.length; i++) {
+          updated[i] = { ...updated[i]!, status: "generating" };
+          setBatchItems([...updated]);
+          const genResult = await generateFullRecipe(updated[i]!.concept, Array.from(selectedMemberIds), mealType || undefined);
+          if (genResult.error) {
+            updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
+            setBatchItems([...updated]);
+            continue;
+          }
+          const saveResult = await saveGeneratedRecipe(genResult.recipe!);
+          if (saveResult.error) {
+            updated[i] = { ...updated[i]!, status: "error", error: saveResult.error };
+          } else {
+            updated[i] = { ...updated[i]!, status: "done", recipeId: saveResult.recipeId };
+          }
+          setBatchItems([...updated]);
+        }
+      })();
+    }
   }
 
   function handleDirectGenerate() {
@@ -1091,6 +1185,9 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const canGenerate = promptText.trim().length > 0 || selectedPrefs.size > 0 || hasFilter;
   const isConceptLoading = isPending && generatingIdx === null;
   const isRecipeLoading = isPending && generatingIdx !== null;
+  const isBatchRunning = batchItems !== null && batchItems.some((b) => b.status === "pending" || b.status === "generating");
+  const batchDone = batchItems !== null && batchItems.every((b) => b.status === "done" || b.status === "error");
+  const batchSuccessCount = batchItems?.filter((b) => b.status === "done").length ?? 0;
 
   return (
     <div>
@@ -1408,14 +1505,14 @@ function FindRecipeTab({ members }: { members: Member[] }) {
               <div>
                 <h2 className="font-semibold">Here are 5 ideas for you</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Pick one and we&apos;ll build the full recipe.
+                  Select one or more — we&apos;ll build the recipes for you.
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => runGenerate()}
-                disabled={isPending}
+                disabled={isPending || isBatchRunning}
                 className="gap-1.5 text-muted-foreground shrink-0"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -1428,12 +1525,110 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                 <ConceptCardItem
                   key={i}
                   concept={concept}
-                  onSelect={() => handleSelectConcept(concept, i)}
+                  selected={selectedIndices.has(i)}
+                  onToggle={() => toggleIndex(i)}
                   isGenerating={generatingIdx === i}
-                  disabled={isPending}
+                  disabled={isPending || isBatchRunning}
                 />
               ))}
             </div>
+
+            {/* Select all + Generate button row */}
+            <div className="mt-3 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedIndices(
+                    selectedIndices.size === concepts.length
+                      ? new Set()
+                      : new Set(concepts.map((_, i) => i))
+                  )
+                }
+                disabled={isPending || isBatchRunning}
+                className="text-xs text-muted-foreground hover:text-foreground disabled:pointer-events-none"
+              >
+                {selectedIndices.size === concepts.length ? "Deselect all" : "Select all"}
+              </button>
+              <div className="flex items-center gap-3">
+                {selectedIndices.size > 0 && (
+                  <span className="text-xs text-muted-foreground">{selectedIndices.size} selected</span>
+                )}
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isPending || isBatchRunning || selectedIndices.size === 0}
+                  className="gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                >
+                  {isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />Generating…</>
+                  ) : selectedIndices.size > 1 ? (
+                    <><Sparkles className="h-4 w-4" />Generate {selectedIndices.size} recipes</>
+                  ) : (
+                    <><Sparkles className="h-4 w-4" />Generate recipe</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Batch progress */}
+        {batchItems && (
+          <div className="rounded-xl border bg-card p-5 space-y-3">
+            <div>
+              <h3 className="font-semibold">
+                {batchDone
+                  ? `${batchSuccessCount} recipe${batchSuccessCount !== 1 ? "s" : ""} created`
+                  : "Creating recipes…"}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {batchDone
+                  ? "Head to your recipe library to view them."
+                  : "Generating each recipe in turn — this may take a minute."}
+              </p>
+            </div>
+            <div className="space-y-3">
+              {batchItems.map((item, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-xs font-medium",
+                      item.status === "done" && "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
+                      item.status === "generating" && "bg-primary/10 text-primary",
+                      item.status === "error" && "bg-destructive/10 text-destructive",
+                      item.status === "pending" && "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {item.status === "done" && <Check className="h-3.5 w-3.5" />}
+                    {item.status === "generating" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {item.status === "error" && <AlertCircle className="h-3.5 w-3.5" />}
+                    {item.status === "pending" && <span>{i + 1}</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-tight">{item.concept.title}</p>
+                    {item.status === "generating" && (
+                      <p className="text-xs text-muted-foreground">Writing ingredients and steps…</p>
+                    )}
+                    {item.status === "error" && (
+                      <p className="text-xs text-destructive">{item.error}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {batchDone && (
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setBatchItems(null)}>
+                  Back to results
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => router.push("/recipes")}
+                  className="bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                >
+                  View recipes
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
