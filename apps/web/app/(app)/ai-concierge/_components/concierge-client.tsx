@@ -28,7 +28,6 @@ import {
   BookOpen,
   Target,
   CheckCircle2,
-  CircleDashed,
 } from "lucide-react";
 import { Button, Textarea, cn } from "@dishes/ui";
 import {
@@ -393,10 +392,220 @@ const FREQUENCY_MODES: { mode: FrequencyMode; label: string; icon: React.Element
   },
 ];
 
+// ── Slot grid ─────────────────────────────────────────────────────────────────
+
+const MEAL_TYPE_ABBR: Record<string, string> = {
+  breakfast: "Bkfst",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  dessert: "Dessert",
+  snack: "Snack",
+};
+
+function SlotGrid({
+  selectedSlots,
+  existingCoverage,
+  disabled,
+  onChange,
+}: {
+  selectedSlots: Set<string>;
+  existingCoverage: { dayOfWeek: number; mealType: string; recipeTitle: string }[];
+  disabled: boolean;
+  onChange: (next: Set<string>) => void;
+}) {
+  const coveredMap = useMemo(
+    () => new Map(existingCoverage.map((s) => [`${s.dayOfWeek}:${s.mealType}`, s.recipeTitle])),
+    [existingCoverage]
+  );
+
+  function toggle(key: string) {
+    if (coveredMap.has(key) || disabled) return;
+    const next = new Set(selectedSlots);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onChange(next);
+  }
+
+  function toggleRow(dayIndex: number) {
+    if (disabled) return;
+    const rowKeys = MEAL_TYPES.map((mt) => `${dayIndex}:${mt}`).filter((k) => !coveredMap.has(k));
+    const allSel = rowKeys.every((k) => selectedSlots.has(k));
+    const next = new Set(selectedSlots);
+    rowKeys.forEach((k) => (allSel ? next.delete(k) : next.add(k)));
+    onChange(next);
+  }
+
+  function toggleCol(mealType: string) {
+    if (disabled) return;
+    const colKeys = Array.from({ length: 7 }, (_, d) => `${d}:${mealType}`).filter((k) => !coveredMap.has(k));
+    const allSel = colKeys.every((k) => selectedSlots.has(k));
+    const next = new Set(selectedSlots);
+    colKeys.forEach((k) => (allSel ? next.delete(k) : next.add(k)));
+    onChange(next);
+  }
+
+  const selectedCount = selectedSlots.size;
+  const coveredCount = existingCoverage.length;
+  const totalAvailable = 7 * MEAL_TYPES.length - coveredCount;
+
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto -mx-1 px-1 pb-1">
+        <table className="w-full border-collapse" style={{ minWidth: 380 }}>
+          <thead>
+            <tr>
+              {/* Corner cell */}
+              <th className="w-9 p-0.5" />
+              {MEAL_TYPES.map((mt) => (
+                <th key={mt} className="p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleCol(mt)}
+                    disabled={disabled}
+                    title={`Toggle all ${mt}`}
+                    className="w-full flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:pointer-events-none"
+                  >
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: MEAL_TYPE_COLOR[mt] }} />
+                    <span className="hidden sm:block leading-none">{MEAL_TYPE_ABBR[mt]}</span>
+                    <span className="sm:hidden leading-none">{mt.slice(0, 1).toUpperCase()}</span>
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 7 }, (_, dayIndex) => (
+              <tr key={dayIndex}>
+                <td className="p-0.5 w-9">
+                  <button
+                    type="button"
+                    onClick={() => toggleRow(dayIndex)}
+                    disabled={disabled}
+                    title={`Toggle all ${DAYS[dayIndex]}`}
+                    className="w-full text-center text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg py-1.5 transition-colors disabled:pointer-events-none"
+                  >
+                    {DAYS[dayIndex]}
+                  </button>
+                </td>
+                {MEAL_TYPES.map((mt) => {
+                  const key = `${dayIndex}:${mt}`;
+                  const covered = coveredMap.get(key);
+                  const selected = selectedSlots.has(key);
+
+                  if (covered) {
+                    return (
+                      <td key={mt} className="p-0.5">
+                        <div
+                          title={covered}
+                          className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 h-12 sm:h-14 flex flex-col items-center justify-center gap-0.5 px-1 select-none"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          <span className="hidden sm:block text-[9px] text-emerald-700 dark:text-emerald-400 text-center leading-tight line-clamp-2 font-medium w-full px-0.5">
+                            {covered.length > 15 ? covered.slice(0, 14) + "…" : covered}
+                          </span>
+                        </div>
+                      </td>
+                    );
+                  }
+
+                  if (selected) {
+                    return (
+                      <td key={mt} className="p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => toggle(key)}
+                          disabled={disabled}
+                          className="w-full rounded-lg border-2 border-violet-400 bg-violet-50 dark:bg-violet-950/40 h-12 sm:h-14 flex flex-col items-center justify-center gap-0.5 px-1 hover:bg-violet-100 dark:hover:bg-violet-950/60 transition-colors disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          <Sparkles className="h-3 w-3 text-violet-500" />
+                          <span className="hidden sm:block text-[9px] text-violet-600 dark:text-violet-400 font-semibold leading-none">generate</span>
+                        </button>
+                      </td>
+                    );
+                  }
+
+                  return (
+                    <td key={mt} className="p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => toggle(key)}
+                        disabled={disabled}
+                        className="w-full rounded-lg border border-dashed border-muted-foreground/20 bg-transparent h-12 sm:h-14 flex items-center justify-center text-muted-foreground/30 hover:border-violet-300/60 hover:bg-violet-50/50 dark:hover:bg-violet-950/20 hover:text-violet-400 transition-colors disabled:pointer-events-none text-xl leading-none"
+                      >
+                        +
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Summary + quick actions */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
+        <div className="flex items-center gap-3">
+          {selectedCount > 0 ? (
+            <span className="font-semibold text-violet-600 dark:text-violet-400">
+              {selectedCount} slot{selectedCount !== 1 ? "s" : ""} to generate
+            </span>
+          ) : (
+            <span>Tap any slot to select it</span>
+          )}
+          {coveredCount > 0 && (
+            <span className="flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+              {coveredCount} already planned
+            </span>
+          )}
+        </div>
+        <div className="flex gap-3">
+          {selectedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange(new Set())}
+              disabled={disabled}
+              className="hover:text-foreground underline disabled:pointer-events-none"
+            >
+              Clear
+            </button>
+          )}
+          {selectedCount < totalAvailable && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                const next = new Set<string>();
+                for (let d = 0; d < 7; d++) {
+                  for (const mt of MEAL_TYPES) {
+                    const k = `${d}:${mt}`;
+                    if (!coveredMap.has(k)) next.add(k);
+                  }
+                }
+                onChange(next);
+              }}
+              className="hover:text-foreground underline disabled:pointer-events-none"
+            >
+              All missing
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Plan My Week tab ───────────────────────────────────────────────────────────
+
 function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanMyWeekProps) {
   const router = useRouter();
-  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4]));
-  const [selectedMealTypes, setSelectedMealTypes] = useState<Set<string>>(new Set(["dinner"]));
+
+  // Default: Mon–Fri dinners
+  const [selectedSlots, setSelectedSlots] = useState<Set<string>>(
+    () => new Set([0, 1, 2, 3, 4].map((d) => `${d}:dinner`))
+  );
+  const [existingCoverage, setExistingCoverage] = useState<{ dayOfWeek: number; mealType: string; recipeTitle: string }[]>([]);
   const [preferences, setPreferences] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
   const [frequencyMode, setFrequencyMode] = useState<FrequencyMode>(null);
@@ -405,60 +614,28 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
   const [unusedOnly, setUnusedOnly] = useState(false);
   const [ratedOnly, setRatedOnly] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [slots, setSlots] = useState<MealPlanSlot[] | null>(null);
+  const [generatedSlots, setGeneratedSlots] = useState<MealPlanSlot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, startGenTransition] = useTransition();
   const [isAdding, startAddTransition] = useTransition();
   const [added, setAdded] = useState(false);
   const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
-  const [existingCoverage, setExistingCoverage] = useState<{ dayOfWeek: number; mealType: string; recipeTitle: string }[]>([]);
 
+  // Load coverage for the chosen week; auto-remove newly-covered slots from selection
   useEffect(() => {
     const weekStart = getMondayOf(weekOffset);
-    getWeekMealSlots(weekStart).then(setExistingCoverage).catch(() => setExistingCoverage([]));
+    getWeekMealSlots(weekStart)
+      .then((coverage) => {
+        setExistingCoverage(coverage);
+        const coveredKeys = new Set(coverage.map((s) => `${s.dayOfWeek}:${s.mealType}`));
+        setSelectedSlots((prev) => {
+          const next = new Set(prev);
+          for (const k of coveredKeys) next.delete(k);
+          return next;
+        });
+      })
+      .catch(() => setExistingCoverage([]));
   }, [weekOffset]);
-
-  // Which day+mealType combos are covered for the selected week
-  const coveredSet = useMemo(
-    () => new Set(existingCoverage.map((s) => `${s.dayOfWeek}:${s.mealType}`)),
-    [existingCoverage]
-  );
-
-  // Gaps = selected days × selected meal types that are NOT yet covered
-  const gaps = useMemo(() => {
-    const result: { dayOfWeek: number; mealType: string }[] = [];
-    for (const day of Array.from(selectedDays).sort()) {
-      for (const mealType of MEAL_TYPES) {
-        if (selectedMealTypes.has(mealType) && !coveredSet.has(`${day}:${mealType}`)) {
-          result.push({ dayOfWeek: day, mealType });
-        }
-      }
-    }
-    return result;
-  }, [selectedDays, selectedMealTypes, coveredSet]);
-
-  function handleFillGaps() {
-    const gapDays = new Set(gaps.map((g) => g.dayOfWeek));
-    const gapMealTypes = new Set(gaps.map((g) => g.mealType));
-    setSelectedDays(gapDays);
-    setSelectedMealTypes(gapMealTypes);
-  }
-
-  function toggleDay(i: number) {
-    setSelectedDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i); else next.add(i);
-      return next;
-    });
-  }
-
-  function toggleMealType(t: string) {
-    setSelectedMealTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t); else next.add(t);
-      return next;
-    });
-  }
 
   function buildFullPreferences(): string {
     const parts: string[] = [];
@@ -485,12 +662,15 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
 
   function handleGenerate() {
     setError(null);
-    setSlots(null);
+    setGeneratedSlots(null);
     setAdded(false);
+    const slots = Array.from(selectedSlots).map((key) => {
+      const colon = key.indexOf(":");
+      return { dayOfWeek: parseInt(key.slice(0, colon), 10), mealType: key.slice(colon + 1) };
+    });
     startGenTransition(async () => {
       const result = await generateMealPlanConcepts({
-        days: Array.from(selectedDays).sort(),
-        mealTypes: Array.from(selectedMealTypes),
+        slots,
         preferences: buildFullPreferences(),
         cuisineFilter: cuisineFilter || undefined,
         tagFilter: tagFilter || undefined,
@@ -499,15 +679,15 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
         memberIds: selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : undefined,
       });
       if (result.error) { setError(result.error); return; }
-      setSlots(result.slots!);
+      setGeneratedSlots(result.slots!);
     });
   }
 
   function handleAddToMealPlan() {
-    if (!slots) return;
+    if (!generatedSlots) return;
     const weekStart = getMondayOf(weekOffset);
     startAddTransition(async () => {
-      const result = await addAiGeneratedMealPlan(weekStart, slots);
+      const result = await addAiGeneratedMealPlan(weekStart, generatedSlots);
       if (result.debug) setDebugInfo(result.debug);
       if (result.error) { setError(result.error); return; }
       setAdded(true);
@@ -515,136 +695,47 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
     });
   }
 
-  const canGenerate = selectedDays.size > 0 && selectedMealTypes.size > 0;
-
-  const weekLabel = weekOffset === 0
-    ? "This week"
-    : weekOffset === 1
-    ? "Next week"
-    : `Week +${weekOffset}`;
+  const canGenerate = selectedSlots.size > 0;
+  const weekLabel = weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : "Week after";
 
   return (
     <div className="space-y-5">
-      {/* Day selector */}
-      <div className="rounded-xl border bg-card p-5 space-y-4">
-        <div>
-          <p className="text-sm font-medium mb-2">Which days would you like planned?</p>
-          <div className="flex flex-wrap gap-2">
-            {DAYS.map((day, i) => {
-              const dayMeals = MEAL_TYPES.filter((mt) => coveredSet.has(`${i}:${mt}`));
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => toggleDay(i)}
-                  className={cn(
-                    "flex flex-col items-center rounded-xl border px-3 py-2 text-xs font-semibold transition-all min-w-[3rem]",
-                    selectedDays.has(i)
-                      ? "border-violet-400 bg-violet-500 text-white shadow-sm"
-                      : "border-muted bg-muted/30 text-muted-foreground hover:border-violet-300 hover:text-foreground"
-                  )}
-                >
-                  {day}
-                  {dayMeals.length > 0 && (
-                    <span className="mt-1.5 flex gap-0.5">
-                      {dayMeals.map((mt) => (
-                        <span
-                          key={mt}
-                          className="h-1.5 w-1.5 rounded-full opacity-80"
-                          style={{ backgroundColor: selectedDays.has(i) ? "rgba(255,255,255,0.85)" : MEAL_TYPE_COLOR[mt] }}
-                          title={mt}
-                        />
-                      ))}
-                    </span>
-                  )}
-                  {dayMeals.length === 0 && <span className="mt-1.5 h-2" />}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setSelectedDays(new Set([0, 1, 2, 3, 4, 5, 6]))}
-              className="rounded-xl border border-dashed border-muted-foreground/30 px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
-            >
-              All
-            </button>
-          </div>
-        </div>
+      <div className="rounded-xl border bg-card p-5 space-y-5">
 
-        <div>
-          <p className="text-sm font-medium mb-2">Which meals?</p>
-          <div className="flex flex-wrap gap-2">
-            {MEAL_TYPES.map((type) => (
+        {/* Week picker */}
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm font-medium shrink-0">Plan for…</p>
+          <div className="flex gap-2">
+            {[0, 1, 2].map((offset) => (
               <button
-                key={type}
+                key={offset}
                 type="button"
-                onClick={() => toggleMealType(type)}
+                onClick={() => setWeekOffset(offset)}
                 className={cn(
-                  "capitalize rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
-                  selectedMealTypes.has(type)
-                    ? "border-orange-400 bg-orange-500 text-white"
-                    : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
+                  "rounded-lg border px-3 py-1.5 text-sm transition-all",
+                  weekOffset === offset
+                    ? "border-blue-400 bg-blue-500 text-white"
+                    : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
                 )}
               >
-                {type}
+                {offset === 0 ? "This week" : offset === 1 ? "Next week" : "Week after"}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Coverage summary */}
-        {existingCoverage.length > 0 && selectedDays.size > 0 && selectedMealTypes.size > 0 && (
-          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Week coverage
-            </p>
-            <div className="space-y-1">
-              {Array.from(selectedDays).sort().map((day) => {
-                const covered = MEAL_TYPES.filter((mt) => selectedMealTypes.has(mt) && coveredSet.has(`${day}:${mt}`));
-                const missing = MEAL_TYPES.filter((mt) => selectedMealTypes.has(mt) && !coveredSet.has(`${day}:${mt}`));
-                if (covered.length === 0 && missing.length === 0) return null;
-                return (
-                  <div key={day} className="flex items-start gap-2 text-xs">
-                    <span className="w-7 shrink-0 font-semibold text-muted-foreground">{DAYS[day]}</span>
-                    <div className="flex flex-wrap gap-1">
-                      {covered.map((mt) => (
-                        <span key={mt} className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800 capitalize">
-                          <CheckCircle2 className="h-2.5 w-2.5" />
-                          {mt}
-                        </span>
-                      ))}
-                      {missing.map((mt) => (
-                        <span key={mt} className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 capitalize">
-                          <CircleDashed className="h-2.5 w-2.5" />
-                          {mt}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {gaps.length > 0 ? (
-              <div className="flex items-center justify-between pt-1 border-t border-muted">
-                <p className="text-xs text-muted-foreground">
-                  {gaps.length} slot{gaps.length !== 1 ? "s" : ""} not yet planned
-                </p>
-                <button
-                  type="button"
-                  onClick={handleFillGaps}
-                  className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 underline"
-                >
-                  Select missing only
-                </button>
-              </div>
-            ) : (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-1 border-t border-muted">
-                All selected slots are already planned
-              </p>
-            )}
-          </div>
-        )}
+        {/* Interactive slot grid */}
+        <div>
+          <p className="text-sm font-medium mb-3">Which slots would you like planned?</p>
+          <SlotGrid
+            selectedSlots={selectedSlots}
+            existingCoverage={existingCoverage}
+            disabled={isGenerating || isAdding}
+            onChange={setSelectedSlots}
+          />
+        </div>
 
+        {/* Suggestion style */}
         <div>
           <p className="text-sm font-medium mb-2">Suggestion style</p>
           <div className="flex flex-wrap gap-2">
@@ -666,6 +757,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
           </div>
         </div>
 
+        {/* Library filters */}
         <div>
           <p className="text-sm font-medium mb-1.5">Filter your recipe library</p>
           <div className="flex gap-2 flex-wrap">
@@ -729,6 +821,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
           )}
         </div>
 
+        {/* Who's eating */}
         {members.length > 0 && (
           <div>
             <p className="text-sm font-medium mb-1.5">Who&apos;s eating?</p>
@@ -759,6 +852,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
           </div>
         )}
 
+        {/* Preferences */}
         <div>
           <p className="text-sm font-medium mb-1.5">Any preferences?</p>
           <Textarea
@@ -769,28 +863,6 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
             className="resize-none"
             disabled={isGenerating || isAdding}
           />
-        </div>
-
-        {/* Week to plan */}
-        <div>
-          <p className="text-sm font-medium mb-2">Plan for…</p>
-          <div className="flex gap-2">
-            {[0, 1, 2].map((offset) => (
-              <button
-                key={offset}
-                type="button"
-                onClick={() => setWeekOffset(offset)}
-                className={cn(
-                  "rounded-lg border px-3 py-1.5 text-sm transition-all",
-                  weekOffset === offset
-                    ? "border-blue-400 bg-blue-500 text-white"
-                    : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
-                )}
-              >
-                {offset === 0 ? "This week" : offset === 1 ? "Next week" : "Week after"}
-              </button>
-            ))}
-          </div>
         </div>
 
         {error && <ErrorBanner message={error} />}
@@ -810,12 +882,12 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
       </div>
 
       {/* Generated plan preview */}
-      {slots && (
+      {generatedSlots && (
         <div className="rounded-xl border bg-card overflow-hidden">
           <div className="bg-gradient-to-r from-violet-50 to-orange-50 border-b px-5 py-3 flex items-center justify-between dark:from-violet-950/60 dark:to-orange-950/40">
             <div>
               <h3 className="font-semibold text-sm">Your meal plan for {weekLabel}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">{slots.length} meals planned — review and add to your planner</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{generatedSlots.length} meals planned — review and add to your planner</p>
             </div>
             <Button variant="ghost" size="sm" onClick={handleGenerate} disabled={isGenerating || isAdding} className="gap-1.5 text-muted-foreground">
               <RefreshCw className="h-3.5 w-3.5" />Redo
@@ -824,7 +896,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
 
           <div className="divide-y">
             {DAY_FULL.map((dayName, dayIdx) => {
-              const daySlots = slots.filter((s) => s.dayOfWeek === dayIdx);
+              const daySlots = generatedSlots.filter((s) => s.dayOfWeek === dayIdx);
               if (!daySlots.length) return null;
               return (
                 <div key={dayIdx} className="px-5 py-3">

@@ -548,8 +548,7 @@ export type MealPlanSlot = {
 };
 
 export async function generateMealPlanConcepts(params: {
-  days: number[];
-  mealTypes: string[];
+  slots: { dayOfWeek: number; mealType: string }[];
   preferences: string;
   cuisineFilter?: string;
   tagFilter?: string;
@@ -557,9 +556,9 @@ export async function generateMealPlanConcepts(params: {
   ratedOnly?: boolean;
   memberIds?: string[];
 }): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
-  const { days, mealTypes, preferences, cuisineFilter, tagFilter, unusedOnly, ratedOnly, memberIds } = params;
-  if (!days.length || !mealTypes.length)
-    return { error: "Please select at least one day and one meal type." };
+  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, ratedOnly, memberIds } = params;
+  if (!requestedSlots.length)
+    return { error: "Please select at least one slot to plan." };
 
   try {
     const user = await getAutheliaUser();
@@ -709,7 +708,7 @@ export async function generateMealPlanConcepts(params: {
     const fullAddendum = addendum + recentlyUsedBlock + (filterHints ? `\n\n${filterHints}` : "") + memberConstraints;
 
     const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-    const slots = days.flatMap((d) => mealTypes.map((m) => ({ dayOfWeek: d, mealType: m })));
+    const slots = requestedSlots;
     const slotsDesc = slots
       .map((s) => `${DAY_NAMES[s.dayOfWeek]} ${s.mealType}`)
       .join(", ");
