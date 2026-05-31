@@ -188,6 +188,71 @@ export async function deleteRecipe(recipeId: string) {
   redirect("/recipes");
 }
 
+export async function saveGeneratedRecipe(
+  recipe: GeneratedRecipe
+): Promise<{ recipeId?: string; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId, memberId } = await requireHousehold(user);
+
+    const [newRecipe] = await db
+      .insert(recipes)
+      .values({
+        householdId,
+        createdById: memberId,
+        title: recipe.title,
+        description: recipe.description || null,
+        cuisine: recipe.cuisine || null,
+        prepTimeMinutes: recipe.prepTimeMinutes,
+        cookTimeMinutes: recipe.cookTimeMinutes,
+        servings: recipe.servings || null,
+        servingsUnit: recipe.servingsUnit || "servings",
+        difficulty: recipe.difficulty || null,
+        notes: recipe.notes,
+        isAiGenerated: true,
+      })
+      .returning({ id: recipes.id });
+
+    const newId = newRecipe!.id;
+
+    await Promise.all([
+      recipe.ingredients.length
+        ? db.insert(recipeIngredients).values(
+            recipe.ingredients.map((ing, i) => ({
+              recipeId: newId,
+              position: i,
+              ingredientName: ing.ingredientName,
+              amount: ing.amount || null,
+              unit: ing.unit || null,
+              preparation: ing.preparation || null,
+              isOptional: ing.isOptional,
+              groupLabel: ing.groupLabel || null,
+            }))
+          )
+        : Promise.resolve(),
+      recipe.steps.length
+        ? db.insert(recipeSteps).values(
+            recipe.steps.map((s, i) => ({
+              recipeId: newId,
+              position: i,
+              instruction: s.instruction,
+              durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
+              timerLabel: s.timerLabel || null,
+            }))
+          )
+        : Promise.resolve(),
+      recipe.tags.length
+        ? db.insert(recipeTags).values(recipe.tags.map((tag) => ({ recipeId: newId, tag })))
+        : Promise.resolve(),
+    ]);
+
+    revalidatePath("/recipes");
+    return { recipeId: newId };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to save recipe." };
+  }
+}
+
 export async function saveRecipeAsCopy(
   originalRecipeId: string,
   tweaked: GeneratedRecipe

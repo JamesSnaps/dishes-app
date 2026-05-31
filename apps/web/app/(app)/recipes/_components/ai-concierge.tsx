@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Sparkles, ChevronRight, Loader2, AlertCircle, Target } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Sparkles, Loader2, AlertCircle, Target, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@dishes/ui";
 import {
   Button,
@@ -20,6 +21,7 @@ import {
   type ConceptCard,
   type GeneratedRecipe,
 } from "@/app/actions/ai";
+import { saveGeneratedRecipe } from "@/app/actions/recipes";
 import type { RecipeFormDefaults } from "./recipe-form";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -64,43 +66,97 @@ function ErrorBanner({ message }: { message: string }) {
 
 function ConceptCardItem({
   concept,
-  onSelect,
+  selected,
+  onToggle,
   disabled,
 }: {
   concept: ConceptCard;
-  onSelect: () => void;
+  selected: boolean;
+  onToggle: () => void;
   disabled: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = concept.description.length > 120 || concept.tags.length > 3;
+
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={disabled}
-      className="group w-full rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+    <div
+      className={cn(
+        "rounded-lg border p-4 transition-colors",
+        selected
+          ? "border-primary bg-primary/5"
+          : "bg-card hover:border-muted-foreground/30",
+        disabled && "pointer-events-none opacity-50"
+      )}
     >
-      <div className="mb-1 flex items-start justify-between gap-2">
-        <span className="font-semibold leading-snug group-hover:text-primary">
-          {concept.title}
-        </span>
-        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" />
+      <div className="flex items-start gap-3">
+        {/* Checkbox */}
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={disabled}
+          className={cn(
+            "mt-0.5 h-5 w-5 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+            selected
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-muted-foreground/40 hover:border-primary"
+          )}
+          aria-label={selected ? "Deselect" : "Select"}
+        >
+          {selected && <Check className="h-3 w-3" />}
+        </button>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <button
+            type="button"
+            onClick={onToggle}
+            disabled={disabled}
+            className="w-full text-left"
+          >
+            <span className={cn("font-semibold leading-snug", selected && "text-primary")}>
+              {concept.title}
+            </span>
+          </button>
+
+          <p className={cn("mt-1 text-sm text-muted-foreground", !expanded && "line-clamp-2")}>
+            {concept.description}
+          </p>
+
+          <div className="mt-2 flex flex-wrap gap-1">
+            {concept.cuisine && (
+              <Badge variant="outline" className="text-xs">
+                {concept.cuisine}
+              </Badge>
+            )}
+            <Badge variant={difficultyVariant(concept.difficulty)} className="text-xs">
+              {difficultyLabel(concept.difficulty)}
+            </Badge>
+            {(expanded ? concept.tags : concept.tags.slice(0, 3)).map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-xs">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+
+          {hasMore && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded((v) => !v);
+              }}
+              className="mt-1.5 flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {expanded ? (
+                <><ChevronUp className="h-3 w-3" />Less</>
+              ) : (
+                <><ChevronDown className="h-3 w-3" />More</>
+              )}
+            </button>
+          )}
+        </div>
       </div>
-      <p className="mb-2 text-sm text-muted-foreground">{concept.description}</p>
-      <div className="flex flex-wrap gap-1">
-        {concept.cuisine && (
-          <Badge variant="outline" className="text-xs">
-            {concept.cuisine}
-          </Badge>
-        )}
-        <Badge variant={difficultyVariant(concept.difficulty)} className="text-xs">
-          {difficultyLabel(concept.difficulty)}
-        </Badge>
-        {concept.tags.slice(0, 3).map((tag) => (
-          <Badge key={tag} variant="secondary" className="text-xs">
-            {tag}
-          </Badge>
-        ))}
-      </div>
-    </button>
+    </div>
   );
 }
 
@@ -110,7 +166,14 @@ interface AiConciergeProps {
   onRecipeGenerated: (defaults: RecipeFormDefaults) => void;
 }
 
-type Step = "prompt" | "concepts" | "generating";
+type Step = "prompt" | "concepts" | "generating" | "batch-generating";
+
+type BatchItem = {
+  concept: ConceptCard;
+  status: "pending" | "generating" | "done" | "error";
+  recipeId?: string;
+  error?: string;
+};
 
 const MEAL_TYPES = [
   { value: "breakfast", label: "Breakfast" },
@@ -121,14 +184,22 @@ const MEAL_TYPES = [
 ] as const;
 
 export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"inspire" | "direct">("inspire");
   const [step, setStep] = useState<Step>("prompt");
   const [promptText, setPromptText] = useState("");
   const [mealType, setMealType] = useState<string>("");
   const [concepts, setConcepts] = useState<ConceptCard[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const batchDone =
+    batchItems.length > 0 &&
+    batchItems.every((b) => b.status === "done" || b.status === "error");
+  const batchSuccessCount = batchItems.filter((b) => b.status === "done").length;
 
   function handleOpen() {
     setOpen(true);
@@ -137,11 +208,14 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
     setPromptText("");
     setMealType("");
     setConcepts([]);
+    setSelected(new Set());
+    setBatchItems([]);
     setError(null);
   }
 
   function handleClose() {
     if (isPending) return;
+    if (step === "batch-generating" && !batchDone) return;
     setOpen(false);
   }
 
@@ -154,22 +228,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
         return;
       }
       setConcepts(result.concepts!);
+      setSelected(new Set());
       setStep("concepts");
-    });
-  }
-
-  function handleSelectConcept(concept: ConceptCard) {
-    setError(null);
-    setStep("generating");
-    startTransition(async () => {
-      const result = await generateFullRecipe(concept, undefined, mealType || undefined);
-      if (result.error) {
-        setError(result.error);
-        setStep("concepts");
-        return;
-      }
-      setOpen(false);
-      onRecipeGenerated(recipeToDefaults(result.recipe!));
     });
   }
 
@@ -195,6 +255,69 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       setOpen(false);
       onRecipeGenerated(recipeToDefaults(result.recipe!));
     });
+  }
+
+  function toggleConcept(i: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }
+
+  function handleGenerate() {
+    if (selected.size === 0) return;
+    const chosenConcepts = [...selected].sort((a, b) => a - b).map((i) => concepts[i]!);
+
+    if (selected.size === 1) {
+      setError(null);
+      setStep("generating");
+      startTransition(async () => {
+        const result = await generateFullRecipe(chosenConcepts[0]!, undefined, mealType || undefined);
+        if (result.error) {
+          setError(result.error);
+          setStep("concepts");
+          return;
+        }
+        setOpen(false);
+        onRecipeGenerated(recipeToDefaults(result.recipe!));
+      });
+    } else {
+      const items: BatchItem[] = chosenConcepts.map((c) => ({
+        concept: c,
+        status: "pending",
+      }));
+      setBatchItems(items);
+      setStep("batch-generating");
+
+      void (async () => {
+        const updated = [...items];
+        for (let i = 0; i < updated.length; i++) {
+          updated[i] = { ...updated[i]!, status: "generating" };
+          setBatchItems([...updated]);
+
+          const genResult = await generateFullRecipe(
+            updated[i]!.concept,
+            undefined,
+            mealType || undefined
+          );
+          if (genResult.error) {
+            updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
+            setBatchItems([...updated]);
+            continue;
+          }
+
+          const saveResult = await saveGeneratedRecipe(genResult.recipe!);
+          if (saveResult.error) {
+            updated[i] = { ...updated[i]!, status: "error", error: saveResult.error };
+          } else {
+            updated[i] = { ...updated[i]!, status: "done", recipeId: saveResult.recipeId };
+          }
+          setBatchItems([...updated]);
+        }
+      })();
+    }
   }
 
   return (
@@ -231,7 +354,9 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                     disabled={isPending}
                     className={cn(
                       "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
-                      mode === "inspire" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                      mode === "inspire"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     <Sparkles className="h-3.5 w-3.5" />
@@ -243,7 +368,9 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                     disabled={isPending}
                     className={cn(
                       "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
-                      mode === "direct" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                      mode === "direct"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     <Target className="h-3.5 w-3.5" />
@@ -288,7 +415,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault();
-                      if (mode === "inspire") { handleGenerateConcepts(); } else { handleDirectGenerate(); }
+                      if (mode === "inspire") handleGenerateConcepts();
+                      else handleDirectGenerate();
                     }
                   }}
                 />
@@ -330,25 +458,45 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
           {step === "concepts" && (
             <>
               <DialogHeader>
-                <DialogTitle>Pick a recipe idea</DialogTitle>
+                <DialogTitle>Pick your ideas</DialogTitle>
                 <DialogDescription>
-                  Choose one and we&apos;ll generate the full recipe for you to review.
+                  Select one or more. A single selection opens the form for review; multiple are saved directly to your library.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-3 pt-2">
+              <div className="space-y-2 pt-2">
                 {error && <ErrorBanner message={error} />}
+
+                <div className="flex items-center justify-between pb-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelected(
+                        selected.size === concepts.length
+                          ? new Set()
+                          : new Set(concepts.map((_, i) => i))
+                      )
+                    }
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {selected.size === concepts.length ? "Deselect all" : "Select all"}
+                  </button>
+                  {selected.size > 0 && (
+                    <span className="text-xs text-muted-foreground">{selected.size} selected</span>
+                  )}
+                </div>
 
                 {concepts.map((concept, i) => (
                   <ConceptCardItem
                     key={i}
                     concept={concept}
-                    onSelect={() => handleSelectConcept(concept)}
+                    selected={selected.has(i)}
+                    onToggle={() => toggleConcept(i)}
                     disabled={isPending}
                   />
                 ))}
 
-                <div className="flex justify-between pt-1">
+                <div className="flex justify-between pt-2">
                   <Button
                     variant="ghost"
                     onClick={() => setStep("prompt")}
@@ -356,15 +504,39 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                   >
                     ← Back
                   </Button>
-                  <Button variant="ghost" onClick={handleClose} disabled={isPending}>
-                    Cancel
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" onClick={handleClose} disabled={isPending}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleGenerate}
+                      disabled={isPending || selected.size === 0}
+                      className="gap-2"
+                    >
+                      {isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Generating…
+                        </>
+                      ) : selected.size > 1 ? (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          Generate {selected.size} recipes
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          Generate recipe
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>
           )}
 
-          {/* ── Step: generating full recipe ── */}
+          {/* ── Step: generating single ── */}
           {step === "generating" && (
             <>
               <DialogHeader>
@@ -376,13 +548,79 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
 
               <div className="flex flex-col items-center gap-4 py-8">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">
-                  Hang tight, the chef is at work.
-                </p>
+                <p className="text-sm text-muted-foreground">Hang tight, the chef is at work.</p>
               </div>
             </>
           )}
 
+          {/* ── Step: batch generating ── */}
+          {step === "batch-generating" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {batchDone
+                    ? `${batchSuccessCount} recipe${batchSuccessCount !== 1 ? "s" : ""} created`
+                    : "Creating recipes…"}
+                </DialogTitle>
+                <DialogDescription>
+                  {batchDone
+                    ? "Head to your recipe library to view them."
+                    : "Generating each recipe in turn — this may take a minute."}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 py-4">
+                {batchItems.map((item, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-xs font-medium",
+                        item.status === "done" &&
+                          "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
+                        item.status === "generating" && "bg-primary/10 text-primary",
+                        item.status === "error" && "bg-destructive/10 text-destructive",
+                        item.status === "pending" && "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {item.status === "done" && <Check className="h-3.5 w-3.5" />}
+                      {item.status === "generating" && (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      )}
+                      {item.status === "error" && <AlertCircle className="h-3.5 w-3.5" />}
+                      {item.status === "pending" && <span>{i + 1}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-tight">{item.concept.title}</p>
+                      {item.status === "generating" && (
+                        <p className="text-xs text-muted-foreground">
+                          Writing ingredients and steps…
+                        </p>
+                      )}
+                      {item.status === "error" && (
+                        <p className="text-xs text-destructive">{item.error}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {batchDone && (
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setOpen(false)}>
+                    Stay here
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setOpen(false);
+                      router.push("/recipes");
+                    }}
+                  >
+                    View recipes
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>
