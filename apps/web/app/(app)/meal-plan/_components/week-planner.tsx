@@ -57,6 +57,7 @@ type Entry = {
   dayOfWeek: number;
   mealType: MealType;
   entryServings: string | null;
+  addedToShoppingListAt: Date | null;
   recipe: {
     id: string;
     title: string;

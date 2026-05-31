@@ -321,6 +321,11 @@ export async function addMealEntryToShoppingList(entryId: string) {
     }
   }
 
+  await db
+    .update(mealPlanEntries)
+    .set({ addedToShoppingListAt: new Date() })
+    .where(eq(mealPlanEntries.id, entryId));
+
   revalidatePath("/shopping");
   revalidatePath("/meal-plan");
 }
@@ -515,6 +520,11 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
       });
     }
   }
+
+  await db
+    .update(mealPlanEntries)
+    .set({ addedToShoppingListAt: new Date() })
+    .where(eq(mealPlanEntries.mealPlanId, mealPlanId));
 
   revalidatePath("/shopping");
   revalidatePath("/meal-plan");

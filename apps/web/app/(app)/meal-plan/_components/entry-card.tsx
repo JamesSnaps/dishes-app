@@ -16,6 +16,7 @@ import {
   CalendarDays,
   GripVertical,
   ShoppingCart,
+  Check,
 } from "lucide-react";
 import {
   Button,
@@ -90,6 +91,7 @@ interface Props {
     dayOfWeek: number;
     mealType: MealType;
     entryServings: string | null;
+    addedToShoppingListAt: Date | null;
     recipe: {
       id: string;
       title: string;
@@ -122,6 +124,7 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
   const overrideServings = formatServings(entry.entryServings);
   const effectiveServings = overrideServings ?? baseServings;
   const isOverridden = overrideServings !== null;
+  const onShoppingList = entry.addedToShoppingListAt != null;
 
   function handleRemove() {
     startTransition(() => removeMealEntry(entry.id));
@@ -196,11 +199,19 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
         )}
 
         <div className="flex-1 min-w-0 px-4 py-3 flex flex-col justify-center gap-1">
-          <div
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit ${MEAL_BG[entry.mealType]} ${MEAL_COLOR[entry.mealType]}`}
-          >
-            {MEAL_ICON[entry.mealType]}
-            <span className="text-xs font-semibold">{MEAL_LABELS[entry.mealType]}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <div
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit ${MEAL_BG[entry.mealType]} ${MEAL_COLOR[entry.mealType]}`}
+            >
+              {MEAL_ICON[entry.mealType]}
+              <span className="text-xs font-semibold">{MEAL_LABELS[entry.mealType]}</span>
+            </div>
+            {onShoppingList && (
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                <Check className="h-3 w-3" />
+                <span className="text-xs font-semibold">On list</span>
+              </div>
+            )}
           </div>
 
           <p className="font-bold text-base leading-snug line-clamp-2">{recipe.title}</p>
@@ -251,7 +262,7 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
 
               <DropdownMenuItem onClick={handleAddToShopping}>
                 <ShoppingCart className="h-4 w-4 mr-2" />
-                Add to shopping list
+                {onShoppingList ? "Add to shopping list again" : "Add to shopping list"}
               </DropdownMenuItem>
 
               <DropdownMenuItem onClick={handleOpenServings}>

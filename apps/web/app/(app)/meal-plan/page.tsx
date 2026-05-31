@@ -55,6 +55,7 @@ export default async function MealPlanPage({
             dayOfWeek: mealPlanEntries.dayOfWeek,
             mealType: mealPlanEntries.mealType,
             entryServings: mealPlanEntries.servings,
+            addedToShoppingListAt: mealPlanEntries.addedToShoppingListAt,
             recipe: {
               id: recipes.id,
               title: recipes.title,
@@ -74,6 +75,7 @@ export default async function MealPlanPage({
             dayOfWeek: number;
             mealType: "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
             entryServings: string | null;
+            addedToShoppingListAt: Date | null;
             recipe: {
               id: string;
               title: string;

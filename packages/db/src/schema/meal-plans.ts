@@ -62,6 +62,7 @@ export const mealPlanEntries = pgTable("meal_plan_entries", {
   mealType: mealTypeEnum("meal_type").notNull().default("dinner"),
   servings: decimal("servings", { precision: 5, scale: 2 }),
   notes: varchar("notes", { length: 500 }),
+  addedToShoppingListAt: timestamp("added_to_shopping_list_at"),
 });
 
 // ─── Relations ───────────────────────────────────────────────────────────────
