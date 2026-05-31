@@ -11,9 +11,10 @@ import type { GeneratedRecipe } from "@/app/actions/ai";
 interface NewRecipeClientProps {
   hasAi: boolean;
   defaultImageStyle?: ImageStyleValue;
+  allTags?: string[];
 }
 
-export function NewRecipeClient({ hasAi, defaultImageStyle }: NewRecipeClientProps) {
+export function NewRecipeClient({ hasAi, defaultImageStyle, allTags = [] }: NewRecipeClientProps) {
   const [defaults, setDefaults] = useState<RecipeFormDefaults>({});
   const [formKey, setFormKey] = useState(0);
 
@@ -69,6 +70,7 @@ export function NewRecipeClient({ hasAi, defaultImageStyle }: NewRecipeClientPro
         submitLabel="Create Recipe"
         mode="create"
         defaultImageStyle={defaultImageStyle}
+        allTags={allTags}
       />
     </div>
   );

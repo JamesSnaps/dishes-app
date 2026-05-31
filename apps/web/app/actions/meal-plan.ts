@@ -325,6 +325,24 @@ export async function addMealEntryToShoppingList(entryId: string) {
   revalidatePath("/meal-plan");
 }
 
+export async function getWeekMealSlots(weekStartDate: string): Promise<{ dayOfWeek: number; mealType: string; recipeTitle: string }[]> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const rows = await db
+    .select({
+      dayOfWeek: mealPlanEntries.dayOfWeek,
+      mealType: mealPlanEntries.mealType,
+      recipeTitle: recipes.title,
+    })
+    .from(mealPlanEntries)
+    .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
+    .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
+    .where(and(eq(mealPlans.householdId, householdId), eq(mealPlans.weekStartDate, weekStartDate)));
+
+  return rows;
+}
+
 export async function generateShoppingFromWeek(mealPlanId: string) {
   const user = await getAutheliaUser();
   const { householdId, memberId } = await requireHousehold(user);

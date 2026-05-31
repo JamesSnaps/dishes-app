@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2 } from "lucide-react";
 import {
   Button,
@@ -112,6 +112,7 @@ interface RecipeFormProps {
   recipeId?: string;
   defaultImageStyle?: ImageStyleValue;
   assistThreadCount?: number;
+  allTags?: string[];
 }
 
 export function RecipeForm({
@@ -123,6 +124,7 @@ export function RecipeForm({
   recipeId,
   defaultImageStyle = "studio",
   assistThreadCount = 0,
+  allTags = [],
 }: RecipeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +149,27 @@ export function RecipeForm({
   const [sourceUrl, setSourceUrl] = useState(defaults.sourceUrl ?? "");
   const [tags, setTags] = useState<string[]>(defaults.tags ?? []);
   const [tagInput, setTagInput] = useState("");
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  const tagSuggestions = tagInput.trim().length > 0
+    ? allTags.filter(
+        (t) =>
+          t.toLowerCase().includes(tagInput.trim().toLowerCase()) &&
+          !tags.includes(t)
+      )
+    : [];
+
+  const addTag = useCallback((val: string) => {
+    const trimmed = val.trim().replace(/,$/, "");
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags((prev) => [...prev, trimmed]);
+    }
+    setTagInput("");
+    setShowTagSuggestions(false);
+    setActiveSuggestionIndex(-1);
+  }, [tags]);
   const [notes, setNotes] = useState(defaults.notes ?? "");
 
   const [ingredients, setIngredients] = useState<IngredientRow[]>(() =>
@@ -905,49 +928,93 @@ export function RecipeForm({
   const tagsSection = (
     <section className="space-y-2">
       <Label className="text-base font-semibold">Tags</Label>
-      <div className="rounded-md border border-input bg-background px-3 py-2 min-h-10 flex flex-wrap gap-1.5">
-        {tags.map((tag) => (
-          <span
-            key={tag}
-            className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium"
-          >
-            <Tag className="h-3 w-3" />
-            {tag}
-            <button
-              type="button"
-              onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
-              className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5"
-              aria-label={`Remove ${tag}`}
+      <div className="relative">
+        <div className="rounded-md border border-input bg-background px-3 py-2 min-h-10 flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium"
             >
-              <X className="h-2.5 w-2.5" />
-            </button>
-          </span>
-        ))}
-        <input
-          value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
-              e.preventDefault();
-              const val = tagInput.trim().replace(/,$/, "");
-              if (val && !tags.includes(val)) {
-                setTags((prev) => [...prev, val]);
+              <Tag className="h-3 w-3" />
+              {tag}
+              <button
+                type="button"
+                onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
+                className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5"
+                aria-label={`Remove ${tag}`}
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
+          ))}
+          <input
+            ref={tagInputRef}
+            value={tagInput}
+            onChange={(e) => {
+              setTagInput(e.target.value);
+              setShowTagSuggestions(true);
+              setActiveSuggestionIndex(-1);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setActiveSuggestionIndex((i) => Math.min(i + 1, tagSuggestions.length - 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setActiveSuggestionIndex((i) => Math.max(i - 1, -1));
+              } else if (e.key === "Enter" || e.key === ",") {
+                e.preventDefault();
+                if (activeSuggestionIndex >= 0 && tagSuggestions[activeSuggestionIndex]) {
+                  addTag(tagSuggestions[activeSuggestionIndex]);
+                } else {
+                  addTag(tagInput);
+                }
+              } else if (e.key === "Escape") {
+                setShowTagSuggestions(false);
+                setActiveSuggestionIndex(-1);
+              } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+                setTags((prev) => prev.slice(0, -1));
               }
-              setTagInput("");
-            } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
-              setTags((prev) => prev.slice(0, -1));
-            }
-          }}
-          onBlur={() => {
-            const val = tagInput.trim().replace(/,$/, "");
-            if (val && !tags.includes(val)) {
-              setTags((prev) => [...prev, val]);
-            }
-            setTagInput("");
-          }}
-          placeholder={tags.length === 0 ? "Type a tag and press Enter…" : ""}
-          className="flex-1 min-w-24 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        />
+            }}
+            onFocus={() => {
+              if (tagInput.trim()) setShowTagSuggestions(true);
+            }}
+            onBlur={() => {
+              // Delay so click on suggestion fires first
+              setTimeout(() => {
+                setShowTagSuggestions(false);
+                setActiveSuggestionIndex(-1);
+                if (tagInput.trim()) addTag(tagInput);
+              }, 150);
+            }}
+            placeholder={tags.length === 0 ? "Type a tag and press Enter…" : ""}
+            className="flex-1 min-w-24 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        {showTagSuggestions && tagSuggestions.length > 0 && (
+          <ul className="absolute z-50 mt-1 w-full max-h-48 overflow-auto rounded-md border border-input bg-popover shadow-md">
+            {tagSuggestions.map((suggestion, idx) => (
+              <li key={suggestion}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    addTag(suggestion);
+                    tagInputRef.current?.focus();
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${
+                    idx === activeSuggestionIndex
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-muted"
+                  }`}
+                >
+                  <Tag className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  {suggestion}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

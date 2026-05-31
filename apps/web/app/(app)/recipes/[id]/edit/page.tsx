@@ -30,7 +30,7 @@ export default async function EditRecipePage({ params }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps, tags, aiConfig, assistThreadCount] = await Promise.all([
+  const [recipe, ingredients, steps, tags, allTagRows, aiConfig, assistThreadCount] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -51,6 +51,12 @@ export default async function EditRecipePage({ params }: Props) {
       .select({ tag: recipeTags.tag })
       .from(recipeTags)
       .where(eq(recipeTags.recipeId, id)),
+    db
+      .selectDistinct({ tag: recipeTags.tag })
+      .from(recipeTags)
+      .innerJoin(recipes, eq(recipeTags.recipeId, recipes.id))
+      .where(eq(recipes.householdId, householdId))
+      .orderBy(recipeTags.tag),
     getAiConfig(householdId),
     countCookAssistThreads(id),
   ]);
@@ -76,6 +82,7 @@ export default async function EditRecipePage({ params }: Props) {
         recipeId={id}
         defaultImageStyle={aiConfig?.imageStyle as ImageStyleValue | undefined}
         assistThreadCount={assistThreadCount}
+        allTags={allTagRows.map((r) => r.tag)}
         defaults={{
           title: recipe.title,
           description: recipe.description ?? undefined,
