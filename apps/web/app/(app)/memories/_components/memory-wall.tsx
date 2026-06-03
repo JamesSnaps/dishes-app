@@ -75,7 +75,10 @@ export function MemoryWall({ photos }: Props) {
 
   // Responsive column count — drives the masonry layout below.
   useEffect(() => {
-    const update = () => setColumnCount(window.innerWidth >= 640 ? 3 : 2);
+    const update = () => {
+      const w = window.innerWidth;
+      setColumnCount(w >= 1280 ? 4 : w >= 640 ? 3 : 2);
+    };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
