@@ -1,6 +1,12 @@
 # Development override — run infra only, Next.js runs locally
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 #        then: pnpm dev
+#
+# Host ports are deliberately offset from the defaults (54xx/63xx/90xx instead
+# of 5432/6379/9000) so this stack can run alongside other local Postgres /
+# Redis / MinIO instances without clashing. The container-internal ports are
+# unchanged, so the production compose is unaffected. The connection strings in
+# apps/web/.env.example already point at these offset ports.
 
 name: dishes-dev
 
@@ -10,13 +16,13 @@ services:
 
   db:
     ports:
-      - "5432:5432"      # expose Postgres for local Drizzle Studio / migrations
+      - "5433:5432"      # expose Postgres for local Drizzle Studio / migrations
 
   redis:
     ports:
-      - "6379:6379"      # expose Redis for local dev
+      - "6380:6379"      # expose Redis for local dev
 
   minio:
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9002:9000"
+      - "9003:9001"

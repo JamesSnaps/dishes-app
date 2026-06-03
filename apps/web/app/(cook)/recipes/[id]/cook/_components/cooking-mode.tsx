@@ -215,6 +215,34 @@ interface StepTextProps {
   scale: number;
 }
 
+// Reduce a word to a canonical singular form used as a map key. The rules are
+// deliberately simple and need not be linguistically perfect — they only have to
+// be applied consistently to both the ingredient names and the words in the step
+// text so the two sides line up (e.g. "onions" and "onion" both key to "onion").
+function singularize(word: string): string {
+  const w = word.toLowerCase();
+  if (w.endsWith("ies") && w.length > 4) return w.slice(0, -3) + "y";
+  if (/(ches|shes|ses|xes|zes)$/.test(w)) return w.slice(0, -2);
+  if (w.endsWith("ss")) return w;
+  if (w.endsWith("s") && w.length > 3) return w.slice(0, -1);
+  return w;
+}
+
+// Surface forms of a word to feed into the match regex: the word itself plus its
+// singular and a plausible plural. canonical(form) is identical for every form,
+// so whichever spelling the step text uses resolves back to the same ingredient.
+function wordForms(word: string): string[] {
+  const w = word.toLowerCase();
+  const forms = new Set<string>([w]);
+  forms.add(singularize(w));
+  if (/[^aeiou]y$/.test(w)) forms.add(w.slice(0, -1) + "ies");
+  else if (/(s|x|z|ch|sh)$/.test(w)) forms.add(w + "es");
+  else forms.add(w + "s");
+  return [...forms];
+}
+
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 function StepText({ instruction, ingredients, scale }: StepTextProps) {
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -226,11 +254,20 @@ function StepText({ instruction, ingredients, scale }: StepTextProps) {
     return <p className="text-xl lg:text-3xl leading-relaxed">{instruction}</p>;
   }
 
-  const escaped = namedIngredients.map((ing) =>
-    ing.ingredientName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  );
-
-  const ingByNameLower = new Map(namedIngredients.map((ing) => [ing.ingredientName.toLowerCase(), ing]));
+  // Full-name matches. Single-word names also match their singular/plural forms;
+  // multi-word names ("celery sticks") match exactly. Keyed by canonical form.
+  const patterns: string[] = [];
+  const ingByName = new Map<string, Ingredient>();
+  for (const ing of namedIngredients) {
+    const name = ing.ingredientName.toLowerCase();
+    if (name.includes(" ") || name.includes("-")) {
+      ingByName.set(name, ing);
+      patterns.push(escapeRegex(name));
+    } else {
+      ingByName.set(singularize(name), ing);
+      for (const form of wordForms(name)) patterns.push(escapeRegex(form));
+    }
+  }
 
   const MODIFIER_WORDS = new Set([
     "long", "grain", "short", "fresh", "frozen", "dried", "raw", "cooked",
@@ -243,11 +280,12 @@ function StepText({ instruction, ingredients, scale }: StepTextProps) {
   for (const ing of namedIngredients) {
     const words = ing.ingredientName.toLowerCase().split(/[\s\-,]+/);
     for (const word of words) {
-      if (word.length > 3 && !MODIFIER_WORDS.has(word) && !ingByNameLower.has(word)) {
-        if (!keywordCandidates.has(word)) {
-          keywordCandidates.set(word, ing);
+      const canonical = singularize(word);
+      if (word.length > 3 && !MODIFIER_WORDS.has(word) && !ingByName.has(canonical)) {
+        if (!keywordCandidates.has(canonical)) {
+          keywordCandidates.set(canonical, ing);
         } else {
-          keywordCandidates.set(word, null);
+          keywordCandidates.set(canonical, null);
         }
       }
     }
@@ -257,17 +295,21 @@ function StepText({ instruction, ingredients, scale }: StepTextProps) {
       .filter((entry): entry is [string, Ingredient] => entry[1] !== null)
   );
 
-  const keywordPatterns = [...keywordToIng.keys()].map(
-    (kw) => `\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`
+  const keywordPatterns = [...keywordToIng.keys()].flatMap((kw) =>
+    wordForms(kw).map((form) => `\\b${escapeRegex(form)}\\b`)
   );
-  const pattern = new RegExp(`(${[...escaped, ...keywordPatterns].join("|")})`, "gi");
+  const pattern = new RegExp(`(${[...patterns, ...keywordPatterns].join("|")})`, "gi");
 
   const parts = instruction.split(pattern);
 
   return (
     <p className="text-xl lg:text-3xl leading-relaxed">
       {parts.map((part, i) => {
-        const ing = ingByNameLower.get(part.toLowerCase()) ?? keywordToIng.get(part.toLowerCase());
+        const key = singularize(part);
+        const ing =
+          ingByName.get(part.toLowerCase()) ??
+          ingByName.get(key) ??
+          keywordToIng.get(key);
         if (!ing) return part;
 
         const amount = formatIngredientAmount(ing, scale);

@@ -91,40 +91,30 @@ The dev compose override starts only the database, Redis, and MinIO — Next.js 
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
-This exposes:
-- PostgreSQL on `localhost:5432`
-- Redis on `localhost:6379`
-- MinIO on `localhost:9000` (API) / `localhost:9001` (console)
+This exposes (host ports are offset from the defaults so the stack can run alongside other local Postgres/Redis/MinIO instances without clashing):
+- PostgreSQL on `localhost:5433`
+- Redis on `localhost:6380`
+- MinIO on `localhost:9002` (API) / `localhost:9003` (console)
 
 ### 3. Configure environment variables
 
-Create `apps/web/.env.local`:
+Copy the example file — its defaults already match the offset ports above:
 
-```env
-# Required
-DATABASE_URL=postgresql://dishes:dishes@localhost:5432/dishes
-ENCRYPTION_KEY=<random 32+ character string>
-
-# Optional — Redis (rate limiting, future queues)
-REDIS_URL=redis://localhost:6379
-
-# Optional — local app URL
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-
-# Dev auth fallback — sets the Authelia user headers for local development
-# Remove these when running behind a real Authelia instance
-AUTHELIA_USER_HEADER=Remote-User
-AUTHELIA_NAME_HEADER=Remote-Name
-AUTHELIA_GROUPS_HEADER=Remote-Groups
+```bash
+cp apps/web/.env.example apps/web/.env.local
 ```
 
-> The app uses a dev auth fallback when not behind Authelia. It will bootstrap a user from the headers above (or sensible defaults). Remove this when deploying to production.
+The only required values are `DATABASE_URL` and `ENCRYPTION_KEY` (any stable 32+ char string for local dev). See [`apps/web/.env.example`](apps/web/.env.example) for the full annotated list.
 
-### 4. Run migrations
+> The app uses a dev auth fallback when not behind Authelia: with `NODE_ENV=development` and no `Remote-User` header it logs in as a "Dev User" and bootstraps a household automatically. No Authelia setup required.
+
+### 4. Sync the database schema
+
+For local dev, push the schema straight from the Drizzle definitions (the migration journal is only applied in production deploys):
 
 ```bash
 cd packages/db
-pnpm drizzle-kit migrate
+DATABASE_URL=postgresql://dishes:dishes@localhost:5433/dishes pnpm drizzle-kit push
 ```
 
 ### 5. Start the dev server
@@ -134,7 +124,9 @@ cd ../..
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). On first run you will be prompted to create a household.
+Open [http://localhost:3000](http://localhost:3000) (Next.js picks the next free port, e.g. 3001, if 3000 is taken). On first run, the dev auth fallback bootstraps a "Dev User" household automatically — no Authelia required.
+
+> **Dummy content (dev only):** when `NODE_ENV=development`, a freshly-bootstrapped household is auto-seeded with sample content — ~12 recipes (incl. ingredients, cooking-mode steps and tags), collections, a meal plan for the current week, an active shopping list, and a few notes. Seeding is idempotent: it only runs when the household has no recipes, so it won't overwrite anything. To start fresh, clear the household's data (or drop the dev database) and reload. Seeding never runs in production.
 
 ---
 
