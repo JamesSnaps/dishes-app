@@ -32,7 +32,9 @@ function getTilt(id: string, index: number): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   h ^= index * 2654435761;
-  return ((Math.abs(h) % 111) - 55) * 0.1;
+  // Range ≈ ±3.5° — enough tilt to feel hand-placed without throwing the
+  // corners of a tall polaroid card past the page edge.
+  return ((Math.abs(h) % 111) - 55) * 0.064;
 }
 
 function relDate(iso: string): string {
@@ -65,10 +67,27 @@ export function MemoryWall({ photos }: Props) {
   const [items, setItems] = useState<MemoryPhoto[]>([]);
   const [fading, setFading] = useState(false);
   const [active, setActive] = useState<MemoryPhoto | null>(null);
+  const [columnCount, setColumnCount] = useState(2);
 
   useEffect(() => {
     setItems(shuffle(photos));
   }, [photos]);
+
+  // Responsive column count — drives the masonry layout below.
+  useEffect(() => {
+    const update = () => setColumnCount(window.innerWidth >= 640 ? 3 : 2);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  // Distribute items round-robin into balanced columns. Photos are square,
+  // so columns stay roughly level and the wall reads as a clean grid while
+  // the per-photo tilt keeps it feeling alive.
+  const columns: MemoryPhoto[][] = Array.from({ length: columnCount }, () => []);
+  items.forEach((photo, i) => {
+    columns[i % columnCount]!.push(photo);
+  });
 
   // Close lightbox on Escape
   useEffect(() => {
@@ -118,50 +137,55 @@ export function MemoryWall({ photos }: Props) {
         </button>
       </div>
 
-      {/* Masonry wall */}
+      {/* Masonry wall — flex columns so rotated polaroids never get clipped by
+          CSS-column boxes. Each card gets padding to give the tilt room. */}
       <div
-        className="columns-2 sm:columns-3 gap-3 transition-all duration-200"
+        className="flex items-start gap-1 transition-all duration-200"
         style={{ opacity: fading ? 0 : 1, transform: fading ? "scale(0.97)" : "scale(1)" }}
       >
-        {items.map((photo, i) => (
-          <div key={photo.id} className="break-inside-avoid mb-3 overflow-hidden">
-            <button
-              type="button"
-              className="w-full text-left focus:outline-none"
-              onClick={() => setActive(photo)}
-              style={{
-                transform: `rotate(${getTilt(photo.id, i)}deg)`,
-                transformOrigin: "center 30%",
-                display: "block",
-              }}
-            >
-              <div
-                className="bg-white dark:bg-zinc-100 rounded-sm hover:scale-[1.03] transition-transform duration-150"
-                style={{ boxShadow: "0 3px 10px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.04)" }}
-              >
-                {/* Photo */}
-                <div className="p-2 pb-0">
-                  <div className="overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photo.photoUrl}
-                      alt={photo.recipeName}
-                      className="w-full aspect-square object-cover"
-                      style={{ filter: "sepia(0.2) saturate(1.2) brightness(1.02)" }}
-                      loading="lazy"
-                    />
+        {columns.map((column, colIndex) => (
+          <div key={colIndex} className="flex flex-1 flex-col">
+            {column.map((photo, i) => (
+              <div key={photo.id} className="px-3 py-2">
+                <button
+                  type="button"
+                  className="w-full text-left focus:outline-none"
+                  onClick={() => setActive(photo)}
+                  style={{
+                    transform: `rotate(${getTilt(photo.id, colIndex * 7 + i)}deg)`,
+                    transformOrigin: "center 30%",
+                    display: "block",
+                  }}
+                >
+                  <div
+                    className="bg-white dark:bg-zinc-100 rounded-sm hover:scale-[1.03] transition-transform duration-150"
+                    style={{ boxShadow: "0 3px 10px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.04)" }}
+                  >
+                    {/* Photo */}
+                    <div className="p-2 pb-0">
+                      <div className="overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photo.photoUrl}
+                          alt={photo.recipeName}
+                          className="w-full aspect-square object-cover"
+                          style={{ filter: "sepia(0.2) saturate(1.2) brightness(1.02)" }}
+                          loading="lazy"
+                        />
+                      </div>
+                    </div>
+                    {/* Caption */}
+                    <div className="px-2 pt-1.5 pb-3 font-[family-name:var(--font-caveat)] text-zinc-800">
+                      <div className="text-[14px] font-semibold leading-tight truncate">{photo.recipeName}</div>
+                      <div className="text-[12px] text-zinc-500 leading-tight">{relDate(photo.cookedAt)}</div>
+                      {photo.rating != null && (
+                        <div className="text-[11px] text-amber-500 leading-tight">{stars(photo.rating)}</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {/* Caption */}
-                <div className="px-2 pt-1.5 pb-3 font-[family-name:var(--font-caveat)] text-zinc-800">
-                  <div className="text-[14px] font-semibold leading-tight truncate">{photo.recipeName}</div>
-                  <div className="text-[12px] text-zinc-500 leading-tight">{relDate(photo.cookedAt)}</div>
-                  {photo.rating != null && (
-                    <div className="text-[11px] text-amber-500 leading-tight">{stars(photo.rating)}</div>
-                  )}
-                </div>
+                </button>
               </div>
-            </button>
+            ))}
           </div>
         ))}
       </div>
