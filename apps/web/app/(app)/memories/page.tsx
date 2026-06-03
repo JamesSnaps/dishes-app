@@ -47,7 +47,7 @@ export default async function MemoriesPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-[#f5f0e8] dark:bg-[#1a1612]">
+    <div className="min-h-screen overflow-x-hidden bg-[#f5f0e8] dark:bg-[#1a1612]">
       <div className="max-w-2xl mx-auto px-4 py-8 pb-28">
         <MemoryWall photos={photos} />
       </div>
