@@ -692,7 +692,7 @@ export async function generateMealPlanConcepts(params: {
             return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}] — ${history}`;
           })
           .join("\n") +
-        `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe.`
+        `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe. Only reuse a library recipe in a slot whose meal type it genuinely fits (e.g. don't place a dinner-style dish in a breakfast or lunch slot) — if nothing in the library suits the slot, use 0 and suggest a fitting new recipe instead.`
       : "";
 
     const recentlyUsedBlock = recentlyCookedTitles.length > 0
@@ -722,7 +722,13 @@ export async function generateMealPlanConcepts(params: {
           role: "system",
           content: `You are a meal planning chef helping a family plan their week. Return meal suggestions as JSON.
 Format: {"slots": [{"dayOfWeek": number, "mealType": string, "title": string, "description": "1-2 sentences", "cuisine": string, "difficulty": "easy"|"medium"|"hard", "libraryIndex": number}]}
-Make meals varied across the week. Consider meal type when suggesting (lighter for breakfast/lunch, heartier for dinner).
+Make meals varied across the week.
+CRITICAL — each suggestion MUST genuinely suit its slot's meal type:
+- breakfast: breakfast-appropriate food only (eggs, pancakes, porridge, pastries, granola, fruit, breakfast wraps, etc.). Never put rich dinner-style dishes (pasta, curries, roasts, stews) in a breakfast slot.
+- lunch: light, quick, midday food — salads, sandwiches, wraps, soups, grain bowls, leftovers-style plates. Keep portions and richness modest; do NOT assign full dinner-style mains to lunch.
+- dinner: the main heartier meal of the day.
+- snack: small, simple bites. dessert: sweet courses only.
+If a slot's meal type can't be satisfied by a sensible dish, suggest a new one (libraryIndex 0) rather than forcing an ill-fitting recipe.
 dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.${libraryContext}${fullAddendum}`,
         },
         {

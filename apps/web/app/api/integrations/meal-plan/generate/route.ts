@@ -154,7 +154,8 @@ export const POST = withIntegrationAuth(
           role: "system",
           content: `You are a meal planner. Return exactly ${targetDays.length} ${mealType} concept(s) for ${dayLabels} as JSON.
 Format: {"meals": [{"title": string, "description": string (1 sentence), "cuisine": string, "difficulty": "easy"|"medium"|"hard", "prepTimeMinutes": number, "cookTimeMinutes": number}]}
-Return exactly ${targetDays.length} item(s) in the same order as the days listed. Make them varied.`,
+Return exactly ${targetDays.length} item(s) in the same order as the days listed. Make them varied.
+Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (eggs, pancakes, porridge, pastries, etc.), lunch = light/quick midday food (salads, sandwiches, soups, bowls — not full dinner-style mains), dinner = the heartier main meal, snack = small bites, dessert = sweet courses. Do not force dinner-style dishes into breakfast or lunch.`,
         },
         { role: "user", content: prompt },
       ],

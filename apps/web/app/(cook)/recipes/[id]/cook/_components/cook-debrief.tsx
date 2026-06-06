@@ -105,7 +105,7 @@ export function CookDebrief({
       const cookedForNames = householdMembers
         .filter((m) => cookedForIds.has(m.id))
         .map((m) => m.displayName);
-      const result = await logCook(recipeId, {
+      await logCook(recipeId, {
         actualDuration: duration,
         occasion: occasion.trim() || null,
         cookedFor: cookedForNames.length ? cookedForNames : null,
@@ -113,7 +113,9 @@ export function CookDebrief({
       if (cookTimeDiffers) {
         updateRecipeCookTime(recipeId, duration).catch(() => {});
       }
-      router.push(`/recipes/${recipeId}?pendingReview=${result.id}`);
+      // The cook is logged; "Review later" means defer the rating, so go
+      // straight back to the recipe without re-triggering the review sheet.
+      router.push(`/recipes/${recipeId}`);
     } catch {
       router.push(`/recipes/${recipeId}`);
     }
