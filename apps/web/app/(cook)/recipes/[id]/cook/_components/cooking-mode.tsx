@@ -274,25 +274,43 @@ function StepText({ instruction, ingredients, scale }: StepTextProps) {
     "large", "small", "medium", "fine", "coarse", "chopped", "diced", "sliced",
     "minced", "grated", "beaten", "rinsed", "thawed", "peeled", "whole", "lean",
     "plain", "dark", "light", "extra", "young", "baby", "mixed", "taste", "and",
-    "or", "the", "for", "with",
+    "or", "the", "for", "with", "hot", "cut", "low", "cup", "can", "jar", "tin",
   ]);
-  const keywordCandidates = new Map<string, Ingredient | null>();
+  // For each candidate keyword we track who claims it, distinguishing the head
+  // noun (last word of an ingredient name, e.g. "rice" in "brown rice") from a
+  // mere modifier (e.g. "rice" in "rice wine vinegar"). A head-noun claim beats
+  // a modifier claim, so an ambiguous word like "rice" still resolves to the
+  // ingredient it actually names. Only genuine ties (same role, multiple
+  // ingredients) are dropped as ambiguous.
+  interface KeywordClaim {
+    ing: Ingredient | null;
+    head: boolean;
+  }
+  const keywordCandidates = new Map<string, KeywordClaim>();
   for (const ing of namedIngredients) {
     const words = ing.ingredientName.toLowerCase().split(/[\s\-,]+/);
-    for (const word of words) {
+    words.forEach((word, idx) => {
       const canonical = singularize(word);
-      if (word.length > 3 && !MODIFIER_WORDS.has(word) && !ingByName.has(canonical)) {
-        if (!keywordCandidates.has(canonical)) {
-          keywordCandidates.set(canonical, ing);
-        } else {
-          keywordCandidates.set(canonical, null);
+      const isHead = idx === words.length - 1;
+      if (word.length >= 3 && !MODIFIER_WORDS.has(word) && !ingByName.has(canonical)) {
+        const existing = keywordCandidates.get(canonical);
+        if (!existing) {
+          keywordCandidates.set(canonical, { ing, head: isHead });
+        } else if (isHead && !existing.head) {
+          // This ingredient owns the word as its head noun; previous was a modifier.
+          keywordCandidates.set(canonical, { ing, head: true });
+        } else if (isHead === existing.head) {
+          // Same role for two ingredients — genuinely ambiguous.
+          keywordCandidates.set(canonical, { ing: null, head: existing.head });
         }
+        // else: existing is a head claim and this is a modifier — keep existing.
       }
-    }
+    });
   }
   const keywordToIng = new Map<string, Ingredient>(
     [...keywordCandidates.entries()]
-      .filter((entry): entry is [string, Ingredient] => entry[1] !== null)
+      .filter((entry): entry is [string, KeywordClaim & { ing: Ingredient }] => entry[1].ing !== null)
+      .map(([kw, claim]) => [kw, claim.ing])
   );
 
   const keywordPatterns = [...keywordToIng.keys()].flatMap((kw) =>
