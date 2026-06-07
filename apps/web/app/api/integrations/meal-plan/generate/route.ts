@@ -53,6 +53,8 @@ function dayName(dow: number): string {
  *   mealType    — "breakfast" | "lunch" | "dinner" | "snack" (default: "dinner")
  *   overwrite   — if true, replaces existing entries for the same day+mealType slots
  *                 (default: false; returns 409 if any slot already exists)
+ *   maxCaloriesPerMeal — optional cap (kcal per serving) the AI should respect;
+ *                 generated recipes store the AI's per-serving calorie estimate
  */
 export const POST = withIntegrationAuth(
   "write:meal_plan",
@@ -77,6 +79,9 @@ export const POST = withIntegrationAuth(
     const mealType: MealType = VALID_MEAL_TYPES.includes(body.mealType as MealType)
       ? (body.mealType as MealType)
       : "dinner";
+
+    const maxCalRaw = parseInt(String(body.maxCaloriesPerMeal ?? ""), 10);
+    const maxCaloriesPerMeal = Number.isFinite(maxCalRaw) && maxCalRaw > 0 ? maxCalRaw : null;
 
     // Resolve which days of the week to fill
     let targetDays: number[];
@@ -153,9 +158,9 @@ export const POST = withIntegrationAuth(
         {
           role: "system",
           content: `You are a meal planner. Return exactly ${targetDays.length} ${mealType} concept(s) for ${dayLabels} as JSON.
-Format: {"meals": [{"title": string, "description": string (1 sentence), "cuisine": string, "difficulty": "easy"|"medium"|"hard", "prepTimeMinutes": number, "cookTimeMinutes": number}]}
+Format: {"meals": [{"title": string, "description": string (1 sentence), "cuisine": string, "difficulty": "easy"|"medium"|"hard", "prepTimeMinutes": number, "cookTimeMinutes": number, "calories": number (kcal per serving estimate)}]}
 Return exactly ${targetDays.length} item(s) in the same order as the days listed. Make them varied.
-Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (eggs, pancakes, porridge, pastries, etc.), lunch = light/quick midday food (salads, sandwiches, soups, bowls — not full dinner-style mains), dinner = the heartier main meal, snack = small bites, dessert = sweet courses. Do not force dinner-style dishes into breakfast or lunch.`,
+Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (eggs, pancakes, porridge, pastries, etc.), lunch = light/quick midday food (salads, sandwiches, soups, bowls — not full dinner-style mains), dinner = the heartier main meal, snack = small bites, dessert = sweet courses. Do not force dinner-style dishes into breakfast or lunch.${maxCaloriesPerMeal ? `\nCALORIE LIMIT: every meal must stay at or below roughly ${maxCaloriesPerMeal} kcal per serving — choose dishes and portions that fit, and set "calories" accordingly.` : ""}`,
         },
         { role: "user", content: prompt },
       ],
@@ -170,6 +175,7 @@ Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (egg
         difficulty: "easy" | "medium" | "hard";
         prepTimeMinutes: number;
         cookTimeMinutes: number;
+        calories?: number;
       }>;
     };
 
@@ -179,7 +185,7 @@ Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (egg
 
     // ── Persist recipes + entries ──────────────────────────────────────────────
 
-    const created: { dayOfWeek: number; day: string; mealType: MealType; recipeTitle: string; recipeId: string }[] = [];
+    const created: { dayOfWeek: number; day: string; mealType: MealType; recipeTitle: string; recipeId: string; calories: number | null }[] = [];
 
     for (let i = 0; i < targetDays.length; i++) {
       const dow = targetDays[i]!;
@@ -198,6 +204,9 @@ Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (egg
           servings: "4",
           servingsUnit: "servings",
           isAiGenerated: true,
+          ...(typeof meal.calories === "number" && Number.isFinite(meal.calories)
+            ? { calories: Math.round(meal.calories), nutritionSource: "ai" as const }
+            : {}),
         })
         .returning({ id: recipes.id });
 
@@ -208,7 +217,14 @@ Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (egg
         mealType,
       });
 
-      created.push({ dayOfWeek: dow, day: dayName(dow), mealType, recipeTitle: meal.title, recipeId: recipe!.id });
+      created.push({
+        dayOfWeek: dow,
+        day: dayName(dow),
+        mealType,
+        recipeTitle: meal.title,
+        recipeId: recipe!.id,
+        calories: typeof meal.calories === "number" && Number.isFinite(meal.calories) ? Math.round(meal.calories) : null,
+      });
     }
 
     return NextResponse.json({ planId, weekStartDate, mealType, meals: created }, { status: 201 });

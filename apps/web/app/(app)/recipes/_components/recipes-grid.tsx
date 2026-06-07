@@ -24,6 +24,7 @@ type Recipe = {
   cuisine: string | null;
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
+  calories?: number | null;
   imageUrl: string | null;
   thumbnailUrl?: string | null;
   isFavourite: boolean;

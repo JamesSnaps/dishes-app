@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Clock, UtensilsCrossed } from "lucide-react";
+import { Check, Clock, Flame, UtensilsCrossed } from "lucide-react";
 import { Badge, Card, cn } from "@dishes/ui";
 import { FavouriteButton } from "./favourite-button";
 import { StarRating } from "../[id]/_components/star-rating";
@@ -13,6 +13,7 @@ type RecipeCardProps = {
   cuisine: string | null;
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
+  calories?: number | null;
   imageUrl: string | null;
   thumbnailUrl?: string | null;
   isFavourite: boolean;
@@ -41,6 +42,7 @@ export function RecipeCard({
   cuisine,
   prepTimeMinutes,
   cookTimeMinutes,
+  calories,
   imageUrl,
   thumbnailUrl,
   isFavourite,
@@ -120,6 +122,12 @@ export function RecipeCard({
             <Badge variant="outline" className="text-xs">
               AI
             </Badge>
+          )}
+          {calories != null && (
+            <span className={cn("flex items-center gap-1 text-xs text-muted-foreground", !time && "ml-auto")}>
+              <Flame className="h-3 w-3" />
+              {calories} kcal
+            </span>
           )}
           {time && (
             <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">

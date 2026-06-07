@@ -666,6 +666,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
   const [tagFilter, setTagFilter] = useState("");
   const [unusedOnly, setUnusedOnly] = useState(false);
   const [ratedOnly, setRatedOnly] = useState(false);
+  const [maxCaloriesPerMeal, setMaxCaloriesPerMeal] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const [generatedSlots, setGeneratedSlots] = useState<MealPlanSlot[] | null>(null);
   const [rejectedSlots, setRejectedSlots] = useState<Set<number>>(new Set());
@@ -704,6 +705,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
     setTagFilter("");
     setUnusedOnly(false);
     setRatedOnly(false);
+    setMaxCaloriesPerMeal("");
   }
 
   function togglePlanMember(id: string) {
@@ -732,6 +734,10 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
         unusedOnly: unusedOnly || undefined,
         ratedOnly: ratedOnly || undefined,
         memberIds: selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : undefined,
+        maxCaloriesPerMeal: (() => {
+          const n = parseInt(maxCaloriesPerMeal, 10);
+          return Number.isFinite(n) && n > 0 ? n : undefined;
+        })(),
       });
       if (result.error) { setError(result.error); return; }
       setGeneratedSlots(result.slots!);
@@ -876,7 +882,25 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
               Rated only
             </button>
           </div>
-          {(cuisineFilter || tagFilter || unusedOnly || ratedOnly) && (
+          <div className="mt-3 flex items-center gap-2">
+            <label htmlFor="max-cal-per-meal" className="text-sm font-medium text-muted-foreground">
+              Max calories per meal
+            </label>
+            <input
+              id="max-cal-per-meal"
+              type="number"
+              min="0"
+              step="50"
+              inputMode="numeric"
+              value={maxCaloriesPerMeal}
+              onChange={(e) => setMaxCaloriesPerMeal(e.target.value)}
+              disabled={isGenerating || isAdding}
+              placeholder="e.g. 700"
+              className="w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm disabled:opacity-50"
+            />
+            <span className="text-xs text-muted-foreground">kcal / serving</span>
+          </div>
+          {(cuisineFilter || tagFilter || unusedOnly || ratedOnly || maxCaloriesPerMeal) && (
             <button
               type="button"
               onClick={handleClearLibraryFilters}

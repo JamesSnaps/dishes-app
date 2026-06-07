@@ -94,6 +94,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Favourites page (`/favourites`) — filtered grid of favourited recipes
 - [x] Collections (`/collections`) — create named collections, add recipes via actions menu or search dialog on collection page; collections strip on recipe list
 - [x] My Notes (`/notes`) — standalone notes or linked to a specific recipe; linked notes appear on recipe detail page
+- [x] Nutrition — per-serving calories + macros (protein/carbs/fat/fibre/sugar/sodium) on recipes; AI auto-fills on generate/edit, on-demand "Estimate nutrition" backfill, manual entry; calorie target in concierge + max-calories-per-meal in planner; calories exposed on integrations `today`/`week` and `meal-plan/generate`
 
 ## Infrastructure / DevX
 - [x] `.env.local` validation on startup (zod, fail fast)

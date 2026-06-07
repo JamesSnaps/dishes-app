@@ -47,7 +47,26 @@ export type GeneratedRecipe = {
     timerLabel: string;
   }>;
   notes: string | null;
+  nutrition?: RecipeNutrition | null;
 };
+
+// Per-serving nutrition. All values are estimates when produced by the AI.
+export type RecipeNutrition = {
+  calories: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+  fiberG: number | null;
+  sugarG: number | null;
+  sodiumMg: number | null;
+};
+
+// Shared prompt fragment describing the nutrition object the model must return.
+const NUTRITION_SCHEMA_FRAGMENT = `  "nutrition": {
+    "calories": number (kcal per serving),
+    "proteinG": number, "carbsG": number, "fatG": number,
+    "fiberG": number, "sugarG": number, "sodiumMg": number
+  } (best-effort per-serving estimate based on the ingredients and servings; use realistic values, never null)`;
 
 // ── Internal helpers ───────────────────────────────────────────────────────────
 
@@ -212,7 +231,8 @@ async function buildTasteProfileAddendum(householdId: string): Promise<string> {
 export async function generateConcepts(
   prompt: string,
   memberIds?: string[],
-  mealType?: string
+  mealType?: string,
+  targetCalories?: number
 ): Promise<{ concepts?: ConceptCard[]; error?: string }> {
   if (!prompt.trim())
     return { error: "Please describe what you'd like to cook." };
@@ -235,6 +255,10 @@ export async function generateConcepts(
             : ""
         }`
       : "";
+    const calorieInstruction =
+      targetCalories && targetCalories > 0
+        ? `\nIMPORTANT: Each concept should be achievable at roughly ${targetCalories} kcal per serving — favour ingredients and portion sizes that fit that calorie target.`
+        : "";
 
     const completion = await client.chat.completions.create({
       model,
@@ -245,7 +269,7 @@ export async function generateConcepts(
           role: "system",
           content: `You are a helpful chef helping a family choose what to cook. Return exactly 5 distinct recipe concepts as JSON.
 Format: {"concepts": [{"title": "...", "description": "1-2 sentences", "cuisine": "...", "tags": ["..."], "difficulty": "easy"|"medium"|"hard"}]}
-Make the 5 concepts meaningfully different from each other in style or cuisine, but always match their effort, richness and portion size to what the user actually asked for. If the user asks for something simple, quick, light or for a child, every concept must stay simple — do not pad the list with elaborate or restaurant-style dishes.${mealTypeInstruction}${addendum}`,
+Make the 5 concepts meaningfully different from each other in style or cuisine, but always match their effort, richness and portion size to what the user actually asked for. If the user asks for something simple, quick, light or for a child, every concept must stay simple — do not pad the list with elaborate or restaurant-style dishes.${mealTypeInstruction}${calorieInstruction}${addendum}`,
         },
         { role: "user", content: prompt },
       ],
@@ -373,9 +397,10 @@ export async function improveRecipe(
   "steps": [
     {"instruction": string, "durationMinutes": string, "timerLabel": string}
   ],
-  "notes": string|null
+  "notes": string|null,
+${NUTRITION_SCHEMA_FRAGMENT}
 }
-Only change what is necessary to satisfy the user's request. Preserve everything else exactly. Return the full recipe even for fields you did not change.
+Only change what is necessary to satisfy the user's request. If your changes affect the ingredients or servings, re-estimate the nutrition values; otherwise keep them. Preserve everything else exactly. Return the full recipe even for fields you did not change.
 CRITICAL: When the user asks to add, remove, or change an ingredient, you MUST update the "ingredients" array directly — add a new object, remove the matching object, or edit the existing one. NEVER leave a removed ingredient in the list. NEVER write workaround instructions in steps such as "skip the X", "omit the X", or "ignore the X" — make the actual change to the data instead.${addendum}`,
         },
         {
@@ -406,12 +431,115 @@ CRITICAL: When the user asks to add, remove, or change an ingredient, you MUST u
   }
 }
 
+// ── Estimate nutrition for an existing recipe ──────────────────────────────────
+// On-demand: loads the recipe's ingredients/servings, asks the AI for a
+// per-serving estimate, persists it (nutritionSource = "ai"), and revalidates.
+
+export async function estimateNutrition(
+  recipeId: string
+): Promise<{ nutrition?: RecipeNutrition; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+
+    const [recipe] = await db
+      .select({
+        title: recipes.title,
+        servings: recipes.servings,
+        servingsUnit: recipes.servingsUnit,
+      })
+      .from(recipes)
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+      .limit(1);
+    if (!recipe) return { error: "Recipe not found." };
+
+    const ingredientRows = await db
+      .select({
+        ingredientName: recipeIngredients.ingredientName,
+        amount: recipeIngredients.amount,
+        unit: recipeIngredients.unit,
+      })
+      .from(recipeIngredients)
+      .where(eq(recipeIngredients.recipeId, recipeId));
+
+    if (!ingredientRows.length)
+      return { error: "This recipe has no ingredients to estimate from." };
+
+    const { client, model, measurementSystem } = await getOpenAiClient(householdId);
+
+    const ingredientList = ingredientRows
+      .map((r) => `- ${[r.amount, r.unit, r.ingredientName].filter(Boolean).join(" ")}`)
+      .join("\n");
+    const servings = recipe.servings ? `${recipe.servings} ${recipe.servingsUnit ?? "servings"}` : "unknown (assume 4 servings)";
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      ...maxTokensParam(model, 400),
+      messages: [
+        {
+          role: "system",
+          content: `You are a nutrition estimator. Given a recipe's ingredients and the number of servings, return a best-effort PER-SERVING nutrition estimate as JSON matching exactly:
+{
+  "calories": number (kcal per serving),
+  "proteinG": number, "carbsG": number, "fatG": number,
+  "fiberG": number, "sugarG": number, "sodiumMg": number
+}
+Base your estimate on standard food composition data. Measurement system: ${measurementSystem}. Return realistic numbers, never null.`,
+        },
+        {
+          role: "user",
+          content: `Recipe: ${recipe.title}\nServings: ${servings}\nIngredients:\n${ingredientList}`,
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const parsed = JSON.parse(raw) as Partial<RecipeNutrition>;
+
+    const num = (v: unknown) =>
+      typeof v === "number" && Number.isFinite(v) ? v : null;
+    const nutrition: RecipeNutrition = {
+      calories: num(parsed.calories),
+      proteinG: num(parsed.proteinG),
+      carbsG: num(parsed.carbsG),
+      fatG: num(parsed.fatG),
+      fiberG: num(parsed.fiberG),
+      sugarG: num(parsed.sugarG),
+      sodiumMg: num(parsed.sodiumMg),
+    };
+
+    const hasAny = Object.values(nutrition).some((v) => v != null);
+    if (!hasAny) return { error: "Could not estimate nutrition for this recipe." };
+
+    await db
+      .update(recipes)
+      .set({
+        calories: nutrition.calories == null ? null : Math.round(nutrition.calories),
+        proteinG: nutrition.proteinG == null ? null : String(nutrition.proteinG),
+        carbsG: nutrition.carbsG == null ? null : String(nutrition.carbsG),
+        fatG: nutrition.fatG == null ? null : String(nutrition.fatG),
+        fiberG: nutrition.fiberG == null ? null : String(nutrition.fiberG),
+        sugarG: nutrition.sugarG == null ? null : String(nutrition.sugarG),
+        sodiumMg: nutrition.sodiumMg == null ? null : String(nutrition.sodiumMg),
+        nutritionSource: "ai",
+      })
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
+
+    revalidatePath(`/recipes/${recipeId}`);
+    return { nutrition };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
 // ── Step 2: Generate full recipe from a chosen concept ─────────────────────────
 
 export async function generateFullRecipe(
   concept: ConceptCard,
   memberIds?: string[],
-  mealType?: string
+  mealType?: string,
+  targetCalories?: number
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
     const user = await getAutheliaUser();
@@ -448,13 +576,14 @@ export async function generateFullRecipe(
   "steps": [
     {"instruction": string, "durationMinutes": string (empty string if no timer), "timerLabel": string (empty string if no timer)}
   ],
-  "notes": string|null
+  "notes": string|null,
+${NUTRITION_SCHEMA_FRAGMENT}
 }
 Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.g. "Sauce", "Marinade") to group related ingredients; leave empty string for ungrouped.${addendum}`,
         },
         {
           role: "user",
-          content: `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}`,
+          content: `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}${targetCalories && targetCalories > 0 ? `\nCalorie target: aim for roughly ${targetCalories} kcal per serving — adjust quantities and ingredient choices to land near this.` : ""}`,
         },
       ],
     });
@@ -555,8 +684,9 @@ export async function generateMealPlanConcepts(params: {
   unusedOnly?: boolean;
   ratedOnly?: boolean;
   memberIds?: string[];
+  maxCaloriesPerMeal?: number;
 }): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
-  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, ratedOnly, memberIds } = params;
+  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, ratedOnly, memberIds, maxCaloriesPerMeal } = params;
   if (!requestedSlots.length)
     return { error: "Please select at least one slot to plan." };
 
@@ -594,6 +724,7 @@ export async function generateMealPlanConcepts(params: {
             title: recipes.title,
             cuisine: recipes.cuisine,
             difficulty: recipes.difficulty,
+            calories: recipes.calories,
             timesPlanned: count(mealPlanEntries.id),
             lastPlannedDate: max(mealPlans.weekStartDate),
             avgRating: avg(cookHistory.rating),
@@ -615,7 +746,7 @@ export async function generateMealPlanConcepts(params: {
               taggedIds && taggedIds.length > 0 ? inArray(recipes.id, taggedIds) : undefined,
             )
           )
-          .groupBy(recipes.id, recipes.title, recipes.cuisine, recipes.difficulty)
+          .groupBy(recipes.id, recipes.title, recipes.cuisine, recipes.difficulty, recipes.calories)
           .limit(200);
 
     // Recipes used in the last 2 weeks are excluded from the selectable library
@@ -626,6 +757,10 @@ export async function generateMealPlanConcepts(params: {
     const filteredLibrary = rawLibrary.filter((r) => {
       if (unusedOnly && Number(r.timesPlanned) > 0) return false;
       if (ratedOnly && !r.avgRating) return false;
+      // Exclude library recipes over the per-meal calorie cap (recipes with no
+      // calorie data are kept — we can't tell, so we don't hide them).
+      if (maxCaloriesPerMeal && r.calories != null && r.calories > maxCaloriesPerMeal)
+        return false;
       if (r.lastPlannedDate) {
         const weeksAgo = Math.floor(
           (Date.now() - new Date(r.lastPlannedDate + "T00:00:00").getTime()) /
@@ -689,7 +824,8 @@ export async function generateMealPlanConcepts(params: {
             const times = Number(r.timesPlanned);
             const rating = r.avgRating ? `⭐${parseFloat(r.avgRating).toFixed(1)}` : "unrated";
             const history = times === 0 ? "never tried" : `cooked ${times}×, ${relativeWeeks(r.lastPlannedDate)}`;
-            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}] — ${history}`;
+            const cals = r.calories != null ? `, ~${r.calories}kcal` : "";
+            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}${cals}] — ${history}`;
           })
           .join("\n") +
         `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe. Only reuse a library recipe in a slot whose meal type it genuinely fits (e.g. don't place a dinner-style dish in a breakfast or lunch slot) — if nothing in the library suits the slot, use 0 and suggest a fitting new recipe instead.`
@@ -705,7 +841,10 @@ export async function generateMealPlanConcepts(params: {
       unusedOnly ? "Prefer library recipes marked as never tried (libraryIndex 0 is also fine for fresh ideas)." : "",
       ratedOnly ? "Only reference library recipes that have a star rating; use libraryIndex 0 for any slot where you'd otherwise pick an unrated recipe." : "",
     ].filter(Boolean).join(" ");
-    const fullAddendum = addendum + recentlyUsedBlock + (filterHints ? `\n\n${filterHints}` : "") + memberConstraints;
+    const calorieBlock = maxCaloriesPerMeal
+      ? `\n\nCALORIE LIMIT: every meal must stay at or below roughly ${maxCaloriesPerMeal} kcal per serving. Library recipes shown with a kcal value already fit. For new suggestions (libraryIndex 0) and any library recipe without a kcal value, choose dishes whose typical per-serving calories are within this limit.`
+      : "";
+    const fullAddendum = addendum + recentlyUsedBlock + calorieBlock + (filterHints ? `\n\n${filterHints}` : "") + memberConstraints;
 
     const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     const slots = requestedSlots;

@@ -81,6 +81,7 @@ export default async function RecipesPage({ searchParams }: Props) {
         cuisine: recipes.cuisine,
         prepTimeMinutes: recipes.prepTimeMinutes,
         cookTimeMinutes: recipes.cookTimeMinutes,
+        calories: recipes.calories,
         imageUrl: recipes.imageUrl,
         thumbnailUrl: recipes.thumbnailUrl,
         isFavourite: recipes.isFavourite,

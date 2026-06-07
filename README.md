@@ -20,6 +20,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Pantry** — staples list (always-available ingredients excluded from shopping lists) and current stock tracking; automatically updated when cooking is completed or a shopping list is archived
 - **Cook history & ratings** — log every cook with a 0–5 star rating (half-star precision), duration, notes, occasion, and a dish photo; the app learns your actual pace over time
 - **Taste profiling** — builds a per-household preference model from accumulated cook history; scores cuisines, ingredients, and tags by recency-weighted average rating and uses it to personalise AI generation and surface recipe suggestions on the home screen
+- **Nutrition** — per-serving calorie and macro breakdown (protein, carbs, fat, fibre, sugar, sodium) on every recipe, scaling with serving size. The AI fills it in automatically when generating or editing a recipe, an on-demand "Estimate nutrition" button backfills existing recipes, and values can be entered manually. The concierge accepts a per-serving calorie target and the meal planner accepts a max-calories-per-meal cap
 - **Integrations API** — JSON API with bearer token auth for n8n, Home Assistant, dashboards, and other automation tools
 - **PWA** — installable on mobile via browser
 

@@ -43,6 +43,7 @@ export const GET = withIntegrationAuth(
           cuisine: recipes.cuisine,
           prepTimeMinutes: recipes.prepTimeMinutes,
           cookTimeMinutes: recipes.cookTimeMinutes,
+          calories: recipes.calories,
         },
       })
       .from(mealPlanEntries)

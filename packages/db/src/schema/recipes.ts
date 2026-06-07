@@ -16,6 +16,12 @@ import { households, householdMembers } from "./households";
 
 export const difficultyEnum = pgEnum("difficulty", ["easy", "medium", "hard"]);
 
+export const nutritionSourceEnum = pgEnum("nutrition_source", [
+  "none",
+  "ai",
+  "manual",
+]);
+
 export const recipes = pgTable(
   "recipes",
   {
@@ -40,6 +46,17 @@ export const recipes = pgTable(
     isAiGenerated: boolean("is_ai_generated").notNull().default(false),
     isFavourite: boolean("is_favourite").notNull().default(false),
     notes: text("notes"),
+    // Nutrition — stored per serving. Nullable: not all recipes have data.
+    calories: integer("calories"),
+    proteinG: decimal("protein_g", { precision: 6, scale: 1 }),
+    carbsG: decimal("carbs_g", { precision: 6, scale: 1 }),
+    fatG: decimal("fat_g", { precision: 6, scale: 1 }),
+    fiberG: decimal("fiber_g", { precision: 6, scale: 1 }),
+    sugarG: decimal("sugar_g", { precision: 6, scale: 1 }),
+    sodiumMg: decimal("sodium_mg", { precision: 7, scale: 1 }),
+    nutritionSource: nutritionSourceEnum("nutrition_source")
+      .notNull()
+      .default("none"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

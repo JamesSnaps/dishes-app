@@ -61,6 +61,13 @@ export type RecipeFormDefaults = {
   notes?: string | null;
   imageUrl?: string | null;
   thumbnailUrl?: string | null;
+  calories?: number | null;
+  proteinG?: string | null;
+  carbsG?: string | null;
+  fatG?: string | null;
+  fiberG?: string | null;
+  sugarG?: string | null;
+  sodiumMg?: string | null;
   ingredients?: Omit<IngredientRow, "key">[];
   steps?: Omit<StepRow, "key">[];
   tags?: string[];
@@ -171,6 +178,17 @@ export function RecipeForm({
     setActiveSuggestionIndex(-1);
   }, [tags]);
   const [notes, setNotes] = useState(defaults.notes ?? "");
+
+  // Nutrition (per serving) — manual entry. Kept as strings for the inputs.
+  const numDefault = (v: number | string | null | undefined) =>
+    v == null || v === "" ? "" : String(v);
+  const [calories, setCalories] = useState(numDefault(defaults.calories));
+  const [proteinG, setProteinG] = useState(numDefault(defaults.proteinG));
+  const [carbsG, setCarbsG] = useState(numDefault(defaults.carbsG));
+  const [fatG, setFatG] = useState(numDefault(defaults.fatG));
+  const [fiberG, setFiberG] = useState(numDefault(defaults.fiberG));
+  const [sugarG, setSugarG] = useState(numDefault(defaults.sugarG));
+  const [sodiumMg, setSodiumMg] = useState(numDefault(defaults.sodiumMg));
 
   const [ingredients, setIngredients] = useState<IngredientRow[]>(() =>
     defaults.ingredients?.length
@@ -304,6 +322,16 @@ export function RecipeForm({
     setNotes(r.notes ?? "");
     setIngredients(r.ingredients.map((i) => ({ ...i, key: nextKey() })));
     setSteps(r.steps.map((s) => ({ ...s, durationMinutes: sanitizeDuration(s.durationMinutes), key: nextKey() })));
+    if (r.nutrition) {
+      const ns = (v: number | null | undefined) => (v == null ? "" : String(v));
+      setCalories(ns(r.nutrition.calories));
+      setProteinG(ns(r.nutrition.proteinG));
+      setCarbsG(ns(r.nutrition.carbsG));
+      setFatG(ns(r.nutrition.fatG));
+      setFiberG(ns(r.nutrition.fiberG));
+      setSugarG(ns(r.nutrition.sugarG));
+      setSodiumMg(ns(r.nutrition.sodiumMg));
+    }
     setAiApplied(true);
     setAiSummary(result.summary ?? null);
     setAiPrompt("");
@@ -448,6 +476,13 @@ export function RecipeForm({
     formData.set("difficulty", difficulty);
     formData.set("imageUrl", imageUrl);
     formData.set("thumbnailUrl", thumbnailUrl);
+    formData.set("calories", calories);
+    formData.set("proteinG", proteinG);
+    formData.set("carbsG", carbsG);
+    formData.set("fatG", fatG);
+    formData.set("fiberG", fiberG);
+    formData.set("sugarG", sugarG);
+    formData.set("sodiumMg", sodiumMg);
     return formData;
   }
 
@@ -925,6 +960,44 @@ export function RecipeForm({
     </section>
   );
 
+  const nutritionFieldDefs: { label: string; value: string; set: (v: string) => void; name: string; unit: string }[] = [
+    { label: "Calories", value: calories, set: setCalories, name: "calories", unit: "kcal" },
+    { label: "Protein", value: proteinG, set: setProteinG, name: "proteinG", unit: "g" },
+    { label: "Carbs", value: carbsG, set: setCarbsG, name: "carbsG", unit: "g" },
+    { label: "Fat", value: fatG, set: setFatG, name: "fatG", unit: "g" },
+    { label: "Fiber", value: fiberG, set: setFiberG, name: "fiberG", unit: "g" },
+    { label: "Sugar", value: sugarG, set: setSugarG, name: "sugarG", unit: "g" },
+    { label: "Sodium", value: sodiumMg, set: setSodiumMg, name: "sodiumMg", unit: "mg" },
+  ];
+
+  const nutritionSection = (
+    <section className="space-y-2">
+      <Label className="text-base font-semibold">Nutrition</Label>
+      <p className="text-xs text-muted-foreground">
+        Per serving. Leave blank to use the AI estimate, or enter your own values.
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {nutritionFieldDefs.map((f) => (
+          <div key={f.name} className="space-y-1">
+            <Label htmlFor={`nutrition-${f.name}`} className="text-xs text-muted-foreground">
+              {f.label} ({f.unit})
+            </Label>
+            <Input
+              id={`nutrition-${f.name}`}
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              value={f.value}
+              onChange={(e) => f.set(e.target.value)}
+              placeholder="—"
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
   const tagsSection = (
     <section className="space-y-2">
       <Label className="text-base font-semibold">Tags</Label>
@@ -1114,6 +1187,9 @@ export function RecipeForm({
         {ingredientsSection}
         <div className="border-t border-border pt-6">
           {stepsSection}
+        </div>
+        <div className="border-t border-border pt-6">
+          {nutritionSection}
         </div>
         <div className="border-t border-border pt-6">
           {notesSection}

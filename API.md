@@ -61,14 +61,15 @@ Returns today's meal plan entries across all meal types.
         "title": "Chicken Tikka Masala",
         "cuisine": "Indian",
         "prepTimeMinutes": 20,
-        "cookTimeMinutes": 35
+        "cookTimeMinutes": 35,
+        "calories": 650
       }
     }
   ]
 }
 ```
 
-`meals` is empty `[]` if no plan exists for the current week or no entries fall on today.
+`recipe.calories` is the per-serving calorie estimate, or `null` if the recipe has no nutrition data. `meals` is empty `[]` if no plan exists for the current week or no entries fall on today.
 
 ---
 
@@ -108,7 +109,8 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
         "title": "Pasta Carbonara",
         "cuisine": "Italian",
         "prepTimeMinutes": 10,
-        "cookTimeMinutes": 20
+        "cookTimeMinutes": 20,
+        "calories": 720
       }
     }
   ]
@@ -260,7 +262,8 @@ Triggers AI meal plan generation for a given week. Creates stub recipes and adds
   "days": [0, 2, 4],
   "count": 7,
   "mealType": "dinner",
-  "overwrite": false
+  "overwrite": false,
+  "maxCaloriesPerMeal": 700
 }
 ```
 
@@ -272,6 +275,7 @@ Triggers AI meal plan generation for a given week. Creates stub recipes and adds
 | `count` | number | `7` | Number of days from Monday when `days` is not provided. Clamped to 1–7. |
 | `mealType` | string | `"dinner"` | `"breakfast"` \| `"lunch"` \| `"dinner"` \| `"snack"` |
 | `overwrite` | boolean | `false` | If `true`, replaces existing entries for the same day+mealType slots. Other meal types on those days are left untouched. |
+| `maxCaloriesPerMeal` | number | — | Optional per-serving calorie cap (kcal). The AI keeps each meal at or below it; the generated recipe stores the AI's per-serving calorie estimate. |
 
 **Day selection examples**
 
@@ -296,14 +300,16 @@ Triggers AI meal plan generation for a given week. Creates stub recipes and adds
       "day": "Mon",
       "mealType": "dinner",
       "recipeTitle": "Chicken Tikka Masala",
-      "recipeId": "uuid"
+      "recipeId": "uuid",
+      "calories": 650
     },
     {
       "dayOfWeek": 2,
       "day": "Wed",
       "mealType": "dinner",
       "recipeTitle": "Spaghetti Bolognese",
-      "recipeId": "uuid"
+      "recipeId": "uuid",
+      "calories": 580
     }
   ]
 }

@@ -50,6 +50,13 @@ function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
     notes: r.notes,
     ingredients: r.ingredients,
     steps: r.steps,
+    calories: r.nutrition?.calories ?? null,
+    proteinG: r.nutrition?.proteinG == null ? null : String(r.nutrition.proteinG),
+    carbsG: r.nutrition?.carbsG == null ? null : String(r.nutrition.carbsG),
+    fatG: r.nutrition?.fatG == null ? null : String(r.nutrition.fatG),
+    fiberG: r.nutrition?.fiberG == null ? null : String(r.nutrition.fiberG),
+    sugarG: r.nutrition?.sugarG == null ? null : String(r.nutrition.sugarG),
+    sodiumMg: r.nutrition?.sodiumMg == null ? null : String(r.nutrition.sodiumMg),
   };
 }
 
@@ -190,11 +197,17 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   const [step, setStep] = useState<Step>("prompt");
   const [promptText, setPromptText] = useState("");
   const [mealType, setMealType] = useState<string>("");
+  const [targetCalories, setTargetCalories] = useState<string>("");
   const [concepts, setConcepts] = useState<ConceptCard[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const parsedTargetCalories = (() => {
+    const n = parseInt(targetCalories, 10);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  })();
 
   const batchDone =
     batchItems.length > 0 &&
@@ -207,6 +220,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
     setStep("prompt");
     setPromptText("");
     setMealType("");
+    setTargetCalories("");
     setConcepts([]);
     setSelected(new Set());
     setBatchItems([]);
@@ -222,7 +236,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   function handleGenerateConcepts() {
     setError(null);
     startTransition(async () => {
-      const result = await generateConcepts(promptText, undefined, mealType || undefined);
+      const result = await generateConcepts(promptText, undefined, mealType || undefined, parsedTargetCalories);
       if (result.error) {
         setError(result.error);
         return;
@@ -246,7 +260,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       difficulty: "medium",
     };
     startTransition(async () => {
-      const result = await generateFullRecipe(directConcept, undefined, mealType || undefined);
+      const result = await generateFullRecipe(directConcept, undefined, mealType || undefined, parsedTargetCalories);
       if (result.error) {
         setError(result.error);
         setStep("prompt");
@@ -274,7 +288,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       setError(null);
       setStep("generating");
       startTransition(async () => {
-        const result = await generateFullRecipe(chosenConcepts[0]!, undefined, mealType || undefined);
+        const result = await generateFullRecipe(chosenConcepts[0]!, undefined, mealType || undefined, parsedTargetCalories);
         if (result.error) {
           setError(result.error);
           setStep("concepts");
@@ -300,7 +314,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
           const genResult = await generateFullRecipe(
             updated[i]!.concept,
             undefined,
-            mealType || undefined
+            mealType || undefined,
+            parsedTargetCalories
           );
           if (genResult.error) {
             updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
@@ -398,6 +413,28 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                         {label}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Calorie target */}
+                <div>
+                  <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                    <Target className="h-3.5 w-3.5" />
+                    Calorie target <span className="font-normal">(per serving, optional)</span>
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      inputMode="numeric"
+                      value={targetCalories}
+                      onChange={(e) => setTargetCalories(e.target.value)}
+                      disabled={isPending}
+                      placeholder="e.g. 600"
+                      className="w-32 rounded-md border border-input bg-background px-3 py-1.5 text-sm disabled:opacity-50"
+                    />
+                    <span className="text-xs text-muted-foreground">kcal</span>
                   </div>
                 </div>
 

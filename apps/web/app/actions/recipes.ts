@@ -38,6 +38,53 @@ function parseJSON<T>(raw: string | null, fallback: T): T {
   }
 }
 
+// Map an AI-generated recipe's nutrition block onto DB columns (per serving).
+// Returns nutritionSource: "ai" only when at least one value is present.
+function aiNutritionFields(recipe: GeneratedRecipe) {
+  const n = recipe.nutrition;
+  const num = (v: number | null | undefined) =>
+    v === null || v === undefined || Number.isNaN(v) ? null : v;
+  const calories = n ? (num(n.calories) == null ? null : Math.round(num(n.calories)!)) : null;
+  const str = (v: number | null | undefined) => {
+    const x = num(v);
+    return x == null ? null : String(x);
+  };
+  const fields = {
+    calories,
+    proteinG: n ? str(n.proteinG) : null,
+    carbsG: n ? str(n.carbsG) : null,
+    fatG: n ? str(n.fatG) : null,
+    fiberG: n ? str(n.fiberG) : null,
+    sugarG: n ? str(n.sugarG) : null,
+    sodiumMg: n ? str(n.sodiumMg) : null,
+  };
+  const hasAny = Object.values(fields).some((v) => v != null);
+  return { ...fields, nutritionSource: hasAny ? ("ai" as const) : ("none" as const) };
+}
+
+// Read manually-entered nutrition values from the recipe form.
+function extractNutritionFields(formData: FormData) {
+  const numStr = (key: string) => {
+    const raw = (formData.get(key) as string)?.trim();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? String(n) : null;
+  };
+  const calRaw = (formData.get("calories") as string)?.trim();
+  const calories = calRaw && Number.isFinite(Number(calRaw)) ? Math.round(Number(calRaw)) : null;
+  const fields = {
+    calories,
+    proteinG: numStr("proteinG"),
+    carbsG: numStr("carbsG"),
+    fatG: numStr("fatG"),
+    fiberG: numStr("fiberG"),
+    sugarG: numStr("sugarG"),
+    sodiumMg: numStr("sodiumMg"),
+  };
+  const hasAny = Object.values(fields).some((v) => v != null);
+  return { ...fields, nutritionSource: hasAny ? ("manual" as const) : ("none" as const) };
+}
+
 function extractRecipeFields(formData: FormData) {
   return {
     title: (formData.get("title") as string)?.trim() ?? "",
@@ -56,6 +103,7 @@ function extractRecipeFields(formData: FormData) {
     notes: (formData.get("notes") as string)?.trim() || null,
     imageUrl: (formData.get("imageUrl") as string)?.trim() || null,
     thumbnailUrl: (formData.get("thumbnailUrl") as string)?.trim() || null,
+    ...extractNutritionFields(formData),
   };
 }
 
@@ -210,6 +258,7 @@ export async function saveGeneratedRecipe(
         difficulty: recipe.difficulty || null,
         notes: recipe.notes,
         isAiGenerated: true,
+        ...aiNutritionFields(recipe),
       })
       .returning({ id: recipes.id });
 
@@ -283,6 +332,7 @@ export async function saveRecipeAsCopy(
         difficulty: tweaked.difficulty || null,
         notes: tweaked.notes,
         isAiGenerated: true,
+        ...aiNutritionFields(tweaked),
       })
       .returning({ id: recipes.id });
 
@@ -353,6 +403,7 @@ export async function applyTweakToRecipe(
         servingsUnit: tweaked.servingsUnit || "servings",
         difficulty: tweaked.difficulty || null,
         notes: tweaked.notes,
+        ...aiNutritionFields(tweaked),
       })
       .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
 

@@ -35,6 +35,7 @@ import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
 import { AddCookReviewSheet } from "./_components/add-cook-review-sheet";
 import { MemoryCard } from "./_components/memory-card";
 import { GenerateImageButton } from "./_components/generate-image-button";
+import { NutritionPanel } from "./_components/nutrition-panel";
 import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/app/actions/cook-history";
 import { getSmtpConfig } from "@/app/actions/sharing";
@@ -364,6 +365,23 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
           <SimilarRecipesButton recipeId={id} />
         </div>
       )}
+
+      {/* Nutrition */}
+      <div className="mb-6">
+        <NutritionPanel
+          recipeId={id}
+          nutrition={{
+            calories: recipe.calories,
+            proteinG: recipe.proteinG,
+            carbsG: recipe.carbsG,
+            fatG: recipe.fatG,
+            fiberG: recipe.fiberG,
+            sugarG: recipe.sugarG,
+            sodiumMg: recipe.sodiumMg,
+            source: recipe.nutritionSource,
+          }}
+        />
+      </div>
 
       {/* Tabbed content */}
       <RecipeTabs
