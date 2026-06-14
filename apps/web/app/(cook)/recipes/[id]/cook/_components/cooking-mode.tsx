@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { CookDebrief } from "./cook-debrief";
+import { scaleAmount } from "@/lib/scale-ingredient";
 import type { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
 
 type Recipe = typeof recipes.$inferSelect;
@@ -43,49 +44,10 @@ interface Props {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const FRACTION_SYMBOLS: Record<string, string> = {
-  "0.25": "¼",
-  "0.5": "½",
-  "0.75": "¾",
-  "0.33": "⅓",
-  "0.67": "⅔",
-  "0.2": "⅕",
-  "0.4": "⅖",
-  "0.6": "⅗",
-  "0.8": "⅘",
-  "0.125": "⅛",
-  "0.375": "⅜",
-  "0.625": "⅝",
-  "0.875": "⅞",
-};
-
-function parseMixedFraction(amount: string): number {
-  // Handles "1 1/2", "1/2", "1", "1.5"
-  const trimmed = amount.trim();
-  const mixedMatch = trimmed.match(/^(\d+)\s+(\d+)\/(\d+)$/);
-  if (mixedMatch) return parseInt(mixedMatch[1]) + parseInt(mixedMatch[2]) / parseInt(mixedMatch[3]);
-  const fracMatch = trimmed.match(/^(\d+)\/(\d+)$/);
-  if (fracMatch) return parseInt(fracMatch[1]) / parseInt(fracMatch[2]);
-  return parseFloat(trimmed);
-}
-
-function formatAmount(amount: string | null, scale: number): string {
-  if (!amount) return "";
-  const raw = parseMixedFraction(amount);
-  if (isNaN(raw)) return amount;
-  const scaled = raw * scale;
-  const whole = Math.floor(scaled);
-  const frac = Math.round((scaled - whole) * 1000) / 1000;
-  const fracSymbol = FRACTION_SYMBOLS[frac.toFixed(2)] ?? FRACTION_SYMBOLS[frac.toFixed(3)] ?? null;
-  if (frac < 0.01) return String(whole || "");
-  if (whole === 0) return fracSymbol ?? parseFloat(scaled.toFixed(2)).toString();
-  return fracSymbol ? `${whole}${fracSymbol}` : parseFloat(scaled.toFixed(2)).toString();
-}
-
 function formatIngredientAmount(ing: Ingredient, scale: number): string {
   const parts: string[] = [];
   if (ing.amount) {
-    const amt = formatAmount(ing.amount, scale);
+    const amt = scaleAmount(ing.amount, scale);
     if (amt) parts.push(amt);
   }
   if (ing.unit) parts.push(ing.unit);
@@ -1294,7 +1256,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                         <span>
                           {ing.amount && (
                             <span className="font-semibold">
-                              {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                              {scaleAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
                             </span>
                           )}
                           {ing.ingredientName}
@@ -1337,7 +1299,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                           <span>
                             {ing.amount && (
                               <span className={isActive ? "font-semibold" : "font-medium"}>
-                                {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                                {scaleAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
                               </span>
                             )}
                             {ing.ingredientName}
@@ -1440,7 +1402,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     >
                       {ing.amount && (
                         <span className={isActive && !isChecked ? "font-bold" : "font-medium"}>
-                          {formatAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                          {scaleAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
                         </span>
                       )}
                       {ing.ingredientName}

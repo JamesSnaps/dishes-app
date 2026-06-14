@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, ExternalLink } from "lucide-react";
+import { Clock, ExternalLink, Minus, Plus, RotateCcw } from "lucide-react";
 import { Badge } from "@dishes/ui";
+import { scaleAmount, servingsScale } from "@/lib/scale-ingredient";
 import { AddToShoppingButton } from "./add-to-shopping-button";
 import { StarRating } from "./star-rating";
 import type { CookHistoryEntry } from "@/app/actions/cook-history";
@@ -83,6 +84,23 @@ export function RecipeTabs({
   ];
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+
+  // Recipe scaling: amounts on the ingredients tab scale with the chosen
+  // servings. Only available when the recipe records a base serving count.
+  const baseServings = servings ? parseFloat(servings) : null;
+  const canScale = baseServings != null && !isNaN(baseServings) && baseServings > 0;
+  const [desiredServings, setDesiredServings] = useState<number | null>(
+    canScale ? baseServings : null
+  );
+  const scale = servingsScale(baseServings, desiredServings);
+  const isScaled = canScale && desiredServings !== baseServings;
+
+  function adjustServings(delta: number) {
+    setDesiredServings((prev) => {
+      const next = Math.round(((prev ?? baseServings ?? 1) + delta) * 2) / 2;
+      return Math.max(0.5, next);
+    });
+  }
 
   const totalMinutes = (prepTimeMinutes ?? 0) + (cookTimeMinutes ?? 0);
 
@@ -174,10 +192,49 @@ export function RecipeTabs({
                   </span>
                   <AddToShoppingButton
                     recipeId={recipeId}
-                    recipeServings={servings ? parseFloat(servings) : null}
+                    recipeServings={canScale ? desiredServings : null}
                     servingsUnit={servingsUnit ?? "servings"}
                   />
                 </div>
+
+                {canScale && (
+                  <div className="mb-4 flex items-center gap-3 rounded-xl border bg-gradient-to-br from-primary/5 to-transparent p-3">
+                    <span className="text-sm font-medium">Servings</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        aria-label="Decrease servings"
+                        onClick={() => adjustServings(-0.5)}
+                        disabled={(desiredServings ?? 0) <= 0.5}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-40"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="min-w-[3.5rem] text-center text-base font-semibold tabular-nums">
+                        {desiredServings}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Increase servings"
+                        onClick={() => adjustServings(0.5)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <span className="text-sm text-muted-foreground">{servingsUnit ?? "servings"}</span>
+                    {isScaled && (
+                      <button
+                        type="button"
+                        onClick={() => setDesiredServings(baseServings)}
+                        className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Reset to {baseServings}
+                      </button>
+                    )}
+                  </div>
+                )}
                 <ul className="space-y-2">
                   {ingredients.map((ing) => (
                     <li key={ing.id} className="flex items-baseline gap-2 text-sm">
@@ -185,7 +242,7 @@ export function RecipeTabs({
                       <span>
                         {ing.amount && (
                           <span className="font-medium">
-                            {ing.amount}
+                            {scaleAmount(ing.amount, scale)}
                             {ing.unit ? ` ${ing.unit}` : ""}{" "}
                           </span>
                         )}
