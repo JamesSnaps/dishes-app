@@ -4,7 +4,8 @@ import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { aiConfigurations, recipes, recipeIngredients, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles } from "@dishes/db/schema";
-import { eq, and, count, max, lte, avg, inArray } from "drizzle-orm";
+import { eq, and, count, max, lte, avg, inArray, isNull } from "drizzle-orm";
+import { MEAL_TYPES } from "@dishes/shared";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -32,6 +33,7 @@ export type GeneratedRecipe = {
   cookTimeMinutes: number | null;
   servings: string;
   servingsUnit: string;
+  mealTypes: string[];
   tags: string[];
   ingredients: Array<{
     ingredientName: string;
@@ -60,6 +62,10 @@ export type RecipeNutrition = {
   sugarG: number | null;
   sodiumMg: number | null;
 };
+
+// Shared prompt fragment for the meal-types array. Drives meal-plan slot
+// matching, so the model must be honest about which meals a dish actually suits.
+const MEAL_TYPES_SCHEMA_FRAGMENT = `  "mealTypes": string[] (which meals this dish genuinely suits — any of "breakfast","lunch","dinner","dessert","snack". Be realistic: a rich curry or roast is ["dinner"] (maybe "lunch"), eggs/pancakes/porridge are ["breakfast"], a light salad bowl is ["lunch","dinner"] but NOT "breakfast". Never include a meal a normal person wouldn't eat this dish for.)`;
 
 // Shared prompt fragment describing the nutrition object the model must return.
 const NUTRITION_SCHEMA_FRAGMENT = `  "nutrition": {
@@ -398,6 +404,7 @@ export async function improveRecipe(
     {"instruction": string, "durationMinutes": string, "timerLabel": string}
   ],
   "notes": string|null,
+${MEAL_TYPES_SCHEMA_FRAGMENT},
 ${NUTRITION_SCHEMA_FRAGMENT}
 }
 Only change what is necessary to satisfy the user's request. If your changes affect the ingredients or servings, re-estimate the nutrition values; otherwise keep them. Preserve everything else exactly. Return the full recipe even for fields you did not change.
@@ -577,6 +584,7 @@ export async function generateFullRecipe(
     {"instruction": string, "durationMinutes": string (empty string if no timer), "timerLabel": string (empty string if no timer)}
   ],
   "notes": string|null,
+${MEAL_TYPES_SCHEMA_FRAGMENT},
 ${NUTRITION_SCHEMA_FRAGMENT}
 }
 Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.g. "Sauce", "Marinade") to group related ingredients; leave empty string for ungrouped.${addendum}`,
@@ -725,6 +733,7 @@ export async function generateMealPlanConcepts(params: {
             cuisine: recipes.cuisine,
             difficulty: recipes.difficulty,
             calories: recipes.calories,
+            mealTypes: recipes.mealTypes,
             timesPlanned: count(mealPlanEntries.id),
             lastPlannedDate: max(mealPlans.weekStartDate),
             avgRating: avg(cookHistory.rating),
@@ -746,7 +755,7 @@ export async function generateMealPlanConcepts(params: {
               taggedIds && taggedIds.length > 0 ? inArray(recipes.id, taggedIds) : undefined,
             )
           )
-          .groupBy(recipes.id, recipes.title, recipes.cuisine, recipes.difficulty, recipes.calories)
+          .groupBy(recipes.id, recipes.title, recipes.cuisine, recipes.difficulty, recipes.calories, recipes.mealTypes)
           .limit(200);
 
     // Recipes used in the last 2 weeks are excluded from the selectable library
@@ -825,10 +834,13 @@ export async function generateMealPlanConcepts(params: {
             const rating = r.avgRating ? `⭐${parseFloat(r.avgRating).toFixed(1)}` : "unrated";
             const history = times === 0 ? "never tried" : `cooked ${times}×, ${relativeWeeks(r.lastPlannedDate)}`;
             const cals = r.calories != null ? `, ~${r.calories}kcal` : "";
-            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}${cals}] — ${history}`;
+            const meals = r.mealTypes && r.mealTypes.length
+              ? `, suits: ${r.mealTypes.join("/")}`
+              : ", suits: untagged";
+            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}${cals}${meals}] — ${history}`;
           })
           .join("\n") +
-        `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe. Only reuse a library recipe in a slot whose meal type it genuinely fits (e.g. don't place a dinner-style dish in a breakfast or lunch slot) — if nothing in the library suits the slot, use 0 and suggest a fitting new recipe instead.`
+        `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe. STRICT RULE: only reuse a library recipe in a slot whose meal type is listed in that recipe's "suits:" field. For recipes marked "suits: untagged" the meal type is unknown — only reuse one in a breakfast/snack/dessert slot if its title makes it unmistakably suitable; when in doubt use 0. If nothing in the library suits the slot, use 0 and suggest a fitting new recipe instead.`
       : "";
 
     const recentlyUsedBlock = recentlyCookedTitles.length > 0
@@ -887,6 +899,12 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
       const idx = slot.libraryIndex;
       if (idx && idx > 0 && idx <= libraryRecipes.length) {
         const lib = libraryRecipes[idx - 1]!;
+        // Hard guard: if the recipe declares meal types and the slot's type
+        // isn't among them, the model mis-assigned it (e.g. a dinner dish into
+        // a breakfast slot). Drop the reuse and keep the slot as a new concept.
+        if (lib.mealTypes && lib.mealTypes.length && !lib.mealTypes.includes(slot.mealType)) {
+          return { ...slot, recipeId: null };
+        }
         return {
           ...slot,
           title: lib.title,
@@ -936,6 +954,7 @@ export async function analyzeRecipePhoto(
   "servings": string (numeric string, e.g. "4"),
   "servingsUnit": string (e.g. "servings", "portions", "pieces"),
   "tags": string[],
+${MEAL_TYPES_SCHEMA_FRAGMENT},
   "ingredients": [
     {
       "ingredientName": string,
@@ -1064,6 +1083,80 @@ export async function generateAndSaveRecipeImage(
     revalidatePath("/recipes");
 
     return { imageUrl: url };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Backfill meal types for existing recipes (admin one-off) ───────────────────
+// Classifies every recipe that has no mealTypes yet, so the weekly planner can
+// match library recipes to slots. Admin only.
+
+export async function backfillRecipeMealTypes(): Promise<{
+  total?: number;
+  updated?: number;
+  error?: string;
+}> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId, role } = await requireHousehold(user);
+    if (role !== "admin") return { error: "Admin only." };
+
+    const pending = await db
+      .select({ id: recipes.id, title: recipes.title, cuisine: recipes.cuisine })
+      .from(recipes)
+      .where(and(eq(recipes.householdId, householdId), isNull(recipes.mealTypes)));
+
+    if (!pending.length) return { total: 0, updated: 0 };
+
+    const { client, model } = await getOpenAiClient(householdId);
+
+    let updated = 0;
+    const BATCH = 40;
+    for (let start = 0; start < pending.length; start += BATCH) {
+      const batch = pending.slice(start, start + BATCH);
+      const list = batch
+        .map((r, i) => `${i}: ${r.title}${r.cuisine ? ` (${r.cuisine})` : ""}`)
+        .join("\n");
+
+      const completion = await client.chat.completions.create({
+        model,
+        response_format: { type: "json_object" },
+        ...maxTokensParam(model, 1500),
+        messages: [
+          {
+            role: "system",
+            content: `You classify recipes by which meals they genuinely suit. Allowed values: ${MEAL_TYPES.join(", ")}. Be realistic: a rich curry/roast/stew is ["dinner"] (maybe "lunch"); eggs/pancakes/porridge/granola are ["breakfast"]; a light salad or grain bowl is ["lunch","dinner"] but NOT "breakfast"; cakes/puddings are ["dessert"]. Never include a meal a normal person wouldn't eat the dish for. Return JSON: {"results": [{"i": number (the line index), "mealTypes": string[]}]}. Include every index.`,
+          },
+          { role: "user", content: `Classify these recipes:\n${list}` },
+        ],
+      });
+
+      const raw = completion.choices[0]?.message?.content ?? "";
+      let parsed: { results?: { i: number; mealTypes?: string[] }[] };
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue; // skip an unparseable batch rather than aborting the whole run
+      }
+
+      for (const row of parsed.results ?? []) {
+        const recipe = batch[row.i];
+        if (!recipe) continue;
+        const valid = [...new Set(row.mealTypes ?? [])].filter((v) =>
+          (MEAL_TYPES as readonly string[]).includes(v)
+        );
+        if (!valid.length) continue;
+        await db
+          .update(recipes)
+          .set({ mealTypes: valid })
+          .where(and(eq(recipes.id, recipe.id), eq(recipes.householdId, householdId)));
+        updated++;
+      }
+    }
+
+    revalidatePath("/recipes");
+    return { total: pending.length, updated };
   } catch (err) {
     return { error: classifyError(err) };
   }

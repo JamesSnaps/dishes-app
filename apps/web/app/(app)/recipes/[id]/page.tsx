@@ -209,6 +209,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
     cookTimeMinutes: recipe.cookTimeMinutes,
     servings: recipe.servings ?? "4",
     servingsUnit: recipe.servingsUnit ?? "servings",
+    mealTypes: recipe.mealTypes ?? [],
     tags: tags.map((t) => t.tag),
     ingredients: ingredients.map((i) => ({
       ingredientName: i.ingredientName,

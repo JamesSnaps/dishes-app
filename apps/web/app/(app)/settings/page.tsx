@@ -9,6 +9,7 @@ import { AddMemberForm } from "./_components/add-member-form";
 import { AppearanceSection } from "./_components/appearance-section";
 import { LogLevelSection } from "./_components/log-level-section";
 import { BackfillThumbnailsButton } from "./_components/backfill-thumbnails-button";
+import { BackfillMealTypesButton } from "./_components/backfill-meal-types-button";
 import { PushNotificationManager } from "@/components/push-notification-manager";
 
 export const metadata = { title: "Settings" };
@@ -116,8 +117,9 @@ export default async function SettingsPage() {
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Maintenance
             </h2>
-            <div className="rounded-lg border bg-card p-4">
+            <div className="rounded-lg border bg-card p-4 space-y-4">
               <BackfillThumbnailsButton />
+              <BackfillMealTypesButton />
             </div>
           </section>
         </>

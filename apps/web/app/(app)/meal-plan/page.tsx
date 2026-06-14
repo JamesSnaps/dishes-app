@@ -107,7 +107,7 @@ export default async function MealPlanPage({
   // Fetch tags and avg ratings for picker
   const allRecipeIds = allRecipesRaw.map((r) => r.id);
 
-  const [allTagRows, ratingRows] = await Promise.all([
+  const [allTagRows, ratingRows, allIngredientRows] = await Promise.all([
     allRecipeIds.length
       ? db
           .select({ recipeId: recipeTags.recipeId, tag: recipeTags.tag })
@@ -126,6 +126,15 @@ export default async function MealPlanPage({
           )
           .groupBy(cookHistory.recipeId)
       : Promise.resolve([]),
+    allRecipeIds.length
+      ? db
+          .select({
+            recipeId: recipeIngredients.recipeId,
+            ingredientName: recipeIngredients.ingredientName,
+          })
+          .from(recipeIngredients)
+          .where(inArray(recipeIngredients.recipeId, allRecipeIds))
+      : Promise.resolve([]),
   ]);
 
   const tagsByRecipe = new Map<string, string[]>();
@@ -142,10 +151,18 @@ export default async function MealPlanPage({
     }
   }
 
+  const ingredientsByRecipe = new Map<string, string[]>();
+  for (const row of allIngredientRows) {
+    const arr = ingredientsByRecipe.get(row.recipeId) ?? [];
+    arr.push(row.ingredientName);
+    ingredientsByRecipe.set(row.recipeId, arr);
+  }
+
   const allRecipes = allRecipesRaw.map((r) => ({
     ...r,
     tags: tagsByRecipe.get(r.id) ?? [],
     avgRating: ratingByRecipe.get(r.id) ?? null,
+    ingredientNames: ingredientsByRecipe.get(r.id) ?? [],
   }));
 
   // Compute top ingredients for the week

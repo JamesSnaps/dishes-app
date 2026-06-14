@@ -2,8 +2,18 @@
 
 export type MemberRole = "admin" | "adult" | "child";
 export type Difficulty = "easy" | "medium" | "hard";
-export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+export type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 export type ListStatus = "active" | "completed" | "archived";
+
+// Canonical meal types a recipe can be tagged as suiting. Matches the
+// meal_type DB enum used on meal-plan entries. Used to validate recipes.mealTypes.
+export const MEAL_TYPES = [
+  "breakfast",
+  "lunch",
+  "dinner",
+  "dessert",
+  "snack",
+] as const satisfies readonly MealType[];
 export type MealPlanStatus = "draft" | "active" | "archived";
 
 export interface AutheliaUser {

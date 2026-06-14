@@ -40,6 +40,11 @@ export const recipes = pgTable(
     servings: decimal("servings", { precision: 5, scale: 2 }),
     servingsUnit: varchar("servings_unit", { length: 50 }).default("servings"),
     difficulty: difficultyEnum("difficulty"),
+    // Which meals this recipe genuinely suits, e.g. ["lunch","dinner"]. Drives
+    // meal-plan slot matching. Stored as text[] (not the meal_type enum) to
+    // avoid a circular schema import with meal-plans. Validated in app code
+    // against MEAL_TYPES. Empty/null = unknown (treated as "fits any slot").
+    mealTypes: text("meal_types").array().$type<string[]>(),
     imageUrl: text("image_url"),
     thumbnailUrl: text("thumbnail_url"),
     sourceUrl: text("source_url"),

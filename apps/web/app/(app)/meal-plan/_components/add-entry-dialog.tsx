@@ -56,6 +56,7 @@ type Recipe = {
   isFavourite: boolean;
   tags: string[];
   avgRating: number | null;
+  ingredientNames: string[];
 };
 
 interface Props {
@@ -132,7 +133,8 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
         (r) =>
           r.title.toLowerCase().includes(q) ||
           (r.cuisine ?? "").toLowerCase().includes(q) ||
-          r.tags.some((t) => t.toLowerCase().includes(q))
+          r.tags.some((t) => t.toLowerCase().includes(q)) ||
+          r.ingredientNames.some((n) => n.toLowerCase().includes(q))
       );
     }
     if (selectedCuisines.length > 0)
@@ -420,7 +422,7 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
-                  placeholder="Search recipes…"
+                  placeholder="Search recipes & ingredients…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 h-9 text-sm"
@@ -468,7 +470,7 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
-                  placeholder="Search recipes…"
+                  placeholder="Search recipes & ingredients…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 h-9 text-sm"

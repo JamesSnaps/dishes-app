@@ -81,6 +81,7 @@ type Recipe = {
   isFavourite: boolean;
   tags: string[];
   avgRating: number | null;
+  ingredientNames: string[];
 };
 
 type TopIngredient = {

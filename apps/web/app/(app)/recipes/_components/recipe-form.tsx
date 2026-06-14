@@ -28,6 +28,9 @@ import { toast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/components/unsaved-changes-context";
 import { PasteImportModal } from "./paste-import-modal";
 import type { ParsedIngredient, ParsedStep } from "@/lib/recipe-parser";
+import { MEAL_TYPES } from "@dishes/shared";
+
+const MEAL_TYPE_OPTIONS = MEAL_TYPES;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +60,7 @@ export type RecipeFormDefaults = {
   servings?: string | null;
   servingsUnit?: string;
   difficulty?: "easy" | "medium" | "hard" | null;
+  mealTypes?: string[] | null;
   sourceUrl?: string | null;
   notes?: string | null;
   imageUrl?: string | null;
@@ -205,6 +209,9 @@ export function RecipeForm({
   const [difficulty, setDifficulty] = useState<string>(
     defaults.difficulty ?? ""
   );
+  const [mealTypes, setMealTypes] = useState<string[]>(
+    defaults.mealTypes ?? []
+  );
 
   const [imageUrl, setImageUrl] = useState<string>(defaults.imageUrl ?? "");
   const [thumbnailUrl, setThumbnailUrl] = useState<string>(defaults.thumbnailUrl ?? "");
@@ -295,6 +302,7 @@ export function RecipeForm({
       cookTimeMinutes: cookTimeMinutes ? Number(cookTimeMinutes) : null,
       servings,
       servingsUnit,
+      mealTypes,
       tags,
       ingredients: ingredients.map(({ key: _key, ...rest }) => rest),
       steps: steps.map(({ key: _key, ...rest }) => rest),
@@ -318,6 +326,7 @@ export function RecipeForm({
     setCookTimeMinutes(r.cookTimeMinutes?.toString() ?? "");
     setServings(r.servings);
     setServingsUnit(r.servingsUnit);
+    if (Array.isArray(r.mealTypes)) setMealTypes(r.mealTypes);
     setTags(r.tags);
     setNotes(r.notes ?? "");
     setIngredients(r.ingredients.map((i) => ({ ...i, key: nextKey() })));
@@ -474,6 +483,7 @@ export function RecipeForm({
     formData.set("ingredients", JSON.stringify(ingredients.map(({ key: _key, ...rest }) => rest)));
     formData.set("steps", JSON.stringify(steps.map(({ key: _key, ...rest }) => rest)));
     formData.set("difficulty", difficulty);
+    formData.set("mealTypes", JSON.stringify(mealTypes));
     formData.set("imageUrl", imageUrl);
     formData.set("thumbnailUrl", thumbnailUrl);
     formData.set("calories", calories);
@@ -759,6 +769,40 @@ export function RecipeForm({
             onChange={(e) => setServingsUnit(e.target.value)}
             placeholder="servings"
           />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Suitable meals</Label>
+        <p className="text-xs text-muted-foreground">
+          Which meals this dish fits. Used by the weekly planner so it stops
+          putting dinners into breakfast slots. Leave blank if unsure.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {MEAL_TYPE_OPTIONS.map((mt) => {
+            const active = mealTypes.includes(mt);
+            return (
+              <button
+                key={mt}
+                type="button"
+                aria-pressed={active}
+                onClick={() =>
+                  setMealTypes((prev) =>
+                    prev.includes(mt)
+                      ? prev.filter((v) => v !== mt)
+                      : [...prev, mt]
+                  )
+                }
+                className={`rounded-full px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
+                  active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                {mt}
+              </button>
+            );
+          })}
         </div>
       </div>
 

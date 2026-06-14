@@ -12,7 +12,19 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { MEAL_TYPES } from "@dishes/shared";
 import type { GeneratedRecipe } from "./ai";
+
+// Keep only valid, de-duplicated meal types. Returns null when nothing valid
+// (column nullable; null = "unknown / fits any slot").
+function sanitizeMealTypes(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const valid = [...new Set(raw)].filter(
+    (v): v is string =>
+      typeof v === "string" && (MEAL_TYPES as readonly string[]).includes(v)
+  );
+  return valid.length ? valid : null;
+}
 
 type IngredientInput = {
   ingredientName: string;
@@ -99,6 +111,9 @@ function extractRecipeFields(formData: FormData) {
       (formData.get("servingsUnit") as string)?.trim() || "servings",
     difficulty:
       (formData.get("difficulty") as "easy" | "medium" | "hard") || null,
+    mealTypes: sanitizeMealTypes(
+      parseJSON<string[]>(formData.get("mealTypes") as string, [])
+    ),
     sourceUrl: (formData.get("sourceUrl") as string)?.trim() || null,
     notes: (formData.get("notes") as string)?.trim() || null,
     imageUrl: (formData.get("imageUrl") as string)?.trim() || null,
@@ -256,6 +271,7 @@ export async function saveGeneratedRecipe(
         servings: recipe.servings || null,
         servingsUnit: recipe.servingsUnit || "servings",
         difficulty: recipe.difficulty || null,
+        mealTypes: sanitizeMealTypes(recipe.mealTypes),
         notes: recipe.notes,
         isAiGenerated: true,
         ...aiNutritionFields(recipe),
@@ -330,6 +346,7 @@ export async function saveRecipeAsCopy(
         servings: tweaked.servings || null,
         servingsUnit: tweaked.servingsUnit || "servings",
         difficulty: tweaked.difficulty || null,
+        mealTypes: sanitizeMealTypes(tweaked.mealTypes),
         notes: tweaked.notes,
         isAiGenerated: true,
         ...aiNutritionFields(tweaked),
@@ -402,6 +419,7 @@ export async function applyTweakToRecipe(
         servings: tweaked.servings || null,
         servingsUnit: tweaked.servingsUnit || "servings",
         difficulty: tweaked.difficulty || null,
+        mealTypes: sanitizeMealTypes(tweaked.mealTypes),
         notes: tweaked.notes,
         ...aiNutritionFields(tweaked),
       })

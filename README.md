@@ -13,7 +13,8 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Cooking mode** — fullscreen step-by-step view with large text, embedded countdown timers, ingredient highlighting, and wake lock (prevents screen sleep)
 - **Recipe scaling** — change serving count and all ingredient amounts recalculate with smart fraction and unit handling
 - **Shopping lists** — auto-generated from recipes or meal plans, with ingredient consolidation, category grouping, and manual additions
-- **Meal planner** — weekly view with day/meal-type slots; navigate between weeks and generate shopping lists from the whole plan. Slots already added to the shopping list show an "On list" badge
+- **Meal planner** — weekly view with day/meal-type slots; navigate between weeks and generate shopping lists from the whole plan. Slots already added to the shopping list show an "On list" badge. The AI weekly planner respects each recipe's **suitable meals** so breakfast slots get breakfast food, not reheated dinners
+- **Meal-type tagging** — every recipe can be marked as suiting one or more meals (breakfast/lunch/dinner/dessert/snack); the AI sets this automatically when generating, editing, or scanning a recipe, and an admin "Tag recipes by meal type" maintenance action backfills the existing library
 - **AI recipe concierge** — describe what you want, get 5 concept cards, pick one, and the app generates a complete structured recipe. Suggestions adapt to who's eating, so picking a young child yields simple, mild, age-appropriate ideas rather than full dinners
 - **Recipe photos** — upload images to MinIO/S3; shown on recipe cards and detail pages
 - **Household model** — multi-member households with role-based permissions (admin / adult / child); all data is household-scoped
