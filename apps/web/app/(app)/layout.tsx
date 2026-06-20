@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { BottomNav } from "@/components/nav/bottom-nav";
 import { SideNav } from "@/components/nav/side-nav";
 import { ScrollReset } from "@/components/scroll-reset";
+import { OfflineIndicator } from "@/components/offline-indicator";
 import { JobsProvider } from "@/components/providers/jobs-provider";
 import { UnsavedChangesProvider } from "@/components/unsaved-changes-context";
 import { getAutheliaUser } from "@/lib/auth";
@@ -81,6 +82,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom nav */}
       <BottomNav className="lg:hidden" />
+
+      <OfflineIndicator />
     </div>
     </UnsavedChangesProvider>
     </JobsProvider>

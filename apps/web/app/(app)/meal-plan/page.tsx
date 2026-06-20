@@ -4,6 +4,7 @@ import { eq, and, inArray, count, avg } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { WeekPlanner } from "./_components/week-planner";
+import { RefreshOnFocus } from "@/components/refresh-on-focus";
 
 export const metadata = { title: "Meal Plan" };
 
@@ -201,15 +202,18 @@ export default async function MealPlanPage({
     : 0;
 
   return (
-    <WeekPlanner
-      weekStartDate={weekStartDate}
-      planId={plan?.id ?? null}
-      entries={allEntries}
-      recipes={allRecipes}
-      isCurrentWeek={isCurrentWeek}
-      todayDayIndex={isCurrentWeek ? getTodayDayIndex() : -1}
-      topIngredients={topIngredients}
-      shoppingItemCount={Number(shoppingItemCount)}
-    />
+    <>
+      <RefreshOnFocus />
+      <WeekPlanner
+        weekStartDate={weekStartDate}
+        planId={plan?.id ?? null}
+        entries={allEntries}
+        recipes={allRecipes}
+        isCurrentWeek={isCurrentWeek}
+        todayDayIndex={isCurrentWeek ? getTodayDayIndex() : -1}
+        topIngredients={topIngredients}
+        shoppingItemCount={Number(shoppingItemCount)}
+      />
+    </>
   );
 }

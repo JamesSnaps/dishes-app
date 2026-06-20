@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Offline | Dishes</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fff7ed;
+        --bg2: #ffedd5;
+        --card: #ffffff;
+        --fg: #1c1917;
+        --muted: #78716c;
+        --brand: #f97316;
+        --brand-fg: #ffffff;
+        --ring: #fed7aa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0a0a;
+          --bg2: #1c1310;
+          --card: #1c1917;
+          --fg: #fafaf9;
+          --muted: #a8a29e;
+          --brand: #f97316;
+          --brand-fg: #1c1917;
+          --ring: #7c2d12;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: linear-gradient(160deg, var(--bg), var(--bg2));
+        color: var(--fg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+        text-align: center;
+        -webkit-font-smoothing: antialiased;
+      }
+      .card {
+        max-width: 22rem;
+        width: 100%;
+        background: var(--card);
+        border-radius: 1.25rem;
+        padding: 2rem 1.5rem;
+        box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.25);
+      }
+      .badge {
+        width: 4rem;
+        height: 4rem;
+        margin: 0 auto 1.25rem;
+        border-radius: 9999px;
+        background: var(--ring);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .badge svg { width: 2rem; height: 2rem; color: var(--brand); }
+      h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+      p { color: var(--muted); font-size: 0.95rem; line-height: 1.5; margin: 0 0 1.5rem; }
+      button {
+        appearance: none;
+        border: 0;
+        cursor: pointer;
+        background: var(--brand);
+        color: var(--brand-fg);
+        font-size: 1rem;
+        font-weight: 600;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.75rem;
+        width: 100%;
+        box-shadow: 0 4px 14px -4px var(--brand);
+      }
+      button:active { transform: translateY(1px); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="badge" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m2 2 20 20" />
+          <path d="M8.5 16.5a5 5 0 0 1 7 0" />
+          <path d="M2 8.82a15 15 0 0 1 4.17-2.65" />
+          <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76" />
+          <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68" />
+          <path d="M5 13a10 10 0 0 1 5.24-2.76" />
+          <line x1="12" x2="12.01" y1="20" y2="20" />
+        </svg>
+      </div>
+      <h1>You're offline</h1>
+      <p>Dishes can't reach the server right now. Pages you've already opened still work — try again once you're back on signal.</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </div>
+  </body>
+</html>

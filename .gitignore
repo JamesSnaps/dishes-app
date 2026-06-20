@@ -7,6 +7,11 @@ node_modules/
 dist/
 .turbo/
 
+# Serwist-generated service worker (built from apps/web/app/sw.ts on `next build`)
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/swe-worker-*.js
+
 # Env files
 .env
 .env.local

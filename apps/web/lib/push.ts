@@ -20,9 +20,15 @@ function initVapid() {
   webpush.setVapidDetails(subject, publicKey, privateKey);
 }
 
+export interface PushOptions {
+  /** Skip this user's own devices — e.g. don't notify whoever made the change. */
+  excludeAutheliaUser?: string;
+}
+
 export async function sendPushToHousehold(
   householdId: string,
-  payload: PushPayload
+  payload: PushPayload,
+  options?: PushOptions
 ): Promise<void> {
   initVapid();
 
@@ -31,12 +37,16 @@ export async function sendPushToHousehold(
     .from(pushSubscriptions)
     .where(eq(pushSubscriptions.householdId, householdId));
 
-  if (subs.length === 0) return;
+  const targets = options?.excludeAutheliaUser
+    ? subs.filter((s) => s.autheliaUser !== options.excludeAutheliaUser)
+    : subs;
+
+  if (targets.length === 0) return;
 
   const staleIds: string[] = [];
 
   await Promise.allSettled(
-    subs.map(async (sub) => {
+    targets.map(async (sub) => {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -57,5 +67,21 @@ export async function sendPushToHousehold(
         db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, id))
       )
     );
+  }
+}
+
+/**
+ * Fire-and-forget wrapper that never throws (e.g. if VAPID isn't configured),
+ * so notifying the household can't break the user action that triggered it.
+ */
+export async function notifyHousehold(
+  householdId: string,
+  payload: PushPayload,
+  options?: PushOptions
+): Promise<void> {
+  try {
+    await sendPushToHousehold(householdId, payload, options);
+  } catch (err) {
+    console.error("[push] notifyHousehold failed:", err);
   }
 }

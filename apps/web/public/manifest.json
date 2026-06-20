@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Dishes",
   "short_name": "Dishes",
   "description": "Family recipe and meal planning",
@@ -8,6 +9,27 @@
   "background_color": "#ffffff",
   "theme_color": "#f97316",
   "orientation": "portrait-primary",
+  "categories": ["food", "lifestyle", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Shopping list",
+      "short_name": "Shopping",
+      "url": "/shopping",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Meal plan",
+      "short_name": "Meal plan",
+      "url": "/meal-plan",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI concierge",
+      "short_name": "Concierge",
+      "url": "/ai-concierge",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",

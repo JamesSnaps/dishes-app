@@ -112,6 +112,23 @@ export function useShoppingList(
     return () => window.removeEventListener("online", flushPending);
   }, [flushPending]);
 
+  // Refresh on resume: when the app returns to the foreground while online,
+  // flush any queued changes and pull the latest list from the server. This is
+  // the practical stand-in for background refresh, which iOS doesn't grant PWAs.
+  useEffect(() => {
+    function onResume() {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        flushPending();
+      }
+    }
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onResume);
+    return () => {
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
+    };
+  }, [flushPending]);
+
   async function registerSync() {
     if ("serviceWorker" in navigator) {
       try {

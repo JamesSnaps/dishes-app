@@ -14,6 +14,7 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { notifyHousehold } from "@/lib/push";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
@@ -180,6 +181,17 @@ export async function addAiGeneratedMealPlan(
 
     revalidatePath("/meal-plan");
     revalidatePath("/recipes");
+
+    await notifyHousehold(
+      householdId,
+      {
+        title: "🍽️ Meal plan ready",
+        body: `${user.displayName} added this week's meal plan`,
+        url: "/meal-plan",
+      },
+      { excludeAutheliaUser: user.username }
+    );
+
     return { success: true, debug };
   } catch (err) {
     debug.error = err instanceof Error ? err.message : String(err);
@@ -528,4 +540,14 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
 
   revalidatePath("/shopping");
   revalidatePath("/meal-plan");
+
+  await notifyHousehold(
+    householdId,
+    {
+      title: "🛒 Shopping list ready",
+      body: `${user.displayName} generated this week's shopping list`,
+      url: "/shopping",
+    },
+    { excludeAutheliaUser: user.username }
+  );
 }

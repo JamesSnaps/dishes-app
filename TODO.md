@@ -45,6 +45,10 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Category grouping (produce, dairy, etc.)
 - [x] "Search on Sainsbury's" link per item — opens Sainsbury's search results in new tab
 - [x] Offline-first shopping list (IndexedDB via Dexie, optimistic mutations, Background Sync, SW page-shell cache)
+- [x] App-shell offline via Serwist (`@serwist/next`): precaches build assets + caches RSC navigations (`cacheOnNavigation`), so section-switching works offline instead of hanging; push/notification/Background-Sync handlers folded into the generated worker (v0.37.0)
+- [x] Refresh-on-resume for shopping + meal plan (foreground re-sync when online) and Periodic Background Sync of the shopping cache where supported (Chrome/Android & desktop; no-ops on iOS) (v0.38.0)
+- [x] Offline hardening: precached offline fallback page for unvisited routes, global offline indicator, ChunkLoadError auto-reload after redeploys, flush-before-periodic-refresh, dropped `reloadOnOnline` (v0.39.0)
+- [x] Push-on-change: household Web Push when a recipe is pulled onto the shopping list, the week's shopping list is generated, or an AI meal plan is added (actor excluded via `autheliaUser`); manifest polish (app shortcuts, `id`, categories); recipe images cached ~30 days for offline cook mode (v0.40.0)
 
 ## Meal Planner
 - [x] Meal plan week view (`/meal-plan`) — day tabs + meal list per day

@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/toaster";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
+import { ChunkReloadGuard } from "@/components/chunk-reload-guard";
 
 export const metadata: Metadata = {
   title: {
@@ -44,6 +45,7 @@ export default function RootLayout({
           {children}
           <Toaster />
           <ServiceWorkerRegistrar />
+          <ChunkReloadGuard />
         </ThemeProvider>
       </body>
     </html>

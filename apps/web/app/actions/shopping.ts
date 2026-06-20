@@ -13,6 +13,7 @@ import { eq, and, asc, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { notifyHousehold } from "@/lib/push";
 
 async function getActiveList(householdId: string) {
   const [list] = await db
@@ -325,7 +326,7 @@ export async function generateFromRecipe(
   const { householdId, memberId } = await requireHousehold(user);
 
   const [recipe] = await db
-    .select({ id: recipes.id, servings: recipes.servings })
+    .select({ id: recipes.id, servings: recipes.servings, title: recipes.title })
     .from(recipes)
     .where(
       and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId))
@@ -389,6 +390,7 @@ export async function generateFromRecipe(
     ? Math.max(...existing.map((i) => i.position))
     : -1;
   let posCounter = maxPos + 1;
+  let changed = false;
 
   for (const ing of ingredients) {
     const normalName = ing.ingredientName.toLowerCase().trim();
@@ -443,7 +445,20 @@ export async function generateFromRecipe(
         position: posCounter++,
       });
     }
+    changed = true;
   }
 
   revalidatePath("/shopping");
+
+  if (changed) {
+    await notifyHousehold(
+      householdId,
+      {
+        title: "🛒 Shopping list updated",
+        body: `${user.displayName} added ${recipe.title} ingredients`,
+        url: "/shopping",
+      },
+      { excludeAutheliaUser: user.username }
+    );
+  }
 }
