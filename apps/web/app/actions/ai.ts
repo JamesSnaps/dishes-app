@@ -104,7 +104,10 @@ async function getOpenAiClient(householdId: string): Promise<AiConfig> {
 
   const apiKey = decrypt(config.encryptedApiKey);
   return {
-    client: new OpenAI({ apiKey }),
+    // Force native (undici) fetch instead of the SDK's bundled node-fetch.
+    // node-fetch's keep-alive handling throws "Premature close" on Node 22.23+,
+    // breaking every AI call; native fetch is unaffected.
+    client: new OpenAI({ apiKey, fetch: globalThis.fetch }),
     model: config.model,
     imageModel: config.imageModel,
     defaultPrompt: config.defaultPrompt,

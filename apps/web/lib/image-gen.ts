@@ -38,7 +38,9 @@ export async function generateRecipeImageCore(
     return { error: "AI not configured. Add your API key in Settings → AI." };
 
   const apiKey = decrypt(config.encryptedApiKey);
-  const client = new OpenAI({ apiKey });
+  // Force native (undici) fetch — see note in app/actions/ai.ts; node-fetch
+  // throws "Premature close" on Node 22.23+.
+  const client = new OpenAI({ apiKey, fetch: globalThis.fetch });
   const imageModel = config.imageModel ?? "dall-e-3";
 
   const styleSuffix = getStyleSuffix(style ?? config.imageStyle);
