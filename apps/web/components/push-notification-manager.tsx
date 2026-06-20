@@ -14,7 +14,12 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return new Uint8Array([...rawData].map((c) => c.charCodeAt(0)));
 }
 
-export function PushNotificationManager() {
+export function PushNotificationManager({
+  vapidPublicKey,
+}: {
+  /** Server's VAPID public key, or null when push isn't configured server-side. */
+  vapidPublicKey: string | null;
+}) {
   const [permission, setPermission] = useState<PermissionState>("unsupported");
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,14 +54,14 @@ export function PushNotificationManager() {
         return;
       }
 
-      const res = await fetch("/api/push/vapid-public-key");
-      if (!res.ok) throw new Error("Push not configured on server");
-      const { publicKey } = await res.json();
+      // Key comes from the server at render time; the Enable button only renders
+      // when it's present, so this guard is just for type-narrowing.
+      if (!vapidPublicKey) throw new Error("Push isn't configured on the server.");
 
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
       });
 
       const { endpoint, keys } = sub.toJSON() as {
@@ -147,6 +152,21 @@ export function PushNotificationManager() {
   }
 
   if (permission === "unsupported") return null;
+
+  // Push isn't configured server-side — show why instead of an Enable button
+  // that can only fail. (Reflects whether VAPID keys reached the running app.)
+  if (!vapidPublicKey) {
+    return (
+      <div>
+        <p className="font-medium">Push notifications</p>
+        <p className="text-sm text-muted-foreground">
+          Not configured on the server. Set <code>VAPID_SUBJECT</code>,{" "}
+          <code>VAPID_PUBLIC_KEY</code> and <code>VAPID_PRIVATE_KEY</code> in the
+          app&apos;s environment and restart it.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-between">

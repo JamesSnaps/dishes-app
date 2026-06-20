@@ -35,7 +35,7 @@ export default async function SettingsPage() {
           Notifications
         </h2>
         <div className="rounded-lg border bg-card p-4">
-          <PushNotificationManager />
+          <PushNotificationManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null} />
         </div>
       </section>
 

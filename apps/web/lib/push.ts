@@ -11,12 +11,15 @@ export interface PushPayload {
 }
 
 function initVapid() {
-  const subject = process.env.VAPID_SUBJECT;
+  const rawSubject = process.env.VAPID_SUBJECT;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!subject || !publicKey || !privateKey) {
+  if (!rawSubject || !publicKey || !privateKey) {
     throw new Error("VAPID_SUBJECT, VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY must be set");
   }
+  // web-push requires the subject to be a mailto: or https: URI and throws otherwise.
+  // Tolerate a bare email/host in the env by defaulting it to a mailto: URI.
+  const subject = /^(mailto:|https?:\/\/)/.test(rawSubject) ? rawSubject : `mailto:${rawSubject}`;
   webpush.setVapidDetails(subject, publicKey, privateKey);
 }
 
