@@ -13,7 +13,26 @@ import { eq, and, asc, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { notifyHousehold } from "@/lib/push";
+import { notifyHouseholdThrottled } from "@/lib/push";
+
+// Collapse bursts of shopping-list changes into at most one push per household
+// per window. All shopping mutations share this channel so adding a recipe and
+// then typing items doesn't double-notify.
+const SHOPPING_PUSH_CHANNEL = "shopping";
+const SHOPPING_PUSH_WINDOW_SECONDS = 90;
+
+function notifyShoppingChange(householdId: string, actor: string) {
+  return notifyHouseholdThrottled(
+    householdId,
+    SHOPPING_PUSH_CHANNEL,
+    SHOPPING_PUSH_WINDOW_SECONDS,
+    {
+      title: "🛒 Shopping list updated",
+      body: `${actor} changed the shopping list`,
+      url: "/shopping",
+    }
+  );
+}
 
 async function getActiveList(householdId: string) {
   const [list] = await db
@@ -87,6 +106,7 @@ export async function addItem(formData: FormData) {
   });
 
   revalidatePath("/shopping");
+  await notifyShoppingChange(householdId, user.displayName);
 }
 
 export async function toggleItem(itemId: string, checked: boolean) {
@@ -140,7 +160,7 @@ export async function clearChecked(listId: string) {
 
   if (!list) return;
 
-  await db
+  const cleared = await db
     .delete(shoppingListItems)
     .where(
       and(
@@ -150,6 +170,9 @@ export async function clearChecked(listId: string) {
     );
 
   revalidatePath("/shopping");
+  if (cleared.count > 0) {
+    await notifyShoppingChange(householdId, user.displayName);
+  }
 }
 
 export async function archiveList(listId: string) {
@@ -200,6 +223,7 @@ export async function deleteItem(itemId: string) {
     .where(eq(shoppingListItems.id, itemId));
 
   revalidatePath("/shopping");
+  await notifyShoppingChange(householdId, user.displayName);
 }
 
 export type SkippedIngredient = {
@@ -451,14 +475,6 @@ export async function generateFromRecipe(
   revalidatePath("/shopping");
 
   if (changed) {
-    await notifyHousehold(
-      householdId,
-      {
-        title: "🛒 Shopping list updated",
-        body: `${user.displayName} added ${recipe.title} ingredients`,
-        url: "/shopping",
-      },
-      { excludeAutheliaUser: user.username }
-    );
+    await notifyShoppingChange(householdId, user.displayName);
   }
 }

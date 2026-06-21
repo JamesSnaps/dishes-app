@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { db } from "@/lib/db";
+import { getRedis } from "@/lib/redis";
 import { pushSubscriptions, type PushSubscription } from "@dishes/db/schema";
 import { and, eq } from "drizzle-orm";
 
@@ -160,4 +161,39 @@ export async function notifyHousehold(
   } catch (err) {
     console.error("[push] notifyHousehold failed:", err);
   }
+}
+
+/**
+ * Leading-edge cooldown wrapper around {@link notifyHousehold}. The first call for
+ * a given (household, channel) sends immediately; further calls within
+ * `windowSeconds` are suppressed. This collapses a burst of rapid changes —
+ * e.g. typing several shopping-list items in a row — into a single push, since
+ * the push only needs to wake the recipient's device to refresh, not enumerate
+ * every change.
+ *
+ * A true trailing debounce (notify once after activity stops) would need a
+ * scheduler/worker we don't run in Phase 1, so this leading-edge approach is the
+ * pragmatic equivalent. Without Redis configured it falls back to notifying on
+ * every call (no throttle).
+ */
+export async function notifyHouseholdThrottled(
+  householdId: string,
+  channel: string,
+  windowSeconds: number,
+  payload: PushPayload,
+  options?: PushOptions
+): Promise<void> {
+  try {
+    const redis = getRedis();
+    if (redis) {
+      const key = `pushcd:${channel}:${householdId}`;
+      // SET NX EX — only the first caller in the window acquires the key and sends.
+      const acquired = await redis.set(key, "1", "EX", windowSeconds, "NX");
+      if (acquired !== "OK") return; // still cooling down — suppress
+    }
+  } catch (err) {
+    // Redis hiccup shouldn't drop the notification — fall through and send.
+    console.error("[push] throttle check failed, sending anyway:", err);
+  }
+  await notifyHousehold(householdId, payload, options);
 }
