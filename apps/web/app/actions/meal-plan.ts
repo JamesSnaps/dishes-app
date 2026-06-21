@@ -139,6 +139,39 @@ export async function moveMealEntry(entryId: string, newDayOfWeek: number) {
   revalidatePath("/meal-plan");
 }
 
+const MEAL_TYPES = ["breakfast", "lunch", "dinner", "dessert", "snack"] as const;
+type MealTypeValue = (typeof MEAL_TYPES)[number];
+
+export async function changeMealEntryType(entryId: string, newMealType: string) {
+  if (!MEAL_TYPES.includes(newMealType as MealTypeValue)) {
+    throw new Error("Invalid meal type");
+  }
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  // Single query verifies the entry exists and belongs to this household atomically
+  const [entry] = await db
+    .select({ id: mealPlanEntries.id })
+    .from(mealPlanEntries)
+    .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
+    .where(
+      and(
+        eq(mealPlanEntries.id, entryId),
+        eq(mealPlans.householdId, householdId)
+      )
+    )
+    .limit(1);
+
+  if (!entry) return;
+
+  await db
+    .update(mealPlanEntries)
+    .set({ mealType: newMealType as MealTypeValue })
+    .where(eq(mealPlanEntries.id, entryId));
+
+  revalidatePath("/meal-plan");
+}
+
 export async function removeMealEntry(entryId: string) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);

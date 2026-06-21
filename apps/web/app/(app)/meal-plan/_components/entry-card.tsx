@@ -35,7 +35,7 @@ import {
   DropdownMenuTrigger,
   Input,
 } from "@dishes/ui";
-import { removeMealEntry, moveMealEntry, addMealEntryToShoppingList, updateMealEntryServings } from "@/app/actions/meal-plan";
+import { removeMealEntry, moveMealEntry, changeMealEntryType, addMealEntryToShoppingList, updateMealEntryServings } from "@/app/actions/meal-plan";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
@@ -132,6 +132,10 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
 
   function handleMove(newDay: number) {
     startTransition(() => moveMealEntry(entry.id, newDay));
+  }
+
+  function handleChangeType(newType: MealType) {
+    startTransition(() => changeMealEntryType(entry.id, newType));
   }
 
   function handleAddToShopping() {
@@ -288,6 +292,29 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
                       </span>
                       {name}
                       {i === entry.dayOfWeek && (
+                        <span className="ml-auto text-xs text-muted-foreground">current</span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <span className={`mr-2 ${MEAL_COLOR[entry.mealType]}`}>{MEAL_ICON[entry.mealType]}</span>
+                  Change meal type…
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {(Object.keys(MEAL_LABELS) as MealType[]).map((type) => (
+                    <DropdownMenuItem
+                      key={type}
+                      disabled={type === entry.mealType}
+                      onClick={() => handleChangeType(type)}
+                      className={type === entry.mealType ? "opacity-50" : ""}
+                    >
+                      <span className={`mr-2 ${MEAL_COLOR[type]}`}>{MEAL_ICON[type]}</span>
+                      {MEAL_LABELS[type]}
+                      {type === entry.mealType && (
                         <span className="ml-auto text-xs text-muted-foreground">current</span>
                       )}
                     </DropdownMenuItem>
