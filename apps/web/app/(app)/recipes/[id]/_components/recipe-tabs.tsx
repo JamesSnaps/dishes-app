@@ -17,6 +17,7 @@ interface Ingredient {
   unit: string | null;
   preparation: string | null;
   isOptional: boolean | null;
+  groupLabel: string | null;
 }
 
 interface Step {
@@ -24,6 +25,7 @@ interface Step {
   instruction: string;
   durationMinutes: number | null;
   timerLabel: string | null;
+  groupLabel: string | null;
 }
 
 interface RecipeTabsProps {
@@ -39,6 +41,25 @@ interface RecipeTabsProps {
   steps: Step[];
   tags: { id: string; tag: string }[];
   cookHistory: CookHistoryEntry[];
+}
+
+// Group a list into contiguous runs sharing a section heading. A blank/null
+// label means ungrouped; when nothing is labelled the result is a single
+// label-less group that renders exactly like a flat list.
+function groupBySection<T extends { groupLabel: string | null }>(
+  items: T[]
+): { label: string | null; items: T[] }[] {
+  const groups: { label: string | null; items: T[] }[] = [];
+  for (const item of items) {
+    const label = item.groupLabel?.trim() || null;
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) {
+      last.items.push(item);
+    } else {
+      groups.push({ label, items: [item] });
+    }
+  }
+  return groups;
 }
 
 function formatTime(minutes: number): string {
@@ -235,28 +256,37 @@ export function RecipeTabs({
                     )}
                   </div>
                 )}
-                <ul className="space-y-2">
-                  {ingredients.map((ing) => (
-                    <li key={ing.id} className="flex items-baseline gap-2 text-sm">
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-1.5" />
-                      <span>
-                        {ing.amount && (
-                          <span className="font-medium">
-                            {scaleAmount(ing.amount, scale)}
-                            {ing.unit ? ` ${ing.unit}` : ""}{" "}
+                {groupBySection(ingredients).map((group, gi) => (
+                  <div key={gi} className={gi > 0 ? "mt-5" : ""}>
+                    {group.label && (
+                      <h3 className="mb-2 text-sm font-semibold text-primary">
+                        {group.label}
+                      </h3>
+                    )}
+                    <ul className="space-y-2">
+                      {group.items.map((ing) => (
+                        <li key={ing.id} className="flex items-baseline gap-2 text-sm">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-1.5" />
+                          <span>
+                            {ing.amount && (
+                              <span className="font-medium">
+                                {scaleAmount(ing.amount, scale)}
+                                {ing.unit ? ` ${ing.unit}` : ""}{" "}
+                              </span>
+                            )}
+                            {ing.ingredientName}
+                            {ing.preparation && ing.preparation.toLowerCase() !== "none" && (
+                              <span className="text-muted-foreground">, {ing.preparation}</span>
+                            )}
+                            {ing.isOptional && (
+                              <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
+                            )}
                           </span>
-                        )}
-                        {ing.ingredientName}
-                        {ing.preparation && ing.preparation.toLowerCase() !== "none" && (
-                          <span className="text-muted-foreground">, {ing.preparation}</span>
-                        )}
-                        {ing.isOptional && (
-                          <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </>
             ) : (
               <p className="text-muted-foreground text-sm">No ingredients listed.</p>
@@ -267,25 +297,40 @@ export function RecipeTabs({
         {activeTab === "steps" && (
           <div>
             {steps.length > 0 ? (
-              <ol className="space-y-8">
-                {steps.map((step, idx) => (
-                  <li key={step.id} className="flex gap-4">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1 pt-1">
-                      <p className="leading-relaxed">{step.instruction}</p>
-                      {step.durationMinutes && (
-                        <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {step.timerLabel ? `${step.timerLabel} — ` : ""}
-                          {formatTime(step.durationMinutes)}
-                        </p>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              (() => {
+                let counter = 0;
+                return groupBySection(steps).map((group, gi) => (
+                  <div key={gi} className={gi > 0 ? "mt-8" : ""}>
+                    {group.label && (
+                      <h3 className="mb-4 text-sm font-semibold text-primary">
+                        {group.label}
+                      </h3>
+                    )}
+                    <ol className="space-y-8">
+                      {group.items.map((step) => {
+                        counter += 1;
+                        return (
+                          <li key={step.id} className="flex gap-4">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                              {counter}
+                            </span>
+                            <div className="flex-1 pt-1">
+                              <p className="leading-relaxed">{step.instruction}</p>
+                              {step.durationMinutes && (
+                                <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  {step.timerLabel ? `${step.timerLabel} — ` : ""}
+                                  {formatTime(step.durationMinutes)}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
+                ));
+              })()
             ) : (
               <p className="text-muted-foreground text-sm">No steps available.</p>
             )}

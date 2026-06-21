@@ -10,9 +10,10 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 
 - **Recipe library** — create, edit, search, and filter recipes by cuisine, tag, difficulty, and favourites
 - **Structured ingredients** — ingredients stored as structured data (name, amount, unit, preparation) enabling smart scaling, consolidation, and AI reasoning
+- **Recipe sections** — group both ingredients and steps into named sections (e.g. a granola component vs a smoothie component) in the editor, with drag-and-drop to reorder rows and move them between sections; sections carry through to the recipe view, cooking mode, print, share, and export, and AI generation uses them automatically for multi-component recipes
 - **Cooking mode** — fullscreen step-by-step view with large text, embedded countdown timers, ingredient highlighting, and wake lock (prevents screen sleep)
 - **Recipe scaling** — change serving count and all ingredient amounts recalculate with smart fraction and unit handling
-- **Shopping lists** — auto-generated from recipes or meal plans, with ingredient consolidation, category grouping, and manual additions
+- **Shopping lists** — auto-generated from recipes or meal plans, with ingredient consolidation, category grouping, and manual additions. Items can be edited inline (quantity, unit, name, notes), and those pulled from a recipe link back to it
 - **Meal planner** — weekly view with day/meal-type slots; navigate between weeks and generate shopping lists from the whole plan. Slots already added to the shopping list show an "On list" badge. The AI weekly planner respects each recipe's **suitable meals** so breakfast slots get breakfast food, not reheated dinners
 - **Meal-type tagging** — every recipe can be marked as suiting one or more meals (breakfast/lunch/dinner/dessert/snack); the AI sets this automatically when generating, editing, or scanning a recipe, and an admin "Tag recipes by meal type" maintenance action backfills the existing library
 - **AI recipe concierge** — describe what you want, get 5 concept cards, pick one, and the app generates a complete structured recipe. Suggestions adapt to who's eating, so picking a young child yields simple, mild, age-appropriate ideas rather than full dinners

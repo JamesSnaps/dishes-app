@@ -117,6 +117,7 @@ export default async function EditRecipePage({ params }: Props) {
             instruction: s.instruction,
             durationMinutes: s.durationMinutes?.toString() ?? "",
             timerLabel: s.timerLabel ?? "",
+            groupLabel: s.groupLabel ?? "",
           })),
         }}
       />

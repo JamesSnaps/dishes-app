@@ -11,6 +11,7 @@ export interface ParsedStep {
   instruction: string;
   durationMinutes: string;
   timerLabel: string;
+  groupLabel: string;
 }
 
 // Ordered longest-first so multi-word units match before shorter prefixes
@@ -144,6 +145,7 @@ export function parseStepsText(text: string): ParsedStep[] {
     instruction: s.replace(/\s+/g, " ").trim(),
     durationMinutes: "",
     timerLabel: "",
+    groupLabel: "",
   });
 
   // Numbered list: "1.", "1)", "Step 1:", "Step 1 -"

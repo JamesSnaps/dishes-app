@@ -104,7 +104,14 @@ export async function GET(
   if (steps.length) {
     lines.push("INSTRUCTIONS");
     lines.push("------------");
+    let currentStepGroup: string | null = null;
     steps.forEach((step, i) => {
+      if (step.groupLabel !== currentStepGroup) {
+        currentStepGroup = step.groupLabel;
+        if (currentStepGroup) {
+          lines.push(`\n${currentStepGroup}:`);
+        }
+      }
       lines.push(`${i + 1}. ${step.instruction}`);
       if (step.durationMinutes) {
         const timer = step.timerLabel ? ` (${step.timerLabel})` : "";

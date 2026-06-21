@@ -69,6 +69,18 @@ export default async function PrintRecipePage({ params }: Props) {
     }
   }
 
+  // Group steps by groupLabel (contiguous), keeping a continuous 1..N number
+  const groupedSteps: { label: string | null; items: typeof steps }[] = [];
+  for (const step of steps) {
+    const label = step.groupLabel || null;
+    const last = groupedSteps[groupedSteps.length - 1];
+    if (last && last.label === label) {
+      last.items.push(step);
+    } else {
+      groupedSteps.push({ label, items: [step] });
+    }
+  }
+
   return (
     <div className="print-page">
       <AutoPrint />
@@ -141,24 +153,37 @@ export default async function PrintRecipePage({ params }: Props) {
         {steps.length > 0 && (
           <section className="mb-8">
             <h2 className="mb-3 text-lg font-semibold uppercase tracking-wide">Instructions</h2>
-            <ol className="space-y-4">
-              {steps.map((step, i) => (
-                <li key={step.id} className="flex gap-4 text-sm leading-relaxed">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-xs font-bold">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <p>{step.instruction}</p>
-                    {step.durationMinutes != null && step.durationMinutes > 0 && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        ⏱ {formatTime(step.durationMinutes)}
-                        {step.timerLabel ? ` — ${step.timerLabel}` : ""}
-                      </p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
+            {(() => {
+              let counter = 0;
+              return groupedSteps.map((group, gi) => (
+                <div key={gi} className={gi > 0 ? "mt-4" : ""}>
+                  {group.label && (
+                    <p className="mb-1.5 text-sm font-semibold text-muted-foreground">{group.label}</p>
+                  )}
+                  <ol className="space-y-4">
+                    {group.items.map((step) => {
+                      counter += 1;
+                      return (
+                        <li key={step.id} className="flex gap-4 text-sm leading-relaxed">
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-xs font-bold">
+                            {counter}
+                          </span>
+                          <div>
+                            <p>{step.instruction}</p>
+                            {step.durationMinutes != null && step.durationMinutes > 0 && (
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                ⏱ {formatTime(step.durationMinutes)}
+                                {step.timerLabel ? ` — ${step.timerLabel}` : ""}
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              ));
+            })()}
           </section>
         )}
 

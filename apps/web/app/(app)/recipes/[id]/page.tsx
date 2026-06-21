@@ -223,6 +223,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
       instruction: s.instruction,
       durationMinutes: s.durationMinutes ? String(s.durationMinutes) : "",
       timerLabel: s.timerLabel ?? "",
+      groupLabel: s.groupLabel ?? "",
     })),
     notes: recipe.notes,
   };

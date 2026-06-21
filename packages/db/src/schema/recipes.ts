@@ -95,6 +95,7 @@ export const recipeSteps = pgTable("recipe_steps", {
   durationMinutes: integer("duration_minutes"),
   timerLabel: varchar("timer_label", { length: 100 }),
   ingredientIds: json("ingredient_ids").$type<string[]>().default([]),
+  groupLabel: varchar("group_label", { length: 100 }),
 });
 
 export const recipeTags = pgTable("recipe_tags", {

@@ -1202,16 +1202,23 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
 
               {/* Step number badge + instruction */}
               {currentStep && (
-                <div className="flex gap-4 lg:gap-6 mb-6">
-                  <span className="flex h-10 w-10 lg:h-14 lg:w-14 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white font-bold text-base lg:text-xl">
-                    {stepIndex + 1}
-                  </span>
-                  <div className="flex-1 min-w-0 pt-1 lg:pt-2">
-                    <StepText
-                      instruction={currentStep.instruction}
-                      ingredients={ingredients}
-                      scale={scale}
-                    />
+                <div className="mb-6">
+                  {currentStep.groupLabel?.trim() && (
+                    <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-orange-500 lg:text-base">
+                      {currentStep.groupLabel}
+                    </p>
+                  )}
+                  <div className="flex gap-4 lg:gap-6">
+                    <span className="flex h-10 w-10 lg:h-14 lg:w-14 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white font-bold text-base lg:text-xl">
+                      {stepIndex + 1}
+                    </span>
+                    <div className="flex-1 min-w-0 pt-1 lg:pt-2">
+                      <StepText
+                        instruction={currentStep.instruction}
+                        ingredients={ingredients}
+                        scale={scale}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

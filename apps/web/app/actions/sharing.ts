@@ -195,6 +195,7 @@ export async function getSharedRecipe(token: string) {
         instruction: recipeSteps.instruction,
         durationMinutes: recipeSteps.durationMinutes,
         timerLabel: recipeSteps.timerLabel,
+        groupLabel: recipeSteps.groupLabel,
         ingredientIds: recipeSteps.ingredientIds,
       })
       .from(recipeSteps)

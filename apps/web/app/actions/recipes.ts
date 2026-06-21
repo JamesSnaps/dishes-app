@@ -39,6 +39,7 @@ type StepInput = {
   instruction: string;
   durationMinutes: string;
   timerLabel: string;
+  groupLabel: string;
 };
 
 function parseJSON<T>(raw: string | null, fallback: T): T {
@@ -152,6 +153,7 @@ async function insertSteps(recipeId: string, steps: StepInput[]) {
         ? parseInt(step.durationMinutes)
         : null,
       timerLabel: step.timerLabel || null,
+      groupLabel: step.groupLabel || null,
     }))
   );
 }
@@ -303,6 +305,7 @@ export async function saveGeneratedRecipe(
               instruction: s.instruction,
               durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
               timerLabel: s.timerLabel || null,
+              groupLabel: s.groupLabel || null,
             }))
           )
         : Promise.resolve(),
@@ -378,6 +381,7 @@ export async function saveRecipeAsCopy(
               instruction: s.instruction,
               durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
               timerLabel: s.timerLabel || null,
+              groupLabel: s.groupLabel || null,
             }))
           )
         : Promise.resolve(),
@@ -452,6 +456,7 @@ export async function applyTweakToRecipe(
               instruction: s.instruction,
               durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
               timerLabel: s.timerLabel || null,
+              groupLabel: s.groupLabel || null,
             }))
           )
         : Promise.resolve(),

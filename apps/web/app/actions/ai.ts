@@ -47,6 +47,7 @@ export type GeneratedRecipe = {
     instruction: string;
     durationMinutes: string;
     timerLabel: string;
+    groupLabel: string;
   }>;
   notes: string | null;
   nutrition?: RecipeNutrition | null;
@@ -404,7 +405,7 @@ export async function improveRecipe(
     {"ingredientName": string, "amount": string, "unit": string, "preparation": string (empty string if no preparation needed — never use "none"), "isOptional": boolean, "groupLabel": string}
   ],
   "steps": [
-    {"instruction": string, "durationMinutes": string, "timerLabel": string}
+    {"instruction": string, "durationMinutes": string, "timerLabel": string, "groupLabel": string (section heading for a multi-component recipe — use the same label as the matching ingredient group; empty string if ungrouped)}
   ],
   "notes": string|null,
 ${MEAL_TYPES_SCHEMA_FRAGMENT},
@@ -584,13 +585,13 @@ export async function generateFullRecipe(
     {"ingredientName": string, "amount": string, "unit": string, "preparation": string (empty string if no preparation needed — never use "none"), "isOptional": boolean, "groupLabel": string}
   ],
   "steps": [
-    {"instruction": string, "durationMinutes": string (empty string if no timer), "timerLabel": string (empty string if no timer)}
+    {"instruction": string, "durationMinutes": string (empty string if no timer), "timerLabel": string (empty string if no timer), "groupLabel": string}
   ],
   "notes": string|null,
 ${MEAL_TYPES_SCHEMA_FRAGMENT},
 ${NUTRITION_SCHEMA_FRAGMENT}
 }
-Use realistic quantities and clear step-by-step instructions. Use groupLabel (e.g. "Sauce", "Marinade") to group related ingredients; leave empty string for ungrouped.${addendum}`,
+Use realistic quantities and clear step-by-step instructions. Use groupLabel on both ingredients and steps to group the related parts of a recipe that has genuinely distinct components or sub-recipes (e.g. "Granola" vs "Smoothie", or "Sauce", "Marinade") — use the SAME label for an ingredient group and its matching step group. For a simple single-component recipe leave every groupLabel as an empty string.${addendum}`,
         },
         {
           role: "user",
@@ -972,7 +973,8 @@ ${MEAL_TYPES_SCHEMA_FRAGMENT},
     {
       "instruction": string,
       "durationMinutes": string (numeric string or empty if no duration mentioned),
-      "timerLabel": string (short label for a timer e.g. "simmer" — empty string if no timer)
+      "timerLabel": string (short label for a timer e.g. "simmer" — empty string if no timer),
+      "groupLabel": string (section heading such as "For the sauce" if the image groups the method into named parts — use the same label as the matching ingredient group; empty string if none)
     }
   ],
   "notes": string|null (any tips, storage advice, or variations shown in the image)

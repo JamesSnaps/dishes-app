@@ -134,6 +134,7 @@ function mapSteps(raw: CrumbStep[]): ParsedStep[] {
       instruction: s.step.trim(),
       durationMinutes: "",
       timerLabel: "",
+      groupLabel: "",
     }));
 }
 

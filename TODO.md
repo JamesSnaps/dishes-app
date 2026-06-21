@@ -24,6 +24,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Edit recipe form (`/recipes/[id]/edit`)
 - [x] Delete recipe (with confirmation)
 - [x] Recipe image upload (to MinIO/S3)
+- [x] Ingredient & step sections — group ingredients/steps into named sub-recipes in the editor with drag-and-drop reordering/moving between sections; rendered across view/cook/print/share/export; AI generation uses them for multi-component recipes (v0.44.0)
 - [x] Favourite toggle
 - [x] Cuisine and tag filtering
 
