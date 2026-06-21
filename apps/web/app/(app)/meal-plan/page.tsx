@@ -148,7 +148,9 @@ export default async function MealPlanPage({
   const ratingByRecipe = new Map<string, number>();
   for (const row of ratingRows) {
     if (row.avgRating !== null) {
-      ratingByRecipe.set(row.recipeId, parseFloat(String(row.avgRating)));
+      // cookHistory.rating is stored on a 0–10 scale (half-star precision);
+      // convert to the 0–5 scale used for display and the min-rating filter.
+      ratingByRecipe.set(row.recipeId, parseFloat(String(row.avgRating)) / 2);
     }
   }
 
