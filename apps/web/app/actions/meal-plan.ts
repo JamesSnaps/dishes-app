@@ -8,6 +8,7 @@ import {
   recipeIngredients,
   shoppingLists,
   shoppingListItems,
+  householdMembers,
 } from "@dishes/db/schema";
 import type { MealPlanSlot } from "./ai";
 import { eq, and, inArray, sql } from "drizzle-orm";
@@ -17,6 +18,50 @@ import { requireHousehold } from "@/lib/household";
 import { notifyHousehold } from "@/lib/push";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
+
+// Appetite scaling: a younger child eats less than an adult, so each selected
+// family member contributes a fraction of a serving based on their age. Members
+// with no birth year (or adults) count as a full serving. Tweak here to adjust.
+function appetiteFactor(age: number | null, role: string): number {
+  if (role === "adult") return 1;
+  if (age === null) return 1;
+  if (age < 1) return 0;
+  if (age <= 3) return 0.3;
+  if (age <= 6) return 0.5;
+  if (age <= 10) return 0.6;
+  if (age <= 14) return 0.8;
+  return 1; // 15+
+}
+
+// Sum appetite factors for the selected members and round to a whole number of
+// servings (floor of 1). Returns null when no members are selected so callers
+// fall back to the recipe's base servings.
+async function servingsForMembers(
+  householdId: string,
+  memberIds: string[]
+): Promise<number | null> {
+  if (!memberIds.length) return null;
+
+  const members = await db
+    .select({ birthYear: householdMembers.birthYear, role: householdMembers.role })
+    .from(householdMembers)
+    .where(
+      and(
+        eq(householdMembers.householdId, householdId),
+        inArray(householdMembers.id, memberIds)
+      )
+    );
+
+  if (!members.length) return null;
+
+  const currentYear = new Date().getFullYear();
+  const total = members.reduce((sum, m) => {
+    const age = m.birthYear ? currentYear - m.birthYear : null;
+    return sum + appetiteFactor(age, m.role);
+  }, 0);
+
+  return Math.max(1, Math.round(total));
+}
 
 async function getOrCreatePlan(
   householdId: string,
@@ -120,7 +165,8 @@ export async function removeMealEntry(entryId: string) {
 
 export async function addAiGeneratedMealPlan(
   weekStartDate: string,
-  slots: MealPlanSlot[]
+  slots: MealPlanSlot[],
+  memberIds: string[] = []
 ): Promise<{ success?: boolean; error?: string; debug?: Record<string, unknown> }> {
   const debug: Record<string, unknown> = { weekStartDate, slotsReceived: slots.length };
   try {
@@ -131,6 +177,12 @@ export async function addAiGeneratedMealPlan(
 
     const plan = await getOrCreatePlan(householdId, memberId, weekStartDate);
     debug.planId = plan.id;
+
+    // Derive a servings count from who's eating, scaled by age. Null = use the
+    // recipe's own base servings (i.e. no members were selected).
+    const servings = await servingsForMembers(householdId, memberIds);
+    debug.memberIds = memberIds;
+    debug.servings = servings;
 
     // Verify any proposed existing recipe IDs actually belong to this household
     const proposedIds = slots.map((s) => s.recipeId).filter((id): id is string => !!id);
@@ -173,6 +225,7 @@ export async function addAiGeneratedMealPlan(
         recipeId: r.recipeId,
         dayOfWeek: r.dayOfWeek,
         mealType: r.mealType as MealType,
+        servings: servings !== null ? String(servings) : null,
       }))
     ).returning();
     debug.insertedEntries = insertedEntries;

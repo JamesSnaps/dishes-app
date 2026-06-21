@@ -758,7 +758,11 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
     if (!slotsToAdd.length) return;
     const weekStart = getMondayOf(weekOffset);
     startAddTransition(async () => {
-      const result = await addAiGeneratedMealPlan(weekStart, slotsToAdd);
+      const result = await addAiGeneratedMealPlan(
+        weekStart,
+        slotsToAdd,
+        selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : []
+      );
       if (result.debug) setDebugInfo(result.debug);
       if (result.error) { setError(result.error); return; }
       setAdded(true);
@@ -936,7 +940,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
             </div>
             {selectedMemberIds.size > 0 && (
               <p className="mt-1.5 text-xs text-muted-foreground">
-                AI will respect their dietary needs when suggesting meals
+                AI will respect their dietary needs, and servings are scaled to
+                who&apos;s eating (younger children count as less)
               </p>
             )}
           </div>
