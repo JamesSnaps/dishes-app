@@ -8,6 +8,15 @@ export type ShoppingItem = CachedShoppingItem;
 interface UseShoppingListReturn {
   items: ShoppingItem[];
   toggle: (itemId: string, checked: boolean) => Promise<void>;
+  update: (
+    itemId: string,
+    data: {
+      ingredientName?: string;
+      amount?: string | null;
+      unit?: string | null;
+      notes?: string | null;
+    }
+  ) => Promise<void>;
   remove: (itemId: string) => Promise<void>;
   add: (data: {
     ingredientName: string;
@@ -174,6 +183,50 @@ export function useShoppingList(
     []
   );
 
+  const update = useCallback(
+    async (
+      itemId: string,
+      data: {
+        ingredientName?: string;
+        amount?: string | null;
+        unit?: string | null;
+        notes?: string | null;
+      }
+    ) => {
+      const trimmedName =
+        data.ingredientName !== undefined ? data.ingredientName.trim() : undefined;
+      const patch = { ...data, ...(trimmedName !== undefined ? { ingredientName: trimmedName } : {}) };
+
+      setItems((prev) =>
+        prev.map((i) => (i.id === itemId ? { ...i, ...patch } : i))
+      );
+      await shoppingDB.items.update(itemId, patch);
+
+      const url = `/api/shopping/items/${itemId}`;
+      const body = JSON.stringify(patch);
+
+      try {
+        const res = await fetch(url, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+        if (!res.ok) throw new Error("update failed");
+      } catch {
+        await shoppingDB.pendingMutations.add({
+          url,
+          method: "PATCH",
+          body,
+          createdAt: Date.now(),
+        });
+        const count = await shoppingDB.pendingMutations.count();
+        setPendingCount(count);
+        registerSync();
+      }
+    },
+    []
+  );
+
   const remove = useCallback(async (itemId: string) => {
     setItems((prev) => prev.filter((i) => i.id !== itemId));
     await shoppingDB.items.delete(itemId);
@@ -262,6 +315,7 @@ export function useShoppingList(
   return {
     items,
     toggle,
+    update,
     remove,
     add,
     clearCheckedLocal,

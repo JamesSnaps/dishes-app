@@ -4,6 +4,7 @@ import { SideNav } from "@/components/nav/side-nav";
 import { ScrollReset } from "@/components/scroll-reset";
 import { OfflineIndicator } from "@/components/offline-indicator";
 import { JobsProvider } from "@/components/providers/jobs-provider";
+import { ShoppingCountProvider } from "@/components/providers/shopping-count-context";
 import { UnsavedChangesProvider } from "@/components/unsaved-changes-context";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -63,6 +64,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <JobsProvider>
+    <ShoppingCountProvider initialCount={shoppingItemCount}>
     <UnsavedChangesProvider>
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
@@ -86,6 +88,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <OfflineIndicator />
     </div>
     </UnsavedChangesProvider>
+    </ShoppingCountProvider>
     </JobsProvider>
   );
 }

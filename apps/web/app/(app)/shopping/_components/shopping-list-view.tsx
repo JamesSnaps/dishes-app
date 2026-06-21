@@ -13,10 +13,14 @@ interface Group {
 interface Props {
   groups: Group[];
   onToggle: (id: string, checked: boolean) => void;
+  onUpdate: (
+    id: string,
+    data: { ingredientName?: string; amount?: string | null; unit?: string | null; notes?: string | null }
+  ) => void;
   onDelete: (id: string) => void;
 }
 
-export function ShoppingListView({ groups, onToggle, onDelete }: Props) {
+export function ShoppingListView({ groups, onToggle, onUpdate, onDelete }: Props) {
   const [hideChecked, setHideChecked] = useState(true);
 
   const totalChecked = groups.reduce(
@@ -67,6 +71,7 @@ export function ShoppingListView({ groups, onToggle, onDelete }: Props) {
                   key={item.id}
                   item={item}
                   onToggle={(checked) => onToggle(item.id, checked)}
+                  onUpdate={(data) => onUpdate(item.id, data)}
                   onDelete={() => onDelete(item.id)}
                 />
               ))}

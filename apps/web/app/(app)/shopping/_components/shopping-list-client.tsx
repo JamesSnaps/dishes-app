@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { WifiOff, RefreshCw } from "lucide-react";
 import { useShoppingList, type ShoppingItem } from "@/hooks/use-shopping-list";
+import { useShoppingCount } from "@/components/providers/shopping-count-context";
 import { ShoppingListView } from "./shopping-list-view";
 import { AddItemForm } from "./add-item-form";
 import { ListActions } from "./list-actions";
@@ -29,8 +30,19 @@ interface Props {
 }
 
 export function ShoppingListClient({ listId, initialItems, mostOrdered }: Props) {
-  const { items, toggle, remove, add, clearCheckedLocal, pendingCount, isSyncing } =
+  const { items, toggle, update, remove, add, clearCheckedLocal, pendingCount, isSyncing } =
     useShoppingList(initialItems, listId);
+
+  // Keep the sidebar badge in sync with the live unchecked count.
+  const shoppingCount = useShoppingCount();
+  const uncheckedCount = useMemo(
+    () => items.filter((i) => !i.isChecked).length,
+    [items]
+  );
+  const setCount = shoppingCount?.setCount;
+  useEffect(() => {
+    setCount?.(uncheckedCount);
+  }, [uncheckedCount, setCount]);
 
   const groups = useMemo(() => {
     const grouped = new Map<string | null, ShoppingItem[]>();
@@ -76,6 +88,7 @@ export function ShoppingListClient({ listId, initialItems, mostOrdered }: Props)
         <ShoppingListView
           groups={groups}
           onToggle={toggle}
+          onUpdate={update}
           onDelete={remove}
         />
       )}

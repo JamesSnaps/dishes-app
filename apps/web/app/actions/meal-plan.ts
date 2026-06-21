@@ -503,7 +503,7 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
   }
 
   // Accumulate scaled ingredient totals across all meal plan entries
-  type Accumulated = { amount: number | null; unit: string | null; notes: string | null };
+  type Accumulated = { amount: number | null; unit: string | null; notes: string | null; recipeId: string };
   const totals = new Map<string, Accumulated>();
 
   for (const entry of entries) {
@@ -525,12 +525,14 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
           amount: existing.amount !== null && isNumeric ? existing.amount + rawNum * scale : existing.amount,
           unit: ing.unit,
           notes: existing.notes,
+          recipeId: existing.recipeId,
         });
       } else {
         totals.set(key, {
           amount: isNumeric ? rawNum * scale : null,
           unit: ing.unit,
           notes: !isNumeric && ing.amount ? ing.amount : null,
+          recipeId: ing.recipeId,
         });
       }
     }
@@ -610,6 +612,7 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     } else {
       await db.insert(shoppingListItems).values({
         listId,
+        recipeId: total.recipeId,
         ingredientName,
         amount: scaledAmountStr,
         unit: total.unit,

@@ -33,6 +33,7 @@ import {
 } from "@dishes/ui";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { useUnsavedChanges } from "@/components/unsaved-changes-context";
+import { useShoppingCount } from "@/components/providers/shopping-count-context";
 
 interface Props {
   className?: string;
@@ -121,6 +122,10 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const { requestNavigation } = useUnsavedChanges();
+  const shoppingCount = useShoppingCount();
+  // Prefer the live client count (updates as items are checked off) and fall
+  // back to the server-rendered prop before the provider has any value.
+  const liveShoppingCount = shoppingCount?.count ?? shoppingItemCount;
 
   return (
     <nav
@@ -142,7 +147,7 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
         <div className="flex flex-col gap-1 p-3">
           {MAIN_NAV.map((item) => {
             const badge =
-              item.href === "/shopping" ? shoppingItemCount
+              item.href === "/shopping" ? liveShoppingCount
               : item.href === "/meal-plan" ? todayMealCount
               : undefined;
             return <NavLink key={item.href} item={item} pathname={pathname} badge={badge} onNavigate={requestNavigation} />;
