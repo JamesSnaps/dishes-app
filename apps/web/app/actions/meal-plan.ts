@@ -376,6 +376,7 @@ export async function addMealEntryToShoppingList(entryId: string) {
       amount: shoppingListItems.amount,
       unit: shoppingListItems.unit,
       position: shoppingListItems.position,
+      isChecked: shoppingListItems.isChecked,
     })
     .from(shoppingListItems)
     .where(eq(shoppingListItems.listId, listId));
@@ -394,6 +395,7 @@ export async function addMealEntryToShoppingList(entryId: string) {
 
     const match = existingItems.find(
       (e) =>
+        !e.isChecked &&
         e.ingredientName.toLowerCase().trim() === normalName &&
         e.unit === ing.unit
     );
@@ -578,6 +580,7 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
       amount: shoppingListItems.amount,
       unit: shoppingListItems.unit,
       position: shoppingListItems.position,
+      isChecked: shoppingListItems.isChecked,
     })
     .from(shoppingListItems)
     .where(eq(shoppingListItems.listId, listId));
@@ -592,6 +595,7 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     const normalName = ingredientName.toLowerCase().trim();
     const match = existingItems.find(
       (e) =>
+        !e.isChecked &&
         e.ingredientName.toLowerCase().trim() === normalName &&
         e.unit === total.unit
     );

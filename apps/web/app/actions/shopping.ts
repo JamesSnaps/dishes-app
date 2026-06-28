@@ -406,6 +406,7 @@ export async function generateFromRecipe(
       amount: shoppingListItems.amount,
       unit: shoppingListItems.unit,
       position: shoppingListItems.position,
+      isChecked: shoppingListItems.isChecked,
     })
     .from(shoppingListItems)
     .where(eq(shoppingListItems.listId, list.id));
@@ -446,6 +447,7 @@ export async function generateFromRecipe(
 
     const match = existing.find(
       (e) =>
+        !e.isChecked &&
         e.ingredientName.toLowerCase().trim() === normalName &&
         e.unit === ing.unit
     );
