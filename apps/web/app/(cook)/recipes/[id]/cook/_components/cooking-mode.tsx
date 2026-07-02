@@ -60,6 +60,46 @@ function formatTimer(totalSeconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// ─── Timer sound ──────────────────────────────────────────────────────────────
+// Safari (especially iOS) only allows audio that originates from a user gesture.
+// We create/resume the AudioContext when a timer is started (a tap), which
+// unlocks it for the chime that plays later when the timer finishes.
+
+let audioCtx: AudioContext | null = null;
+
+function unlockAudio() {
+  if (typeof window === "undefined") return;
+  const Ctor =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctor) return;
+  if (!audioCtx) audioCtx = new Ctor();
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+}
+
+function playChime() {
+  const ctx = audioCtx;
+  if (!ctx || ctx.state !== "running") return;
+  const start = ctx.currentTime + 0.05;
+  const notes = [880, 1174.66, 1567.98]; // A5 → D6 → G6, rising
+  for (let pass = 0; pass < 2; pass++) {
+    notes.forEach((freq, i) => {
+      const t = start + pass * 0.75 + i * 0.18;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.5, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.6);
+    });
+  }
+}
+
 // ─── Q&A history ─────────────────────────────────────────────────────────────
 
 interface Message {
@@ -127,6 +167,8 @@ interface TimerState {
   totalSeconds: number;
   label: string | null;
   stepNumber: number;
+  /** The instruction text of the step this timer belongs to, for context previews. */
+  preview: string;
 }
 
 // ─── Ingredient chip (inline in step text) ───────────────────────────────────
@@ -335,7 +377,7 @@ function StepTimer({ timer, onToggle, onReset }: StepTimerProps) {
       <div className="mb-4 flex items-center justify-between">
         <span
           className={`font-mono text-4xl font-bold tabular-nums tracking-tight ${
-            done ? "text-green-500" : remaining <= 30 && running ? "text-orange-500" : ""
+            done ? "text-green-500 animate-pulse" : remaining <= 30 && running ? "text-orange-500" : ""
           }`}
         >
           {done ? "Done!" : formatTimer(remaining)}
@@ -418,9 +460,12 @@ function ActiveTimersPanel({ timers, onToggle, onReset, onJumpToStep }: TimerPan
                 </Button>
               </div>
             </div>
+            <p className="mb-1.5 text-[11px] leading-snug text-muted-foreground/70 line-clamp-2">
+              {timer.preview}
+            </p>
             <span
               className={`font-mono text-xl font-bold tabular-nums ${
-                timer.done ? "text-green-500" : timer.running && timer.remaining <= 30 ? "text-orange-500" : ""
+                timer.done ? "text-green-500 animate-pulse" : timer.running && timer.remaining <= 30 ? "text-orange-500" : ""
               }`}
             >
               {timer.done ? "Done!" : formatTimer(timer.remaining)}
@@ -462,14 +507,18 @@ function MobileTimerShelf({ timers, onToggle, onReset, onJumpToStep }: TimerPane
           >
             <button
               onClick={() => onJumpToStep(idx)}
-              className="flex items-center gap-1.5"
+              className="flex min-w-0 flex-col items-start"
               aria-label={`Jump to step ${timer.stepNumber}`}
             >
-              <Timer className={`h-3.5 w-3.5 ${timer.running ? "text-orange-500" : "text-muted-foreground"}`} />
-              <span className={`font-mono text-sm font-bold tabular-nums ${timer.done ? "text-green-500" : ""}`}>
-                {timer.done ? "Done!" : formatTimer(timer.remaining)}
+              <span className="max-w-[9rem] truncate text-[10px] font-medium text-muted-foreground">
+                Step {timer.stepNumber} · {timer.label ?? timer.preview}
               </span>
-              <span className="text-xs text-muted-foreground">S{timer.stepNumber}</span>
+              <span className="flex items-center gap-1.5">
+                <Timer className={`h-3.5 w-3.5 ${timer.running ? "text-orange-500" : "text-muted-foreground"}`} />
+                <span className={`font-mono text-sm font-bold tabular-nums ${timer.done ? "text-green-500 animate-pulse" : ""}`}>
+                  {timer.done ? "Done!" : formatTimer(timer.remaining)}
+                </span>
+              </span>
             </button>
             <div className="flex gap-0.5">
               <button
@@ -956,11 +1005,16 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           totalSeconds,
           label: step.timerLabel ?? null,
           stepNumber: i + 1,
+          preview: step.instruction,
         });
       }
     });
     return map;
   });
+
+  // Step indices of timers that have finished but not yet been acknowledged.
+  // Drives the alert overlay and the repeating chime.
+  const [finishedAlerts, setFinishedAlerts] = useState<number[]>([]);
 
   // Single interval ticks all running timers
   useEffect(() => {
@@ -973,9 +1027,6 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           changed = true;
           if (timer.remaining <= 1) {
             next.set(idx, { ...timer, remaining: 0, running: false, done: true });
-            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-              navigator.vibrate([300, 100, 300]);
-            }
           } else {
             next.set(idx, { ...timer, remaining: timer.remaining - 1 });
           }
@@ -986,7 +1037,35 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     return () => clearInterval(interval);
   }, []);
 
+  // Detect timers that just transitioned to done → raise an alert + vibrate
+  const prevDoneRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    const doneNow = new Set([...timers].filter(([, t]) => t.done).map(([idx]) => idx));
+    const newlyDone = [...doneNow].filter((idx) => !prevDoneRef.current.has(idx));
+    prevDoneRef.current = doneNow;
+    if (newlyDone.length > 0) {
+      setFinishedAlerts((prev) => [...prev, ...newlyDone.filter((idx) => !prev.includes(idx))]);
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate([300, 100, 300]);
+      }
+    }
+  }, [timers]);
+
+  // Chime immediately and then every few seconds while any alert is unacknowledged
+  useEffect(() => {
+    if (finishedAlerts.length === 0) return;
+    playChime();
+    const interval = setInterval(playChime, 6000);
+    return () => clearInterval(interval);
+  }, [finishedAlerts]);
+
+  const dismissAlert = useCallback((idx: number) => {
+    setFinishedAlerts((prev) => prev.filter((i) => i !== idx));
+  }, []);
+
   const toggleTimer = useCallback((idx: number) => {
+    // Starting/pausing is a user gesture — Safari's chance to unlock audio
+    unlockAudio();
     setTimers((prev) => {
       const timer = prev.get(idx);
       if (!timer || timer.done) return prev;
@@ -997,6 +1076,8 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   }, []);
 
   const resetTimer = useCallback((idx: number) => {
+    unlockAudio();
+    setFinishedAlerts((prev) => (prev.includes(idx) ? prev.filter((i) => i !== idx) : prev));
     setTimers((prev) => {
       const timer = prev.get(idx);
       if (!timer) return prev;
@@ -1447,6 +1528,59 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           )}
         </aside>
       </div>
+
+      {/* ── Timer finished alerts ───────────────────────────────────── */}
+      {finishedAlerts.length > 0 && (
+        <div className="fixed inset-x-0 bottom-32 lg:bottom-8 z-40 flex flex-col items-center gap-2.5 px-4 pointer-events-none">
+          {finishedAlerts.map((idx) => {
+            const timer = timers.get(idx);
+            if (!timer) return null;
+            return (
+              <div
+                key={idx}
+                className="pointer-events-auto w-full max-w-md rounded-2xl border border-green-500/40 bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-950 dark:to-emerald-900 p-4 shadow-2xl"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-500 text-white animate-pulse">
+                    <Timer className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm">
+                      Timer finished — Step {timer.stepNumber}
+                      {timer.label ? ` · ${timer.label}` : ""}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                      {timer.preview}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => dismissAlert(idx)}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    aria-label="Dismiss timer alert"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => {
+                      setStepIndex(idx);
+                      dismissAlert(idx);
+                    }}
+                  >
+                    Go to step {timer.stepNumber}
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => dismissAlert(idx)}>
+                    OK
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Mobile timer shelf — shown when timers are running/paused ── */}
       <MobileTimerShelf {...timerProps} />

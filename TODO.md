@@ -32,6 +32,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Cooking mode page (`/recipes/[id]/cook`) — fullscreen, large text
 - [x] Step-by-step navigation (prev/next)
 - [x] Embedded countdown timers (per step, with label)
+- [x] Timer completion alerts — audible chime (repeats until acknowledged), vibration, alert card with step preview + jump-to-step
 - [x] Ingredient highlighting: active step cross-references ingredient IDs
 - [x] Wake lock API (prevents screen sleep on mobile)
 - [x] Recipe scaling UI (change serving count → recalculate all amounts)
