@@ -94,6 +94,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] `pantry_stock` table — tracked items with optional quantity and unit
 - [x] `/pantry` page — staples section (chip list + add form) and stock section (table + add form)
 - [x] Pantry page overhaul — search, multi-column stock grid on wide screens, quick-add forms at the top, inline stock editing (name/amount/unit), multi-select bulk delete across staples and stock (v0.47.0); sticky toolbar + A–Z / recently-added sort toggle for stock (v0.47.1); per-section select-all/deselect-all buttons replacing the global select-all (v0.47.2)
+- [x] Share page redesign — magazine-style split hero, sticky ingredients card, method step cards, nutrition chips, branded footer, OG/Twitter unfurl metadata (v0.48.0)
 - [x] Pantry sidebar badge (stock count) + self-refreshing shopping badge — `/api/shopping/count` endpoint, badge re-fetches on navigation/focus/`dishes-shopping-changed` event so recipe-to-list and meal-plan additions update it immediately (v0.47.3)
 - [x] Shopping list generation skips staples and fully-stocked ingredients
 - [x] Cooking mode "Mark ingredients as used" button — deducts recipe ingredients from stock after cooking

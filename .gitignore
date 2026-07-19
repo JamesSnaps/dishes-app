@@ -44,3 +44,6 @@ pnpm-debug.log*
 tsconfig.tsbuildinfo
 # Claude Code local settings
 .claude/settings.local.json
+
+# Local dev test assets
+apps/web/public/dev-share-hero.jpg

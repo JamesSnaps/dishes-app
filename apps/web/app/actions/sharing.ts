@@ -169,6 +169,10 @@ export async function getSharedRecipe(token: string) {
         thumbnailUrl: recipes.thumbnailUrl,
         notes: recipes.notes,
         createdAt: recipes.createdAt,
+        calories: recipes.calories,
+        proteinG: recipes.proteinG,
+        carbsG: recipes.carbsG,
+        fatG: recipes.fatG,
       })
       .from(recipes)
       .where(eq(recipes.id, row.recipeId))
