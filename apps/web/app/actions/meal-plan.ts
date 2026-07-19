@@ -8,14 +8,16 @@ import {
   recipeIngredients,
   shoppingLists,
   shoppingListItems,
+  shoppingListItemRecipes,
   householdMembers,
 } from "@dishes/db/schema";
 import type { MealPlanSlot } from "./ai";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { notifyHousehold } from "@/lib/push";
+import { getPantryExclusions, isCoveredByPantry } from "@/lib/pantry-exclusions";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
@@ -344,6 +346,8 @@ export async function addMealEntryToShoppingList(entryId: string) {
 
   if (!ingredients.length) return;
 
+  const exclusions = await getPantryExclusions(householdId);
+
   const baseServings = entry.baseServings ? parseFloat(entry.baseServings) : null;
   const entryServings = entry.entryServings ? parseFloat(entry.entryServings) : null;
   const scale =
@@ -390,6 +394,12 @@ export async function addMealEntryToShoppingList(entryId: string) {
     const normalName = ing.ingredientName.toLowerCase().trim();
     const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
     const isNumeric = !isNaN(rawNum);
+
+    // Skip staples and fully-stocked ingredients, matching generateFromRecipe
+    if (isCoveredByPantry(exclusions, ing.ingredientName, isNumeric ? rawNum * scale : null, ing.unit)) {
+      continue;
+    }
+
     const scaledAmountStr =
       isNumeric ? (Math.round(rawNum * scale * 1000) / 1000).toString() : null;
 
@@ -408,16 +418,27 @@ export async function addMealEntryToShoppingList(entryId: string) {
         .update(shoppingListItems)
         .set({ amount: newAmount })
         .where(eq(shoppingListItems.id, match.id));
+      await db
+        .insert(shoppingListItemRecipes)
+        .values({ itemId: match.id, recipeId: entry.recipeId })
+        .onConflictDoNothing();
     } else {
-      await db.insert(shoppingListItems).values({
-        listId,
-        recipeId: entry.recipeId,
-        ingredientName: ing.ingredientName,
-        amount: scaledAmountStr,
-        unit: ing.unit,
-        notes: !isNumeric && ing.amount ? ing.amount : null,
-        position: posCounter++,
-      });
+      const [inserted] = await db
+        .insert(shoppingListItems)
+        .values({
+          listId,
+          recipeId: entry.recipeId,
+          ingredientName: ing.ingredientName,
+          amount: scaledAmountStr,
+          unit: ing.unit,
+          notes: !isNumeric && ing.amount ? ing.amount : null,
+          position: posCounter++,
+        })
+        .returning({ id: shoppingListItems.id });
+      await db
+        .insert(shoppingListItemRecipes)
+        .values({ itemId: inserted!.id, recipeId: entry.recipeId })
+        .onConflictDoNothing();
     }
   }
 
@@ -465,13 +486,20 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
 
   if (!plan) throw new Error("Meal plan not found");
 
+  // Only entries not yet added — re-generating must not duplicate meals that
+  // are already on the list (their per-entry "Add again" covers deliberate re-adds)
   const entries = await db
     .select({
       recipeId: mealPlanEntries.recipeId,
       servings: mealPlanEntries.servings,
     })
     .from(mealPlanEntries)
-    .where(eq(mealPlanEntries.mealPlanId, mealPlanId));
+    .where(
+      and(
+        eq(mealPlanEntries.mealPlanId, mealPlanId),
+        isNull(mealPlanEntries.addedToShoppingListAt)
+      )
+    );
 
   if (!entries.length) return;
 
@@ -504,8 +532,9 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     ingredientsByRecipe.set(ing.recipeId, list);
   }
 
-  // Accumulate scaled ingredient totals across all meal plan entries
-  type Accumulated = { amount: number | null; unit: string | null; notes: string | null; recipeId: string };
+  // Accumulate scaled ingredient totals across all meal plan entries.
+  // recipeIds keeps every contributing recipe (first one = primary for linking).
+  type Accumulated = { amount: number | null; unit: string | null; notes: string | null; recipeIds: string[] };
   const totals = new Map<string, Accumulated>();
 
   for (const entry of entries) {
@@ -527,14 +556,16 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
           amount: existing.amount !== null && isNumeric ? existing.amount + rawNum * scale : existing.amount,
           unit: ing.unit,
           notes: existing.notes,
-          recipeId: existing.recipeId,
+          recipeIds: existing.recipeIds.includes(ing.recipeId)
+            ? existing.recipeIds
+            : [...existing.recipeIds, ing.recipeId],
         });
       } else {
         totals.set(key, {
           amount: isNumeric ? rawNum * scale : null,
           unit: ing.unit,
           notes: !isNumeric && ing.amount ? ing.amount : null,
-          recipeId: ing.recipeId,
+          recipeIds: [ing.recipeId],
         });
       }
     }
@@ -590,9 +621,17 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     : -1;
   let posCounter = maxPos + 1;
 
+  const exclusions = await getPantryExclusions(householdId);
+
   for (const [key, total] of totals) {
     const ingredientName = nameMap.get(key) ?? key.split("||")[0]!;
     const normalName = ingredientName.toLowerCase().trim();
+
+    // Skip staples and ingredients the pantry stock already covers for the
+    // whole week's aggregated amount, matching generateFromRecipe
+    if (isCoveredByPantry(exclusions, ingredientName, total.amount, total.unit)) {
+      continue;
+    }
     const match = existingItems.find(
       (e) =>
         !e.isChecked &&
@@ -605,6 +644,8 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
         ? (Math.round(total.amount * 1000) / 1000).toString()
         : null;
 
+    const sourceRows = total.recipeIds.map((recipeId) => ({ recipeId }));
+
     if (match && match.amount !== null && scaledAmountStr !== null) {
       const newAmount = (
         Math.round((parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000) / 1000
@@ -613,23 +654,39 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
         .update(shoppingListItems)
         .set({ amount: newAmount })
         .where(eq(shoppingListItems.id, match.id));
+      await db
+        .insert(shoppingListItemRecipes)
+        .values(sourceRows.map((r) => ({ ...r, itemId: match.id })))
+        .onConflictDoNothing();
     } else {
-      await db.insert(shoppingListItems).values({
-        listId,
-        recipeId: total.recipeId,
-        ingredientName,
-        amount: scaledAmountStr,
-        unit: total.unit,
-        notes: total.notes,
-        position: posCounter++,
-      });
+      const [inserted] = await db
+        .insert(shoppingListItems)
+        .values({
+          listId,
+          recipeId: total.recipeIds[0]!,
+          ingredientName,
+          amount: scaledAmountStr,
+          unit: total.unit,
+          notes: total.notes,
+          position: posCounter++,
+        })
+        .returning({ id: shoppingListItems.id });
+      await db
+        .insert(shoppingListItemRecipes)
+        .values(sourceRows.map((r) => ({ ...r, itemId: inserted!.id })))
+        .onConflictDoNothing();
     }
   }
 
   await db
     .update(mealPlanEntries)
     .set({ addedToShoppingListAt: new Date() })
-    .where(eq(mealPlanEntries.mealPlanId, mealPlanId));
+    .where(
+      and(
+        eq(mealPlanEntries.mealPlanId, mealPlanId),
+        isNull(mealPlanEntries.addedToShoppingListAt)
+      )
+    );
 
   revalidatePath("/shopping");
   revalidatePath("/meal-plan");

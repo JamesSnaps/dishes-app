@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   shoppingLists,
   shoppingListItems,
+  shoppingListItemRecipes,
   recipes,
   recipeIngredients,
   pantryStaples,
@@ -14,6 +15,7 @@ import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { notifyHouseholdThrottled } from "@/lib/push";
+import { getPantryExclusions, isCoveredByPantry } from "@/lib/pantry-exclusions";
 
 // Collapse bursts of shopping-list changes into at most one push per household
 // per window. All shopping mutations share this channel so adding a recipe and
@@ -375,25 +377,10 @@ export async function generateFromRecipe(
     .where(eq(recipeIngredients.recipeId, recipeId))
     .orderBy(asc(recipeIngredients.position));
 
-  const [list, staples, stock] = await Promise.all([
+  const [list, exclusions] = await Promise.all([
     ensureActiveList(householdId, memberId),
-    db
-      .select({ ingredientName: pantryStaples.ingredientName })
-      .from(pantryStaples)
-      .where(eq(pantryStaples.householdId, householdId)),
-    db
-      .select({
-        ingredientName: pantryStock.ingredientName,
-        amount: pantryStock.amount,
-        unit: pantryStock.unit,
-      })
-      .from(pantryStock)
-      .where(eq(pantryStock.householdId, householdId)),
+    getPantryExclusions(householdId),
   ]);
-
-  const stapleNames = new Set(
-    staples.map((s) => s.ingredientName.toLowerCase().trim())
-  );
 
   const forceIncludeNames = new Set(
     (forceInclude ?? []).map((n) => n.toLowerCase().trim())
@@ -422,23 +409,13 @@ export async function generateFromRecipe(
 
     const forced = forceIncludeNames.has(normalName);
 
-    // Skip staples — unless explicitly overridden
-    if (!forced && stapleNames.has(normalName)) continue;
-
     const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
     const isNumeric = !isNaN(rawNum);
     const scaledAmount = isNumeric ? rawNum * scale : null;
 
-    // Skip if sufficient stock exists — unless explicitly overridden
-    if (!forced && scaledAmount !== null) {
-      const stockItem = stock.find(
-        (s) =>
-          s.ingredientName.toLowerCase().trim() === normalName &&
-          s.unit === ing.unit
-      );
-      if (stockItem?.amount && parseFloat(stockItem.amount) >= scaledAmount) {
-        continue;
-      }
+    // Skip staples and fully-stocked ingredients — unless explicitly overridden
+    if (!forced && isCoveredByPantry(exclusions, ing.ingredientName, scaledAmount, ing.unit)) {
+      continue;
     }
 
     const scaledAmountStr = scaledAmount !== null ? scaledAmount.toString() : null;
@@ -460,16 +437,27 @@ export async function generateFromRecipe(
         .update(shoppingListItems)
         .set({ amount: newAmount })
         .where(eq(shoppingListItems.id, match.id));
+      await db
+        .insert(shoppingListItemRecipes)
+        .values({ itemId: match.id, recipeId })
+        .onConflictDoNothing();
     } else {
-      await db.insert(shoppingListItems).values({
-        listId: list.id,
-        recipeId,
-        ingredientName: ing.ingredientName,
-        amount: scaledAmountStr,
-        unit: ing.unit,
-        notes: textNote,
-        position: posCounter++,
-      });
+      const [inserted] = await db
+        .insert(shoppingListItems)
+        .values({
+          listId: list.id,
+          recipeId,
+          ingredientName: ing.ingredientName,
+          amount: scaledAmountStr,
+          unit: ing.unit,
+          notes: textNote,
+          position: posCounter++,
+        })
+        .returning({ id: shoppingListItems.id });
+      await db
+        .insert(shoppingListItemRecipes)
+        .values({ itemId: inserted!.id, recipeId })
+        .onConflictDoNothing();
     }
     changed = true;
   }

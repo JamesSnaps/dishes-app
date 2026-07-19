@@ -5,6 +5,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uuid,
@@ -57,6 +58,22 @@ export const shoppingListItems = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("shopping_list_items_list_id_idx").on(t.listId)]
+);
+
+// Every recipe that contributed to an item — an item merged from several
+// recipes (e.g. onions needed by three meals) keeps one row per source, while
+// shopping_list_items.recipe_id remains the first/primary source for linking.
+export const shoppingListItemRecipes = pgTable(
+  "shopping_list_item_recipes",
+  {
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => shoppingListItems.id, { onDelete: "cascade" }),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.recipeId] })]
 );
 
 // ─── Relations ───────────────────────────────────────────────────────────────

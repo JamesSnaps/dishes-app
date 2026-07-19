@@ -97,6 +97,9 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Share page redesign — magazine-style split hero, sticky ingredients card, method step cards, nutrition chips, branded footer, OG/Twitter unfurl metadata (v0.48.0)
 - [x] Pantry sidebar badge (stock count) + self-refreshing shopping badge — `/api/shopping/count` endpoint, badge re-fetches on navigation/focus/`dishes-shopping-changed` event so recipe-to-list and meal-plan additions update it immediately (v0.47.3)
 - [x] Shopping list generation skips staples and fully-stocked ingredients
+- [x] Fix: meal-planner paths (`generateShoppingFromWeek`, `addMealEntryToShoppingList`) now apply the same pantry staple/stock exclusions as `generateFromRecipe`, via shared `lib/pantry-exclusions.ts` (v0.48.1)
+- [x] Multi-recipe item sources — `shopping_list_item_recipes` junction table records every recipe that contributed to a merged item; list shows "from X +N more" with the full list on hover (v0.49.0)
+- [x] Fix: "Generate shopping list" on the meal planner re-added meals already on the list, doubling quantities — now only processes entries with no `added_to_shopping_list_at`, and the button disables with "All meals on list" when nothing is pending (v0.48.2)
 - [x] Cooking mode "Mark ingredients as used" button — deducts recipe ingredients from stock after cooking
 - [x] Shopping list "Complete & add to pantry" — adds checked items to stock when archiving a list
 

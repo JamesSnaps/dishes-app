@@ -681,6 +681,14 @@ export function WeekPlanner({
     });
   }
 
+  // Meals not yet pushed to the shopping list — generation only adds these
+  const pendingShoppingCount = localEntries.filter((e) => !e.addedToShoppingListAt).length;
+  const shoppingButtonLabel = shoppingPending
+    ? "Adding to list…"
+    : pendingShoppingCount === 0
+      ? "All meals on list"
+      : "Generate shopping list";
+
   const weekTitle = isCurrentWeek ? "This Week" : formatWeekRange(weekStartDate);
 
   return (
@@ -892,10 +900,10 @@ export function WeekPlanner({
                       variant="outline"
                       className="w-full justify-start"
                       onClick={handleGenerateShopping}
-                      disabled={shoppingPending}
+                      disabled={shoppingPending || pendingShoppingCount === 0}
                     >
                       <ShoppingCart className="mr-2 h-4 w-4" />
-                      {shoppingPending ? "Adding to list…" : "Generate shopping list"}
+                      {shoppingButtonLabel}
                     </Button>
                   ) : (
                     <div className="flex items-start gap-2 text-sm text-muted-foreground pt-1">
@@ -936,10 +944,10 @@ export function WeekPlanner({
                 variant="outline"
                 className="w-full"
                 onClick={handleGenerateShopping}
-                disabled={shoppingPending}
+                disabled={shoppingPending || pendingShoppingCount === 0}
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
-                {shoppingPending ? "Adding to list…" : "Generate shopping list"}
+                {shoppingButtonLabel}
               </Button>
             </div>
           )}

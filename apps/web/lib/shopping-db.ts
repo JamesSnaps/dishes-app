@@ -12,6 +12,8 @@ export interface CachedShoppingItem {
   position: number;
   recipeId: string | null;
   recipeTitle: string | null;
+  /** All contributing recipes (primary first) when merged from several. */
+  recipeTitles?: string[];
 }
 
 export interface PendingMutation {

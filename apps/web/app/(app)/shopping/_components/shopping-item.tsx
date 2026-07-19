@@ -133,19 +133,46 @@ export function ShoppingItem({ item, onToggle, onUpdate, onDelete }: Props) {
             ({item.notes})
           </span>
         )}
-        {item.recipeTitle &&
-          (item.recipeId ? (
+        {(() => {
+          const titles =
+            item.recipeTitles && item.recipeTitles.length > 0
+              ? item.recipeTitles
+              : item.recipeTitle
+                ? [item.recipeTitle]
+                : [];
+          if (titles.length === 0) return null;
+
+          const extra = titles.length - 1;
+          const sourceText = (
+            <>
+              from {titles[0]}
+              {extra > 0 && (
+                <span className="ml-1 rounded-full bg-muted px-1.5 py-px font-medium text-muted-foreground">
+                  +{extra} more
+                </span>
+              )}
+            </>
+          );
+          // Full source list on hover/long-press
+          const fullList = titles.join(", ");
+
+          return item.recipeId ? (
             <Link
               href={`/recipes/${item.recipeId}`}
+              title={fullList}
               className="block text-xs text-muted-foreground/60 hover:text-primary hover:underline leading-tight mt-0.5 w-fit"
             >
-              from {item.recipeTitle}
+              {sourceText}
             </Link>
           ) : (
-            <span className="block text-xs text-muted-foreground/60 leading-tight mt-0.5">
-              from {item.recipeTitle}
+            <span
+              title={fullList}
+              className="block text-xs text-muted-foreground/60 leading-tight mt-0.5"
+            >
+              {sourceText}
             </span>
-          ))}
+          );
+        })()}
       </span>
       <button
         onClick={startEditing}

@@ -4,6 +4,7 @@ import { shoppingLists, shoppingListItems, recipes } from "@dishes/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { getItemRecipeTitles, orderTitles } from "@/lib/shopping-item-sources";
 
 export async function GET() {
   const user = await getAutheliaUser();
@@ -43,9 +44,15 @@ export async function GET() {
     .where(eq(shoppingListItems.listId, list.id))
     .orderBy(asc(shoppingListItems.position));
 
+  const titlesByItem = await getItemRecipeTitles(items.map((i) => i.id));
+
   return NextResponse.json({
     listId: list.id,
     listName: list.name,
-    items: items.map((i) => ({ ...i, recipeTitle: i.recipeTitle ?? null })),
+    items: items.map((i) => ({
+      ...i,
+      recipeTitle: i.recipeTitle ?? null,
+      recipeTitles: orderTitles(i.recipeTitle ?? null, titlesByItem.get(i.id)),
+    })),
   });
 }
