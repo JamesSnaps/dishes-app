@@ -112,30 +112,37 @@ export function RecipeCard({
           </div>
         )}
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {cuisine && (
-            <Badge variant="secondary" className="text-xs">
-              {cuisine}
-            </Badge>
-          )}
-          {isAiGenerated && (
-            <Badge variant="outline" className="text-xs">
-              AI
-            </Badge>
-          )}
-          {calories != null && (
-            <span className={cn("flex items-center gap-1 text-xs text-muted-foreground", !time && "ml-auto")}>
-              <Flame className="h-3 w-3" />
-              {calories} kcal
-            </span>
-          )}
-          {time && (
-            <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              {time}
-            </span>
-          )}
-        </div>
+        {(cuisine || isAiGenerated) && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {cuisine && (
+              <Badge variant="secondary" className="text-xs">
+                {cuisine}
+              </Badge>
+            )}
+            {isAiGenerated && (
+              <Badge variant="outline" className="text-xs">
+                AI
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {(calories != null || time) && (
+          <div className="mt-2 flex items-center text-xs text-muted-foreground">
+            {calories != null && (
+              <span className="flex items-center gap-1">
+                <Flame className="h-3 w-3" />
+                {calories} kcal
+              </span>
+            )}
+            {time && (
+              <span className="ml-auto flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {time}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );

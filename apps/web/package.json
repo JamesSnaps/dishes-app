@@ -1,6 +1,6 @@
 {
   "name": "@dishes/web",
-  "version": "0.46.0",
+  "version": "0.47.3",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",

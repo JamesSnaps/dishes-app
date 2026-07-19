@@ -15,7 +15,8 @@ export async function generateRecipeImageCore(
   householdId: string,
   title: string,
   description: string | null,
-  style?: string | null
+  style?: string | null,
+  instructions?: string | null
 ): Promise<{ url?: string; thumbnailUrl?: string; error?: string }> {
   if (!isStorageAvailable()) {
     return {
@@ -44,9 +45,12 @@ export async function generateRecipeImageCore(
   const imageModel = config.imageModel ?? "dall-e-3";
 
   const styleSuffix = getStyleSuffix(style ?? config.imageStyle);
+  const extra = instructions?.trim()
+    ? ` Important — follow these specific instructions about the shot: ${instructions.trim()}`
+    : "";
   const prompt = `Professional food photography of "${title}". ${
     description ? description + " " : ""
-  }${styleSuffix}`;
+  }${styleSuffix}${extra}`;
 
   log.info(`Generating image with model=${imageModel} for "${title}"`);
 

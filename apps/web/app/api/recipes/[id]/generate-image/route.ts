@@ -20,8 +20,15 @@ export async function POST(
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
 
-    const body = await req.json().catch(() => ({})) as { style?: string };
+    const body = await req.json().catch(() => ({})) as {
+      style?: string;
+      instructions?: string;
+    };
     const style = typeof body.style === "string" ? body.style : null;
+    const instructions =
+      typeof body.instructions === "string"
+        ? body.instructions.trim().slice(0, 500) || null
+        : null;
 
     const [recipe] = await db
       .select({ title: recipes.title })
@@ -56,6 +63,7 @@ export async function POST(
           recipeId,
           householdId,
           style,
+          instructions,
           startedAt: Date.now(),
         }),
         "EX",
@@ -64,7 +72,7 @@ export async function POST(
     }
 
     // Fire and forget — returns before the image is ready
-    generateImageBackground(jobId, recipeId, householdId, notif.id, style).catch((err) => {
+    generateImageBackground(jobId, recipeId, householdId, notif.id, style, instructions).catch((err) => {
       log.error(`Background job ${jobId} threw:`, err);
     });
 

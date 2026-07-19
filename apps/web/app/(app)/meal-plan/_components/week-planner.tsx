@@ -30,6 +30,7 @@ import {
 } from "@dnd-kit/core";
 import { Button } from "@dishes/ui";
 import { generateShoppingFromWeek, moveMealEntry } from "@/app/actions/meal-plan";
+import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { EntryCard } from "./entry-card";
 
@@ -674,7 +675,10 @@ export function WeekPlanner({
 
   function handleGenerateShopping() {
     if (!planId) return;
-    startShoppingTransition(async () => { await generateShoppingFromWeek(planId); });
+    startShoppingTransition(async () => {
+      await generateShoppingFromWeek(planId);
+      notifyShoppingChanged();
+    });
   }
 
   const weekTitle = isCurrentWeek ? "This Week" : formatWeekRange(weekStartDate);

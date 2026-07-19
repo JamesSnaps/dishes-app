@@ -9,7 +9,7 @@ import {
   shoppingLists,
   shoppingListItems,
 } from "@dishes/db/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -36,6 +36,23 @@ export async function removeStaple(stapleId: string) {
     .where(
       and(
         eq(pantryStaples.id, stapleId),
+        eq(pantryStaples.householdId, householdId)
+      )
+    );
+  revalidatePath("/pantry");
+}
+
+export async function removeStaples(stapleIds: string[]) {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  if (stapleIds.length === 0) return;
+
+  await db
+    .delete(pantryStaples)
+    .where(
+      and(
+        inArray(pantryStaples.id, stapleIds),
         eq(pantryStaples.householdId, householdId)
       )
     );
@@ -71,6 +88,52 @@ export async function removeStockItem(stockId: string) {
 
   await db
     .delete(pantryStock)
+    .where(
+      and(
+        eq(pantryStock.id, stockId),
+        eq(pantryStock.householdId, householdId)
+      )
+    );
+  revalidatePath("/pantry");
+}
+
+export async function removeStockItems(stockIds: string[]) {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  if (stockIds.length === 0) return;
+
+  await db
+    .delete(pantryStock)
+    .where(
+      and(
+        inArray(pantryStock.id, stockIds),
+        eq(pantryStock.householdId, householdId)
+      )
+    );
+  revalidatePath("/pantry");
+}
+
+export async function updateStockItem(
+  stockId: string,
+  values: { ingredientName: string; amount: string | null; unit: string | null }
+) {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const name = values.ingredientName.trim();
+  if (!name) return;
+
+  const amount =
+    values.amount && !isNaN(parseFloat(values.amount)) ? values.amount : null;
+
+  await db
+    .update(pantryStock)
+    .set({
+      ingredientName: name,
+      amount,
+      unit: values.unit?.trim() || null,
+    })
     .where(
       and(
         eq(pantryStock.id, stockId),

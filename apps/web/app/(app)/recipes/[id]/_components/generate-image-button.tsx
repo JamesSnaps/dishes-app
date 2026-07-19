@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2 } from "lucide-react";
-import { Button } from "@dishes/ui";
+import { Sparkles, Loader2, SlidersHorizontal } from "lucide-react";
+import { Button, Textarea } from "@dishes/ui";
 import { addPendingImageJob } from "@/components/providers/jobs-provider";
 import { toast } from "@/hooks/use-toast";
 import { IMAGE_STYLES } from "@/lib/image-styles";
@@ -18,6 +18,8 @@ export function GenerateImageButton({ recipeId, recipeTitle, defaultStyle = "stu
   const [state, setState] = useState<"idle" | "starting" | "queued">("idle");
   const [error, setError] = useState<string | null>(null);
   const [style, setStyle] = useState<ImageStyleValue>(defaultStyle);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [instructions, setInstructions] = useState("");
 
   async function handleClick() {
     setState("starting");
@@ -26,7 +28,10 @@ export function GenerateImageButton({ recipeId, recipeTitle, defaultStyle = "stu
       const res = await fetch(`/api/recipes/${recipeId}/generate-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ style }),
+        body: JSON.stringify({
+          style,
+          instructions: instructions.trim() || undefined,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -89,7 +94,29 @@ export function GenerateImageButton({ recipeId, recipeTitle, defaultStyle = "stu
           )}
           {state === "starting" ? "Starting…" : "Generate image with AI"}
         </Button>
+
+        <button
+          type="button"
+          onClick={() => setShowInstructions((v) => !v)}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          aria-expanded={showInstructions}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {showInstructions ? "Hide instructions" : "Custom instructions"}
+        </button>
       </div>
+
+      {showInstructions && (
+        <Textarea
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          disabled={state === "starting"}
+          maxLength={500}
+          rows={2}
+          placeholder='Added to the style prompt — e.g. "show a single slice on a plate with a fork, not the whole cake"'
+          className="max-w-lg text-sm"
+        />
+      )}
 
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

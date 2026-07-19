@@ -14,6 +14,7 @@ import {
   Label,
 } from "@dishes/ui";
 import { generateFromRecipe } from "@/app/actions/shopping";
+import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
 
 interface Props {
   recipeId: string;
@@ -42,6 +43,7 @@ export function AddToShoppingButton({
     const parsed = parseFloat(servings);
     startTransition(async () => {
       await generateFromRecipe(recipeId, isNaN(parsed) ? undefined : parsed);
+      notifyShoppingChanged();
       setOpen(false);
       setDone(true);
     });

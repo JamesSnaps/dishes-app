@@ -41,6 +41,7 @@ interface Props {
   avatarUrl?: string | null;
   shoppingItemCount?: number;
   todayMealCount?: number;
+  pantryItemCount?: number;
 }
 
 interface NavItem {
@@ -118,7 +119,7 @@ function NavLink({
 
 const AUTHELIA_URL = process.env.NEXT_PUBLIC_AUTHELIA_URL ?? "";
 
-export function SideNav({ className, displayName = "User", avatarUrl = null, shoppingItemCount, todayMealCount }: Props) {
+export function SideNav({ className, displayName = "User", avatarUrl = null, shoppingItemCount, todayMealCount, pantryItemCount }: Props) {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const { requestNavigation } = useUnsavedChanges();
@@ -149,6 +150,7 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
             const badge =
               item.href === "/shopping" ? liveShoppingCount
               : item.href === "/meal-plan" ? todayMealCount
+              : item.href === "/pantry" ? pantryItemCount
               : undefined;
             return <NavLink key={item.href} item={item} pathname={pathname} badge={badge} onNavigate={requestNavigation} />;
           })}

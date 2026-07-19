@@ -9,7 +9,7 @@ import { UnsavedChangesProvider } from "@/components/unsaved-changes-context";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { db } from "@/lib/db";
-import { householdMembers, shoppingLists, shoppingListItems, mealPlans, mealPlanEntries } from "@dishes/db/schema";
+import { householdMembers, shoppingLists, shoppingListItems, mealPlans, mealPlanEntries, pantryStock } from "@dishes/db/schema";
 import { and, count, eq } from "drizzle-orm";
 
 function getMondayOfWeek(): string {
@@ -50,17 +50,19 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       .limit(1),
   ]);
 
-  const [shoppingCountResult, mealCountResult] = await Promise.all([
+  const [shoppingCountResult, mealCountResult, pantryCountResult] = await Promise.all([
     activeList
       ? db.select({ value: count() }).from(shoppingListItems).where(and(eq(shoppingListItems.listId, activeList.id), eq(shoppingListItems.isChecked, false)))
       : Promise.resolve([{ value: 0 }]),
     currentPlan
       ? db.select({ value: count() }).from(mealPlanEntries).where(and(eq(mealPlanEntries.mealPlanId, currentPlan.id), eq(mealPlanEntries.dayOfWeek, dayIndex)))
       : Promise.resolve([{ value: 0 }]),
+    db.select({ value: count() }).from(pantryStock).where(eq(pantryStock.householdId, householdId)),
   ]);
 
   const shoppingItemCount = Number(shoppingCountResult[0]?.value ?? 0);
   const todayMealCount = Number(mealCountResult[0]?.value ?? 0);
+  const pantryItemCount = Number(pantryCountResult[0]?.value ?? 0);
 
   return (
     <JobsProvider>
@@ -74,6 +76,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         avatarUrl={member?.avatarUrl ?? null}
         shoppingItemCount={shoppingItemCount}
         todayMealCount={todayMealCount}
+        pantryItemCount={pantryItemCount}
       />
 
       {/* Main content */}

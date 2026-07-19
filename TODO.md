@@ -24,6 +24,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Edit recipe form (`/recipes/[id]/edit`)
 - [x] Delete recipe (with confirmation)
 - [x] Recipe image upload (to MinIO/S3)
+- [x] AI image generation custom instructions — optional free-text prompt additions on top of the selected style (v0.47.0)
 - [x] Ingredient & step sections — group ingredients/steps into named sub-recipes in the editor with drag-and-drop reordering/moving between sections; rendered across view/cook/print/share/export; AI generation uses them for multi-component recipes (v0.44.0)
 - [x] Favourite toggle
 - [x] Cuisine and tag filtering
@@ -92,6 +93,8 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] `pantry_staples` table — household-scoped list of always-available ingredients
 - [x] `pantry_stock` table — tracked items with optional quantity and unit
 - [x] `/pantry` page — staples section (chip list + add form) and stock section (table + add form)
+- [x] Pantry page overhaul — search, multi-column stock grid on wide screens, quick-add forms at the top, inline stock editing (name/amount/unit), multi-select bulk delete across staples and stock (v0.47.0); sticky toolbar + A–Z / recently-added sort toggle for stock (v0.47.1); per-section select-all/deselect-all buttons replacing the global select-all (v0.47.2)
+- [x] Pantry sidebar badge (stock count) + self-refreshing shopping badge — `/api/shopping/count` endpoint, badge re-fetches on navigation/focus/`dishes-shopping-changed` event so recipe-to-list and meal-plan additions update it immediately (v0.47.3)
 - [x] Shopping list generation skips staples and fully-stocked ingredients
 - [x] Cooking mode "Mark ingredients as used" button — deducts recipe ingredients from stock after cooking
 - [x] Shopping list "Complete & add to pantry" — adds checked items to stock when archiving a list

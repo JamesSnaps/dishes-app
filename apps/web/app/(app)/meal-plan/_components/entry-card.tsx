@@ -36,6 +36,7 @@ import {
   Input,
 } from "@dishes/ui";
 import { removeMealEntry, moveMealEntry, changeMealEntryType, addMealEntryToShoppingList, updateMealEntryServings } from "@/app/actions/meal-plan";
+import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
@@ -139,7 +140,10 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
   }
 
   function handleAddToShopping() {
-    startTransition(() => addMealEntryToShoppingList(entry.id));
+    startTransition(async () => {
+      await addMealEntryToShoppingList(entry.id);
+      notifyShoppingChanged();
+    });
   }
 
   function handleOpenServings() {

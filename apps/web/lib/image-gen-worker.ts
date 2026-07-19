@@ -34,7 +34,8 @@ export async function generateImageBackground(
   recipeId: string,
   householdId: string,
   notificationId: string,
-  style?: string | null
+  style?: string | null,
+  instructions?: string | null
 ): Promise<void> {
   try {
     await updateJobStatus(jobId, "running");
@@ -59,7 +60,8 @@ export async function generateImageBackground(
       householdId,
       recipe.title,
       recipe.description,
-      style
+      style,
+      instructions
     );
 
     if (error || !url) {
