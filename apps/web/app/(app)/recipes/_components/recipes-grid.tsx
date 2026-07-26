@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckSquare2, Minus, Plus, Sparkles, Tag, X } from "lucide-react";
+import { Check, CheckSquare2, FolderPlus, Minus, Plus, Sparkles, Tag, X } from "lucide-react";
 import {
   Badge,
   Button,
@@ -16,6 +16,13 @@ import {
 } from "@dishes/ui";
 import { RecipeCard } from "./recipe-card";
 import { bulkAddTags, bulkRemoveTags } from "@/app/actions/recipes";
+import {
+  bulkAddToCollection,
+  createCollectionNamed,
+  getHouseholdCollections,
+} from "@/app/actions/collections";
+
+type Collection = { id: string; name: string; icon: string | null };
 
 type Recipe = {
   id: string;
@@ -332,6 +339,173 @@ function BulkTagDialog({
   );
 }
 
+// ─── Bulk collection dialog ───────────────────────────────────────────────────
+
+interface BulkCollectionDialogProps {
+  selectedCount: number;
+  onConfirm: (collectionId: string, move: boolean) => void;
+  onClose: () => void;
+  pending: boolean;
+}
+
+function BulkCollectionDialog({
+  selectedCount,
+  onConfirm,
+  onClose,
+  pending,
+}: BulkCollectionDialogProps) {
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [move, setMove] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getHouseholdCollections()
+      .then((rows) => {
+        if (cancelled) return;
+        setCollections(rows);
+        if (rows.length === 1) setSelectedId(rows[0]!.id);
+      })
+      .catch(() => !cancelled && setError("Could not load collections."))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleCreate() {
+    const name = newName.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const created = await createCollectionNamed(name);
+      setCollections((prev) =>
+        [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setSelectedId(created.id);
+      setNewName("");
+    } catch {
+      setError("Could not create that collection.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const noun = selectedCount === 1 ? "recipe" : "recipes";
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>
+            Add to collection —{" "}
+            <span className="text-muted-foreground font-normal">
+              {selectedCount} {noun}
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-3">
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          {loading ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            <div className="max-h-56 space-y-1 overflow-y-auto -mx-1 px-1">
+              {collections.map((col) => {
+                const active = selectedId === col.id;
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => setSelectedId(col.id)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors text-left",
+                      active
+                        ? "border-primary bg-primary/10 text-primary font-medium"
+                        : "border-border bg-background hover:bg-muted"
+                    )}
+                  >
+                    <span className="leading-none">{col.icon ?? "📁"}</span>
+                    <span className="flex-1 truncate">{col.name}</span>
+                    {active && <Check className="h-4 w-4 shrink-0" />}
+                  </button>
+                );
+              })}
+              {collections.length === 0 && (
+                <p className="py-2 text-center text-sm text-muted-foreground">
+                  No collections yet — create one below.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Create a new collection inline */}
+          <div className="flex items-center gap-2">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="New collection name…"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleCreate();
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCreate()}
+              disabled={!newName.trim() || creating}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Move vs add */}
+          <label className="flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5">
+            <span className="text-sm">
+              Move here
+              <span className="block text-xs text-muted-foreground">
+                Removes {selectedCount === 1 ? "it" : "them"} from other collections
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={move}
+              onChange={(e) => setMove(e.target.checked)}
+              className="h-4 w-4 accent-[hsl(var(--primary))]"
+            />
+          </label>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onConfirm(selectedId, move)}
+            disabled={pending || !selectedId}
+          >
+            {pending
+              ? "Saving…"
+              : move
+              ? `Move ${selectedCount} ${noun}`
+              : `Add ${selectedCount} ${noun}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main grid ────────────────────────────────────────────────────────────────
 
 interface RecipesGridProps {
@@ -359,6 +533,7 @@ export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialogMode, setDialogMode] = useState<"add" | "remove" | null>(null);
+  const [collectionDialogOpen, setCollectionDialogOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function toggleSelection(id: string) {
@@ -385,6 +560,16 @@ export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
       if (dialogMode === "add") await bulkAddTags(ids, tags);
       else if (dialogMode === "remove") await bulkRemoveTags(ids, tags);
       setDialogMode(null);
+      exitSelectionMode();
+    });
+  }
+
+  function handleConfirmCollection(collectionId: string, move: boolean) {
+    if (!collectionId) return;
+    const ids = Array.from(selectedIds);
+    startTransition(async () => {
+      await bulkAddToCollection(ids, collectionId, { move });
+      setCollectionDialogOpen(false);
       exitSelectionMode();
     });
   }
@@ -442,27 +627,38 @@ export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
 
       {/* Floating bulk action bar */}
       {selectionMode && selectedCount > 0 && (
-        <div className="fixed bottom-16 lg:bottom-4 left-4 right-4 z-50 flex items-center gap-3 rounded-2xl bg-foreground text-background px-4 py-3 shadow-xl">
-          <span className="text-sm font-semibold mr-auto">
-            {selectedCount} {selectedCount === 1 ? "recipe" : "recipes"}
-          </span>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="bg-white/15 text-background border-white/20 hover:bg-white/25"
-            onClick={() => setDialogMode("remove")}
-          >
-            <Minus className="mr-1.5 h-4 w-4" />
-            Remove tags
-          </Button>
-          <Button
-            size="sm"
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={() => setDialogMode("add")}
-          >
-            <Tag className="mr-1.5 h-4 w-4" />
-            Add tags
-          </Button>
+        <div className="fixed bottom-16 lg:bottom-4 left-4 right-4 z-50 rounded-2xl bg-foreground text-background px-4 py-3 shadow-xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-full text-sm font-semibold sm:w-auto sm:mr-auto">
+              {selectedCount} {selectedCount === 1 ? "recipe" : "recipes"}
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="bg-white/15 text-background border-white/20 hover:bg-white/25"
+              onClick={() => setDialogMode("remove")}
+            >
+              <Minus className="mr-1.5 h-4 w-4" />
+              Remove tags
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="bg-white/15 text-background border-white/20 hover:bg-white/25"
+              onClick={() => setDialogMode("add")}
+            >
+              <Tag className="mr-1.5 h-4 w-4" />
+              Add tags
+            </Button>
+            <Button
+              size="sm"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => setCollectionDialogOpen(true)}
+            >
+              <FolderPlus className="mr-1.5 h-4 w-4" />
+              Collection
+            </Button>
+          </div>
         </div>
       )}
 
@@ -475,6 +671,16 @@ export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
           selectedCount={selectedCount}
           onConfirm={handleConfirmTags}
           onClose={() => setDialogMode(null)}
+          pending={pending}
+        />
+      )}
+
+      {/* Collection dialog */}
+      {collectionDialogOpen && (
+        <BulkCollectionDialog
+          selectedCount={selectedCount}
+          onConfirm={handleConfirmCollection}
+          onClose={() => setCollectionDialogOpen(false)}
           pending={pending}
         />
       )}

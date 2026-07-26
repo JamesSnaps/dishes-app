@@ -6,6 +6,8 @@ import {
   recipeIngredients,
   recipeSteps,
   recipeTags,
+  collections,
+  recipeCollections,
 } from "@dishes/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -13,7 +15,7 @@ import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { MEAL_TYPES } from "@dishes/shared";
-import type { GeneratedRecipe } from "./ai";
+import { suggestCollectionForRecipe, type GeneratedRecipe } from "./ai";
 
 // Keep only valid, de-duplicated meal types. Returns null when nothing valid
 // (column nullable; null = "unknown / fits any slot").
@@ -167,6 +169,27 @@ async function insertTags(recipeId: string, tagsRaw: string) {
   await db.insert(recipeTags).values(tags.map((tag) => ({ recipeId, tag })));
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Optional collection link supplied by the form (e.g. an AI-suggested collection
+// the user kept). Silently ignores anything that isn't one of this household's
+// collections.
+async function linkCollection(recipeId: string, householdId: string, collectionId: string) {
+  const id = collectionId?.trim();
+  if (!id || !UUID_RE.test(id)) return;
+
+  const [owned] = await db
+    .select({ id: collections.id })
+    .from(collections)
+    .where(and(eq(collections.id, id), eq(collections.householdId, householdId)))
+    .limit(1);
+  if (!owned) return;
+
+  await db.insert(recipeCollections).values({ collectionId: id, recipeId }).onConflictDoNothing();
+  revalidatePath(`/collections/${id}`);
+  revalidatePath("/collections");
+}
+
 export async function createRecipe(formData: FormData) {
   const user = await getAutheliaUser();
   const { householdId, memberId } = await requireHousehold(user);
@@ -191,6 +214,7 @@ export async function createRecipe(formData: FormData) {
     insertIngredients(recipeId, ingredients),
     insertSteps(recipeId, steps),
     insertTags(recipeId, (formData.get("tags") as string) ?? ""),
+    linkCollection(recipeId, householdId, (formData.get("collectionId") as string) ?? ""),
   ]);
 
   redirect(`/recipes/${recipeId}`);
@@ -255,7 +279,7 @@ export async function deleteRecipe(recipeId: string) {
 
 export async function saveGeneratedRecipe(
   recipe: GeneratedRecipe
-): Promise<{ recipeId?: string; error?: string }> {
+): Promise<{ recipeId?: string; collectionName?: string; error?: string }> {
   try {
     const user = await getAutheliaUser();
     const { householdId, memberId } = await requireHousehold(user);
@@ -314,8 +338,20 @@ export async function saveGeneratedRecipe(
         : Promise.resolve(),
     ]);
 
+    // File it into an existing collection when the AI is confident it belongs
+    const suggestion = await suggestCollectionForRecipe({
+      title: recipe.title,
+      description: recipe.description,
+      cuisine: recipe.cuisine,
+      tags: recipe.tags,
+      mealTypes: recipe.mealTypes,
+    });
+    if (suggestion.collectionId) {
+      await linkCollection(newId, householdId, suggestion.collectionId);
+    }
+
     revalidatePath("/recipes");
-    return { recipeId: newId };
+    return { recipeId: newId, collectionName: suggestion.collectionName };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to save recipe." };
   }

@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { collections, recipeCollections, recipes } from "@dishes/db/schema";
-import { eq, and, ilike, sql as drizzleSql } from "drizzle-orm";
+import { eq, and, ilike, inArray, sql as drizzleSql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -159,8 +159,77 @@ export async function getHouseholdCollections() {
   const { householdId } = await requireHousehold(user);
 
   return db
-    .select({ id: collections.id, name: collections.name })
+    .select({ id: collections.id, name: collections.name, icon: collections.icon })
     .from(collections)
     .where(eq(collections.householdId, householdId))
     .orderBy(collections.name);
+}
+
+// Create a collection from a plain name (used by the bulk "add to collection"
+// flow, where there is no form to submit). Returns the new collection.
+export async function createCollectionNamed(
+  name: string,
+  icon?: string | null
+): Promise<{ id: string; name: string; icon: string | null }> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Collection name is required");
+
+  const [created] = await db
+    .insert(collections)
+    .values({ householdId, name: trimmed, icon: icon?.trim() || null })
+    .returning({ id: collections.id, name: collections.name, icon: collections.icon });
+
+  revalidatePath("/collections");
+  revalidatePath("/recipes");
+  return created!;
+}
+
+// Bulk add (or move) recipes into a collection. With `move`, the selected
+// recipes are first removed from every other collection so they end up only in
+// the target one.
+export async function bulkAddToCollection(
+  recipeIds: string[],
+  collectionId: string,
+  options?: { move?: boolean }
+): Promise<{ added: number }> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  if (!recipeIds.length || !collectionId) return { added: 0 };
+
+  const [col] = await db
+    .select({ id: collections.id })
+    .from(collections)
+    .where(and(eq(collections.id, collectionId), eq(collections.householdId, householdId)))
+    .limit(1);
+  if (!col) throw new Error("Collection not found");
+
+  // Scope to recipes this household actually owns
+  const owned = await db
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.householdId, householdId), inArray(recipes.id, recipeIds)));
+  const ownedIds = owned.map((r) => r.id);
+  if (!ownedIds.length) return { added: 0 };
+
+  if (options?.move) {
+    await db
+      .delete(recipeCollections)
+      .where(inArray(recipeCollections.recipeId, ownedIds));
+  }
+
+  await db
+    .insert(recipeCollections)
+    .values(ownedIds.map((recipeId) => ({ collectionId, recipeId })))
+    .onConflictDoNothing();
+
+  revalidatePath("/recipes");
+  revalidatePath("/collections");
+  revalidatePath(`/collections/${collectionId}`);
+  for (const recipeId of ownedIds) revalidatePath(`/recipes/${recipeId}`);
+
+  return { added: ownedIds.length };
 }

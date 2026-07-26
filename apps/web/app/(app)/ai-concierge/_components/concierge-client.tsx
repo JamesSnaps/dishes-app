@@ -35,6 +35,7 @@ import { Button, Textarea, cn } from "@dishes/ui";
 import {
   generateConcepts,
   generateFullRecipe,
+  suggestCollectionForRecipe,
   generateMealPlanConcepts,
   type ConceptCard,
   type GeneratedRecipe,
@@ -192,6 +193,24 @@ function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
     servingsUnit: r.servingsUnit, tags: r.tags, notes: r.notes,
     ingredients: r.ingredients, steps: r.steps,
   };
+}
+
+// Form defaults plus the collection the AI thinks the recipe belongs in, so the
+// user sees (and can drop) the suggestion before saving.
+async function withSuggestedCollection(r: GeneratedRecipe): Promise<RecipeFormDefaults> {
+  const defaults = recipeToDefaults(r);
+  const suggestion = await suggestCollectionForRecipe({
+    title: r.title,
+    description: r.description,
+    cuisine: r.cuisine,
+    tags: r.tags,
+    mealTypes: r.mealTypes,
+  });
+  if (suggestion.collectionId) {
+    defaults.collectionId = suggestion.collectionId;
+    defaults.collectionName = suggestion.collectionName;
+  }
+  return defaults;
 }
 
 function getMondayOf(offset = 0): string {
@@ -405,6 +424,7 @@ type BatchItem = {
   concept: ConceptCard;
   status: "pending" | "generating" | "done" | "error";
   recipeId?: string;
+  collectionName?: string;
   error?: string;
 };
 
@@ -1208,7 +1228,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       startTransition(async () => {
         const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined);
         if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
-        const defaults = recipeToDefaults(result.recipe!);
+        const defaults = await withSuggestedCollection(result.recipe!);
         sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
         router.push("/recipes/new");
       });
@@ -1230,7 +1250,12 @@ function FindRecipeTab({ members }: { members: Member[] }) {
           if (saveResult.error) {
             updated[i] = { ...updated[i]!, status: "error", error: saveResult.error };
           } else {
-            updated[i] = { ...updated[i]!, status: "done", recipeId: saveResult.recipeId };
+            updated[i] = {
+              ...updated[i]!,
+              status: "done",
+              recipeId: saveResult.recipeId,
+              collectionName: saveResult.collectionName,
+            };
           }
           setBatchItems([...updated]);
         }
@@ -1253,7 +1278,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     startTransition(async () => {
       const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds), mealType || undefined);
       if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
-      const defaults = recipeToDefaults(result.recipe!);
+      const defaults = await withSuggestedCollection(result.recipe!);
       sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
       router.push("/recipes/new");
     });
@@ -1685,6 +1710,9 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                     <p className="text-sm font-medium leading-tight">{item.concept.title}</p>
                     {item.status === "generating" && (
                       <p className="text-xs text-muted-foreground">Writing ingredients and steps…</p>
+                    )}
+                    {item.status === "done" && item.collectionName && (
+                      <p className="text-xs text-muted-foreground">Filed in {item.collectionName}</p>
                     )}
                     {item.status === "error" && (
                       <p className="text-xs text-destructive">{item.error}</p>

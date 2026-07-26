@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback, type ReactNode } from "react";
-import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2, Layers, GripVertical } from "lucide-react";
+import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2, Layers, GripVertical, FolderPlus } from "lucide-react";
 import {
   DndContext,
   closestCorners,
@@ -107,6 +107,10 @@ export type RecipeFormDefaults = {
   ingredients?: FlatIngredient[];
   steps?: FlatStep[];
   tags?: string[];
+  // Collection the recipe will be filed into on save (AI suggestion on the
+  // create path — the user can drop it before saving).
+  collectionId?: string | null;
+  collectionName?: string | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -334,6 +338,8 @@ export function RecipeForm({
   );
   const [sourceUrl, setSourceUrl] = useState(defaults.sourceUrl ?? "");
   const [tags, setTags] = useState<string[]>(defaults.tags ?? []);
+  const [collectionId, setCollectionId] = useState(defaults.collectionId ?? "");
+  const collectionName = defaults.collectionName ?? "";
   const [tagInput, setTagInput] = useState("");
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
@@ -749,6 +755,7 @@ export function RecipeForm({
     formData.set("servingsUnit", servingsUnit);
     formData.set("sourceUrl", sourceUrl);
     formData.set("tags", tags.join(", "));
+    formData.set("collectionId", collectionId);
     formData.set("notes", notes);
     formData.set(
       "ingredients",
@@ -1483,6 +1490,28 @@ export function RecipeForm({
     </section>
   );
 
+  const collectionSection =
+    collectionId && collectionName ? (
+      <section className="space-y-2">
+        <Label className="text-base font-semibold">Collection</Label>
+        <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+          <FolderPlus className="h-4 w-4 shrink-0 text-primary" />
+          <p className="flex-1 text-sm">
+            Will be added to <span className="font-medium text-primary">{collectionName}</span>
+            <span className="block text-xs text-muted-foreground">Suggested by AI</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => setCollectionId("")}
+            className="rounded-full p-1 text-muted-foreground hover:bg-primary/10 hover:text-foreground"
+            aria-label={`Don't add to ${collectionName}`}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </section>
+    ) : null;
+
   const tagsSection = (
     <section className="space-y-2">
       <Label className="text-base font-semibold">Tags</Label>
@@ -1682,6 +1711,11 @@ export function RecipeForm({
         <div className="border-t border-border pt-6">
           {tagsSection}
         </div>
+        {collectionSection && (
+          <div className="border-t border-border pt-6">
+            {collectionSection}
+          </div>
+        )}
       </div>
 
       {/* ── Submit (mobile only — desktop uses header buttons) ── */}

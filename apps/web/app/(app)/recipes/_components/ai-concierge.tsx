@@ -18,6 +18,7 @@ import {
 import {
   generateConcepts,
   generateFullRecipe,
+  suggestCollectionForRecipe,
   type ConceptCard,
   type GeneratedRecipe,
 } from "@/app/actions/ai";
@@ -58,6 +59,26 @@ function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
     sugarG: r.nutrition?.sugarG == null ? null : String(r.nutrition.sugarG),
     sodiumMg: r.nutrition?.sodiumMg == null ? null : String(r.nutrition.sodiumMg),
   };
+}
+
+// Form defaults plus the collection the AI thinks the recipe belongs in, so the
+// user sees (and can drop) the suggestion before saving.
+async function recipeToDefaultsWithCollection(
+  r: GeneratedRecipe
+): Promise<RecipeFormDefaults> {
+  const defaults = recipeToDefaults(r);
+  const suggestion = await suggestCollectionForRecipe({
+    title: r.title,
+    description: r.description,
+    cuisine: r.cuisine,
+    tags: r.tags,
+    mealTypes: r.mealTypes,
+  });
+  if (suggestion.collectionId) {
+    defaults.collectionId = suggestion.collectionId;
+    defaults.collectionName = suggestion.collectionName;
+  }
+  return defaults;
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -179,6 +200,7 @@ type BatchItem = {
   concept: ConceptCard;
   status: "pending" | "generating" | "done" | "error";
   recipeId?: string;
+  collectionName?: string;
   error?: string;
 };
 
@@ -266,8 +288,9 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
         setStep("prompt");
         return;
       }
+      const defaults = await recipeToDefaultsWithCollection(result.recipe!);
       setOpen(false);
-      onRecipeGenerated(recipeToDefaults(result.recipe!));
+      onRecipeGenerated(defaults);
     });
   }
 
@@ -294,8 +317,9 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
           setStep("concepts");
           return;
         }
+        const defaults = await recipeToDefaultsWithCollection(result.recipe!);
         setOpen(false);
-        onRecipeGenerated(recipeToDefaults(result.recipe!));
+        onRecipeGenerated(defaults);
       });
     } else {
       const items: BatchItem[] = chosenConcepts.map((c) => ({
@@ -327,7 +351,12 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
           if (saveResult.error) {
             updated[i] = { ...updated[i]!, status: "error", error: saveResult.error };
           } else {
-            updated[i] = { ...updated[i]!, status: "done", recipeId: saveResult.recipeId };
+            updated[i] = {
+              ...updated[i]!,
+              status: "done",
+              recipeId: saveResult.recipeId,
+              collectionName: saveResult.collectionName,
+            };
           }
           setBatchItems([...updated]);
         }
@@ -631,6 +660,11 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                       {item.status === "generating" && (
                         <p className="text-xs text-muted-foreground">
                           Writing ingredients and steps…
+                        </p>
+                      )}
+                      {item.status === "done" && item.collectionName && (
+                        <p className="text-xs text-muted-foreground">
+                          Filed in {item.collectionName}
                         </p>
                       )}
                       {item.status === "error" && (

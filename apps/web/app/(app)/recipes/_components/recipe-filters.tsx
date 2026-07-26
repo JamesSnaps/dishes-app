@@ -25,6 +25,9 @@ const DIFFICULTY_OPTIONS = [
   { label: "Hard", value: "hard" },
 ];
 
+// Above this many household tags the filter sheet shows a search box
+const TAG_SEARCH_THRESHOLD = 12;
+
 function pill(active: boolean) {
   return `rounded-full px-3 py-1 text-xs font-medium transition-colors ${
     active
@@ -94,6 +97,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
 
   const [showAllTags, setShowAllTags] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
   const [pendingCuisine, setPendingCuisine] = useState(cuisine);
   const [pendingFavourites, setPendingFavourites] = useState(favourites === "1");
   const [pendingDifficulty, setPendingDifficulty] = useState(difficulty);
@@ -117,6 +121,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     setPendingMaxTime(maxTime);
     setPendingTags(activeTags);
     setPendingSort(sort);
+    setTagSearch("");
     setSheetOpen(true);
   }
 
@@ -176,6 +181,13 @@ export function RecipeFilters({ cuisines, tags }: Props) {
 
   const hasActiveFilters = !!(q || cuisine || favourites || difficulty || maxTime || activeTags.length || sort !== "newest");
 
+  // Sheet tag list: selected tags first, then the rest, narrowed by the search box
+  const normalizedTagSearch = tagSearch.trim().toLowerCase();
+  const visibleTags = [
+    ...tags.filter((t) => pendingTags.includes(t)),
+    ...tags.filter((t) => !pendingTags.includes(t)),
+  ].filter((t) => !normalizedTagSearch || t.toLowerCase().includes(normalizedTagSearch));
+
   return (
     <div className="mb-6 space-y-3">
       {/* Search row */}
@@ -218,8 +230,8 @@ export function RecipeFilters({ cuisines, tags }: Props) {
             </button>
           </SheetTrigger>
 
-          <SheetContent className="pb-safe overflow-y-auto">
-            <SheetHeader>
+          <SheetContent className="flex max-h-[85dvh] flex-col p-0">
+            <SheetHeader className="shrink-0 border-b px-4 py-3">
               <div className="flex items-center justify-between pr-8">
                 <SheetTitle>Filter Recipes</SheetTitle>
                 {pendingFilterCount > 0 && (
@@ -234,7 +246,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
               </div>
             </SheetHeader>
 
-            <div className="space-y-5 p-4">
+            <div className="flex-1 space-y-5 overflow-y-auto p-4">
               {/* Sort */}
               <div>
                 <p className="mb-2.5 text-sm font-medium">Sort by</p>
@@ -305,7 +317,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
               {cuisines.length > 0 && (
                 <div>
                   <p className="mb-2.5 text-sm font-medium">Cuisine</p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto">
                     {cuisines.map((c) => (
                       <button
                         key={c}
@@ -322,9 +334,32 @@ export function RecipeFilters({ cuisines, tags }: Props) {
               {/* Tags */}
               {tags.length > 0 && (
                 <div>
-                  <p className="mb-2.5 text-sm font-medium">Tags</p>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((t) => (
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <p className="text-sm font-medium">Tags</p>
+                    {pendingTags.length > 0 && (
+                      <button
+                        onClick={() => setPendingTags([])}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Clear {pendingTags.length}
+                      </button>
+                    )}
+                  </div>
+
+                  {tags.length > TAG_SEARCH_THRESHOLD && (
+                    <div className="relative mb-2.5">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={tagSearch}
+                        onChange={(e) => setTagSearch(e.target.value)}
+                        placeholder="Search tags…"
+                        className="h-9 border-0 bg-muted pl-9 text-sm focus-visible:ring-1"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex max-h-52 flex-wrap gap-2 overflow-y-auto">
+                    {visibleTags.map((t) => (
                       <button
                         key={t}
                         onClick={() => togglePendingTag(t)}
@@ -333,15 +368,24 @@ export function RecipeFilters({ cuisines, tags }: Props) {
                         {t}
                       </button>
                     ))}
+                    {visibleTags.length === 0 && (
+                      <p className="py-2 text-sm text-muted-foreground">No matching tags.</p>
+                    )}
                   </div>
                 </div>
               )}
+            </div>
 
+            {/* Sticky apply bar — always reachable however many tags there are */}
+            <div className="shrink-0 border-t bg-background p-4 pb-safe-bottom">
               <button
                 onClick={applyFilters}
-                className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
               >
                 Show Recipes
+                {pendingFilterCount > 0 && (
+                  <span className="ml-1.5 opacity-80">({pendingFilterCount})</span>
+                )}
               </button>
             </div>
           </SheetContent>

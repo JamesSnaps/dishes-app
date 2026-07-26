@@ -3,7 +3,7 @@
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { aiConfigurations, recipes, recipeIngredients, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles } from "@dishes/db/schema";
+import { aiConfigurations, recipes, recipeIngredients, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles, collections } from "@dishes/db/schema";
 import { eq, and, count, max, lte, avg, inArray, isNull } from "drizzle-orm";
 import { MEAL_TYPES } from "@dishes/shared";
 import { decrypt } from "@/lib/crypto";
@@ -541,6 +541,91 @@ Base your estimate on standard food composition data. Measurement system: ${meas
     return { nutrition };
   } catch (err) {
     return { error: classifyError(err) };
+  }
+}
+
+// ── Suggest an existing collection for a recipe ────────────────────────────────
+// Best-effort classification: given the household's existing collections, pick
+// the one a new recipe clearly belongs in — or none. Never creates collections,
+// never throws: callers treat an empty result as "leave it uncategorised".
+
+export type CollectionSuggestion = {
+  collectionId?: string;
+  collectionName?: string;
+  collectionIcon?: string | null;
+};
+
+export async function suggestCollectionForRecipe(input: {
+  title: string;
+  description?: string | null;
+  cuisine?: string | null;
+  tags?: string[];
+  mealTypes?: string[] | null;
+}): Promise<CollectionSuggestion> {
+  try {
+    if (!input.title?.trim()) return {};
+
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+
+    const existing = await db
+      .select({
+        id: collections.id,
+        name: collections.name,
+        icon: collections.icon,
+        description: collections.description,
+      })
+      .from(collections)
+      .where(eq(collections.householdId, householdId))
+      .orderBy(collections.name);
+
+    if (existing.length === 0) return {};
+
+    const { client, model } = await getOpenAiClient(householdId);
+
+    const collectionList = existing
+      .map((c) => `- ${c.name}${c.description?.trim() ? `: ${c.description.trim()}` : ""}`)
+      .join("\n");
+
+    const recipeLines = [
+      `Title: ${input.title}`,
+      input.description?.trim() ? `Description: ${input.description.trim()}` : null,
+      input.cuisine?.trim() ? `Cuisine: ${input.cuisine.trim()}` : null,
+      input.mealTypes?.length ? `Meal types: ${input.mealTypes.join(", ")}` : null,
+      input.tags?.length ? `Tags: ${input.tags.join(", ")}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      ...maxTokensParam(model, 120),
+      messages: [
+        {
+          role: "system",
+          content: `You file new recipes into a family's existing recipe collections. Return JSON: {"collection": "<exact collection name>"} or {"collection": null}.
+Choose a collection ONLY when the recipe clearly and obviously belongs in it, judging by the collection's name and description. If no collection is a clear fit, return null — leaving a recipe uncategorised is far better than filing it in the wrong place. Never invent a collection name; the value must match one of the listed names exactly, character for character.`,
+        },
+        {
+          role: "user",
+          content: `Existing collections:\n${collectionList}\n\nNew recipe:\n${recipeLines}\n\nWhich collection does this recipe belong in?`,
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const parsed = JSON.parse(raw) as { collection?: string | null };
+    const picked = typeof parsed.collection === "string" ? parsed.collection.trim().toLowerCase() : "";
+    if (!picked) return {};
+
+    const match = existing.find((c) => c.name.trim().toLowerCase() === picked);
+    if (!match) return {};
+
+    return { collectionId: match.id, collectionName: match.name, collectionIcon: match.icon };
+  } catch {
+    // Filing is a nicety — never let it break recipe generation or saving.
+    return {};
   }
 }
 

@@ -106,6 +106,9 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 ## Personal / Library Features
 - [x] Favourites page (`/favourites`) — filtered grid of favourited recipes
 - [x] Collections (`/collections`) — create named collections, add recipes via actions menu or search dialog on collection page; collections strip on recipe list
+- [x] Bulk "add to collection" from the recipes grid — multi-select recipes, pick or create a collection, optional "Move here" to clear other collections first (v0.50.0)
+- [x] AI auto-filing — generated recipes are placed into an existing collection when one clearly fits (`suggestCollectionForRecipe`); shown in the batch results and as a dismissible suggestion on the recipe form (v0.50.0)
+- [x] Fix: mobile recipe filter sheet overflowed the viewport with a large tag list — sheet is now capped at 85dvh with a scrollable body, sticky apply bar, and a tag search box (v0.50.0)
 - [x] My Notes (`/notes`) — standalone notes or linked to a specific recipe; linked notes appear on recipe detail page
 - [x] Nutrition — per-serving calories + macros (protein/carbs/fat/fibre/sugar/sodium) on recipes; AI auto-fills on generate/edit, on-demand "Estimate nutrition" backfill, manual entry; calorie target in concierge + max-calories-per-meal in planner; calories exposed on integrations `today`/`week` and `meal-plan/generate`
 - [x] Recipe meal-type tagging (`recipes.meal_types`) — AI fills it on generate/edit/scan, editable in the recipe form, admin AI backfill for the existing library; the weekly planner matches library recipes to slots by meal type (and hard-rejects mismatches) so breakfast slots stop getting dinner dishes
