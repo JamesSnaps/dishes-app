@@ -34,9 +34,18 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Input,
+  ToastAction,
 } from "@dishes/ui";
-import { removeMealEntry, moveMealEntry, changeMealEntryType, addMealEntryToShoppingList, updateMealEntryServings } from "@/app/actions/meal-plan";
+import {
+  removeMealEntry,
+  moveMealEntry,
+  changeMealEntryType,
+  addMealEntryToShoppingList,
+  updateMealEntryServings,
+  type ShoppingAddResult,
+} from "@/app/actions/meal-plan";
 import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
+import { useToast } from "@/hooks/use-toast";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
@@ -113,10 +122,12 @@ interface Props {
 export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dragAttributes, isDragging }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const { toast } = useToast();
   const { recipe } = entry;
 
   const [servingsOpen, setServingsOpen] = useState(false);
   const [servingsInput, setServingsInput] = useState("");
+  const [skipResult, setSkipResult] = useState<ShoppingAddResult | null>(null);
 
   const totalTime = (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0);
 
@@ -139,10 +150,55 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
     startTransition(() => changeMealEntryType(entry.id, newType));
   }
 
+  function describeAdd(result: ShoppingAddResult): string {
+    const parts: string[] = [];
+    if (result.added > 0) parts.push(`${result.added} added`);
+    if (result.merged > 0) parts.push(`${result.merged} topped up`);
+    return parts.join(" · ");
+  }
+
   function handleAddToShopping() {
     startTransition(async () => {
-      await addMealEntryToShoppingList(entry.id);
+      const result = await addMealEntryToShoppingList(entry.id);
       notifyShoppingChanged();
+
+      // Nothing reached the list — that used to be indistinguishable from
+      // success, so explain it properly rather than in a toast that vanishes.
+      if (result.added + result.merged === 0 && result.skipped.length > 0) {
+        setSkipResult(result);
+        return;
+      }
+
+      toast({
+        title: "Added to shopping list",
+        description:
+          [describeAdd(result), result.skipped.length > 0 ? `${result.skipped.length} already in your pantry` : ""]
+            .filter(Boolean)
+            .join(" · ") || "Nothing to add — this recipe has no ingredients.",
+        action:
+          result.skipped.length > 0 ? (
+            <ToastAction
+              altText="Add the pantry-covered ingredients anyway"
+              onClick={() => handleAddAnyway(result.skipped)}
+            >
+              Add those too
+            </ToastAction>
+          ) : undefined,
+      });
+    });
+  }
+
+  function handleAddAnyway(names: string[]) {
+    setSkipResult(null);
+    startTransition(async () => {
+      const result = await addMealEntryToShoppingList(entry.id, {
+        forceInclude: names,
+      });
+      notifyShoppingChanged();
+      toast({
+        title: "Added to shopping list",
+        description: describeAdd(result) || "Nothing to add.",
+      });
     });
   }
 
@@ -339,6 +395,52 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
           </DropdownMenu>
         </div>
       </li>
+
+      <Dialog open={skipResult !== null} onOpenChange={(o) => !o && setSkipResult(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Nothing added — it&apos;s all in your pantry</DialogTitle>
+          </DialogHeader>
+          <div className="py-1 space-y-3">
+            <p className="text-sm text-muted-foreground line-clamp-1">{recipe.title}</p>
+            <div>
+              <p className="text-sm font-medium mb-2">
+                Every ingredient is a staple or already in stock:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {skipResult?.skipped.map((name) => (
+                  <span
+                    key={name}
+                    className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Stock is topped up when you archive a shopping list and only drawn down
+              when you finish a recipe in cooking mode, so it can drift. Adjust it on the{" "}
+              <button
+                type="button"
+                onClick={() => router.push("/pantry")}
+                className="font-medium text-foreground underline underline-offset-2"
+              >
+                pantry page
+              </button>
+              .
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" size="sm" onClick={() => setSkipResult(null)} className="mr-auto">
+              Leave them out
+            </Button>
+            <Button onClick={() => handleAddAnyway(skipResult?.skipped ?? [])}>
+              Add them anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={servingsOpen} onOpenChange={setServingsOpen}>
         <DialogContent className="sm:max-w-xs">

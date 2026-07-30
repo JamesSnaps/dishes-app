@@ -12,7 +12,7 @@ import {
   householdMembers,
 } from "@dishes/db/schema";
 import type { MealPlanSlot } from "./ai";
-import { eq, and, inArray, isNull, sql } from "drizzle-orm";
+import { eq, and, asc, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -311,9 +311,28 @@ export async function updateMealEntryServings(entryId: string, servings: number 
   revalidatePath("/meal-plan");
 }
 
-export async function addMealEntryToShoppingList(entryId: string) {
+/**
+ * Outcome of a shopping-list add. `skipped` names the ingredients the pantry
+ * already covers so the UI can say what happened instead of failing silently.
+ */
+export type ShoppingAddResult = {
+  added: number;
+  merged: number;
+  skipped: string[];
+};
+
+/**
+ * `forceInclude` names ingredients to add despite pantry coverage. When given,
+ * only those ingredients are processed — the rest already went on the list in
+ * the first pass, and re-running them would double their amounts.
+ */
+export async function addMealEntryToShoppingList(
+  entryId: string,
+  opts?: { forceInclude?: string[] }
+): Promise<ShoppingAddResult> {
   const user = await getAutheliaUser();
   const { householdId, memberId } = await requireHousehold(user);
+  const result: ShoppingAddResult = { added: 0, merged: 0, skipped: [] };
 
   const [entry] = await db
     .select({
@@ -333,7 +352,7 @@ export async function addMealEntryToShoppingList(entryId: string) {
     )
     .limit(1);
 
-  if (!entry) return;
+  if (!entry) return result;
 
   const ingredients = await db
     .select({
@@ -344,9 +363,12 @@ export async function addMealEntryToShoppingList(entryId: string) {
     .from(recipeIngredients)
     .where(eq(recipeIngredients.recipeId, entry.recipeId));
 
-  if (!ingredients.length) return;
+  if (!ingredients.length) return result;
 
   const exclusions = await getPantryExclusions(householdId);
+  const forceInclude = opts?.forceInclude?.length
+    ? new Set(opts.forceInclude.map((n) => n.toLowerCase().trim()))
+    : null;
 
   const baseServings = entry.baseServings ? parseFloat(entry.baseServings) : null;
   const entryServings = entry.entryServings ? parseFloat(entry.entryServings) : null;
@@ -359,6 +381,7 @@ export async function addMealEntryToShoppingList(entryId: string) {
     .select({ id: shoppingLists.id })
     .from(shoppingLists)
     .where(and(eq(shoppingLists.householdId, householdId), eq(shoppingLists.status, "active")))
+    .orderBy(asc(shoppingLists.createdAt))
     .limit(1);
 
   let listId: string;
@@ -395,8 +418,16 @@ export async function addMealEntryToShoppingList(entryId: string) {
     const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
     const isNumeric = !isNaN(rawNum);
 
-    // Skip staples and fully-stocked ingredients, matching generateFromRecipe
-    if (isCoveredByPantry(exclusions, ing.ingredientName, isNumeric ? rawNum * scale : null, ing.unit)) {
+    // On an override pass, touch only the named ingredients.
+    if (forceInclude && !forceInclude.has(normalName)) continue;
+
+    // Skip staples and fully-stocked ingredients, matching generateFromRecipe.
+    // Recorded (not silently dropped) so the caller can offer "add anyway".
+    if (
+      !forceInclude &&
+      isCoveredByPantry(exclusions, ing.ingredientName, isNumeric ? rawNum * scale : null, ing.unit)
+    ) {
+      result.skipped.push(ing.ingredientName);
       continue;
     }
 
@@ -422,6 +453,7 @@ export async function addMealEntryToShoppingList(entryId: string) {
         .insert(shoppingListItemRecipes)
         .values({ itemId: match.id, recipeId: entry.recipeId })
         .onConflictDoNothing();
+      result.merged++;
     } else {
       const [inserted] = await db
         .insert(shoppingListItems)
@@ -439,16 +471,24 @@ export async function addMealEntryToShoppingList(entryId: string) {
         .insert(shoppingListItemRecipes)
         .values({ itemId: inserted!.id, recipeId: entry.recipeId })
         .onConflictDoNothing();
+      result.added++;
     }
   }
 
-  await db
-    .update(mealPlanEntries)
-    .set({ addedToShoppingListAt: new Date() })
-    .where(eq(mealPlanEntries.id, entryId));
+  // Only flag the entry when something actually reached the list. Marking it
+  // after a whole-recipe pantry skip is what made this look like a silent
+  // failure: the badge said "On list" while the list was unchanged.
+  if (result.added + result.merged > 0) {
+    await db
+      .update(mealPlanEntries)
+      .set({ addedToShoppingListAt: new Date() })
+      .where(eq(mealPlanEntries.id, entryId));
+  }
 
   revalidatePath("/shopping");
   revalidatePath("/meal-plan");
+
+  return result;
 }
 
 export async function getWeekMealSlots(weekStartDate: string): Promise<{ dayOfWeek: number; mealType: string; recipeTitle: string }[]> {
@@ -469,9 +509,13 @@ export async function getWeekMealSlots(weekStartDate: string): Promise<{ dayOfWe
   return rows;
 }
 
-export async function generateShoppingFromWeek(mealPlanId: string) {
+export async function generateShoppingFromWeek(
+  mealPlanId: string,
+  opts?: { forceInclude?: string[] }
+): Promise<ShoppingAddResult> {
   const user = await getAutheliaUser();
   const { householdId, memberId } = await requireHousehold(user);
+  const result: ShoppingAddResult = { added: 0, merged: 0, skipped: [] };
 
   const [plan] = await db
     .select({ id: mealPlans.id })
@@ -487,7 +531,9 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
   if (!plan) throw new Error("Meal plan not found");
 
   // Only entries not yet added — re-generating must not duplicate meals that
-  // are already on the list (their per-entry "Add again" covers deliberate re-adds)
+  // are already on the list (their per-entry "Add again" covers deliberate
+  // re-adds). An override pass ignores the flag: the first pass just set it,
+  // and the skipped ingredients still need to come from the same entries.
   const entries = await db
     .select({
       recipeId: mealPlanEntries.recipeId,
@@ -495,13 +541,15 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
     })
     .from(mealPlanEntries)
     .where(
-      and(
-        eq(mealPlanEntries.mealPlanId, mealPlanId),
-        isNull(mealPlanEntries.addedToShoppingListAt)
-      )
+      opts?.forceInclude?.length
+        ? eq(mealPlanEntries.mealPlanId, mealPlanId)
+        : and(
+            eq(mealPlanEntries.mealPlanId, mealPlanId),
+            isNull(mealPlanEntries.addedToShoppingListAt)
+          )
     );
 
-  if (!entries.length) return;
+  if (!entries.length) return result;
 
   const recipeIds = [...new Set(entries.map((e) => e.recipeId))];
 
@@ -587,6 +635,7 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
         eq(shoppingLists.status, "active")
       )
     )
+    .orderBy(asc(shoppingLists.createdAt))
     .limit(1);
 
   let listId: string;
@@ -622,14 +671,24 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
   let posCounter = maxPos + 1;
 
   const exclusions = await getPantryExclusions(householdId);
+  const forceInclude = opts?.forceInclude?.length
+    ? new Set(opts.forceInclude.map((n) => n.toLowerCase().trim()))
+    : null;
 
   for (const [key, total] of totals) {
     const ingredientName = nameMap.get(key) ?? key.split("||")[0]!;
     const normalName = ingredientName.toLowerCase().trim();
 
+    // On an override pass, touch only the named ingredients.
+    if (forceInclude && !forceInclude.has(normalName)) continue;
+
     // Skip staples and ingredients the pantry stock already covers for the
     // whole week's aggregated amount, matching generateFromRecipe
-    if (isCoveredByPantry(exclusions, ingredientName, total.amount, total.unit)) {
+    if (
+      !forceInclude &&
+      isCoveredByPantry(exclusions, ingredientName, total.amount, total.unit)
+    ) {
+      result.skipped.push(ingredientName);
       continue;
     }
     const match = existingItems.find(
@@ -658,6 +717,7 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
         .insert(shoppingListItemRecipes)
         .values(sourceRows.map((r) => ({ ...r, itemId: match.id })))
         .onConflictDoNothing();
+      result.merged++;
     } else {
       const [inserted] = await db
         .insert(shoppingListItems)
@@ -675,29 +735,38 @@ export async function generateShoppingFromWeek(mealPlanId: string) {
         .insert(shoppingListItemRecipes)
         .values(sourceRows.map((r) => ({ ...r, itemId: inserted!.id })))
         .onConflictDoNothing();
+      result.added++;
     }
   }
 
-  await db
-    .update(mealPlanEntries)
-    .set({ addedToShoppingListAt: new Date() })
-    .where(
-      and(
-        eq(mealPlanEntries.mealPlanId, mealPlanId),
-        isNull(mealPlanEntries.addedToShoppingListAt)
-      )
-    );
+  // As with the single-entry add: don't claim the week is on the list when the
+  // pantry swallowed every ingredient.
+  if (result.added + result.merged > 0) {
+    await db
+      .update(mealPlanEntries)
+      .set({ addedToShoppingListAt: new Date() })
+      .where(
+        and(
+          eq(mealPlanEntries.mealPlanId, mealPlanId),
+          isNull(mealPlanEntries.addedToShoppingListAt)
+        )
+      );
+  }
 
   revalidatePath("/shopping");
   revalidatePath("/meal-plan");
 
-  await notifyHousehold(
-    householdId,
-    {
-      title: "🛒 Shopping list ready",
-      body: `${user.displayName} generated this week's shopping list`,
-      url: "/shopping",
-    },
-    { excludeAutheliaUser: user.username }
-  );
+  if (result.added + result.merged > 0) {
+    await notifyHousehold(
+      householdId,
+      {
+        title: "🛒 Shopping list ready",
+        body: `${user.displayName} generated this week's shopping list`,
+        url: "/shopping",
+      },
+      { excludeAutheliaUser: user.username }
+    );
+  }
+
+  return result;
 }

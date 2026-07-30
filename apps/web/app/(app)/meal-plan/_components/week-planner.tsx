@@ -28,9 +28,14 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { Button } from "@dishes/ui";
-import { generateShoppingFromWeek, moveMealEntry } from "@/app/actions/meal-plan";
+import { Button, ToastAction } from "@dishes/ui";
+import {
+  generateShoppingFromWeek,
+  moveMealEntry,
+  type ShoppingAddResult,
+} from "@/app/actions/meal-plan";
 import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
+import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { EntryCard } from "./entry-card";
 
@@ -511,6 +516,7 @@ export function WeekPlanner({
   shoppingItemCount,
 }: Props) {
   const router = useRouter();
+  const { toast } = useToast();
   const contentRef = useRef<HTMLDivElement>(null);
   const isFirstMount = useRef(true);
   const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -673,11 +679,52 @@ export function WeekPlanner({
   const selectedDayLabel = formatDayHeading(weekStartDate, selectedDay);
   const isToday = isCurrentWeek && todayDayIndex === selectedDay;
 
+  // Report what actually reached the list. A week whose ingredients are all
+  // covered by the pantry used to look identical to a successful generation.
+  function reportShoppingResult(result: ShoppingAddResult) {
+    const parts: string[] = [];
+    if (result.added > 0) parts.push(`${result.added} added`);
+    if (result.merged > 0) parts.push(`${result.merged} topped up`);
+    if (result.skipped.length > 0) {
+      parts.push(`${result.skipped.length} already in your pantry`);
+    }
+
+    const landed = result.added + result.merged > 0;
+    toast({
+      title: landed ? "Shopping list updated" : "Nothing added — it's all in your pantry",
+      description: parts.join(" · ") || "This week's meals have no ingredients.",
+      action:
+        result.skipped.length > 0 ? (
+          <ToastAction
+            altText="Add the pantry-covered ingredients anyway"
+            onClick={() => handleForceShopping(result.skipped)}
+          >
+            Add anyway
+          </ToastAction>
+        ) : undefined,
+    });
+  }
+
   function handleGenerateShopping() {
     if (!planId) return;
     startShoppingTransition(async () => {
-      await generateShoppingFromWeek(planId);
+      const result = await generateShoppingFromWeek(planId);
       notifyShoppingChanged();
+      reportShoppingResult(result);
+    });
+  }
+
+  function handleForceShopping(names: string[]) {
+    if (!planId) return;
+    startShoppingTransition(async () => {
+      const result = await generateShoppingFromWeek(planId, { forceInclude: names });
+      notifyShoppingChanged();
+      toast({
+        title: "Added to shopping list",
+        description: `${result.added + result.merged} pantry ingredient${
+          result.added + result.merged === 1 ? "" : "s"
+        } added anyway`,
+      });
     });
   }
 
