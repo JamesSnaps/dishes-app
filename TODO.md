@@ -37,6 +37,8 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Ingredient highlighting: active step cross-references ingredient IDs
 - [x] Wake lock API (prevents screen sleep on mobile)
 - [x] Recipe scaling UI (change serving count → recalculate all amounts)
+- [x] Minimise cooking mode — persistent mini bar keeps the cook (step, servings, ticked ingredients, timers) alive while you use the rest of the app; timer alerts follow you app-wide
+- [x] Deadline-based timers — accurate through backgrounded tabs and page reloads; sessions restore from localStorage and expire after 12 hours
 
 ## Shopping Lists
 - [x] Shopping list page (`/shopping`) — active list with check-off items

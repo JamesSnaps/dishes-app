@@ -58,6 +58,14 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  /* Make room for the minimised cooking bar, which sits above the bottom nav.
+     Desktop is excluded — there the bar floats bottom-right, clear of content. */
+  @media (max-width: 1023px) {
+    body[data-cook-session] .pb-nav-safe {
+      padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
   /* Hide scrollbars while keeping scroll behaviour */
   .scrollbar-hide {
     scrollbar-width: none; /* Firefox */

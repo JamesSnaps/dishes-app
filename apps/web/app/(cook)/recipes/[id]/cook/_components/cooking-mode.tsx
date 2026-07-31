@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, startTransition } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from "react";
 import { saveCookAssistThread, deleteCookAssistThread } from "@/app/actions/cook-assist-threads";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Play,
   Pause,
   RotateCcw,
@@ -21,6 +23,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
+import {
+  formatTimer,
+  useCookSession,
+  useIsomorphicLayoutEffect,
+  type TimerState,
+} from "@/components/providers/cook-session-provider";
 import { CookDebrief } from "./cook-debrief";
 import { scaleAmount } from "@/lib/scale-ingredient";
 import type { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
@@ -52,52 +60,6 @@ function formatIngredientAmount(ing: Ingredient, scale: number): string {
   }
   if (ing.unit) parts.push(ing.unit);
   return parts.join(" ");
-}
-
-function formatTimer(totalSeconds: number): string {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-// ─── Timer sound ──────────────────────────────────────────────────────────────
-// Safari (especially iOS) only allows audio that originates from a user gesture.
-// We create/resume the AudioContext when a timer is started (a tap), which
-// unlocks it for the chime that plays later when the timer finishes.
-
-let audioCtx: AudioContext | null = null;
-
-function unlockAudio() {
-  if (typeof window === "undefined") return;
-  const Ctor =
-    window.AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Ctor) return;
-  if (!audioCtx) audioCtx = new Ctor();
-  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
-}
-
-function playChime() {
-  const ctx = audioCtx;
-  if (!ctx || ctx.state !== "running") return;
-  const start = ctx.currentTime + 0.05;
-  const notes = [880, 1174.66, 1567.98]; // A5 → D6 → G6, rising
-  for (let pass = 0; pass < 2; pass++) {
-    notes.forEach((freq, i) => {
-      const t = start + pass * 0.75 + i * 0.18;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.5, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + 0.6);
-    });
-  }
 }
 
 // ─── Q&A history ─────────────────────────────────────────────────────────────
@@ -156,19 +118,6 @@ function MarkdownContent({ text }: { text: string }) {
       })}
     </div>
   );
-}
-
-// ─── Timer state ──────────────────────────────────────────────────────────────
-
-interface TimerState {
-  remaining: number;
-  running: boolean;
-  done: boolean;
-  totalSeconds: number;
-  label: string | null;
-  stepNumber: number;
-  /** The instruction text of the step this timer belongs to, for context previews. */
-  preview: string;
 }
 
 // ─── Ingredient chip (inline in step text) ───────────────────────────────────
@@ -940,13 +889,63 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration, storageAvailable, initialServings, initialAssistThreads }: Props) {
-  const [stepIndex, setStepIndex] = useState(0);
+  const router = useRouter();
   const [isComplete, setIsComplete] = useState(false);
-  const cookStartRef = useRef<number>(Date.now());
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
-  const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   const originalServings = recipe.servings ? parseFloat(recipe.servings) : null;
-  const [currentServings, setCurrentServings] = useState(initialServings ?? originalServings ?? 4);
+  const defaultServings = initialServings ?? originalServings ?? 4;
+
+  // Step, servings, ticked ingredients and timers live in the session provider so
+  // they survive minimising — leaving this route no longer throws the cook away.
+  const {
+    session,
+    hydrated,
+    timers: sessionTimers,
+    startSession,
+    endSession,
+    setStepIndex,
+    setServings,
+    toggleIngredient: toggleSessionIngredient,
+    toggleTimer,
+    resetTimer,
+    dismissAlert,
+  } = useCookSession();
+
+  const active = session?.recipeId === recipe.id ? session : null;
+  const stepIndex = active ? Math.min(active.stepIndex, steps.length - 1) : 0;
+  const currentServings = active?.servings ?? defaultServings;
+  const finishedAlerts = active?.finishedAlerts ?? [];
+  const emptyTimers = useMemo(() => new Map<number, TimerState>(), []);
+  const timers = active ? sessionTimers : emptyTimers;
+  const checkedIngredients = useMemo(
+    () => new Set(active?.checkedIngredientIds ?? []),
+    [active]
+  );
+
+  // Claim the session for this recipe once storage has been read. Same recipe →
+  // resumes in place; a different one → replaces it.
+  useIsomorphicLayoutEffect(() => {
+    if (!hydrated || steps.length === 0) return;
+    startSession({
+      recipeId: recipe.id,
+      recipeTitle: recipe.title,
+      recipeImageUrl: recipe.imageUrl ?? null,
+      stepCount: steps.length,
+      servings: defaultServings,
+      timers: steps.flatMap((step, i) =>
+        step.durationMinutes
+          ? [{
+              stepIndex: i,
+              stepNumber: i + 1,
+              totalSeconds: step.durationMinutes * 60,
+              label: step.timerLabel ?? null,
+              preview: step.instruction,
+            }]
+          : []
+      ),
+    });
+  }, [hydrated, recipe.id, steps, defaultServings, recipe.title, recipe.imageUrl, startSession]);
+
   const [stepHistory, setStepHistory] = useState<Map<number, Array<{ id?: string; messages: Message[] }>>>(() => {
     const map = new Map<number, Array<{ id?: string; messages: Message[] }>>();
     for (const { id, stepNumber, messages } of initialAssistThreads ?? []) {
@@ -992,101 +991,6 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     latestThreadRef.current = thread;
   }, []);
 
-  // Global timer state — timers persist across step navigation
-  const [timers, setTimers] = useState<Map<number, TimerState>>(() => {
-    const map = new Map<number, TimerState>();
-    steps.forEach((step, i) => {
-      if (step.durationMinutes) {
-        const totalSeconds = step.durationMinutes * 60;
-        map.set(i, {
-          remaining: totalSeconds,
-          running: false,
-          done: false,
-          totalSeconds,
-          label: step.timerLabel ?? null,
-          stepNumber: i + 1,
-          preview: step.instruction,
-        });
-      }
-    });
-    return map;
-  });
-
-  // Step indices of timers that have finished but not yet been acknowledged.
-  // Drives the alert overlay and the repeating chime.
-  const [finishedAlerts, setFinishedAlerts] = useState<number[]>([]);
-
-  // Single interval ticks all running timers
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimers((prev) => {
-        let changed = false;
-        const next = new Map(prev);
-        for (const [idx, timer] of next) {
-          if (!timer.running || timer.done) continue;
-          changed = true;
-          if (timer.remaining <= 1) {
-            next.set(idx, { ...timer, remaining: 0, running: false, done: true });
-          } else {
-            next.set(idx, { ...timer, remaining: timer.remaining - 1 });
-          }
-        }
-        return changed ? next : prev;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Detect timers that just transitioned to done → raise an alert + vibrate
-  const prevDoneRef = useRef<Set<number>>(new Set());
-  useEffect(() => {
-    const doneNow = new Set([...timers].filter(([, t]) => t.done).map(([idx]) => idx));
-    const newlyDone = [...doneNow].filter((idx) => !prevDoneRef.current.has(idx));
-    prevDoneRef.current = doneNow;
-    if (newlyDone.length > 0) {
-      setFinishedAlerts((prev) => [...prev, ...newlyDone.filter((idx) => !prev.includes(idx))]);
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-        navigator.vibrate([300, 100, 300]);
-      }
-    }
-  }, [timers]);
-
-  // Chime immediately and then every few seconds while any alert is unacknowledged
-  useEffect(() => {
-    if (finishedAlerts.length === 0) return;
-    playChime();
-    const interval = setInterval(playChime, 6000);
-    return () => clearInterval(interval);
-  }, [finishedAlerts]);
-
-  const dismissAlert = useCallback((idx: number) => {
-    setFinishedAlerts((prev) => prev.filter((i) => i !== idx));
-  }, []);
-
-  const toggleTimer = useCallback((idx: number) => {
-    // Starting/pausing is a user gesture — Safari's chance to unlock audio
-    unlockAudio();
-    setTimers((prev) => {
-      const timer = prev.get(idx);
-      if (!timer || timer.done) return prev;
-      const next = new Map(prev);
-      next.set(idx, { ...timer, running: !timer.running });
-      return next;
-    });
-  }, []);
-
-  const resetTimer = useCallback((idx: number) => {
-    unlockAudio();
-    setFinishedAlerts((prev) => (prev.includes(idx) ? prev.filter((i) => i !== idx) : prev));
-    setTimers((prev) => {
-      const timer = prev.get(idx);
-      if (!timer) return prev;
-      const next = new Map(prev);
-      next.set(idx, { ...timer, remaining: timer.totalSeconds, running: false, done: false });
-      return next;
-    });
-  }, []);
-
   const scale = originalServings && originalServings > 0 ? currentServings / originalServings : 1;
   const currentStep = steps[stepIndex];
   const isFirst = stepIndex === 0;
@@ -1115,16 +1019,8 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     };
   }, []);
 
-  const goNext = useCallback(() => { if (!isLast) setStepIndex((i) => i + 1); }, [isLast]);
-  const goPrev = useCallback(() => { if (!isFirst) setStepIndex((i) => i - 1); }, [isFirst]);
-
-  const toggleIngredient = (id: string) => {
-    setCheckedIngredients((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  const goNext = useCallback(() => { if (!isLast) setStepIndex(stepIndex + 1); }, [isLast, stepIndex, setStepIndex]);
+  const goPrev = useCallback(() => { if (!isFirst) setStepIndex(stepIndex - 1); }, [isFirst, stepIndex, setStepIndex]);
 
   // Keyboard navigation — skip when a modal/dialog is open
   useEffect(() => {
@@ -1173,9 +1069,11 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
             if (latestThreadRef.current.length >= 2) {
               saveStepThread(stepIndex, latestThreadRef.current);
             }
-            const mins = Math.max(1, Math.round((Date.now() - cookStartRef.current) / 60000));
+            const startedAt = active?.startedAt ?? Date.now();
+            const mins = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
             setElapsedMinutes(mins);
             setIsComplete(true);
+            endSession();
           }}
           className="flex-1"
         >
@@ -1196,25 +1094,37 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="shrink-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="relative flex items-center px-4 py-3 h-14">
-          {/* Exit button — icon only on small screens, full label on sm+ */}
+          {/* Exit ends the cook for good — icon only on small screens, full label on sm+ */}
           <Button asChild variant="ghost" size="sm" className="-ml-2 shrink-0">
-            <Link href={`/recipes/${recipe.id}`}>
+            <Link href={`/recipes/${recipe.id}`} onClick={endSession}>
               <ChevronLeft className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">Exit Cooking Mode</span>
             </Link>
           </Button>
 
           {/* Title — absolutely centred so it's never pushed off-axis */}
-          <div className="absolute inset-x-0 flex flex-col items-center px-20 sm:px-40 pointer-events-none">
+          <div className="absolute inset-x-0 flex flex-col items-center px-28 sm:px-48 pointer-events-none">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Cooking Mode
             </p>
             <h1 className="text-sm font-semibold truncate w-full text-center">{recipe.title}</h1>
           </div>
 
-          <span className="ml-auto shrink-0 text-sm font-semibold tabular-nums">
-            {stepIndex + 1} / {steps.length}
-          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <span className="text-sm font-semibold tabular-nums">
+              {stepIndex + 1} / {steps.length}
+            </span>
+            {/* Minimise keeps the session (and its timers) alive in the mini bar */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/recipes/${recipe.id}`)}
+              title="Minimise — keep cooking in the background"
+            >
+              <ChevronDown className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Minimise</span>
+            </Button>
+          </div>
         </div>
 
         {/* Progress bar */}
@@ -1276,7 +1186,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     originalServings={recipe.servings}
                     servingsUnit={recipe.servingsUnit ?? null}
                     currentServings={currentServings}
-                    onChange={setCurrentServings}
+                    onChange={setServings}
                   />
                 </div>
               )}
@@ -1438,7 +1348,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                 originalServings={recipe.servings}
                 servingsUnit={recipe.servingsUnit ?? null}
                 currentServings={currentServings}
-                onChange={setCurrentServings}
+                onChange={setServings}
               />
             </div>
           )}
@@ -1465,7 +1375,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     }`}
                   >
                     <button
-                      onClick={() => toggleIngredient(ing.id)}
+                      onClick={() => toggleSessionIngredient(ing.id)}
                       className={`mt-0.5 shrink-0 transition-colors ${
                         isChecked
                           ? "text-green-500"

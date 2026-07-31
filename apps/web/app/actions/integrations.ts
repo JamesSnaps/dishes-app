@@ -7,9 +7,9 @@ import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { generateToken } from "@/lib/integration-auth";
+// Note: a "use server" module may only export async functions — no type
+// re-exports. Import TokenScope from "./integration-constants" directly.
 import { ALL_SCOPES } from "./integration-constants";
-
-export type { TokenScope } from "./integration-constants";
 
 export async function createIntegrationToken(formData: FormData) {
   const user = await getAutheliaUser();

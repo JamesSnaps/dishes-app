@@ -11,6 +11,7 @@ const API_ENDPOINTS = [
   { method: "GET", path: "/api/integrations/meal-plan/week", scope: "read:meal_plan", description: "Full week plan" },
   { method: "GET", path: "/api/integrations/shopping-list", scope: "read:shopping_list", description: "Active shopping list" },
   { method: "POST", path: "/api/integrations/shopping-list/items", scope: "write:shopping_list", description: "Add shopping items" },
+  { method: "POST", path: "/api/integrations/shopping-list/quick-add", scope: "write:shopping_list", description: "Add one item from plain text (Siri Shortcuts)" },
   { method: "POST", path: "/api/integrations/meal-plan/generate", scope: "write:meal_plan", description: "AI meal plan generation" },
 ];
 

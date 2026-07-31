@@ -4,6 +4,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/toaster";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 import { ChunkReloadGuard } from "@/components/chunk-reload-guard";
+import { CookSessionProvider } from "@/components/providers/cook-session-provider";
+import { CookMiniBar } from "@/components/cook-mini-bar";
 
 export const metadata: Metadata = {
   title: {
@@ -42,7 +44,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background antialiased">
         <ThemeProvider>
-          {children}
+          {/* Above the route tree so a cook survives navigating out of cooking mode */}
+          <CookSessionProvider>
+            {children}
+            <CookMiniBar />
+          </CookSessionProvider>
           <Toaster />
           <ServiceWorkerRegistrar />
           <ChunkReloadGuard />
