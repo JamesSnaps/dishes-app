@@ -1,6 +1,8 @@
 "use server";
 
 import OpenAI from "openai";
+import { zodResponseFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { aiConfigurations, recipes, recipeIngredients, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles, collections } from "@dishes/db/schema";
@@ -63,6 +65,57 @@ export type RecipeNutrition = {
   sugarG: number | null;
   sodiumMg: number | null;
 };
+
+const generatedRecipeSchema = z.object({
+  title: z.string().min(1),
+  description: z.string(),
+  cuisine: z.string(),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  prepTimeMinutes: z.number().int().nonnegative().nullable(),
+  cookTimeMinutes: z.number().int().nonnegative().nullable(),
+  servings: z.string().min(1),
+  servingsUnit: z.string().min(1),
+  mealTypes: z.array(z.enum(["breakfast", "lunch", "dinner", "dessert", "snack"])),
+  tags: z.array(z.string()),
+  ingredients: z
+    .array(
+      z
+        .object({
+          ingredientName: z.string().min(1),
+          amount: z.string(),
+          unit: z.string(),
+          preparation: z.string(),
+          isOptional: z.boolean(),
+          groupLabel: z.string(),
+        })
+        .strict()
+    )
+    .min(1),
+  steps: z
+    .array(
+      z
+        .object({
+          instruction: z.string().min(1),
+          durationMinutes: z.string(),
+          timerLabel: z.string(),
+          groupLabel: z.string(),
+        })
+        .strict()
+    )
+    .min(1),
+  notes: z.string().nullable(),
+  nutrition: z
+    .object({
+      calories: z.number().nonnegative(),
+      proteinG: z.number().nonnegative(),
+      carbsG: z.number().nonnegative(),
+      fatG: z.number().nonnegative(),
+      fiberG: z.number().nonnegative(),
+      sugarG: z.number().nonnegative(),
+      sodiumMg: z.number().nonnegative(),
+    })
+    .strict(),
+}).strict();
 
 // Shared prompt fragment for the meal-types array. Drives meal-plan slot
 // matching, so the model must be honest about which meals a dish actually suits.
@@ -132,7 +185,42 @@ function classifyError(err: unknown): string {
     return "OpenAI rate limit or quota exceeded. Try again shortly.";
   if (msg.includes("timeout") || msg.includes("ETIMEDOUT"))
     return "Request timed out. Try again.";
+  if (
+    msg.includes("Unexpected end of JSON input") ||
+    msg.includes("Unterminated string in JSON") ||
+    msg.includes("recipe response was cut off")
+  )
+    return "The AI response was cut off before the recipe finished. Please try again.";
   return `AI error: ${msg}`;
+}
+
+async function createStructuredRecipe(
+  client: OpenAI,
+  model: string,
+  messages: OpenAI.ChatCompletionMessageParam[]
+): Promise<GeneratedRecipe> {
+  // A detailed recipe can exceed the old 2,500-token ceiling. Start with enough
+  // room for a complete response, then retry once if the model still hits it.
+  for (const tokenBudget of [6000, 10000]) {
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: zodResponseFormat(generatedRecipeSchema, "generated_recipe"),
+      ...maxTokensParam(model, tokenBudget),
+      messages,
+    });
+
+    const choice = completion.choices[0];
+    if (choice?.finish_reason === "length") continue;
+    if (choice?.finish_reason === "content_filter")
+      throw new Error("The AI response was blocked by its content filter.");
+
+    const raw = choice?.message?.content;
+    if (!raw) throw new Error("The AI returned an empty recipe response.");
+
+    return generatedRecipeSchema.parse(JSON.parse(raw));
+  }
+
+  throw new Error("The recipe response was cut off after reaching the maximum output length.");
 }
 
 async function buildMemberConstraints(memberIds: string[], householdId: string): Promise<string> {
@@ -648,14 +736,10 @@ export async function generateFullRecipe(
 
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum + memberConstraints;
 
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: "json_object" },
-      ...maxTokensParam(model, 2500),
-      messages: [
-        {
-          role: "system",
-          content: `You are a chef writing detailed, family-friendly recipes. Return a complete recipe as JSON matching this exact schema:
+    const recipe = await createStructuredRecipe(client, model, [
+      {
+        role: "system",
+        content: `You are a chef writing detailed, family-friendly recipes. Return a complete recipe as JSON matching this exact schema:
 {
   "title": string,
   "description": string (2-3 sentences),
@@ -677,24 +761,12 @@ ${MEAL_TYPES_SCHEMA_FRAGMENT},
 ${NUTRITION_SCHEMA_FRAGMENT}
 }
 Use realistic quantities and clear step-by-step instructions. Use groupLabel on both ingredients and steps to group the related parts of a recipe that has genuinely distinct components or sub-recipes (e.g. "Granola" vs "Smoothie", or "Sauce", "Marinade") — use the SAME label for an ingredient group and its matching step group. For a simple single-component recipe leave every groupLabel as an empty string.${addendum}`,
-        },
-        {
-          role: "user",
-          content: `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}${targetCalories && targetCalories > 0 ? `\nCalorie target: aim for roughly ${targetCalories} kcal per serving — adjust quantities and ingredient choices to land near this.` : ""}`,
-        },
-      ],
-    });
-
-    const raw = completion.choices[0]?.message?.content ?? "";
-    const recipe = JSON.parse(raw) as GeneratedRecipe;
-
-    if (
-      !recipe.title ||
-      !Array.isArray(recipe.ingredients) ||
-      !Array.isArray(recipe.steps)
-    ) {
-      throw new Error("Incomplete recipe returned by AI.");
-    }
+      },
+      {
+        role: "user",
+        content: `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}${targetCalories && targetCalories > 0 ? `\nCalorie target: aim for roughly ${targetCalories} kcal per serving — adjust quantities and ingredient choices to land near this.` : ""}`,
+      },
+    ]);
 
     return { recipe };
   } catch (err) {

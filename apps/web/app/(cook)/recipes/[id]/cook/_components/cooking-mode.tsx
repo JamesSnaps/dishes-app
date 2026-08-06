@@ -923,9 +923,11 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   );
 
   // Claim the session for this recipe once storage has been read. Same recipe →
-  // resumes in place; a different one → replaces it.
+  // resumes in place; a different one → replaces it. Saving the post-cook
+  // review revalidates the recipe while this route is still mounted, so never
+  // let that refresh recreate the session after the user has pressed Done.
   useIsomorphicLayoutEffect(() => {
-    if (!hydrated || steps.length === 0) return;
+    if (!hydrated || steps.length === 0 || isComplete) return;
     startSession({
       recipeId: recipe.id,
       recipeTitle: recipe.title,
@@ -944,7 +946,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           : []
       ),
     });
-  }, [hydrated, recipe.id, steps, defaultServings, recipe.title, recipe.imageUrl, startSession]);
+  }, [hydrated, recipe.id, steps, defaultServings, recipe.title, recipe.imageUrl, startSession, isComplete]);
 
   const [stepHistory, setStepHistory] = useState<Map<number, Array<{ id?: string; messages: Message[] }>>>(() => {
     const map = new Map<number, Array<{ id?: string; messages: Message[] }>>();
