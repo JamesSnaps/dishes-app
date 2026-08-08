@@ -12,6 +12,7 @@ import {
   TouchSensor,
   KeyboardSensor,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -231,6 +232,23 @@ function moveRowAcrossSections<R extends { key: string }>(
   if (srcS === dstS && srcI < dstI) insertAt -= 1;
   next[dstS].rows.splice(insertAt, 0, moved);
   return next;
+}
+
+// Continuous 1..n numbering across all sections, keyed by row. Computed as
+// data rather than with a counter incremented during render — the section body
+// is a render prop that dnd-kit re-runs on every pointer move, so a shared
+// mutable counter would climb without bound while dragging.
+function numberRows<R extends { key: string }>(
+  sections: Section<R>[]
+): Map<string, number> {
+  const numbers = new Map<string, number>();
+  let n = 0;
+  for (const section of sections) {
+    for (const row of section.rows) {
+      numbers.set(row.key, ++n);
+    }
+  }
+  return numbers;
 }
 
 // A single draggable row. Renders a grip handle (the only drag affordance, so
@@ -775,6 +793,46 @@ export function RecipeForm({
     return arrayMove(sections, from, to);
   }
 
+  // Move a row into the section it is currently hovering over, mid-drag, so it
+  // visibly lands there instead of only jumping across on release. Reordering
+  // *within* a section is left to dnd-kit's own transforms until the drop.
+  function applyDragOver<R extends { key: string }>(
+    sections: Section<R>[],
+    activeId: string,
+    overId: string
+  ): Section<R>[] {
+    if (activeId.startsWith("sec:")) return sections;
+
+    const srcS = sections.findIndex((s) => s.rows.some((r) => r.key === activeId));
+    if (srcS === -1) return sections;
+
+    const dstS = overId.startsWith("sec:")
+      ? sections.findIndex((s) => sectionDropId(s.key) === overId)
+      : sections.findIndex((s) => s.rows.some((r) => r.key === overId));
+    if (dstS === -1 || dstS === srcS) return sections;
+
+    const next = sections.map((s) => ({ ...s, rows: [...s.rows] }));
+    const srcI = next[srcS].rows.findIndex((r) => r.key === activeId);
+    const [moved] = next[srcS].rows.splice(srcI, 1);
+    const overI = next[dstS].rows.findIndex((r) => r.key === overId);
+    next[dstS].rows.splice(overI === -1 ? next[dstS].rows.length : overI, 0, moved);
+    return next;
+  }
+
+  function handleIngredientDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    setIngredientSections((prev) =>
+      applyDragOver(prev, String(active.id), String(over.id))
+    );
+  }
+
+  function handleStepDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    setStepSections((prev) => applyDragOver(prev, String(active.id), String(over.id)));
+  }
+
   function handleIngredientDragEnd(event: DragEndEvent) {
     setActiveIngredientId(null);
     const { active, over } = event;
@@ -1240,6 +1298,7 @@ export function RecipeForm({
           collisionDetection={closestCorners}
           onDragStart={(e: DragStartEvent) => setActiveIngredientId(String(e.active.id))}
           onDragCancel={() => setActiveIngredientId(null)}
+          onDragOver={handleIngredientDragOver}
           onDragEnd={handleIngredientDragEnd}
         >
         <SortableContext
@@ -1247,7 +1306,7 @@ export function RecipeForm({
           strategy={verticalListSortingStrategy}
         >
         {(() => {
-          let counter = 0;
+          const numbers = numberRows(ingredientSections);
           return ingredientSections.map((section) => (
             <SortableSection
               key={section.key}
@@ -1290,14 +1349,13 @@ export function RecipeForm({
                 strategy={verticalListSortingStrategy}
               >
               {section.rows.map((row) => {
-                counter += 1;
                 return (
                   <SortableRow key={row.key} id={row.key}>
                   <div
                     className="grid grid-cols-[auto_1fr] gap-2 items-start"
                   >
                     <span className="flex h-9 w-5 items-center justify-center text-xs text-muted-foreground">
-                      {counter}
+                      {numbers.get(row.key)}
                     </span>
 
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_2fr_auto_auto]">
@@ -1430,6 +1488,7 @@ export function RecipeForm({
           collisionDetection={closestCorners}
           onDragStart={(e: DragStartEvent) => setActiveStepId(String(e.active.id))}
           onDragCancel={() => setActiveStepId(null)}
+          onDragOver={handleStepDragOver}
           onDragEnd={handleStepDragEnd}
         >
         <SortableContext
@@ -1437,7 +1496,7 @@ export function RecipeForm({
           strategy={verticalListSortingStrategy}
         >
         {(() => {
-          let counter = 0;
+          const numbers = numberRows(stepSections);
           return stepSections.map((section) => (
             <SortableSection
               key={section.key}
@@ -1480,12 +1539,11 @@ export function RecipeForm({
                 strategy={verticalListSortingStrategy}
               >
               {section.rows.map((row) => {
-                counter += 1;
                 return (
                   <SortableRow key={row.key} id={row.key}>
                   <div className="flex gap-2 items-start">
                     <span className="flex h-8 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                      {counter}
+                      {numbers.get(row.key)}
                     </span>
 
                     <div className="flex-1 space-y-1.5">
