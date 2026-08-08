@@ -53,6 +53,21 @@ interface Props {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// Group ingredients into contiguous runs sharing a section label, mirroring how
+// the editor stores them. A blank label means ungrouped.
+function groupIngredients(
+  items: Ingredient[]
+): { label: string | null; items: Ingredient[] }[] {
+  const groups: { label: string | null; items: Ingredient[] }[] = [];
+  for (const item of items) {
+    const label = item.groupLabel?.trim() || null;
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(item);
+    else groups.push({ label, items: [item] });
+  }
+  return groups;
+}
+
 function formatIngredientAmount(ing: Ingredient, scale: number): string {
   const parts: string[] = [];
   if (ing.amount) {
@@ -958,6 +973,29 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   const activeIngredientIds = new Set((currentStep?.ingredientIds as string[] | null) ?? []);
   const stepIngredients = ingredients.filter((ing) => activeIngredientIds.has(ing.id));
 
+  // ── Section awareness ───────────────────────────────────────────────────────
+  // When the method is split into sections ("For the sauce"), the ingredient
+  // lists and the in-step highlighting follow whichever section the current
+  // step belongs to, so a name that appears in two components resolves to the
+  // one you're actually making.
+  const ingredientGroups = groupIngredients(ingredients);
+  const currentSection = currentStep?.groupLabel?.trim() || null;
+  const sectionIngredients = currentSection
+    ? ingredients.filter((ing) => (ing.groupLabel?.trim() || null) === currentSection)
+    : [];
+  const hasCurrentSection = sectionIngredients.length > 0;
+
+  // Candidates for step-text matching: the current section's ingredients, plus
+  // any the step explicitly links to (those may legitimately live elsewhere).
+  const matchIngredients = hasCurrentSection
+    ? [
+        ...sectionIngredients,
+        ...stepIngredients.filter(
+          (ing) => !sectionIngredients.some((s) => s.id === ing.id)
+        ),
+      ]
+    : ingredients;
+
   // Wake lock — re-acquire when the tab regains visibility (browser drops it on hide)
   useEffect(() => {
     if (!("wakeLock" in navigator)) return;
@@ -1165,7 +1203,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     <div className="flex-1 min-w-0 pt-1 lg:pt-2">
                       <StepText
                         instruction={currentStep.instruction}
-                        ingredients={ingredients}
+                        ingredients={matchIngredients}
                         scale={scale}
                       />
                     </div>
@@ -1254,35 +1292,64 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                       </span>
                     )}
                   </summary>
-                  <ul className="space-y-1.5 px-4 pb-4 pt-2">
-                    {ingredients.map((ing) => {
-                      const isActive = activeIngredientIds.has(ing.id);
+                  <div className="space-y-3 px-4 pb-4 pt-2">
+                    {ingredientGroups.map((group, gi) => {
+                      // Sections other than the one you're cooking are pushed
+                      // back visually rather than hidden — still there if you
+                      // need to look ahead.
+                      const isOtherSection =
+                        hasCurrentSection && group.label !== currentSection;
                       return (
-                        <li
-                          key={ing.id}
-                          className={`flex items-baseline gap-2 text-sm transition-colors ${
-                            isActive ? "text-foreground font-medium" : "text-muted-foreground"
-                          }`}
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
-                              isActive ? "bg-orange-500" : "bg-muted-foreground/40"
-                            }`}
-                          />
-                          <span>
-                            {ing.amount && (
-                              <span className={isActive ? "font-semibold" : "font-medium"}>
-                                {scaleAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
-                              </span>
-                            )}
-                            {ing.ingredientName}
-                            {ing.preparation && ing.preparation.toLowerCase() !== "none" && <span>, {ing.preparation}</span>}
-                            {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
-                          </span>
-                        </li>
+                        <div key={gi} className={isOtherSection ? "opacity-50" : ""}>
+                          {group.label && (
+                            <p
+                              className={`mb-1.5 text-xs font-semibold uppercase tracking-wide ${
+                                group.label === currentSection
+                                  ? "text-orange-600 dark:text-orange-400"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              {group.label}
+                              {group.label === currentSection && (
+                                <span className="ml-1.5 font-normal normal-case">
+                                  · this section
+                                </span>
+                              )}
+                            </p>
+                          )}
+                          <ul className="space-y-1.5">
+                            {group.items.map((ing) => {
+                              const isActive = activeIngredientIds.has(ing.id);
+                              return (
+                                <li
+                                  key={ing.id}
+                                  className={`flex items-baseline gap-2 text-sm transition-colors ${
+                                    isActive ? "text-foreground font-medium" : "text-muted-foreground"
+                                  }`}
+                                >
+                                  <span
+                                    className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
+                                      isActive ? "bg-orange-500" : "bg-muted-foreground/40"
+                                    }`}
+                                  />
+                                  <span>
+                                    {ing.amount && (
+                                      <span className={isActive ? "font-semibold" : "font-medium"}>
+                                        {scaleAmount(ing.amount, scale)}{ing.unit ? ` ${ing.unit}` : ""}{" "}
+                                      </span>
+                                    )}
+                                    {ing.ingredientName}
+                                    {ing.preparation && ing.preparation.toLowerCase() !== "none" && <span>, {ing.preparation}</span>}
+                                    {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
                       );
                     })}
-                  </ul>
+                  </div>
                 </details>
               )}
 
@@ -1338,8 +1405,30 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                 </span>
               )}
             </p>
-            <ul className="space-y-2.5">
-              {ingredients.map((ing) => {
+            <div className="space-y-4">
+            {ingredientGroups.map((group, gi) => (
+              <div
+                key={gi}
+                className={
+                  hasCurrentSection && group.label !== currentSection ? "opacity-50" : ""
+                }
+              >
+                {group.label && (
+                  <p
+                    className={`mb-2 text-xs font-semibold uppercase tracking-wide ${
+                      group.label === currentSection
+                        ? "text-orange-600 dark:text-orange-400"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {group.label}
+                    {group.label === currentSection && (
+                      <span className="ml-1.5 font-normal normal-case">· this section</span>
+                    )}
+                  </p>
+                )}
+                <ul className="space-y-2.5">
+              {group.items.map((ing) => {
                 const isActive = activeIngredientIds.has(ing.id);
                 const isChecked = checkedIngredients.has(ing.id);
                 return (
@@ -1388,7 +1477,10 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                   </li>
                 );
               })}
-            </ul>
+                </ul>
+              </div>
+            ))}
+            </div>
           </div>
 
           {/* Active timers panel */}
