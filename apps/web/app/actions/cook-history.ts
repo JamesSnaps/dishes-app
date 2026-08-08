@@ -95,11 +95,13 @@ export async function rateRecipe(
 
   if (!recipe) throw new Error("Recipe not found");
 
+  // A rating given without cooking — kept out of the cook count.
   await db.insert(cookHistory).values({
     householdId,
     recipeId,
     rating: String(rating),
     notes: notes?.trim() || null,
+    source: "rating",
   });
 
   revalidatePath(`/recipes/${recipeId}`);
@@ -116,27 +118,80 @@ export async function getCookStats(
   recipeId: string,
   householdId: string
 ): Promise<CookStats> {
-  const [row] = await db
-    .select({
-      cookCount: count(cookHistory.id),
-      averageRating: avg(cookHistory.rating),
-    })
-    .from(cookHistory)
-    .where(
-      and(
-        eq(cookHistory.recipeId, recipeId),
-        eq(cookHistory.householdId, householdId)
-      )
-    );
+  const scope = and(
+    eq(cookHistory.recipeId, recipeId),
+    eq(cookHistory.householdId, householdId)
+  );
 
-  const rawAvg = row?.averageRating;
+  // The average rating spans every entry, but only actual cooks are counted
+  // as cooks — rating a recipe you haven't made shouldn't say you cooked it.
+  const [ratingRow, cookRow] = await Promise.all([
+    db
+      .select({ averageRating: avg(cookHistory.rating) })
+      .from(cookHistory)
+      .where(scope)
+      .then((r) => r[0]),
+    db
+      .select({ cookCount: count(cookHistory.id) })
+      .from(cookHistory)
+      .where(and(scope, eq(cookHistory.source, "cook")))
+      .then((r) => r[0]),
+  ]);
+
+  const rawAvg = ratingRow?.averageRating;
   return {
-    cookCount: Number(row?.cookCount ?? 0),
+    cookCount: Number(cookRow?.cookCount ?? 0),
     averageRating:
       rawAvg != null
         ? Math.round(parseFloat(rawAvg) * 10) / 10
         : null,
   };
+}
+
+export type RecipeCookStats = {
+  recipeId: string;
+  averageRating: number | null;
+  cookCount: number;
+};
+
+// Per-recipe stats for list pages. Same rule as getCookStats: ratings average
+// over every entry, but only 'cook' entries count as cooks.
+export async function getCookStatsByRecipe(
+  householdId: string
+): Promise<RecipeCookStats[]> {
+  const [ratingRows, cookRows] = await Promise.all([
+    db
+      .select({
+        recipeId: cookHistory.recipeId,
+        averageRating: avg(cookHistory.rating),
+      })
+      .from(cookHistory)
+      .where(eq(cookHistory.householdId, householdId))
+      .groupBy(cookHistory.recipeId),
+    db
+      .select({
+        recipeId: cookHistory.recipeId,
+        cookCount: count(cookHistory.id),
+      })
+      .from(cookHistory)
+      .where(
+        and(
+          eq(cookHistory.householdId, householdId),
+          eq(cookHistory.source, "cook")
+        )
+      )
+      .groupBy(cookHistory.recipeId),
+  ]);
+
+  const counts = new Map(cookRows.map((r) => [r.recipeId, Number(r.cookCount)]));
+  return ratingRows.map((r) => ({
+    recipeId: r.recipeId,
+    averageRating:
+      r.averageRating != null
+        ? Math.round(parseFloat(r.averageRating) * 10) / 10
+        : null,
+    cookCount: counts.get(r.recipeId) ?? 0,
+  }));
 }
 
 export type CookHistoryEntry = {
@@ -148,6 +203,8 @@ export type CookHistoryEntry = {
   occasion: string | null;
   cookedFor: string[] | null;
   photoUrl: string | null;
+  // 'cook' = a cook was logged; 'rating' = rated without cooking
+  source: string;
 };
 
 export async function getAverageDuration(
@@ -183,6 +240,7 @@ export async function getRecipeCookHistory(
       occasion: cookHistory.occasion,
       cookedFor: cookHistory.cookedFor,
       photoUrl: cookHistory.photoUrl,
+      source: cookHistory.source,
     })
     .from(cookHistory)
     .where(
@@ -227,6 +285,28 @@ export async function updateCookEntry(
       ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
       ...(data.occasion !== undefined ? { occasion: data.occasion?.trim() || null } : {}),
     })
+    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)));
+
+  revalidatePath(`/recipes/${row.recipeId}`);
+  revalidatePath("/recipes");
+  void refreshTasteProfile(householdId);
+}
+
+// Remove a single cook-history entry — for duplicates or a mis-logged cook.
+// Deleting an entry also removes its rating from the recipe average.
+export async function deleteCookEntry(cookId: string): Promise<void> {
+  const user = await getAutheliaUser();
+  const { householdId } = await requireHousehold(user);
+
+  const [row] = await db
+    .select({ recipeId: cookHistory.recipeId })
+    .from(cookHistory)
+    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)))
+    .limit(1);
+  if (!row) throw new Error("Cook record not found");
+
+  await db
+    .delete(cookHistory)
     .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)));
 
   revalidatePath(`/recipes/${row.recipeId}`);

@@ -91,6 +91,11 @@ function SimilarConceptCard({
 
 interface Props {
   recipeId: string;
+  // When driven from the AI menu the trigger button is hidden and open state
+  // is owned by the parent. Standalone use keeps its own button and state.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
 type Phase = "idle" | "loading-concepts" | "concepts" | "loading-recipe";
@@ -107,10 +112,17 @@ function useIsDesktop() {
   return isDesktop;
 }
 
-export function SimilarRecipesButton({ recipeId }: Props) {
+export function SimilarRecipesButton({
+  recipeId,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+}: Props) {
   const isDesktop = useIsDesktop();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [phase, setPhase] = useState<Phase>("idle");
   const [note, setNote] = useState("");
   const [concepts, setConcepts] = useState<ConceptCard[] | null>(null);
@@ -118,13 +130,18 @@ export function SimilarRecipesButton({ recipeId }: Props) {
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
   const [, startTransition] = useTransition();
 
-  function handleOpen() {
-    setOpen(true);
+  // Reset on every open, however it was opened (own button or the AI menu).
+  useEffect(() => {
+    if (!open) return;
     setPhase("idle");
     setNote("");
     setConcepts(null);
     setError(null);
     setGeneratingIdx(null);
+  }, [open]);
+
+  function handleOpen() {
+    setOpen(true);
   }
 
   function runGenerateConcepts(currentNote: string) {
@@ -163,10 +180,12 @@ export function SimilarRecipesButton({ recipeId }: Props) {
 
   return (
     <>
-      <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleOpen}>
-        <Sparkles className="mr-2 h-5 w-5" />
-        Find similar recipes
-      </Button>
+      {!hideTrigger && (
+        <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleOpen}>
+          <Sparkles className="mr-2 h-5 w-5" />
+          Find similar recipes
+        </Button>
+      )}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent

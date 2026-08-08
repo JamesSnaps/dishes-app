@@ -3,8 +3,9 @@ import { Suspense } from "react";
 import { Plus } from "lucide-react";
 import { FolderOpen } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes, cookHistory, recipeTags, collections, recipeCollections } from "@dishes/db/schema";
-import { eq, and, ilike, isNotNull, or, inArray, avg, count, sql, desc } from "drizzle-orm";
+import { recipes, recipeTags, collections, recipeCollections } from "@dishes/db/schema";
+import { getCookStatsByRecipe } from "@/app/actions/cook-history";
+import { eq, and, ilike, isNotNull, or, inArray, count, sql, desc } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
@@ -97,15 +98,7 @@ export default async function RecipesPage({ searchParams }: Props) {
         and(eq(recipes.householdId, householdId), isNotNull(recipes.cuisine))
       )
       .orderBy(recipes.cuisine),
-    db
-      .select({
-        recipeId: cookHistory.recipeId,
-        averageRating: avg(cookHistory.rating),
-        cookCount: count(cookHistory.id),
-      })
-      .from(cookHistory)
-      .where(eq(cookHistory.householdId, householdId))
-      .groupBy(cookHistory.recipeId),
+    getCookStatsByRecipe(householdId),
     db
       .selectDistinct({ tag: recipeTags.tag })
       .from(recipeTags)
@@ -129,13 +122,7 @@ export default async function RecipesPage({ searchParams }: Props) {
   const cookStatsByRecipe = new Map(
     cookStatsRows.map((r) => [
       r.recipeId,
-      {
-        averageRating:
-          r.averageRating != null
-            ? Math.round(parseFloat(r.averageRating) * 10) / 10
-            : null,
-        cookCount: Number(r.cookCount),
-      },
+      { averageRating: r.averageRating, cookCount: r.cookCount },
     ])
   );
 

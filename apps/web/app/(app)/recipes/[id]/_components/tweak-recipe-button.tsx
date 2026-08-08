@@ -18,6 +18,11 @@ interface Props {
   recipeId: string;
   recipe: GeneratedRecipe;
   cookContext?: string;
+  // When driven from the AI menu the trigger button is hidden and open state
+  // is owned by the parent. Standalone use keeps its own button and state.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
 type Phase = "idle" | "loading" | "result";
@@ -34,9 +39,18 @@ function useIsDesktop() {
   return isDesktop;
 }
 
-export function TweakRecipeButton({ recipeId, recipe, cookContext }: Props) {
+export function TweakRecipeButton({
+  recipeId,
+  recipe,
+  cookContext,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+}: Props) {
   const isDesktop = useIsDesktop();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [phase, setPhase] = useState<Phase>("idle");
   const [prompt, setPrompt] = useState("");
   const [refinePrompt, setRefinePrompt] = useState("");
@@ -48,8 +62,9 @@ export function TweakRecipeButton({ recipeId, recipe, cookContext }: Props) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
-  function handleOpen() {
-    setOpen(true);
+  // Reset on every open, however it was opened (own button or the AI menu).
+  useEffect(() => {
+    if (!open) return;
     setPhase("idle");
     setPrompt("");
     setRefinePrompt("");
@@ -57,6 +72,10 @@ export function TweakRecipeButton({ recipeId, recipe, cookContext }: Props) {
     setError(null);
     setRefineError(null);
     setSaveError(null);
+  }, [open]);
+
+  function handleOpen() {
+    setOpen(true);
   }
 
   function handleStartOver() {
@@ -128,10 +147,12 @@ export function TweakRecipeButton({ recipeId, recipe, cookContext }: Props) {
 
   return (
     <>
-      <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleOpen}>
-        <Wand2 className="mr-2 h-5 w-5" />
-        Tweak for tonight
-      </Button>
+      {!hideTrigger && (
+        <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleOpen}>
+          <Wand2 className="mr-2 h-5 w-5" />
+          Tweak for tonight
+        </Button>
+      )}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent

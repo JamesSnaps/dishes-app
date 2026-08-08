@@ -5,7 +5,7 @@ import { Clock, ExternalLink, Minus, Plus, RotateCcw } from "lucide-react";
 import { Badge } from "@dishes/ui";
 import { scaleAmount, servingsScale } from "@/lib/scale-ingredient";
 import { AddToShoppingButton } from "./add-to-shopping-button";
-import { StarRating } from "./star-rating";
+import { CookHistoryEntryCard } from "./cook-history-entry";
 import type { CookHistoryEntry } from "@/app/actions/cook-history";
 
 type Tab = "overview" | "ingredients" | "steps" | "notes" | "history";
@@ -67,17 +67,6 @@ function formatTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return m ? `${h}h ${m}m` : `${h}h`;
-}
-
-function formatDate(isoString: string): string {
-  const date = new Date(isoString);
-  const diffDays = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 14) return "Last week";
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
 export function RecipeTabs({
@@ -346,63 +335,17 @@ export function RecipeTabs({
             {cookHistory.length === 0 ? (
               <p className="text-sm text-muted-foreground">No cook history yet.</p>
             ) : (
-              cookHistory.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="rounded-lg border bg-card p-4 space-y-2"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{formatDate(entry.cookedAt)}</span>
-                    {entry.rating != null && (
-                      <div className="flex items-center gap-2">
-                        <StarRating value={entry.rating} readonly size="sm" />
-                        <span className="text-xs text-muted-foreground">{entry.rating / 2}/5</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {entry.occasion && (
-                    <p className="text-sm text-muted-foreground">
-                      {entry.occasion}
-                    </p>
-                  )}
-
-                  {entry.cookedFor && entry.cookedFor.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Cooked for: {entry.cookedFor.join(", ")}
-                    </p>
-                  )}
-
-                  {entry.actualDuration && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Took {entry.actualDuration} min
-                    </p>
-                  )}
-
-                  {entry.photoUrl && (
-                    <a
-                      href={entry.photoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 rounded-lg overflow-hidden block"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={entry.photoUrl}
-                        alt="Dish photo"
-                        className="w-full aspect-video object-cover"
-                      />
-                    </a>
-                  )}
-
-                  {entry.notes && (
-                    <p className="text-sm text-muted-foreground leading-relaxed border-t pt-2 mt-2">
-                      {entry.notes}
-                    </p>
-                  )}
-                </div>
-              ))
+              <>
+                <p className="text-xs text-muted-foreground/70">
+                  Each entry keeps its own rating and notes — the recipe&apos;s headline rating is
+                  the average across them. Entries marked &ldquo;Rating only&rdquo; were rated
+                  without logging a cook, so they don&apos;t count towards how many times
+                  you&apos;ve cooked it.
+                </p>
+                {cookHistory.map((entry) => (
+                  <CookHistoryEntryCard key={entry.id} entry={entry} />
+                ))}
+              </>
             )}
           </div>
         )}

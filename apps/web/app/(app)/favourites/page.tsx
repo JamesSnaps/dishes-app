@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
-import { recipes, cookHistory } from "@dishes/db/schema";
-import { eq, and, avg, count } from "drizzle-orm";
+import { recipes } from "@dishes/db/schema";
+import { eq, and } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { getCookStatsByRecipe } from "@/app/actions/cook-history";
 import { RecipeCard } from "../recipes/_components/recipe-card";
 import Link from "next/link";
 import { Heart } from "lucide-react";
@@ -32,27 +33,13 @@ export default async function FavouritesPage() {
         and(eq(recipes.householdId, householdId), eq(recipes.isFavourite, true))
       )
       .orderBy(recipes.title),
-    db
-      .select({
-        recipeId: cookHistory.recipeId,
-        averageRating: avg(cookHistory.rating),
-        cookCount: count(cookHistory.id),
-      })
-      .from(cookHistory)
-      .where(eq(cookHistory.householdId, householdId))
-      .groupBy(cookHistory.recipeId),
+    getCookStatsByRecipe(householdId),
   ]);
 
   const cookStatsByRecipe = new Map(
     cookStatsRows.map((r) => [
       r.recipeId,
-      {
-        averageRating:
-          r.averageRating != null
-            ? Math.round(parseFloat(r.averageRating) * 10) / 10
-            : null,
-        cookCount: Number(r.cookCount),
-      },
+      { averageRating: r.averageRating, cookCount: r.cookCount },
     ])
   );
 

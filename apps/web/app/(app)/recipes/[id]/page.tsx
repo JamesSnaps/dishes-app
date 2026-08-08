@@ -29,8 +29,7 @@ import { Badge } from "@dishes/ui";
 import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
 import { StartCookingButton } from "./_components/start-cooking-button";
-import { TweakRecipeButton } from "./_components/tweak-recipe-button";
-import { SimilarRecipesButton } from "./_components/similar-recipes-button";
+import { RecipeAiMenu } from "./_components/recipe-ai-menu";
 import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
 import { AddCookReviewSheet } from "./_components/add-cook-review-sheet";
 import { MemoryCard } from "./_components/memory-card";
@@ -355,7 +354,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         />
       </div>
 
-      {/* Start Cooking + Tweak + Similar CTAs */}
+      {/* Start Cooking + AI actions */}
       {steps.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-2">
           <StartCookingButton
@@ -363,8 +362,12 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
             servings={recipe.servings}
             servingsUnit={recipe.servingsUnit ?? null}
           />
-          <TweakRecipeButton recipeId={id} recipe={recipeForTweak} cookContext={cookContext} />
-          <SimilarRecipesButton recipeId={id} />
+          <RecipeAiMenu
+            recipeId={id}
+            recipeTitle={recipe.title}
+            recipe={recipeForTweak}
+            cookContext={cookContext}
+          />
         </div>
       )}
 

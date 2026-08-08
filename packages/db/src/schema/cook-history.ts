@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   uuid,
+  varchar,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { households } from "./households";
@@ -25,6 +26,10 @@ export const cookHistory = pgTable("cook_history", {
   photoUrl: text("photo_url"),
   occasion: text("occasion"),
   cookedFor: text("cooked_for").array(),
+  // How this entry came to exist. 'cook' = an actual cook was logged;
+  // 'rating' = the recipe was rated without cooking it. Only 'cook' rows count
+  // towards the cook count and average duration; both count towards ratings.
+  source: varchar("source", { length: 20 }).notNull().default("cook"),
 });
 
 export const cookHistoryRelations = relations(cookHistory, ({ one }) => ({

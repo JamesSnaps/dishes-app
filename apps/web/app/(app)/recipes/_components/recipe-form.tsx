@@ -4,18 +4,20 @@ import { useRef, useState, useEffect, useCallback, type ReactNode } from "react"
 import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2, Layers, GripVertical, FolderPlus } from "lucide-react";
 import {
   DndContext,
+  DragOverlay,
   closestCorners,
   useSensor,
   useSensors,
   MouseSensor,
   TouchSensor,
   KeyboardSensor,
-  useDroppable,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
+  arrayMove,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -232,7 +234,9 @@ function moveRowAcrossSections<R extends { key: string }>(
 }
 
 // A single draggable row. Renders a grip handle (the only drag affordance, so
-// the row's inputs stay fully interactive) followed by the row content.
+// the row's inputs stay fully interactive) followed by the row content. While
+// dragging, the original row is dimmed in place and a DragOverlay follows the
+// pointer.
 function SortableRow({ id, children }: { id: string; children: ReactNode }) {
   const {
     attributes,
@@ -251,7 +255,7 @@ function SortableRow({ id, children }: { id: string; children: ReactNode }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-start gap-1 ${isDragging ? "relative z-10 opacity-80" : ""}`}
+      className={`flex items-start gap-1 ${isDragging ? "opacity-30" : ""}`}
     >
       <button
         type="button"
@@ -269,24 +273,69 @@ function SortableRow({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
-// A section wrapper that is also a drop target, so rows can be dropped onto an
-// empty section (or below the last row).
-function DroppableSection({
+// A section wrapper that is itself sortable (so sections can be reordered) and
+// doubles as a drop target for rows — including onto an empty section, or below
+// the last row. `children` receives the drag handle to place in its heading.
+function SortableSection({
   sectionKey,
   className,
   children,
 }: {
   sectionKey: string;
   className: string;
-  children: ReactNode;
+  children: (handle: ReactNode) => ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: sectionDropId(sectionKey) });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({ id: sectionDropId(sectionKey) });
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
+  const handle = (
+    <button
+      type="button"
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      aria-label="Drag to reorder section"
+      title="Drag to reorder section"
+      className="flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/60 hover:text-foreground active:cursor-grabbing"
+    >
+      <GripVertical className="h-4 w-4" />
+    </button>
+  );
   return (
     <div
       ref={setNodeRef}
-      className={`${className} ${isOver ? "ring-2 ring-primary/40" : ""}`}
+      style={style}
+      className={`${className} ${isOver ? "ring-2 ring-primary/40" : ""} ${
+        isDragging ? "opacity-30" : ""
+      }`}
     >
-      {children}
+      {children(handle)}
+    </div>
+  );
+}
+
+// The card that follows the pointer while dragging.
+function DragPreview({ label, muted }: { label: string; muted?: string }) {
+  return (
+    <div className="flex max-w-md items-center gap-2 rounded-lg border border-primary/50 bg-background px-3 py-2 shadow-lg ring-1 ring-primary/20">
+      <GripVertical className="h-4 w-4 shrink-0 text-primary" />
+      <span className="truncate text-sm font-medium">
+        {label || <span className="text-muted-foreground">Untitled</span>}
+      </span>
+      {muted && (
+        <span className="shrink-0 truncate text-xs text-muted-foreground">{muted}</span>
+      )}
     </div>
   );
 }
@@ -658,16 +707,14 @@ export function RecipeForm({
         );
       },
       removeRow(sectionKey: string, rowKey: string) {
+        // Emptying a section keeps the section — removing it is an explicit
+        // action (the X on its heading), never a side effect of deleting rows.
         setSections((prev) =>
-          prev
-            .map((s) =>
-              s.key === sectionKey
-                ? { ...s, rows: s.rows.filter((row) => row.key !== rowKey) }
-                : s
-            )
-            // Drop a section once its last row is removed, but never leave zero
-            // sections — keep a single empty one to add into.
-            .filter((s, _i, arr) => s.rows.length > 0 || arr.length === 1)
+          prev.map((s) =>
+            s.key === sectionKey
+              ? { ...s, rows: s.rows.filter((row) => row.key !== rowKey) }
+              : s
+          )
         );
       },
       setLabel(sectionKey: string, label: string) {
@@ -701,20 +748,74 @@ export function RecipeForm({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // Id of whatever is currently being dragged, per list — drives the DragOverlay.
+  const [activeIngredientId, setActiveIngredientId] = useState<string | null>(null);
+  const [activeStepId, setActiveStepId] = useState<string | null>(null);
+
+  // Reorder whole sections when a section handle was the thing dragged;
+  // otherwise move the row. Returns the sections unchanged for no-op drops.
+  function applyDrag<R extends { key: string }>(
+    sections: Section<R>[],
+    activeId: string,
+    overId: string
+  ): Section<R>[] {
+    if (!activeId.startsWith("sec:")) {
+      return moveRowAcrossSections(sections, activeId, overId);
+    }
+    // A section dropped onto a row counts as a drop onto that row's section.
+    let overSectionId = overId;
+    if (!overId.startsWith("sec:")) {
+      const owner = sections.find((s) => s.rows.some((r) => r.key === overId));
+      if (!owner) return sections;
+      overSectionId = sectionDropId(owner.key);
+    }
+    const from = sections.findIndex((s) => sectionDropId(s.key) === activeId);
+    const to = sections.findIndex((s) => sectionDropId(s.key) === overSectionId);
+    if (from === -1 || to === -1 || from === to) return sections;
+    return arrayMove(sections, from, to);
+  }
+
   function handleIngredientDragEnd(event: DragEndEvent) {
+    setActiveIngredientId(null);
     const { active, over } = event;
     if (!over) return;
     setIngredientSections((prev) =>
-      moveRowAcrossSections(prev, String(active.id), String(over.id))
+      applyDrag(prev, String(active.id), String(over.id))
     );
   }
 
   function handleStepDragEnd(event: DragEndEvent) {
+    setActiveStepId(null);
     const { active, over } = event;
     if (!over) return;
-    setStepSections((prev) =>
-      moveRowAcrossSections(prev, String(active.id), String(over.id))
-    );
+    setStepSections((prev) => applyDrag(prev, String(active.id), String(over.id)));
+  }
+
+  // Look up what's being dragged so the overlay can show its content.
+  function dragPreviewFor<R extends { key: string }>(
+    sections: Section<R>[],
+    activeId: string | null,
+    rowLabel: (row: R) => { label: string; muted?: string }
+  ) {
+    if (!activeId) return null;
+    if (activeId.startsWith("sec:")) {
+      const section = sections.find((s) => sectionDropId(s.key) === activeId);
+      if (!section) return null;
+      return (
+        <DragPreview
+          label={section.label.trim() || "Section"}
+          muted={`${section.rows.length} item${section.rows.length === 1 ? "" : "s"}`}
+        />
+      );
+    }
+    for (const s of sections) {
+      const row = s.rows.find((r) => r.key === activeId);
+      if (row) {
+        const { label, muted } = rowLabel(row);
+        return <DragPreview label={label} muted={muted} />;
+      }
+    }
+    return null;
   }
 
   function handlePasteImport(
@@ -1137,12 +1238,18 @@ export function RecipeForm({
         <DndContext
           sensors={dndSensors}
           collisionDetection={closestCorners}
+          onDragStart={(e: DragStartEvent) => setActiveIngredientId(String(e.active.id))}
+          onDragCancel={() => setActiveIngredientId(null)}
           onDragEnd={handleIngredientDragEnd}
+        >
+        <SortableContext
+          items={ingredientSections.map((s) => sectionDropId(s.key))}
+          strategy={verticalListSortingStrategy}
         >
         {(() => {
           let counter = 0;
           return ingredientSections.map((section) => (
-            <DroppableSection
+            <SortableSection
               key={section.key}
               sectionKey={section.key}
               className={
@@ -1151,8 +1258,11 @@ export function RecipeForm({
                   : "space-y-2"
               }
             >
+              {(handle) => (
+              <>
               {showIngredientHeadings && (
                 <div className="flex items-center gap-2">
+                  {handle}
                   <Layers className="h-4 w-4 shrink-0 text-primary" />
                   <Input
                     value={section.label}
@@ -1263,6 +1373,12 @@ export function RecipeForm({
               })}
               </SortableContext>
 
+              {section.rows.length === 0 && (
+                <p className="rounded-md border border-dashed border-border/70 px-3 py-3 text-center text-xs text-muted-foreground">
+                  Empty section — add an ingredient or drag one here
+                </p>
+              )}
+
               <Button
                 type="button"
                 variant="outline"
@@ -1273,9 +1389,18 @@ export function RecipeForm({
                 <Plus className="h-4 w-4" />
                 Add ingredient
               </Button>
-            </DroppableSection>
+              </>
+              )}
+            </SortableSection>
           ));
         })()}
+        </SortableContext>
+        <DragOverlay dropAnimation={null}>
+          {dragPreviewFor(ingredientSections, activeIngredientId, (row) => ({
+            label: row.ingredientName,
+            muted: [row.amount, row.unit].filter(Boolean).join(" "),
+          }))}
+        </DragOverlay>
         </DndContext>
       </div>
 
@@ -1303,12 +1428,18 @@ export function RecipeForm({
         <DndContext
           sensors={dndSensors}
           collisionDetection={closestCorners}
+          onDragStart={(e: DragStartEvent) => setActiveStepId(String(e.active.id))}
+          onDragCancel={() => setActiveStepId(null)}
           onDragEnd={handleStepDragEnd}
+        >
+        <SortableContext
+          items={stepSections.map((s) => sectionDropId(s.key))}
+          strategy={verticalListSortingStrategy}
         >
         {(() => {
           let counter = 0;
           return stepSections.map((section) => (
-            <DroppableSection
+            <SortableSection
               key={section.key}
               sectionKey={section.key}
               className={
@@ -1317,8 +1448,11 @@ export function RecipeForm({
                   : "space-y-3"
               }
             >
+              {(handle) => (
+              <>
               {showStepHeadings && (
                 <div className="flex items-center gap-2">
+                  {handle}
                   <Layers className="h-4 w-4 shrink-0 text-primary" />
                   <Input
                     value={section.label}
@@ -1408,6 +1542,12 @@ export function RecipeForm({
               })}
               </SortableContext>
 
+              {section.rows.length === 0 && (
+                <p className="rounded-md border border-dashed border-border/70 px-3 py-3 text-center text-xs text-muted-foreground">
+                  Empty section — add a step or drag one here
+                </p>
+              )}
+
               <Button
                 type="button"
                 variant="outline"
@@ -1418,9 +1558,17 @@ export function RecipeForm({
                 <Plus className="h-4 w-4" />
                 Add step
               </Button>
-            </DroppableSection>
+              </>
+              )}
+            </SortableSection>
           ));
         })()}
+        </SortableContext>
+        <DragOverlay dropAnimation={null}>
+          {dragPreviewFor(stepSections, activeStepId, (row) => ({
+            label: row.instruction.slice(0, 80),
+          }))}
+        </DragOverlay>
         </DndContext>
       </div>
 
@@ -1613,28 +1761,38 @@ export function RecipeForm({
       onSubmit={handleSubmit}
       className="space-y-6 pb-20 lg:pb-8"
     >
-      {/* ── Page header: title + actions (desktop) ── */}
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">{heading}</h1>
-        <div className="hidden lg:flex items-center gap-2">
-          {submitError && (
-            <p className="max-w-xs rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
-              {submitError}
+      {/* ── Sticky action bar: recipe name + Save/Cancel, always reachable ── */}
+      <div className="sticky top-0 z-30 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {heading}
             </p>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={isSubmitting}
-            onClick={() => window.history.back()}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            {isSubmitting ? "Saving…" : submitLabel}
-          </Button>
+            <h1 className="truncate text-lg font-bold sm:text-xl">
+              {title.trim() || "Untitled recipe"}
+            </h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isSubmitting}
+              onClick={() => window.history.back()}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {isSubmitting ? "Saving…" : submitLabel}
+            </Button>
+          </div>
         </div>
+        {submitError && (
+          <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
+            {submitError}
+          </p>
+        )}
       </div>
 
       {/* ── AI Improve (edit mode only) ── */}
@@ -1687,7 +1845,7 @@ export function RecipeForm({
 
       {/* ── Photo + Details row ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr] lg:items-start">
-        <div className="space-y-4 lg:sticky lg:top-6">
+        <div className="space-y-4 lg:sticky lg:top-28">
           <h2 className="text-base font-semibold">Photo</h2>
           {photoSection}
         </div>
@@ -1718,28 +1876,6 @@ export function RecipeForm({
         )}
       </div>
 
-      {/* ── Submit (mobile only — desktop uses header buttons) ── */}
-      <div className="space-y-2 pt-2 lg:hidden">
-        {submitError && (
-          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {submitError}
-          </p>
-        )}
-        <div className="flex gap-3">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            {isSubmitting ? "Saving…" : submitLabel}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={isSubmitting}
-            onClick={() => window.history.back()}
-          >
-            Cancel
-          </Button>
-        </div>
-      </div>
     </form>
 
       {/* Confirmation dialog when saving with existing conversation history */}

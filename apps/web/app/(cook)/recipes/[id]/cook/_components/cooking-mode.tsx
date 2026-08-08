@@ -500,13 +500,17 @@ interface CookAssistProps {
   stepNumber: number;
   stepInstruction: string;
   stepIngredients: Array<{ name: string; amount?: string; unit?: string }>;
+  // Whole-recipe context so answers can reason about what comes before/after
+  allIngredients: Array<{ name: string; amount?: string; unit?: string; groupLabel?: string }>;
+  allSteps: Array<{ number: number; instruction: string; groupLabel?: string }>;
+  servingsSummary?: string;
   history: Array<{ id?: string; messages: Message[] }>;
   onSave: (thread: Message[], stepNumber: number) => void;
   onExchangeComplete: (thread: Message[]) => void;
   onDeleteThread: (id: string) => void;
 }
 
-function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients, history, onSave, onExchangeComplete, onDeleteThread }: CookAssistProps) {
+function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary, history, onSave, onExchangeComplete, onDeleteThread }: CookAssistProps) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   // Current conversational thread for this step session
@@ -576,6 +580,9 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients,
           stepNumber,
           stepInstruction,
           stepIngredients,
+          allIngredients,
+          allSteps,
+          servingsSummary,
           messages: newThread,
         }),
       });
@@ -1236,6 +1243,22 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     amount: ing.amount ?? undefined,
                     unit: ing.unit ?? undefined,
                   }))}
+                  allIngredients={ingredients.map((ing) => ({
+                    name: ing.ingredientName,
+                    amount: scaleAmount(ing.amount, scale) || undefined,
+                    unit: ing.unit ?? undefined,
+                    groupLabel: ing.groupLabel?.trim() || undefined,
+                  }))}
+                  allSteps={steps.map((s, i) => ({
+                    number: i + 1,
+                    instruction: s.instruction,
+                    groupLabel: s.groupLabel?.trim() || undefined,
+                  }))}
+                  servingsSummary={
+                    scale !== 1
+                      ? `Cooking for ${currentServings} (recipe written for ${originalServings}; amounts below are already scaled)`
+                      : `Cooking for ${currentServings}`
+                  }
                   history={stepHistory.get(stepIndex) ?? []}
                   onSave={(thread, stepNumber) => saveStepThread(stepNumber - 1, thread)}
                   onExchangeComplete={handleExchangeComplete}

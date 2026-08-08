@@ -26,6 +26,10 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Recipe image upload (to MinIO/S3)
 - [x] AI image generation custom instructions — optional free-text prompt additions on top of the selected style (v0.47.0)
 - [x] Ingredient & step sections — group ingredients/steps into named sub-recipes in the editor with drag-and-drop reordering/moving between sections; rendered across view/cook/print/share/export; AI generation uses them for multi-component recipes (v0.44.0)
+- [x] Editor polish — drag preview overlay while reordering, draggable sections, emptying a section no longer deletes it, sticky save/cancel bar with the recipe name (v0.53.0)
+- [x] "Ask AI" menu on the recipe page — free-form questions about the whole recipe (sides, timings, make-ahead) alongside Tweak and Find Similar (v0.54.0)
+- [x] Edit or delete individual cook-history entries from the History tab (v0.54.0)
+- [x] `cook_history.source` — separates a logged cook from a bare rating so ratings no longer inflate the cook count; "Rating only" badge in the History tab (v0.55.0, migration 0023)
 - [x] Favourite toggle
 - [x] Cuisine and tag filtering
 
@@ -39,6 +43,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Recipe scaling UI (change serving count → recalculate all amounts)
 - [x] Minimise cooking mode — persistent mini bar keeps the cook (step, servings, ticked ingredients, timers) alive while you use the rest of the app; timer alerts follow you app-wide
 - [x] Deadline-based timers — accurate through backgrounded tabs and page reloads; sessions restore from localStorage and expire after 12 hours
+- [x] In-cook AI quick-ask sees the whole recipe (all ingredients scaled to current servings, all steps, current step marked) rather than the current step alone (v0.53.0)
 
 ## Shopping Lists
 - [x] Shopping list page (`/shopping`) — active list with check-off items
