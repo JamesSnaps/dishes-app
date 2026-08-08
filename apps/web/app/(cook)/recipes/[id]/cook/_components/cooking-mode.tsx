@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from "react";
 import { saveCookAssistThread, deleteCookAssistThread } from "@/app/actions/cook-assist-threads";
+import { MarkdownContent } from "@/components/markdown-content";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -67,57 +68,6 @@ function formatIngredientAmount(ing: Ingredient, scale: number): string {
 interface Message {
   role: "user" | "assistant";
   content: string;
-}
-
-// ─── Lightweight markdown renderer ───────────────────────────────────────────
-
-function renderInline(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
-    if (part.startsWith("*") && part.endsWith("*")) return <em key={i}>{part.slice(1, -1)}</em>;
-    return part;
-  });
-}
-
-function MarkdownContent({ text }: { text: string }) {
-  const lines = text.split("\n");
-  const blocks: Array<{ type: "p" | "ul" | "ol"; items: string[] }> = [];
-
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const ulMatch = line.match(/^[-*] (.+)/);
-    const olMatch = line.match(/^\d+\. (.+)/);
-    if (ulMatch) {
-      const last = blocks[blocks.length - 1];
-      if (last?.type === "ul") last.items.push(ulMatch[1]);
-      else blocks.push({ type: "ul", items: [ulMatch[1]] });
-    } else if (olMatch) {
-      const last = blocks[blocks.length - 1];
-      if (last?.type === "ol") last.items.push(olMatch[1]);
-      else blocks.push({ type: "ol", items: [olMatch[1]] });
-    } else {
-      blocks.push({ type: "p", items: [line] });
-    }
-  }
-
-  return (
-    <div className="text-sm leading-relaxed space-y-1.5">
-      {blocks.map((block, i) => {
-        if (block.type === "ul") return (
-          <ul key={i} className="list-disc pl-4 space-y-0.5">
-            {block.items.map((item, j) => <li key={j}>{renderInline(item)}</li>)}
-          </ul>
-        );
-        if (block.type === "ol") return (
-          <ol key={i} className="list-decimal pl-4 space-y-0.5">
-            {block.items.map((item, j) => <li key={j}>{renderInline(item)}</li>)}
-          </ol>
-        );
-        return <p key={i}>{renderInline(block.items[0])}</p>;
-      })}
-    </div>
-  );
 }
 
 // ─── Ingredient chip (inline in step text) ───────────────────────────────────
@@ -780,12 +730,12 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients,
                         Thinking…
                       </span>
                     ) : streamingAnswer ? (
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {streamingAnswer}
+                      <div>
+                        <MarkdownContent text={streamingAnswer} />
                         {loading && (
                           <span className="inline-block w-1.5 h-4 bg-foreground/50 animate-pulse ml-0.5 rounded-sm align-text-bottom" />
                         )}
-                      </p>
+                      </div>
                     ) : null}
 
                     {/* Erase controls for the working thread */}

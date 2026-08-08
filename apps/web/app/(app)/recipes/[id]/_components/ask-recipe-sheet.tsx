@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { MessageCircleQuestion, Send, Loader2, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  MessageCircleQuestion,
+  Send,
+  Loader2,
+  Plus,
+  Trash2,
+  History,
+} from "lucide-react";
 import {
   Button,
   Sheet,
@@ -10,8 +17,14 @@ import {
   SheetTitle,
   Textarea,
 } from "@dishes/ui";
-
-type Message = { role: "user" | "assistant"; content: string };
+import { MarkdownContent } from "@/components/markdown-content";
+import {
+  deleteRecipeAssistThread,
+  getRecipeAssistThreads,
+  saveRecipeAssistThread,
+  type RecipeAssistMessage as Message,
+  type RecipeAssistThread,
+} from "@/app/actions/recipe-assist-threads";
 
 interface Props {
   recipeId: string;
@@ -43,15 +56,43 @@ function useIsDesktop() {
   return isDesktop;
 }
 
+function relativeDate(iso: string): string {
+  const date = new Date(iso);
+  const diffDays = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Props) {
   const isDesktop = useIsDesktop();
   const [thread, setThread] = useState<Message[]>([]);
+  // Id of the saved row this conversation belongs to, so continuing an old
+  // thread updates it rather than creating a duplicate.
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [history, setHistory] = useState<RecipeAssistThread[]>([]);
   const [question, setQuestion] = useState("");
   const [streaming, setStreaming] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Refs so the unmount/close save sees the latest values without re-running.
+  const threadRef = useRef<Message[]>([]);
+  threadRef.current = thread;
+  const threadIdRef = useRef<string | null>(null);
+  threadIdRef.current = threadId;
+
+  const loadHistory = useCallback(() => {
+    getRecipeAssistThreads(recipeId)
+      .then(setHistory)
+      .catch(() => {
+        /* history is a nicety — a failure here shouldn't block asking */
+      });
+  }, [recipeId]);
 
   // Keep the newest content in view as it streams in.
   useEffect(() => {
@@ -62,14 +103,58 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
   }, [thread, streaming]);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 80);
-  }, [open]);
+    if (!open) return;
+    loadHistory();
+    setTimeout(() => inputRef.current?.focus(), 80);
+  }, [open, loadHistory]);
 
-  function reset() {
-    setThread([]);
-    setQuestion("");
-    setStreaming("");
-    setError(null);
+  // Persist whatever was asked when the sheet closes.
+  const persist = useCallback(async () => {
+    const messages = threadRef.current;
+    if (messages.length < 2) return; // nothing answered yet
+    try {
+      const { id } = await saveRecipeAssistThread(recipeId, messages, threadIdRef.current);
+      threadIdRef.current = id;
+      setThreadId(id);
+    } catch {
+      /* keep the conversation on screen even if saving fails */
+    }
+  }, [recipeId]);
+
+  function handleOpenChange(next: boolean) {
+    if (!next) void persist();
+    onOpenChange(next);
+  }
+
+  function startNew() {
+    void persist().then(() => {
+      setThread([]);
+      setThreadId(null);
+      setQuestion("");
+      setStreaming("");
+      setError(null);
+      loadHistory();
+      setTimeout(() => inputRef.current?.focus(), 50);
+    });
+  }
+
+  function openThread(t: RecipeAssistThread) {
+    void persist().then(() => {
+      setThread(t.messages);
+      setThreadId(t.id);
+      setQuestion("");
+      setStreaming("");
+      setError(null);
+    });
+  }
+
+  function removeThread(id: string) {
+    setHistory((prev) => prev.filter((t) => t.id !== id));
+    if (threadId === id) {
+      setThreadId(null);
+      setThread([]);
+    }
+    void deleteRecipeAssistThread(id).catch(loadHistory);
   }
 
   async function submit(text: string) {
@@ -118,7 +203,7 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side={isDesktop ? "right" : "bottom"}
         className={
@@ -137,23 +222,63 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
 
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
           {thread.length === 0 && !loading && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Ask anything about this dish — timings, sides, make-ahead, substitutions. The
-                assistant can see the full ingredient list, method, and your past cooks.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => void submit(s)}
-                    className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-left text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-                  >
-                    {s}
-                  </button>
-                ))}
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Ask anything about this dish — timings, sides, make-ahead, substitutions. The
+                  assistant can see the full ingredient list, method, and your past cooks.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => void submit(s)}
+                      className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-left text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {history.length > 0 && (
+                <div className="space-y-2">
+                  <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <History className="h-3.5 w-3.5" />
+                    Previous questions
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    {history.map((t) => (
+                      <div
+                        key={t.id}
+                        className="group flex items-center gap-1 rounded-lg border bg-card transition-colors hover:border-primary/40"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => openThread(t)}
+                          className="min-w-0 flex-1 px-3 py-2 text-left"
+                        >
+                          <p className="truncate text-sm font-medium">{t.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {relativeDate(t.updatedAt)} ·{" "}
+                            {Math.floor(t.messages.length / 2)} question
+                            {Math.floor(t.messages.length / 2) === 1 ? "" : "s"}
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeThread(t.id)}
+                          className="mr-1.5 rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Delete "${t.title}"`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -165,20 +290,11 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
                 </p>
               </div>
             ) : (
-              <p
-                key={i}
-                className="whitespace-pre-line text-sm leading-relaxed text-foreground"
-              >
-                {m.content}
-              </p>
+              <MarkdownContent key={i} text={m.content} />
             )
           )}
 
-          {streaming && (
-            <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">
-              {streaming}
-            </p>
-          )}
+          {streaming && <MarkdownContent text={streaming} />}
 
           {loading && !streaming && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -198,12 +314,12 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
           {thread.length > 0 && (
             <button
               type="button"
-              onClick={reset}
+              onClick={startNew}
               disabled={loading}
               className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
             >
-              <RotateCcw className="h-3 w-3" />
-              Start over
+              <Plus className="h-3 w-3" />
+              New question
             </button>
           )}
           <div className="flex items-end gap-2">

@@ -29,6 +29,7 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Editor polish — drag preview overlay while reordering, draggable sections, emptying a section no longer deletes it, sticky save/cancel bar with the recipe name (v0.53.0)
 - [x] "Ask AI" menu on the recipe page — free-form questions about the whole recipe (sides, timings, make-ahead) alongside Tweak and Find Similar (v0.54.0)
 - [x] Edit or delete individual cook-history entries from the History tab (v0.54.0)
+- [x] Ask-AI answers render markdown (shared `MarkdownContent`, also used by cooking mode) and conversations are saved per recipe with a reopen/delete history list (v0.56.0, migration 0024)
 - [x] `cook_history.source` — separates a logged cook from a bare rating so ratings no longer inflate the cook count; "Rating only" badge in the History tab (v0.55.0, migration 0023)
 - [x] Favourite toggle
 - [x] Cuisine and tag filtering
