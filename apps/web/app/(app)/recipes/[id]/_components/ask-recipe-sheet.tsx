@@ -18,6 +18,7 @@ import {
   Textarea,
 } from "@dishes/ui";
 import { MarkdownContent } from "@/components/markdown-content";
+import { clearRecipeAssistThreads } from "@/app/actions/assist-history";
 import {
   deleteRecipeAssistThread,
   getRecipeAssistThreads,
@@ -77,6 +78,7 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
   const [streaming, setStreaming] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -146,6 +148,20 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
       setStreaming("");
       setError(null);
     });
+  }
+
+  // Two-tap confirm rather than a dialog — this is a short, recoverable-by-
+  // re-asking list, and a modal inside a sheet is heavy for it.
+  function clearAll() {
+    if (!confirmClear) {
+      setConfirmClear(true);
+      setTimeout(() => setConfirmClear(false), 4000);
+      return;
+    }
+    setConfirmClear(false);
+    setHistory([]);
+    setThreadId(null);
+    void clearRecipeAssistThreads(recipeId).catch(loadHistory);
   }
 
   function removeThread(id: string) {
@@ -244,10 +260,19 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
 
               {history.length > 0 && (
                 <div className="space-y-2">
-                  <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    <History className="h-3.5 w-3.5" />
-                    Previous questions
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <History className="h-3.5 w-3.5" />
+                      Previous questions
+                    </p>
+                    <button
+                      type="button"
+                      onClick={clearAll}
+                      className="text-xs text-muted-foreground transition-colors hover:text-destructive"
+                    >
+                      {confirmClear ? "Tap again to confirm" : "Clear all"}
+                    </button>
+                  </div>
                   <div className="flex flex-col gap-1.5">
                     {history.map((t) => (
                       <div

@@ -11,15 +11,18 @@ import { LogLevelSection } from "./_components/log-level-section";
 import { BackfillThumbnailsButton } from "./_components/backfill-thumbnails-button";
 import { BackfillMealTypesButton } from "./_components/backfill-meal-types-button";
 import { PushNotificationManager } from "@/components/push-notification-manager";
+import { AssistHistorySection } from "./_components/assist-history-section";
+import { getAssistHistoryStats } from "@/app/actions/assist-history";
 
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const user = await getAutheliaUser();
   const { householdId, memberId, role } = await requireHousehold(user);
-  const [{ household, members }, logLevel] = await Promise.all([
+  const [{ household, members }, logLevel, assistStats] = await Promise.all([
     getHouseholdWithMembers(householdId),
     getLogLevel(),
+    getAssistHistoryStats(),
   ]);
   const isAdmin = role === "admin";
 
@@ -112,6 +115,7 @@ export default async function SettingsPage() {
 
       {isAdmin && (
         <>
+          <AssistHistorySection stats={assistStats} />
           <LogLevelSection current={logLevel} />
           <section className="mb-8">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
