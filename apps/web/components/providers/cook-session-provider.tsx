@@ -18,7 +18,9 @@ import { playChime, unlockAudio } from "@/lib/cook-audio";
 // accurate while the tab is backgrounded (mobile browsers throttle intervals
 // hard, so a decrementing counter drifts badly once you switch away).
 
-const STORAGE_KEY = "dishes:cook-session:v1";
+const STORAGE_KEY = "dishes:cook-sessions:v2";
+/** v1 held a single session; it is migrated into the list on first load. */
+const LEGACY_STORAGE_KEY = "dishes:cook-session:v1";
 
 /** Abandoned cooks are swept on load — yesterday's dinner shouldn't greet you at breakfast. */
 const STALE_AFTER_MS = 12 * 60 * 60 * 1000;
@@ -79,20 +81,38 @@ export interface CookSessionInit {
   }>;
 }
 
+/** A finished timer awaiting acknowledgement, tagged with the cook it belongs to. */
+export interface CookAlert {
+  recipeId: string;
+  recipeTitle: string;
+  stepIndex: number;
+  timer: TimerState;
+}
+
 interface CookSessionValue {
+  /** The cook in the foreground — the one the mini bar represents. */
   session: CookSession | null;
+  /** Every live cook, most recently used first. Dinner and dessert at once. */
+  sessions: CookSession[];
   /** False until localStorage has been read — consumers should render defaults until then. */
   hydrated: boolean;
   timers: Map<number, TimerState>;
+  /** Timers for any session, so the switcher can show each cook's countdown. */
+  timersFor: (recipeId: string) => Map<number, TimerState>;
+  /** Unacknowledged finished timers across every session. */
+  alerts: CookAlert[];
   /** Starts a session, or resumes the existing one when it's for the same recipe. */
   startSession: (init: CookSessionInit) => void;
-  endSession: () => void;
-  setStepIndex: (index: number) => void;
+  /** Ends the given cook, or the active one when no id is passed. */
+  endSession: (recipeId?: string) => void;
+  /** Brings a cook to the foreground without touching the rest. */
+  activateSession: (recipeId: string) => void;
+  setStepIndex: (index: number, recipeId?: string) => void;
   setServings: (servings: number) => void;
   toggleIngredient: (ingredientId: string) => void;
   toggleTimer: (stepIndex: number) => void;
   resetTimer: (stepIndex: number) => void;
-  dismissAlert: (stepIndex: number) => void;
+  dismissAlert: (stepIndex: number, recipeId?: string) => void;
 }
 
 const CookSessionContext = createContext<CookSessionValue | null>(null);
@@ -106,27 +126,58 @@ function remainingOf(timer: StoredTimer, now: number): number {
   return Math.max(0, Math.ceil((timer.endsAt - now) / 1000));
 }
 
-function readStored(): CookSession | null {
+interface StoredState {
+  sessions: CookSession[];
+  activeRecipeId: string | null;
+}
+
+function isLive(s: CookSession | null | undefined): s is CookSession {
+  return (
+    !!s?.recipeId &&
+    typeof s.updatedAt === "number" &&
+    Date.now() - s.updatedAt <= STALE_AFTER_MS
+  );
+}
+
+function readStored(): StoredState {
+  const empty: StoredState = { sessions: [], activeRecipeId: null };
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as CookSession;
-    if (!parsed?.recipeId || typeof parsed.updatedAt !== "number") return null;
-    if (Date.now() - parsed.updatedAt > STALE_AFTER_MS) return null;
-    return parsed;
+    if (raw) {
+      const parsed = JSON.parse(raw) as StoredState;
+      const sessions = (parsed?.sessions ?? []).filter(isLive);
+      const activeRecipeId = sessions.some((s) => s.recipeId === parsed?.activeRecipeId)
+        ? parsed.activeRecipeId
+        : sessions[0]?.recipeId ?? null;
+      return { sessions, activeRecipeId };
+    }
+
+    // Migrate a v1 single-session cook so an in-progress dinner isn't lost.
+    const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy) {
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+      const parsed = JSON.parse(legacy) as CookSession;
+      if (isLive(parsed)) {
+        return { sessions: [parsed], activeRecipeId: parsed.recipeId };
+      }
+    }
+    return empty;
   } catch {
-    return null;
+    return empty;
   }
 }
 
 export function CookSessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<CookSession | null>(null);
+  const [sessions, setSessions] = useState<CookSession[]>([]);
+  const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   // Restore before paint so resuming a cook doesn't flash step 1 first.
   useIsomorphicLayoutEffect(() => {
-    setSession(readStored());
+    const stored = readStored();
+    setSessions(stored.sessions);
+    setActiveRecipeId(stored.activeRecipeId);
     setHydrated(true);
   }, []);
 
@@ -135,20 +186,45 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      if (session) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-      else window.localStorage.removeItem(STORAGE_KEY);
+      if (sessions.length) {
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ sessions, activeRecipeId } satisfies StoredState)
+        );
+      } else {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
     } catch {
       // Storage full or blocked — the session still works for this page life.
     }
-  }, [session, hydrated]);
+  }, [sessions, activeRecipeId, hydrated]);
 
-  const update = useCallback((fn: (prev: CookSession) => CookSession) => {
-    setSession((prev) => (prev ? { ...fn(prev), updatedAt: Date.now() } : prev));
-  }, []);
+  const session = useMemo(
+    () => sessions.find((s) => s.recipeId === activeRecipeId) ?? null,
+    [sessions, activeRecipeId]
+  );
 
-  const anyRunning = session
-    ? Object.values(session.timers).some((t) => !t.done && t.endsAt !== null)
-    : false;
+  // Mutate one session in place, defaulting to whichever cook is in front.
+  const updateFor = useCallback(
+    (recipeId: string | null, fn: (prev: CookSession) => CookSession) => {
+      if (!recipeId) return;
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.recipeId === recipeId ? { ...fn(s), updatedAt: Date.now() } : s
+        )
+      );
+    },
+    []
+  );
+
+  const update = useCallback(
+    (fn: (prev: CookSession) => CookSession) => updateFor(activeRecipeId, fn),
+    [updateFor, activeRecipeId]
+  );
+
+  const anyRunning = sessions.some((s) =>
+    Object.values(s.timers).some((t) => !t.done && t.endsAt !== null)
+  );
 
   // Tick only while something is counting down. Deadlines mean a throttled or
   // missed tick costs accuracy in the display, never in the timer itself.
@@ -168,32 +244,44 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  // Promote elapsed timers to done and raise their alerts.
+  // Promote elapsed timers to done and raise their alerts — across every cook,
+  // so a dessert timer still fires while you're looking at the main course.
   useEffect(() => {
-    if (!session) return;
-    const elapsed = Object.entries(session.timers)
-      .filter(([, t]) => !t.done && t.endsAt !== null && t.endsAt <= now)
-      .map(([key]) => Number(key));
-    if (elapsed.length === 0) return;
+    const anyElapsed = sessions.some((s) =>
+      Object.values(s.timers).some((t) => !t.done && t.endsAt !== null && t.endsAt <= now)
+    );
+    if (!anyElapsed) return;
 
-    update((prev) => {
-      const timers = { ...prev.timers };
-      for (const idx of elapsed) {
-        const timer = timers[idx];
-        if (!timer || timer.done) continue;
-        timers[idx] = { ...timer, done: true, endsAt: null, pausedRemaining: 0 };
-      }
-      const newAlerts = elapsed.filter((idx) => !prev.finishedAlerts.includes(idx));
-      return { ...prev, timers, finishedAlerts: [...prev.finishedAlerts, ...newAlerts] };
-    });
+    setSessions((prev) =>
+      prev.map((s) => {
+        const elapsed = Object.entries(s.timers)
+          .filter(([, t]) => !t.done && t.endsAt !== null && t.endsAt <= now)
+          .map(([key]) => Number(key));
+        if (elapsed.length === 0) return s;
+
+        const timers = { ...s.timers };
+        for (const idx of elapsed) {
+          const timer = timers[idx];
+          if (!timer || timer.done) continue;
+          timers[idx] = { ...timer, done: true, endsAt: null, pausedRemaining: 0 };
+        }
+        const newAlerts = elapsed.filter((idx) => !s.finishedAlerts.includes(idx));
+        return {
+          ...s,
+          timers,
+          finishedAlerts: [...s.finishedAlerts, ...newAlerts],
+          updatedAt: Date.now(),
+        };
+      })
+    );
 
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       navigator.vibrate([300, 100, 300]);
     }
-  }, [now, session, update]);
+  }, [now, sessions]);
 
   // Chime immediately and then every few seconds while any alert is unacknowledged.
-  const alertCount = session?.finishedAlerts.length ?? 0;
+  const alertCount = sessions.reduce((n, s) => n + s.finishedAlerts.length, 0);
   useEffect(() => {
     if (alertCount === 0) return;
     playChime();
@@ -202,9 +290,11 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
   }, [alertCount]);
 
   const startSession = useCallback((init: CookSessionInit) => {
-    setSession((prev) => {
-      // Same recipe — resume rather than restart, keeping step, timers and ticks.
-      if (prev?.recipeId === init.recipeId) return prev;
+    setActiveRecipeId(init.recipeId);
+    setSessions((prev) => {
+      // Already cooking this one — resume in place, keeping step and timers.
+      if (prev.some((s) => s.recipeId === init.recipeId)) return prev;
+
       const timers: Record<string, StoredTimer> = {};
       for (const t of init.timers) {
         timers[t.stepIndex] = {
@@ -218,27 +308,47 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
         };
       }
       const startedAt = Date.now();
-      return {
-        recipeId: init.recipeId,
-        recipeTitle: init.recipeTitle,
-        recipeImageUrl: init.recipeImageUrl,
-        stepCount: init.stepCount,
-        stepIndex: 0,
-        servings: init.servings,
-        checkedIngredientIds: [],
-        startedAt,
-        updatedAt: startedAt,
-        timers,
-        finishedAlerts: [],
-      };
+      // Newest first, so the switcher and mini bar lead with the latest cook.
+      return [
+        {
+          recipeId: init.recipeId,
+          recipeTitle: init.recipeTitle,
+          recipeImageUrl: init.recipeImageUrl,
+          stepCount: init.stepCount,
+          stepIndex: 0,
+          servings: init.servings,
+          checkedIngredientIds: [],
+          startedAt,
+          updatedAt: startedAt,
+          timers,
+          finishedAlerts: [],
+        },
+        ...prev,
+      ];
     });
   }, []);
 
-  const endSession = useCallback(() => setSession(null), []);
+  const endSession = useCallback(
+    (recipeId?: string) => {
+      setSessions((prev) => {
+        const target = recipeId ?? activeRecipeId;
+        const next = prev.filter((s) => s.recipeId !== target);
+        // Ending the cook in front hands over to whatever else is still going.
+        if (target === activeRecipeId) setActiveRecipeId(next[0]?.recipeId ?? null);
+        return next;
+      });
+    },
+    [activeRecipeId]
+  );
+
+  const activateSession = useCallback((recipeId: string) => {
+    setActiveRecipeId(recipeId);
+  }, []);
 
   const setStepIndex = useCallback(
-    (index: number) => update((prev) => ({ ...prev, stepIndex: index })),
-    [update]
+    (index: number, recipeId?: string) =>
+      updateFor(recipeId ?? activeRecipeId, (prev) => ({ ...prev, stepIndex: index })),
+    [updateFor, activeRecipeId]
   );
 
   const setServings = useCallback(
@@ -301,38 +411,71 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
   );
 
   const dismissAlert = useCallback(
-    (stepIndex: number) =>
-      update((prev) => ({
+    (stepIndex: number, recipeId?: string) =>
+      updateFor(recipeId ?? activeRecipeId, (prev) => ({
         ...prev,
         finishedAlerts: prev.finishedAlerts.filter((i) => i !== stepIndex),
       })),
-    [update]
+    [updateFor, activeRecipeId]
   );
 
-  const timers = useMemo(() => {
-    const map = new Map<number, TimerState>();
-    if (!session) return map;
-    for (const [key, timer] of Object.entries(session.timers)) {
-      map.set(Number(key), {
-        remaining: remainingOf(timer, now),
-        running: timer.endsAt !== null && !timer.done,
-        done: timer.done,
-        totalSeconds: timer.totalSeconds,
-        label: timer.label,
-        stepNumber: timer.stepNumber,
-        preview: timer.preview,
-      });
+  const timerMapOf = useCallback(
+    (target: CookSession | null | undefined) => {
+      const map = new Map<number, TimerState>();
+      if (!target) return map;
+      for (const [key, timer] of Object.entries(target.timers)) {
+        map.set(Number(key), {
+          remaining: remainingOf(timer, now),
+          running: timer.endsAt !== null && !timer.done,
+          done: timer.done,
+          totalSeconds: timer.totalSeconds,
+          label: timer.label,
+          stepNumber: timer.stepNumber,
+          preview: timer.preview,
+        });
+      }
+      return map;
+    },
+    [now]
+  );
+
+  const timers = useMemo(() => timerMapOf(session), [timerMapOf, session]);
+
+  const timersFor = useCallback(
+    (recipeId: string) => timerMapOf(sessions.find((s) => s.recipeId === recipeId)),
+    [timerMapOf, sessions]
+  );
+
+  const alerts = useMemo<CookAlert[]>(() => {
+    const out: CookAlert[] = [];
+    for (const s of sessions) {
+      const map = timerMapOf(s);
+      for (const stepIndex of s.finishedAlerts) {
+        const timer = map.get(stepIndex);
+        if (timer) {
+          out.push({
+            recipeId: s.recipeId,
+            recipeTitle: s.recipeTitle,
+            stepIndex,
+            timer,
+          });
+        }
+      }
     }
-    return map;
-  }, [session, now]);
+    return out;
+  }, [sessions, timerMapOf]);
 
   const value = useMemo<CookSessionValue>(
     () => ({
       session,
+      sessions,
       hydrated,
       timers,
+      timersFor,
+      alerts,
       startSession,
       endSession,
+      activateSession,
       setStepIndex,
       setServings,
       toggleIngredient,
@@ -342,10 +485,14 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
     }),
     [
       session,
+      sessions,
       hydrated,
       timers,
+      timersFor,
+      alerts,
       startSession,
       endSession,
+      activateSession,
       setStepIndex,
       setServings,
       toggleIngredient,

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from "react";
 import { saveCookAssistThread, deleteCookAssistThread } from "@/app/actions/cook-assist-threads";
 import { MarkdownContent } from "@/components/markdown-content";
+import { CookSwitcher } from "@/components/cook-switcher";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -870,9 +871,9 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   // Step, servings, ticked ingredients and timers live in the session provider so
   // they survive minimising — leaving this route no longer throws the cook away.
   const {
-    session,
+    sessions,
     hydrated,
-    timers: sessionTimers,
+    timersFor,
     startSession,
     endSession,
     setStepIndex,
@@ -883,12 +884,15 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     dismissAlert,
   } = useCookSession();
 
-  const active = session?.recipeId === recipe.id ? session : null;
+  // This route's own cook, looked up by recipe rather than by "whichever is
+  // active" — several cooks can be live at once.
+  const active = sessions.find((s) => s.recipeId === recipe.id) ?? null;
   const stepIndex = active ? Math.min(active.stepIndex, steps.length - 1) : 0;
   const currentServings = active?.servings ?? defaultServings;
   const finishedAlerts = active?.finishedAlerts ?? [];
   const emptyTimers = useMemo(() => new Map<number, TimerState>(), []);
-  const timers = active ? sessionTimers : emptyTimers;
+  const recipeTimers = timersFor(recipe.id);
+  const timers = active ? recipeTimers : emptyTimers;
   const checkedIngredients = useMemo(
     () => new Set(active?.checkedIngredientIds ?? []),
     [active]
@@ -1070,7 +1074,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
             const mins = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
             setElapsedMinutes(mins);
             setIsComplete(true);
-            endSession();
+            endSession(recipe.id);
           }}
           className="flex-1"
         >
@@ -1093,7 +1097,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
         <div className="relative flex items-center px-4 py-3 h-14">
           {/* Exit ends the cook for good — icon only on small screens, full label on sm+ */}
           <Button asChild variant="ghost" size="sm" className="-ml-2 shrink-0">
-            <Link href={`/recipes/${recipe.id}`} onClick={endSession}>
+            <Link href={`/recipes/${recipe.id}`} onClick={() => endSession(recipe.id)}>
               <ChevronLeft className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">Exit Cooking Mode</span>
             </Link>
@@ -1108,6 +1112,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            <CookSwitcher currentRecipeId={recipe.id} />
             <span className="text-sm font-semibold tabular-nums">
               {stepIndex + 1} / {steps.length}
             </span>

@@ -45,6 +45,8 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Recipe scaling UI (change serving count → recalculate all amounts)
 - [x] Minimise cooking mode — persistent mini bar keeps the cook (step, servings, ticked ingredients, timers) alive while you use the rest of the app; timer alerts follow you app-wide
 - [x] Deadline-based timers — accurate through backgrounded tabs and page reloads; sessions restore from localStorage and expire after 12 hours
+- [x] Multiple concurrent cooks — sessions keyed by recipe with a fast switcher in the cooking-mode header; timers and alerts run across all of them (v0.58.0)
+- [x] Cooking-mode ingredient lists and in-step highlighting follow the current step's section (v0.57.1)
 - [x] In-cook AI quick-ask sees the whole recipe (all ingredients scaled to current servings, all steps, current step marked) rather than the current step alone (v0.53.0)
 
 ## Shopping Lists
