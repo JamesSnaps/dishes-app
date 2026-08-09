@@ -59,6 +59,47 @@ const UNITS: string[] = [
 // Amount: mixed fraction (1 1/2), fraction (1/2), decimal (2.5), integer (3)
 const AMOUNT_RE = /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)\s*/;
 
+// Words that, at the start of a line, mark it as a method instruction rather
+// than an ingredient. Deliberately excludes weak prepositions ("to", "in") so
+// that lines like "Salt and pepper to taste" stay ingredients.
+const INSTRUCTION_CUES = new Set([
+  "add", "allow", "arrange", "bake", "beat", "blend", "boil", "bring", "brush",
+  "chill", "chop", "churn", "combine", "continue", "cook", "cover", "cut",
+  "discard", "divide", "drain", "drizzle", "dust", "finally", "fold", "freeze",
+  "fry", "garnish", "grease", "grill", "heat", "knead", "leave", "let", "line",
+  "meanwhile", "mix", "next", "once", "place", "pour", "preheat", "process",
+  "pulse", "reduce", "refrigerate", "remove", "repeat", "return", "roast",
+  "scoop", "seal", "season", "serve", "set", "sift", "simmer", "slice",
+  "spoon", "spread", "sprinkle", "stir", "strain", "then", "top", "toss",
+  "transfer", "turn", "warm", "when", "whisk", "while", "wrap",
+]);
+
+/**
+ * Heuristic: does this line read like a method instruction? Used to keep prose
+ * out of the ingredient list when someone pastes a whole recipe into the
+ * ingredients box.
+ */
+export function looksLikeInstruction(line: string): boolean {
+  const cleaned = line
+    .trim()
+    .replace(/^[-–•*·]\s*/, "")
+    .replace(/^(?:step\s*)?\d+\s*[.):\-–]\s*/i, "");
+  if (!cleaned) return false;
+
+  const words = cleaned.split(/\s+/);
+  const first = words[0].toLowerCase().replace(/[^a-z]/g, "");
+
+  if (INSTRUCTION_CUES.has(first)) return true;
+
+  // More than one sentence on the line is prose, not an ingredient
+  if (/[.!?]\s+[A-Z]/.test(cleaned)) return true;
+
+  // Long lines without a leading amount are almost always instructions
+  if (words.length >= 12 && !AMOUNT_RE.test(cleaned)) return true;
+
+  return false;
+}
+
 export function parseIngredientLine(line: string): ParsedIngredient | null {
   line = line.trim();
   if (!line) return null;
@@ -112,13 +153,30 @@ export function parseIngredientLine(line: string): ParsedIngredient | null {
 }
 
 export function parseIngredientsText(text: string): ParsedIngredient[] {
+  return splitIngredientsText(text).ingredients;
+}
+
+/**
+ * Parse an ingredients paste, separating out any method prose that was pasted
+ * along with it. `leftoverText` holds the lines that looked like instructions.
+ */
+export function splitIngredientsText(text: string): {
+  ingredients: ParsedIngredient[];
+  leftoverText: string;
+} {
   const lines = text.split("\n");
   const results: ParsedIngredient[] = [];
+  const leftover: string[] = [];
   let currentGroup = "";
 
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
+
+    if (looksLikeInstruction(line)) {
+      leftover.push(line);
+      continue;
+    }
 
     // Group header: a line ending in ":" that doesn't start with a digit/bullet
     // and doesn't parse as an ingredient with an amount
@@ -137,7 +195,7 @@ export function parseIngredientsText(text: string): ParsedIngredient[] {
     }
   }
 
-  return results;
+  return { ingredients: results, leftoverText: leftover.join("\n") };
 }
 
 export function parseStepsText(text: string): ParsedStep[] {

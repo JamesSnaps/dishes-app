@@ -12,7 +12,7 @@ import {
   Textarea,
 } from "@dishes/ui";
 import {
-  parseIngredientsText,
+  splitIngredientsText,
   parseStepsText,
   type ParsedIngredient,
   type ParsedStep,
@@ -71,15 +71,22 @@ export function PasteImportModal({ onImport }: PasteImportModalProps) {
   const [ingredientText, setIngredientText] = useState("");
   const [stepText, setStepText] = useState("");
 
-  const parsedIngredients = useMemo(
-    () => (ingredientText.trim() ? parseIngredientsText(ingredientText) : []),
+  const { ingredients: parsedIngredients, leftoverText } = useMemo(
+    () =>
+      ingredientText.trim()
+        ? splitIngredientsText(ingredientText)
+        : { ingredients: [] as ParsedIngredient[], leftoverText: "" },
     [ingredientText]
   );
 
-  const parsedSteps = useMemo(
-    () => (stepText.trim() ? parseStepsText(stepText) : []),
-    [stepText]
-  );
+  // Method prose pasted into the ingredients box becomes steps, as long as the
+  // method box is empty (otherwise the explicit paste wins).
+  const usingLeftoverAsSteps = !stepText.trim() && leftoverText.length > 0;
+
+  const parsedSteps = useMemo(() => {
+    const source = stepText.trim() || (usingLeftoverAsSteps ? leftoverText : "");
+    return source ? parseStepsText(source) : [];
+  }, [stepText, leftoverText, usingLeftoverAsSteps]);
 
   const hasIngredients = parsedIngredients.length > 0;
   const hasSteps = parsedSteps.length > 0;
@@ -168,6 +175,12 @@ pinch of salt`}
             rows={5}
             className="text-sm font-mono resize-none"
           />
+          {usingLeftoverAsSteps && (
+            <p className="text-xs text-muted-foreground">
+              Method text found in the ingredients box has been used for the
+              steps below. Paste here to override it.
+            </p>
+          )}
           <StepPreview items={parsedSteps} />
         </div>
 
