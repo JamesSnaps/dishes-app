@@ -66,13 +66,16 @@ interface Props {
   recipes: Recipe[];
   trigger?: React.ReactNode;
   /**
-   * Called once the entry is written. Adding still goes through the server
-   * action (see the notes in `week-planner-local.tsx`), so when the screen is
-   * reading from the local store the new meal is invisible until the store
-   * catches up — `WeekPlannerLocal` passes a sync trigger here to close that
-   * gap.
+   * How the entry is written. Defaults to the `addMealEntry` server action;
+   * `WeekPlannerLocal` supplies a version that queues `meal_plan_entry.add` on
+   * the sync engine, which is what makes adding work offline.
    */
-  onAdded?: () => void;
+  onAdd?: (
+    weekStartDate: string,
+    recipeId: string,
+    dayOfWeek: number,
+    mealType: MealType
+  ) => void;
 }
 
 function StarRow({ rating, size = "sm" }: { rating: number; size?: "sm" | "xs" }) {
@@ -108,7 +111,7 @@ function FilterLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, trigger, onAdded }: Props) {
+export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, trigger, onAdd }: Props) {
   const [open, setOpen] = useState(false);
   const [mealType, setMealType] = useState<MealType>("dinner");
   const [search, setSearch] = useState("");
@@ -173,13 +176,24 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
     setFavouritesOnly(false);
   }
 
+  function reset() {
+    setOpen(false);
+    setSearch("");
+    clearAllFilters();
+  }
+
   function handleSelect(recipeId: string) {
+    if (onAdd) {
+      // Queued locally and applied optimistically — no await, and no reason to
+      // keep the dialog open waiting for a server that may not be reachable.
+      onAdd(weekStartDate, recipeId, dayOfWeek, mealType);
+      reset();
+      return;
+    }
+
     startTransition(async () => {
       await addMealEntry(weekStartDate, recipeId, dayOfWeek, mealType);
-      onAdded?.();
-      setOpen(false);
-      setSearch("");
-      clearAllFilters();
+      reset();
     });
   }
 

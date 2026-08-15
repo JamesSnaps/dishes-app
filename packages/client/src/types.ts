@@ -46,6 +46,20 @@ export type MutationResult = {
 
 export type SyncPushResponse = { results: MutationResult[]; cursor: string };
 
+/**
+ * One optimistic local write to apply alongside a mutation.
+ *
+ * `temporary` marks a record the *server* will really create, held under a
+ * client-generated id so the UI has something to show immediately. The engine
+ * removes it once the mutation settles — see `QueuedMutation.temporary`.
+ */
+export type OptimisticChange = {
+  collection: SyncCollection;
+  record?: SyncRecord;
+  removeId?: string;
+  temporary?: boolean;
+};
+
 /** A queued mutation. `type` and `payload` mirror POST /api/v1/sync. */
 export type QueuedMutation = {
   opId: string;
@@ -53,6 +67,18 @@ export type QueuedMutation = {
   payload: Record<string, unknown>;
   /** For ordering and for reporting how long something has been stuck. */
   queuedAt: number;
+  /**
+   * Client-generated ids written optimistically for rows the server owns.
+   *
+   * These must be removed once the mutation settles, whatever the outcome. On
+   * success the server's row arrives in the same cycle's pull under its *real*
+   * id, and `applyPull` only deletes ids the server reports as deleted — so a
+   * temporary row left behind would never be cleaned up and the entity would
+   * appear twice, permanently. On failure it is simply the rollback.
+   *
+   * Persisted with the mutation so a reload mid-flight doesn't strand them.
+   */
+  temporary?: { collection: SyncCollection; id: string }[];
 };
 
 /**
