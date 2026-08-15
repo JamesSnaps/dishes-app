@@ -58,7 +58,7 @@ const OVERLAY_MEAL_LABEL: Record<MealType, string> = {
   snack: "Snack",
 };
 
-type Entry = {
+export type Entry = {
   id: string;
   dayOfWeek: number;
   mealType: MealType;
@@ -75,7 +75,7 @@ type Entry = {
   };
 };
 
-type Recipe = {
+export type Recipe = {
   id: string;
   title: string;
   cuisine: string | null;
@@ -90,12 +90,12 @@ type Recipe = {
   ingredientNames: string[];
 };
 
-type TopIngredient = {
+export type TopIngredient = {
   name: string;
   count: number;
 };
 
-interface Props {
+export interface WeekPlannerProps {
   weekStartDate: string;
   planId: string | null;
   entries: Entry[];
@@ -514,7 +514,7 @@ export function WeekPlanner({
   todayDayIndex,
   topIngredients,
   shoppingItemCount,
-}: Props) {
+}: WeekPlannerProps) {
   const router = useRouter();
   const { toast } = useToast();
   const contentRef = useRef<HTMLDivElement>(null);
