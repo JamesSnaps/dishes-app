@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import {
   WeekPlanner,
   type Entry,
+  type MealPlanMutations,
   type Recipe,
   type TopIngredient,
   type WeekPlannerProps,
@@ -168,6 +170,25 @@ function topIngredientsFrom(entries: Entry[], byId: Map<string, SyncRow>): TopIn
     .map(([name, count]) => ({ name, count }));
 }
 
+// ── Week maths, mirroring page.tsx ───────────────────────────────────────────
+
+/** Monday of the week containing `dateStr` (or today), as YYYY-MM-DD. */
+function mondayOf(dateStr?: string | null): string {
+  const d = dateStr ? new Date(dateStr + "T00:00:00") : new Date();
+  if (Number.isNaN(d.getTime())) return mondayOf();
+  const day = d.getDay(); // 0=Sun
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${dd}`;
+}
+
+/** 0=Mon … 6=Sun, matching `dayOfWeek` on an entry. */
+function todayIndex(): number {
+  const day = new Date().getDay();
+  return day === 0 ? 6 : day - 1;
+}
+
 /** Unchecked items on the oldest active list — the same list page.tsx counts. */
 function shoppingCountFrom(lists: SyncRow[], items: SyncRow[]): number {
   const active = lists
@@ -197,6 +218,7 @@ export function WeekPlannerLocal({
   initial,
 }: Props) {
   const sync = useSync();
+  const params = useSearchParams();
 
   const { data: syncedRecipes, loading } = useSyncedCollection<SyncRow>("recipes");
   const { data: cooks } = useSyncedCollection<SyncRow>("cookHistory");
@@ -206,6 +228,22 @@ export function WeekPlannerLocal({
   const { data: items } = useSyncedCollection<SyncRow>("shoppingItems");
 
   const useLocal = Boolean(sync?.engine) && !loading && syncedRecipes.length > 0;
+
+  /**
+   * Which week is on screen.
+   *
+   * The server prop is authoritative until the store can take over. After that
+   * the URL is, because `onNavigateWeek` moves between weeks with
+   * `history.pushState` — Next syncs `useSearchParams` from it without fetching
+   * an RSC payload, so the week has to be derived here or nothing would
+   * re-render.
+   *
+   * `useLocal` is false during SSR and the first client render, so both agree
+   * on the server's value at hydration and only diverge afterwards.
+   */
+  const week = useLocal ? mondayOf(params.get("week")) : weekStartDate;
+  const currentWeek = useLocal ? week === mondayOf() : isCurrentWeek;
+  const dayIndex = useLocal ? (currentWeek ? todayIndex() : -1) : todayDayIndex;
 
   // Memoised on the store arrays, not rebuilt per render: WeekPlanner copies
   // `entries` into state via an effect keyed on its identity, so a fresh array
@@ -220,7 +258,7 @@ export function WeekPlannerLocal({
       .map((r) => toPickerRecipe(r, ratings.get(r.id) ?? null))
       .sort((a, b) => a.title.localeCompare(b.title));
 
-    const plan = plans.find((p) => str(p.weekStartDate) === weekStartDate) ?? null;
+    const plan = plans.find((p) => str(p.weekStartDate) === week) ?? null;
 
     const entries = plan
       ? planEntries.flatMap((e) => {
@@ -239,60 +277,111 @@ export function WeekPlannerLocal({
       topIngredients: topIngredientsFrom(entries, byId),
       shoppingItemCount: shoppingCountFrom(lists, items),
     };
-  }, [useLocal, syncedRecipes, cooks, plans, planEntries, lists, items, weekStartDate]);
+  }, [useLocal, syncedRecipes, cooks, plans, planEntries, lists, items, week]);
 
   /**
-   * Drag between days, pushed through the sync engine rather than the server
-   * action. The optimistic store write lands immediately, so the move survives
-   * the re-read that `onChange` triggers; the queued mutation goes out on the
-   * sync that follows.
+   * Entry edits, pushed through the sync engine rather than the server actions.
+   * The optimistic store write lands immediately, so the change survives the
+   * re-read that `onChange` triggers; the queued mutation goes out on the sync
+   * that follows.
    *
    * No rollback here on purpose. A mutation the server rejects is dropped from
    * the queue by the engine (it would never succeed on a retry), and the next
-   * pull carries the server's version of the entry — which restores the old day
-   * without any bookkeeping on this side.
+   * pull carries the server's version of the entry — which restores the old
+   * state without any bookkeeping on this side.
+   *
+   * `.catch` is a no-op for the same reason: if queueing itself failed, the
+   * optimistic write is undone by that next pull too.
+   */
+  /**
+   * Two meal-plan writes deliberately stay on their server actions.
+   *
+   * **Adding an entry.** `meal_plan_entry.add` exists in the sync schema, but
+   * the server assigns the entry id (and creates the week's plan row when there
+   * isn't one). An optimistic entry would therefore need a client-generated id,
+   * and `applyPull` only removes ids the server reports as deleted — so the
+   * temporary row would survive the pull that brings the real one back and the
+   * meal would appear twice, permanently. Fixing that means teaching the engine
+   * to reconcile a temp id with the `id` the push response returns, which is
+   * engine work rather than screen work. Tracked in TODO_MOBILE.md.
+   *
+   * **Generating a shopping list.** Not in the sync schema at all, and it can't
+   * be: the result the UI reports (added / topped up / skipped-because-pantry)
+   * is computed server-side from ingredients and pantry stock, so there is
+   * nothing meaningful to show optimistically.
    */
   const engine = sync?.engine ?? null;
   const syncNow = sync?.sync;
 
-  const handleMoveEntry = useCallback(
-    (entryId: string, newDay: number) => {
-      if (!engine) return;
+  const mutations = useMemo<MealPlanMutations | undefined>(() => {
+    if (!engine || !local) return undefined;
 
+    const update = (entryId: string, payload: Record<string, unknown>, patch: SyncRow) => {
       const row = planEntries.find((e) => e.id === entryId);
-
       engine
         .mutate(
           "meal_plan_entry.update",
-          { entryId, dayOfWeek: newDay },
-          row
-            ? { collection: "mealPlanEntries", record: { ...row, dayOfWeek: newDay } }
-            : undefined
+          { entryId, ...payload },
+          row ? { collection: "mealPlanEntries", record: { ...row, ...patch } } : undefined
         )
         .then(() => syncNow?.())
-        .catch(() => {
-          // Queueing failed (IndexedDB unavailable). The drag is already undone
-          // by the next re-read, so there is nothing to unwind.
-        });
-    },
-    [engine, planEntries, syncNow]
-  );
+        .catch(() => {});
+      return;
+    };
+
+    return {
+      moveEntry: (entryId, dayOfWeek) =>
+        update(entryId, { dayOfWeek }, { id: entryId, dayOfWeek }),
+
+      changeEntryType: (entryId, mealType) =>
+        update(entryId, { mealType }, { id: entryId, mealType }),
+
+      // The wire field is `servings`; the prop the UI reads is `entryServings`,
+      // mapped in toEntry. The store holds the raw row, so patch `servings`.
+      updateEntryServings: (entryId, servings) =>
+        update(entryId, { servings }, { id: entryId, servings }),
+
+      deleteEntry: (entryId) => {
+        engine
+          .mutate("meal_plan_entry.delete", { entryId }, {
+            collection: "mealPlanEntries",
+            removeId: entryId,
+          })
+          .then(() => syncNow?.())
+          .catch(() => {});
+      },
+    };
+  }, [engine, local, planEntries, syncNow]);
+
+  /**
+   * Week change without a server round-trip. `router.push` is not called at
+   * all, so Next fetches nothing; the URL is updated and the store serves the
+   * target week. Back/forward still work — Next listens for popstate and
+   * re-syncs `useSearchParams`, which flows back through `week` above.
+   */
+  const handleNavigateWeek = useCallback((target: string) => {
+    window.history.pushState(null, "", `/meal-plan?week=${target}`);
+  }, []);
 
   const data = local ?? initial;
 
   return (
     <WeekPlanner
-      weekStartDate={weekStartDate}
-      isCurrentWeek={isCurrentWeek}
-      todayDayIndex={todayDayIndex}
+      weekStartDate={week}
+      isCurrentWeek={currentWeek}
+      todayDayIndex={dayIndex}
       planId={data.planId}
       entries={data.entries}
       recipes={data.recipes}
       topIngredients={data.topIngredients}
       shoppingItemCount={data.shoppingItemCount}
-      // Only when the local store is driving the screen: against `initial`,
-      // the entry ids are the same but nothing would re-read the result.
-      onMoveEntry={local ? handleMoveEntry : undefined}
+      // Both only when the local store is driving the screen: against
+      // `initial`, nothing would re-read the result.
+      mutations={mutations}
+      // Adding stays on its server action, so the store has to be told to catch
+      // up — otherwise the new meal is invisible until the next sync trigger.
+      onEntryAdded={local ? syncNow : undefined}
+      onNavigateWeek={local ? handleNavigateWeek : undefined}
     />
   );
 }

@@ -155,11 +155,31 @@ shopping generate) still go through the existing server actions.
   returned `applied`, move survived a reload) and offline (server stopped
   mid-drag: the UI moved, the mutation sat in the Dexie queue, and it drained to
   the server on reconnect)
-- [ ] Week navigation via `history.pushState`, the same win as the recipe filter
-  chips — arrows currently still wait on the server
-- [ ] Add / delete / shopping-generate over `engine.mutate()`. The sync schema
-  already accepts `meal_plan_entry.add` and `.delete`, so these are the same
-  shape as the move
+- [x] **Week navigation via `history.pushState`.** Better than the filter chips:
+  those still let Next fetch the RSC payload in the background, whereas a week
+  change now issues **no network request at all** — the store already holds every
+  week. Needed one thing the chips didn't: `weekStartDate` is a server prop, so
+  `WeekPlannerLocal` derives the week (and `isCurrentWeek` / `todayDayIndex`)
+  from `useSearchParams` when local, or nothing would re-render. Back/forward
+  verified
+- [x] **Delete, change meal type, change servings and move-from-the-menu over
+  `engine.mutate()`.** `WeekPlanner` takes an optional `mutations` object
+  (`moveEntry` / `changeEntryType` / `updateEntryServings` / `deleteEntry`),
+  each defaulting to its server action, forwarded down to `EntryCard`. These are
+  exactly what `POST /api/v1/sync` accepts as `meal_plan_entry.update` /
+  `.delete`
+- [ ] **Adding an entry — needs engine work first, not screen work.** The server
+  assigns the entry id and creates the week's plan row, so an optimistic entry
+  needs a client-generated id; `applyPull` only removes ids the server reports
+  as deleted, so the temporary row would outlive the pull that brings the real
+  one and the meal would show twice, permanently. Needs the engine to reconcile
+  a temp id against the `id` in the push response. Until then adding stays on
+  its server action, with `onEntryAdded` triggering a sync so the store catches
+  up straight away
+- [ ] **Shopping-list generation stays a server action** and probably should.
+  It is not in the sync schema, and its result (added / topped up /
+  skipped-because-pantry) is computed server-side from ingredients and pantry
+  stock, so there is nothing meaningful to show optimistically
 - [ ] Stale-while-revalidate reads: recipe list, recipe detail, shopping list, this week's meal plan paint from cache instantly
 - [ ] Mutation queue with optimistic UI + rollback on failure — first real use
   is the meal-plan drag above; rollback there is implicit (the next pull carries
