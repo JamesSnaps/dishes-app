@@ -10,7 +10,7 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
 import { RecipeFilters } from "./_components/recipe-filters";
-import { RecipesGrid } from "./_components/recipes-grid";
+import { RecipesLocalGrid } from "./_components/recipes-local-grid";
 import { CrumbImportModal } from "./_components/crumb-import-modal";
 
 export const metadata = { title: "Recipes" };
@@ -199,8 +199,8 @@ export default async function RecipesPage({ searchParams }: Props) {
           )}
         </div>
       ) : (
-        <RecipesGrid
-          recipes={allRecipes
+        <RecipesLocalGrid
+          initial={allRecipes
             .map((recipe) => {
               const stats = cookStatsByRecipe.get(recipe.id);
               return {
