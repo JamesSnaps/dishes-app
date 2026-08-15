@@ -13,6 +13,14 @@ import {
   MealPlanValidationError,
 } from "@/lib/services/meal-plan";
 import { SyncCursorError } from "@/lib/services/sync";
+import {
+  CookEntryNotFoundError,
+  CookHistoryValidationError,
+} from "@/lib/services/cook-history";
+import {
+  UploadUnavailableError,
+  UploadValidationError,
+} from "@/lib/services/upload";
 
 /**
  * Shared error envelope for /api/v1. Every failure the native client can see
@@ -60,7 +68,8 @@ export function withApiErrors<Args extends unknown[]>(
         err instanceof ShoppingListNotFoundError ||
         err instanceof ShoppingItemNotFoundError ||
         err instanceof MealPlanNotFoundError ||
-        err instanceof MealPlanEntryNotFoundError
+        err instanceof MealPlanEntryNotFoundError ||
+        err instanceof CookEntryNotFoundError
       ) {
         return apiError("not_found", err.message, 404);
       }
@@ -68,12 +77,18 @@ export function withApiErrors<Args extends unknown[]>(
         err instanceof RecipeValidationError ||
         err instanceof ShoppingValidationError ||
         err instanceof MealPlanValidationError ||
-        err instanceof SyncCursorError
+        err instanceof SyncCursorError ||
+        err instanceof CookHistoryValidationError ||
+        err instanceof UploadValidationError
       ) {
         return apiError("invalid_request", err.message, 400);
       }
       if (err instanceof ZodError) {
         return apiError("invalid_request", "Invalid request", 400, err.issues);
+      }
+
+      if (err instanceof UploadUnavailableError) {
+        return apiError("internal_error", err.message, 503);
       }
 
       console.error("[api/v1] Unhandled error:", err);

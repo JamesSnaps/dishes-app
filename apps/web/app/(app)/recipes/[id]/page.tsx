@@ -36,7 +36,7 @@ import { MemoryCard } from "./_components/memory-card";
 import { GenerateImageButton } from "./_components/generate-image-button";
 import { NutritionPanel } from "./_components/nutrition-panel";
 import { toggleFavourite } from "@/app/actions/recipes";
-import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/app/actions/cook-history";
+import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/lib/services/cook-history";
 import { getSmtpConfig } from "@/app/actions/sharing";
 import { isStorageAvailable } from "@/lib/storage";
 import type { GeneratedRecipe } from "@/app/actions/ai";

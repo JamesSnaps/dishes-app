@@ -15,7 +15,7 @@ import {
 } from "@dishes/ui";
 import { StarRating } from "./star-rating";
 import { deleteCookEntry, updateCookEntry } from "@/app/actions/cook-history";
-import type { CookHistoryEntry as Entry } from "@/app/actions/cook-history";
+import type { CookHistoryEntry as Entry } from "@/lib/services/cook-history";
 
 function formatDate(isoString: string): string {
   const date = new Date(isoString);

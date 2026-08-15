@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { FolderOpen } from "lucide-react";
 import { db } from "@/lib/db";
 import { recipes, recipeTags, collections, recipeCollections } from "@dishes/db/schema";
-import { getCookStatsByRecipe } from "@/app/actions/cook-history";
+import { getCookStatsByRecipe } from "@/lib/services/cook-history";
 import { eq, and, ilike, isNotNull, or, inArray, count, sql, desc } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
