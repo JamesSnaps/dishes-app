@@ -87,10 +87,36 @@ Ship this before writing any native code and reassess. This is where "clunky on 
 - [x] **Filter changes no longer block on the server.** `RecipeFilters` uses `history.pushState` when local data is available (Next syncs `useSearchParams` from it), falling back to `router.push` otherwise. Measured: the list re-filters within 50ms, before the RSC request returns. Next still fetches that payload in the background, but nothing waits for it and there is no flicker
 - [ ] Measure cold-load-to-first-paint on a throttled connection, before and after — the remaining "is it actually faster" evidence
 - [ ] Measure cold-load-to-first-paint on a throttled connection, before and after
-- [ ] **Meal plan — attempted 15 Aug 2026, reverted. Notes below.** The highest-value conversion left
+- [x] **Meal plan converted.** `WeekPlannerLocal` wraps `WeekPlanner` the same way `RecipesLocalGrid` wraps the grid, so its ~690 lines of drag-and-drop, per-entry menus and shopping flows are untouched. Week entries, the picker's recipe list, top ingredients and the shopping badge are all derived from the local store; the server render stays as `initial`. Notes on the reverted first attempt below
 - [ ] Recipe detail; retire `lib/shopping-db.ts` when the shopping screen moves across
 
-#### Meal plan conversion — what was learned before reverting
+#### Meal plan conversion — how it actually went
+
+Traced on 15 Aug 2026 before rebuilding. **`AddEntryDialog` gets its recipes
+from exactly one place**: `WeekPlanner`'s `recipes` prop, passed straight
+through at its two call sites. There is no second source — the note below
+guessed wrong. The two `Recipe` types were already field-for-field identical.
+
+So the `tags is not iterable` failure was a per-record hole, not a wrong-source
+problem: the server guarantees `tags: … ?? []` in `page.tsx`, and any mapping
+that reads `tags` off a record where it can be absent yields `undefined` while
+the type still says `string[]`. `WeekPlannerLocal` closes that off by routing
+every field through a narrowing helper (`strArray`, `difficulty` via `find` so
+the compiler derives the union, and so on) rather than a cast, applying the same
+defaults the server does. A malformed store record cannot reach the picker.
+
+Two things worth knowing for the next conversion:
+
+1. **Memoise the mapped arrays.** `WeekPlanner` copies `entries` into state via
+   an effect keyed on its identity, so rebuilding the array each render loops
+   forever. `useMemo` on the store arrays is not an optimisation here.
+2. **A stale Turbopack chunk looks exactly like a code bug.** Changing the props
+   `page.tsx` passes left the dev server serving a client chunk that still
+   rendered `WeekPlanner` directly, so it received no `entries` and threw
+   `localEntries.length` of undefined — with the *new* server render behind it.
+   `rm -rf apps/web/.next` and restart before believing a prop-shape error.
+
+#### The reverted first attempt — original notes
 
 The wrapper approach is sound and the seam exists: `WeekPlanner` takes `entries`
 and `recipes` as props, so it can be wrapped exactly like `RecipesGrid` was,
@@ -108,21 +134,25 @@ Two things worth carrying forward:
    fields than were mapped, so `tags` arrived undefined. Build the object
    literal and let the compiler check it — that alone would have caught this
    before the browser did.
-2. **Mapping all the fields did not fix it.** So something other than
-   `WeekPlanner`'s `recipes` prop is feeding `AddEntryDialog`. *Start there* —
-   trace where that dialog actually gets its recipe list before building
-   anything.
+2. ~~**Mapping all the fields did not fix it.** So something other than
+   `WeekPlanner`'s `recipes` prop is feeding `AddEntryDialog`.~~ **Wrong** — the
+   trace above found a single source. Kept as a reminder that "it must be coming
+   from somewhere else" is a tempting and expensive wrong turn.
 
 The picker's `Recipe` type needs `tags`, `ingredientNames`, `avgRating`,
 `isFavourite`, `imageUrl` and both time fields — a heavier mapping than the
 recipe card needs. `ingredientNames` comes from the synced recipe's
 `ingredients` array; `avgRating` has to be derived from synced `cookHistory`.
 
-**Why this one is worth doing next:** drag-and-drop between days would be the
-first UI use of `engine.mutate()`, which would prove the sync *push* path end to
-end. So far it is only verified at the API level (idempotency, batch semantics —
-see the sync PR), never through a real user action. Week navigation is also the
-same `history.pushState` win as the recipe filter chips.
+**Still outstanding on this screen.** The conversion covered reads only. Writes
+(add, move, delete, shopping generate) still go through the existing server
+actions, so:
+
+- [ ] Drag-and-drop between days on `engine.mutate()` — the first UI use of the
+  sync *push* path, which is still only verified at the API level (idempotency,
+  batch semantics), never through a real user action
+- [ ] Week navigation via `history.pushState`, the same win as the recipe filter
+  chips — arrows currently still wait on the server
 - [ ] Stale-while-revalidate reads: recipe list, recipe detail, shopping list, this week's meal plan paint from cache instantly
 - [ ] Mutation queue with optimistic UI + rollback on failure
 - [ ] Background Sync API registration for queued mutations
