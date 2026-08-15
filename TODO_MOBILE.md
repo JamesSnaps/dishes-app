@@ -221,15 +221,38 @@ shopping generate) still go through the existing server actions.
   It is not in the sync schema, and its result (added / topped up /
   skipped-because-pantry) is computed server-side from ingredients and pantry
   stock, so there is nothing meaningful to show optimistically
-- [ ] Stale-while-revalidate reads: recipe list, recipe detail, shopping list, this week's meal plan paint from cache instantly
+- [x] **Stale-while-revalidate reads — every screen paints from cache.** The
+  service worker already existed; the problem was that `defaultCache` serves
+  pages and RSC payloads NetworkFirst, so every navigation waited on the server
+  even with an identical copy cached. Routes are now registered explicitly
+  instead of through `runtimeCaching` — precedence is registration order, and
+  constructor-passed routes register first, so a plain `destination ===
+  "document"` matcher could never get ahead of defaultCache's same-origin
+  catch-all. Order is now `NavigationRoute` → RSC → images → Next defaults.
+  Verified offline in a real browser
+- [x] **A correctness bug fixed on the way.** That catch-all is NetworkFirst,
+  which only falls back to cache on a network *error*. A reverse proxy answering
+  502 while the app server restarts is a valid response, so it handed the error
+  page to the user with a good copy sitting in the cache. Navigations no longer
+  go through it
 - [x] **Mutation queue with optimistic UI + rollback on failure.** Rollback for
   *edits* is implicit — the next pull carries the server's version, so a
   rejected change simply reverts. Rollback for *creates* needed the temp-id
   mechanism above, since there is no server row to revert to. Both are in and
   exercised by the meal plan; the remaining screens get them for free
-- [ ] Background Sync API registration for queued mutations
-- [ ] Offline indicator + "last synced" affordance in the app shell
-- [ ] Cache recipe images for favourites and this week's plan (Cache API)
+- [ ] **Background Sync for the *sync engine's* queue.** A `sync` handler exists,
+  but it flushes the old `dishes-shopping` IndexedDB queue, not the engine's
+  `dishes-sync` one — so an engine mutation queued offline waits for the app to
+  be reopened rather than going out when connectivity returns. Note the hazard
+  before starting: draining from the worker means reimplementing the push
+  protocol *including* temp-id reconciliation, and getting that wrong duplicates
+  entities exactly as the temp-id work was written to prevent. Waking an open
+  client to call `engine.sync()` is the safe subset; draining with the app closed
+  is the part that needs care
+- [x] Offline indicator + "last synced" affordance in the app shell — already
+  shipped with the sync provider (`SyncStatus` in the side nav)
+- [x] Cache recipe images for favourites and this week's plan (Cache API) —
+  already in the service worker: `recipe-images`, 250 entries, 30 days
 - [ ] Re-measure cold-load-to-first-paint once the service-worker items above
   land — that is the change that can actually move it. Baseline is in the Phase B
   list: 61 KB / 831 ms at 50 KB/s for `/meal-plan`
