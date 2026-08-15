@@ -80,7 +80,10 @@ Ship this before writing any native code and reassess. This is where "clunky on 
 - [x] `/api/web/*` alias so the browser can reach the client API with its session (middleware rewrite; no Authelia change needed)
 - [x] `@dishes/client`: typed API client + sync engine behind a `SyncStore` interface. No Dexie, no React, no timers — the host decides *when* to sync, which keeps it identical on web and native
 - [x] Dexie `SyncStore` implementation for the browser (`apps/web/lib/sync-store.ts`), one table per collection, pull applied in a single transaction with the cursor
-- [ ] Wire the engine into the app: a provider that owns one SyncEngine, syncs on mount/reconnect/resume, and exposes read hooks
+- [x] `SyncProvider` owns one engine and decides *when* to sync (mount, reconnect, tab visible). No polling — a household app is idle for hours at a time
+- [x] Read hooks `useSyncedCollection` / `useSyncedRecord` / `useOnline`, plus a quiet `SyncStatus` affordance in the side nav
+- [ ] Convert the recipes list to read from the store (stale-while-revalidate). The page is currently an RSC doing filtered DB queries, so this means moving filtering/sorting client-side — the largest single conversion, and where the "clunky on poor signal" complaint actually gets fixed
+- [ ] Then meal plan and recipe detail; retire `lib/shopping-db.ts` when the shopping screen moves across
 - [ ] Stale-while-revalidate reads: recipe list, recipe detail, shopping list, this week's meal plan paint from cache instantly
 - [ ] Mutation queue with optimistic UI + rollback on failure
 - [ ] Background Sync API registration for queued mutations

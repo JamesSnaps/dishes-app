@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { SyncStatus } from "@/components/sync-status";
 import { useTheme } from "next-themes";
 import {
   BookOpen,
@@ -170,6 +171,11 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
 
         {/* Spacer */}
         <div className="flex-1" />
+
+        {/* Sync status — quiet unless something needs attention */}
+        <div className="border-t px-4 py-2">
+          <SyncStatus />
+        </div>
 
         {/* Settings + Help */}
         <div className="border-t p-3 flex flex-col gap-1">
