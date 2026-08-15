@@ -6,6 +6,7 @@ import { useSync, useSyncedCollection } from "@/components/providers/sync-provid
 import {
   WeekPlanner,
   type Entry,
+  type MealPlanMutations,
   type Recipe,
   type TopIngredient,
   type WeekPlannerProps,
@@ -279,41 +280,78 @@ export function WeekPlannerLocal({
   }, [useLocal, syncedRecipes, cooks, plans, planEntries, lists, items, week]);
 
   /**
-   * Drag between days, pushed through the sync engine rather than the server
-   * action. The optimistic store write lands immediately, so the move survives
-   * the re-read that `onChange` triggers; the queued mutation goes out on the
-   * sync that follows.
+   * Entry edits, pushed through the sync engine rather than the server actions.
+   * The optimistic store write lands immediately, so the change survives the
+   * re-read that `onChange` triggers; the queued mutation goes out on the sync
+   * that follows.
    *
    * No rollback here on purpose. A mutation the server rejects is dropped from
    * the queue by the engine (it would never succeed on a retry), and the next
-   * pull carries the server's version of the entry — which restores the old day
-   * without any bookkeeping on this side.
+   * pull carries the server's version of the entry — which restores the old
+   * state without any bookkeeping on this side.
+   *
+   * `.catch` is a no-op for the same reason: if queueing itself failed, the
+   * optimistic write is undone by that next pull too.
+   */
+  /**
+   * Two meal-plan writes deliberately stay on their server actions.
+   *
+   * **Adding an entry.** `meal_plan_entry.add` exists in the sync schema, but
+   * the server assigns the entry id (and creates the week's plan row when there
+   * isn't one). An optimistic entry would therefore need a client-generated id,
+   * and `applyPull` only removes ids the server reports as deleted — so the
+   * temporary row would survive the pull that brings the real one back and the
+   * meal would appear twice, permanently. Fixing that means teaching the engine
+   * to reconcile a temp id with the `id` the push response returns, which is
+   * engine work rather than screen work. Tracked in TODO_MOBILE.md.
+   *
+   * **Generating a shopping list.** Not in the sync schema at all, and it can't
+   * be: the result the UI reports (added / topped up / skipped-because-pantry)
+   * is computed server-side from ingredients and pantry stock, so there is
+   * nothing meaningful to show optimistically.
    */
   const engine = sync?.engine ?? null;
   const syncNow = sync?.sync;
 
-  const handleMoveEntry = useCallback(
-    (entryId: string, newDay: number) => {
-      if (!engine) return;
+  const mutations = useMemo<MealPlanMutations | undefined>(() => {
+    if (!engine || !local) return undefined;
 
+    const update = (entryId: string, payload: Record<string, unknown>, patch: SyncRow) => {
       const row = planEntries.find((e) => e.id === entryId);
-
       engine
         .mutate(
           "meal_plan_entry.update",
-          { entryId, dayOfWeek: newDay },
-          row
-            ? { collection: "mealPlanEntries", record: { ...row, dayOfWeek: newDay } }
-            : undefined
+          { entryId, ...payload },
+          row ? { collection: "mealPlanEntries", record: { ...row, ...patch } } : undefined
         )
         .then(() => syncNow?.())
-        .catch(() => {
-          // Queueing failed (IndexedDB unavailable). The drag is already undone
-          // by the next re-read, so there is nothing to unwind.
-        });
-    },
-    [engine, planEntries, syncNow]
-  );
+        .catch(() => {});
+      return;
+    };
+
+    return {
+      moveEntry: (entryId, dayOfWeek) =>
+        update(entryId, { dayOfWeek }, { id: entryId, dayOfWeek }),
+
+      changeEntryType: (entryId, mealType) =>
+        update(entryId, { mealType }, { id: entryId, mealType }),
+
+      // The wire field is `servings`; the prop the UI reads is `entryServings`,
+      // mapped in toEntry. The store holds the raw row, so patch `servings`.
+      updateEntryServings: (entryId, servings) =>
+        update(entryId, { servings }, { id: entryId, servings }),
+
+      deleteEntry: (entryId) => {
+        engine
+          .mutate("meal_plan_entry.delete", { entryId }, {
+            collection: "mealPlanEntries",
+            removeId: entryId,
+          })
+          .then(() => syncNow?.())
+          .catch(() => {});
+      },
+    };
+  }, [engine, local, planEntries, syncNow]);
 
   /**
    * Week change without a server round-trip. `router.push` is not called at
@@ -337,9 +375,12 @@ export function WeekPlannerLocal({
       recipes={data.recipes}
       topIngredients={data.topIngredients}
       shoppingItemCount={data.shoppingItemCount}
-      // Only when the local store is driving the screen: against `initial`,
-      // the entry ids are the same but nothing would re-read the result.
-      onMoveEntry={local ? handleMoveEntry : undefined}
+      // Both only when the local store is driving the screen: against
+      // `initial`, nothing would re-read the result.
+      mutations={mutations}
+      // Adding stays on its server action, so the store has to be told to catch
+      // up — otherwise the new meal is invisible until the next sync trigger.
+      onEntryAdded={local ? syncNow : undefined}
       onNavigateWeek={local ? handleNavigateWeek : undefined}
     />
   );

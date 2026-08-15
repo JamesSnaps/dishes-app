@@ -95,6 +95,18 @@ export type TopIngredient = {
   count: number;
 };
 
+/**
+ * The entry edits that can be routed somewhere other than the server actions.
+ * These are exactly the ones `POST /api/v1/sync` accepts as
+ * `meal_plan_entry.update` / `.delete`.
+ */
+export type MealPlanMutations = {
+  moveEntry: (entryId: string, dayOfWeek: number) => void;
+  changeEntryType: (entryId: string, mealType: MealType) => void;
+  updateEntryServings: (entryId: string, servings: number | null) => void;
+  deleteEntry: (entryId: string) => void;
+};
+
 export interface WeekPlannerProps {
   weekStartDate: string;
   planId: string | null;
@@ -105,11 +117,18 @@ export interface WeekPlannerProps {
   topIngredients: TopIngredient[];
   shoppingItemCount: number;
   /**
-   * How a drag between days is persisted. Defaults to the `moveMealEntry`
-   * server action; `WeekPlannerLocal` supplies a version that goes through the
-   * sync engine instead. The optimistic UI update is done here either way.
+   * How entry edits are persisted. Every field defaults to the matching server
+   * action; `WeekPlannerLocal` supplies versions that go through the sync
+   * engine instead. Optimistic UI updates are done by the components either
+   * way.
+   *
+   * Only the edits the sync schema accepts are here. Adding an entry and
+   * generating a shopping list stay on their server actions — see the notes in
+   * `week-planner-local.tsx`.
    */
-  onMoveEntry?: (entryId: string, newDay: number) => void;
+  mutations?: MealPlanMutations;
+  /** Forwarded to `AddEntryDialog`; see its `onAdded`. */
+  onEntryAdded?: () => void;
   /**
    * How a week change is navigated. Defaults to `router.push`;
    * `WeekPlannerLocal` supplies a `history.pushState` version when the store
@@ -498,7 +517,15 @@ function DroppableDayChip({
 
 // ─── Draggable meal entry ─────────────────────────────────────────────────────
 
-function DraggableMealEntry({ entry, weekStartDate }: { entry: Entry; weekStartDate: string }) {
+function DraggableMealEntry({
+  entry,
+  weekStartDate,
+  mutations,
+}: {
+  entry: Entry;
+  weekStartDate: string;
+  mutations?: MealPlanMutations;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: entry.id,
     data: { entry },
@@ -508,6 +535,7 @@ function DraggableMealEntry({ entry, weekStartDate }: { entry: Entry; weekStartD
     <EntryCard
       entry={entry}
       weekStartDate={weekStartDate}
+      mutations={mutations}
       dragNodeRef={setNodeRef}
       dragListeners={listeners as Record<string, unknown>}
       dragAttributes={attributes as unknown as Record<string, unknown>}
@@ -527,7 +555,8 @@ export function WeekPlanner({
   todayDayIndex,
   topIngredients,
   shoppingItemCount,
-  onMoveEntry,
+  mutations,
+  onEntryAdded,
   onNavigateWeek,
 }: WeekPlannerProps) {
   const router = useRouter();
@@ -679,7 +708,7 @@ export function WeekPlanner({
     );
     setSelectedDay(newDay);
 
-    if (onMoveEntry) onMoveEntry(entryId, newDay);
+    if (mutations) mutations.moveEntry(entryId, newDay);
     else startMoveTransition(() => moveMealEntry(entryId, newDay));
   }
 
@@ -819,6 +848,7 @@ export function WeekPlanner({
                 dayOfWeek={selectedDay}
                 dayLabel={selectedDayLabel}
                 recipes={recipes}
+                onAdded={onEntryAdded}
                 trigger={
                   <button
                     className="flex-shrink-0 h-9 w-9 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md transition-colors ml-1"
@@ -925,6 +955,7 @@ export function WeekPlanner({
                       key={entry.id}
                       entry={entry}
                       weekStartDate={weekStartDate}
+                      mutations={mutations}
                     />
                   ))}
                 </ul>
@@ -944,6 +975,7 @@ export function WeekPlanner({
                   dayOfWeek={selectedDay}
                   dayLabel={selectedDayLabel}
                   recipes={recipes}
+                  onAdded={onEntryAdded}
                 />
               )}
             </div>

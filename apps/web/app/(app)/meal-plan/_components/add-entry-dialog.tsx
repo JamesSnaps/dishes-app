@@ -65,6 +65,14 @@ interface Props {
   dayLabel: string;
   recipes: Recipe[];
   trigger?: React.ReactNode;
+  /**
+   * Called once the entry is written. Adding still goes through the server
+   * action (see the notes in `week-planner-local.tsx`), so when the screen is
+   * reading from the local store the new meal is invisible until the store
+   * catches up — `WeekPlannerLocal` passes a sync trigger here to close that
+   * gap.
+   */
+  onAdded?: () => void;
 }
 
 function StarRow({ rating, size = "sm" }: { rating: number; size?: "sm" | "xs" }) {
@@ -100,7 +108,7 @@ function FilterLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, trigger }: Props) {
+export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, trigger, onAdded }: Props) {
   const [open, setOpen] = useState(false);
   const [mealType, setMealType] = useState<MealType>("dinner");
   const [search, setSearch] = useState("");
@@ -168,6 +176,7 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
   function handleSelect(recipeId: string) {
     startTransition(async () => {
       await addMealEntry(weekStartDate, recipeId, dayOfWeek, mealType);
+      onAdded?.();
       setOpen(false);
       setSearch("");
       clearAllFilters();

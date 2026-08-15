@@ -44,6 +44,7 @@ import {
   updateMealEntryServings,
 } from "@/app/actions/meal-plan";
 import type { ShoppingAddResult } from "@/lib/services/meal-plan";
+import type { MealPlanMutations } from "./week-planner";
 import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
 import { useToast } from "@/hooks/use-toast";
 
@@ -113,13 +114,19 @@ interface Props {
     };
   };
   weekStartDate: string;
+  /**
+   * When supplied, entry edits go through these instead of the server actions.
+   * `WeekPlannerLocal` passes sync-engine versions; everything else leaves it
+   * undefined and keeps the server actions.
+   */
+  mutations?: MealPlanMutations;
   dragNodeRef?: (node: HTMLLIElement | null) => void;
   dragListeners?: Record<string, unknown>;
   dragAttributes?: Record<string, unknown>;
   isDragging?: boolean;
 }
 
-export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dragAttributes, isDragging }: Props) {
+export function EntryCard({ entry, weekStartDate, mutations, dragNodeRef, dragListeners, dragAttributes, isDragging }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { toast } = useToast();
@@ -139,15 +146,18 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
   const onShoppingList = entry.addedToShoppingListAt != null;
 
   function handleRemove() {
-    startTransition(() => removeMealEntry(entry.id));
+    if (mutations) mutations.deleteEntry(entry.id);
+    else startTransition(() => removeMealEntry(entry.id));
   }
 
   function handleMove(newDay: number) {
-    startTransition(() => moveMealEntry(entry.id, newDay));
+    if (mutations) mutations.moveEntry(entry.id, newDay);
+    else startTransition(() => moveMealEntry(entry.id, newDay));
   }
 
   function handleChangeType(newType: MealType) {
-    startTransition(() => changeMealEntryType(entry.id, newType));
+    if (mutations) mutations.changeEntryType(entry.id, newType);
+    else startTransition(() => changeMealEntryType(entry.id, newType));
   }
 
   function describeAdd(result: ShoppingAddResult): string {
@@ -207,16 +217,19 @@ export function EntryCard({ entry, weekStartDate, dragNodeRef, dragListeners, dr
     setServingsOpen(true);
   }
 
-  function handleSaveServings() {
-    const n = parseFloat(servingsInput);
-    const val = !isNaN(n) && n > 0 ? n : null;
-    startTransition(() => updateMealEntryServings(entry.id, val));
+  function saveServings(val: number | null) {
+    if (mutations) mutations.updateEntryServings(entry.id, val);
+    else startTransition(() => updateMealEntryServings(entry.id, val));
     setServingsOpen(false);
   }
 
+  function handleSaveServings() {
+    const n = parseFloat(servingsInput);
+    saveServings(!isNaN(n) && n > 0 ? n : null);
+  }
+
   function handleResetServings() {
-    startTransition(() => updateMealEntryServings(entry.id, null));
-    setServingsOpen(false);
+    saveServings(null);
   }
 
   function handleNavigate() {
