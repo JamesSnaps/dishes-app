@@ -13,11 +13,8 @@ import {
   Input,
   Label,
 } from "@dishes/ui";
-import {
-  generateFromRecipe,
-  previewShoppingGeneration,
-  type ShoppingPreview,
-} from "@/app/actions/shopping";
+import { generateFromRecipe, previewShoppingGeneration } from "@/app/actions/shopping";
+import type { ShoppingPreview } from "@/lib/services/shopping";
 
 interface Recipe {
   id: string;

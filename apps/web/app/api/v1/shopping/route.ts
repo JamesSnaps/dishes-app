@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/session";
+import { withApiErrors } from "@/lib/api/respond";
 import { getActiveListWithItems } from "@/lib/services/shopping";
 
-/**
- * Read endpoint for the PWA's offline shopping cache. Response shape is the
- * offline layer's contract — keep it stable; the Dexie cache in
- * `lib/shopping-db.ts` mirrors it field for field.
- */
-export async function GET() {
+/** The household's active shopping list and its items. */
+export const GET = withApiErrors(async () => {
   const session = await requireSession();
 
   return NextResponse.json(await getActiveListWithItems(session));
-}
+});

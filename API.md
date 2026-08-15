@@ -1,6 +1,15 @@
-# Dishes — Integrations API
+# Dishes — HTTP APIs
 
-External JSON API for use with n8n, Home Assistant, dashboards, and other automation tools.
+Dishes exposes two distinct JSON APIs. They are **not** interchangeable:
+
+| API | Prefix | Audience | Auth | Identity |
+|---|---|---|---|---|
+| Integrations API | `/api/integrations` | n8n, Home Assistant, dashboards | Household-scoped bearer token | Household only — no user |
+| Client API | `/api/v1` | First-party clients (native iOS, PWA offline layer) | Authelia proxy headers (bearer/OIDC planned) | A specific household member |
+
+Integrations tokens are deliberately **not** accepted on `/api/v1`: they carry no username, so they cannot attribute a write to a household member.
+
+The Integrations API is documented first; the Client API is at the end of this file.
 
 ---
 
@@ -338,3 +347,397 @@ Triggers AI meal plan generation for a given week. Creates stub recipes and adds
 | `4` | Friday |
 | `5` | Saturday |
 | `6` | Sunday |
+
+---
+
+# Client API (`/api/v1`)
+
+The first-party API used by Dishes' own clients. Unlike the Integrations API it
+resolves a **specific household member**, so writes are attributed correctly and
+role checks apply.
+
+## Authentication
+
+Requests are authenticated by `resolveIdentity()` (`apps/web/lib/auth.ts`), which
+accepts either:
+
+1. **Authelia reverse-proxy headers** (`Remote-User`, `Remote-Name`,
+   `Remote-Groups`) — how the browser reaches the app.
+2. **An OIDC access token** — `Authorization: Bearer <token>`, for native
+   clients. Requires `DISHES_OIDC_ISSUER` to be set; see the Authelia OIDC section of
+   `README.md`. When it is unset, every bearer token is rejected with `401`.
+
+Both transports converge on the same `AutheliaUser`, so household scoping, roles
+and member attribution behave identically regardless of client.
+
+Access tokens are verified two ways, chosen automatically by token shape:
+
+| Token | Verification |
+|---|---|
+| Opaque (Authelia default, `authelia_at_…`) | Exchanged for claims at the provider's userinfo endpoint. |
+| JWT (provider sets `access_token_signed_response_alg`) | Signature, issuer and expiry checked locally against the JWKS, plus audience when `DISHES_OIDC_CLIENT_ID` is set. Identity claims are then read from the payload **if present**, and fetched from userinfo otherwise. |
+
+On Authelia the JWT path always ends at userinfo anyway: Authelia deliberately
+omits `preferred_username` and `groups` from access tokens, treating them as
+opaque to clients. The fallback is what keeps that correct — trusting the JWT
+payload alone would key a household on the `sub` UUID and grant no groups.
+
+Userinfo results are cached in Redis for `DISHES_OIDC_USERINFO_CACHE_SECONDS`
+(default 60), keyed on a SHA-256 of the token, never the token itself. Because
+of the cache, revoking a session takes up to the TTL to take effect; set it to
+`0` if that matters more than the per-request round trip.
+
+Claims map as follows. `preferred_username` is required — household membership
+is keyed on it, so a token without it is rejected rather than silently
+bootstrapping a new household.
+
+| Claim | Maps to | Notes |
+|---|---|---|
+| `preferred_username` | `username` | **Required, no fallback.** Requires the `profile` scope. A token without it is rejected rather than bootstrapping a household keyed on an opaque `sub`. |
+| `name` | `displayName` | Falls back to the username. |
+| `groups` | `groups` | Requires the `groups` scope; roles depend on it. |
+
+The scheme is matched case-insensitively (`bearer` and `Bearer` both work). A
+bearer scheme with no token is a `401`, not a fall-through to proxy headers.
+
+**Integration tokens are not accepted here.** They carry a household id and
+scopes but no username, so they cannot attribute a write to a member. They
+remain confined to `/api/integrations`.
+
+### `GET /api/v1/auth/whoami`
+
+Diagnostic endpoint — who the server resolved you as, and how. Use it to verify
+an OIDC setup before any native client exists.
+
+```json
+{
+  "transport": "bearer",
+  "oidcConfigured": true,
+  "user": { "username": "james", "displayName": "James Collard", "groups": ["admins"] },
+  "household": { "householdId": "uuid", "memberId": "uuid", "role": "admin" }
+}
+```
+
+`transport` is `"bearer"` or `"proxy_headers"`. Whenever a user can reach the
+API both ways, both must return the same `username` and `memberId` — that
+equality is the contract the two transports exist to satisfy.
+
+Note that a deployment which bypasses `/api/v1` at the reverse proxy (the
+recommended Authelia setup, since a native client has no session) also strips
+the proxy headers, making `/api/v1` bearer-only in practice. The proxy-header
+path still applies in local development and to any deployment that fronts the
+API differently.
+
+## Error shape
+
+Distinct from the Integrations API's flat `{ "error": "…" }`:
+
+```json
+{ "error": { "code": "not_found", "message": "Recipe not found" } }
+```
+
+`details` is present on validation failures and carries the Zod issue list.
+
+| Code | Status |
+|---|---|
+| `unauthenticated` | 401 |
+| `forbidden` | 403 |
+| `not_found` | 404 |
+| `invalid_request` | 400 |
+| `internal_error` | 500 |
+
+## Endpoints
+
+### `GET /api/v1/recipes`
+
+Lists the household's recipes.
+
+Query parameters (all optional): `q`, `cuisine`, `favourites` (`0`/`1`),
+`difficulty` (`easy`/`medium`/`hard`), `maxTime` (minutes, prep + cook),
+`tags` (comma-separated), `sort` (`recent` default, `title`, `time`),
+`limit` (default 100, max 500), `offset`.
+
+```json
+{ "recipes": [ { "id": "…", "title": "Shakshuka", "cuisine": "Middle Eastern" } ] }
+```
+
+### `POST /api/v1/recipes`
+
+Creates a recipe. Returns `201` with the full recipe including ingredients,
+steps and tags.
+
+```json
+{
+  "title": "Shakshuka",
+  "description": "Eggs poached in a spiced pepper and tomato sauce.",
+  "cuisine": "Middle Eastern",
+  "prepTimeMinutes": 10,
+  "cookTimeMinutes": 25,
+  "servings": "4",
+  "servingsUnit": "servings",
+  "difficulty": "easy",
+  "mealTypes": ["breakfast", "dinner"],
+  "nutrition": { "calories": 510, "proteinG": 24 },
+  "ingredients": [
+    { "ingredientName": "Eggs", "amount": "4", "unit": "", "preparation": "", "isOptional": false, "groupLabel": "" }
+  ],
+  "steps": [
+    { "instruction": "Fry the peppers.", "durationMinutes": "8", "timerLabel": "Peppers", "groupLabel": "" }
+  ],
+  "tags": ["brunch"],
+  "collectionId": null
+}
+```
+
+Only `title` is required. `mealTypes` entries that aren't valid meal types are
+dropped. `collectionId` is ignored unless it names one of this household's
+collections.
+
+### `GET /api/v1/recipes/{id}`
+
+Full recipe with ingredients, steps and tags. `404` if it isn't this
+household's recipe.
+
+### `PUT /api/v1/recipes/{id}`
+
+Full replacement — not a partial patch. Ingredients and steps are positional
+child rows, so a partial update has no coherent meaning for them; any omitted
+field reverts to its default. Same body as `POST`. Returns the updated recipe.
+
+### `DELETE /api/v1/recipes/{id}`
+
+`204` on success, `404` if not found.
+
+### `POST /api/v1/recipes/{id}/favourite`
+
+Toggles the favourite flag and returns the new state.
+
+```json
+{ "isFavourite": true }
+```
+
+### `GET /api/v1/shopping`
+
+The household's active shopping list and its items, each with the titles of
+every recipe that contributed to it (`recipeTitles`, primary first).
+
+```json
+{
+  "listId": "uuid",
+  "listName": "This Week",
+  "items": [
+    {
+      "id": "uuid",
+      "listId": "uuid",
+      "ingredientName": "Chicken breasts",
+      "amount": "3.000",
+      "unit": null,
+      "notes": null,
+      "isChecked": false,
+      "category": "Meat & Fish",
+      "position": 0,
+      "recipeId": null,
+      "recipeTitle": null,
+      "recipeTitles": []
+    }
+  ]
+}
+```
+
+`listId` and `listName` are `null` and `items` is `[]` when there is no active list.
+
+### `POST /api/v1/shopping/items`
+
+Adds an item, creating an active list if none exists. Returns `201` with the item.
+
+```json
+{
+  "ingredientName": "Olives",
+  "amount": "2",
+  "unit": "jars",
+  "category": "ambient",
+  "notes": null,
+  "id": "client-generated-uuid",
+  "listId": "uuid",
+  "position": 21
+}
+```
+
+Only `ingredientName` is required. `id`, `listId` and `position` exist for
+offline clients: supplying `id` lets an item created on-device keep its identity
+when the mutation queue drains. `position` defaults to the end of the list.
+
+### `PATCH /api/v1/shopping/items/{id}`
+
+Partial update of `ingredientName`, `amount`, `unit`, `notes`, `category`. An
+empty body is `400` — omitting a field leaves it alone, sending `null` clears it.
+
+### `DELETE /api/v1/shopping/items/{id}`
+
+`204` on success.
+
+### `POST /api/v1/shopping/items/{id}/toggle`
+
+Body `{ "checked": true }`. Deliberately does **not** send a household push —
+ticking items off in a supermarket would otherwise notify every device.
+
+### `POST /api/v1/shopping/clear-checked`
+
+Body `{ "listId": "uuid" }`. Removes every checked item; returns `{ "cleared": 3 }`.
+
+### `POST /api/v1/shopping/archive`
+
+Body `{ "listId": "uuid" }`. Archives the list; the next write starts a fresh one.
+
+### `GET /api/v1/shopping/preview`
+
+Query: `recipeId` (required), `servings` (optional). Shows what `/generate`
+would add and what the pantry already covers, without writing.
+
+```json
+{
+  "adding": [{ "ingredientName": "chopped tomatoes", "amount": "1600", "unit": "g" }],
+  "skipped": [{ "ingredientName": "onions", "amount": "1", "unit": null, "reason": "staple" }]
+}
+```
+
+`reason` is `"staple"` or `"in_stock"`.
+
+### `POST /api/v1/shopping/generate`
+
+Pulls a recipe's ingredients onto the active list, scaled to `servings`, skipping
+anything the pantry covers, and merging into a matching unchecked line where one
+exists (same name and unit).
+
+```json
+{ "recipeId": "uuid", "servings": 8, "forceInclude": ["onions"] }
+```
+
+`forceInclude` names ingredients to add even though the pantry covers them.
+Returns `{ "listId": "uuid", "changed": true }`.
+
+### `GET /api/v1/meal-plan`
+
+A week's plan and its entries. `week` is the **Monday** the week starts on
+(`YYYY-MM-DD`, required).
+
+```json
+{
+  "plan": { "id": "uuid", "weekStartDate": "2026-09-07", "status": "active", "notes": null },
+  "entries": [
+    {
+      "id": "uuid",
+      "dayOfWeek": 2,
+      "mealType": "dinner",
+      "servings": "6.00",
+      "notes": null,
+      "addedToShoppingListAt": null,
+      "recipe": {
+        "id": "uuid",
+        "title": "Shakshuka",
+        "cuisine": "Middle Eastern",
+        "prepTimeMinutes": 10,
+        "cookTimeMinutes": 25,
+        "servings": "4.00",
+        "difficulty": "easy",
+        "thumbnailUrl": null,
+        "calories": 510
+      }
+    }
+  ]
+}
+```
+
+`plan` is `null` and `entries` is `[]` for a week that has never been planned.
+`dayOfWeek` is `0` = Monday … `6` = Sunday (see the reference table above).
+
+### `POST /api/v1/meal-plan/entries`
+
+Assigns a recipe to a slot, creating the week's plan if it doesn't exist.
+Returns `201` with `{ "entryId": "uuid" }`.
+
+```json
+{
+  "weekStartDate": "2026-09-07",
+  "recipeId": "uuid",
+  "dayOfWeek": 2,
+  "mealType": "dinner"
+}
+```
+
+### `PATCH /api/v1/meal-plan/entries/{id}`
+
+Moves an entry between days, changes its meal slot, or sets its servings. All
+fields optional, at least one required.
+
+```json
+{ "dayOfWeek": 5, "mealType": "lunch", "servings": 6 }
+```
+
+`servings` may be `null` to fall back to the recipe's own base servings.
+
+### `DELETE /api/v1/meal-plan/entries/{id}`
+
+`204` on success.
+
+### `POST /api/v1/meal-plan/entries/{id}/shopping-list`
+
+Adds one planned meal's ingredients to the active shopping list, scaled from the
+recipe's base servings to the entry's servings, skipping what the pantry covers.
+
+```json
+{ "forceInclude": ["feta"] }
+```
+
+Body optional. `forceInclude` is an **override pass**: only the named
+ingredients are processed, because the rest already went on the list in the
+first pass and re-running them would double their amounts. Use it to implement
+"add anyway" after a pantry skip.
+
+```json
+{ "added": 2, "merged": 1, "skipped": ["eggs", "onions"] }
+```
+
+`merged` counts ingredients folded into an existing unchecked line. `skipped`
+names what the pantry already covers, so the caller can offer to add it anyway.
+The entry is only flagged as added when `added + merged > 0`.
+
+### `POST /api/v1/meal-plan/generate-shopping`
+
+Aggregates every not-yet-added entry in a plan onto the active shopping list,
+combining the same ingredient across recipes into one line (200g flour in two
+recipes becomes one 400g line).
+
+```json
+{ "mealPlanId": "uuid", "forceInclude": ["feta"] }
+```
+
+Returns the same `{ added, merged, skipped }` shape. Entries already flagged as
+added are skipped so re-running never duplicates a meal — except on an override
+pass, which revisits every entry.
+
+## Push notifications
+
+Shopping mutations notify the household (throttled to one push per 90 seconds
+per household, shared across all shopping endpoints) on add, delete, clear-checked
+and generate. Toggling an item does not notify.
+
+Meal-plan pushes are separate and **not** throttled, because they are infrequent
+and individually meaningful: adding an AI-generated plan, and generating the
+week's shopping list. Both exclude the person who triggered them.
+
+All of this lives in the service layer, so an action taken from a phone notifies
+the family exactly as the same action taken in the browser does.
+
+## Adding a domain
+
+`/api/v1/recipes` is the reference implementation. The pattern:
+
+- Domain logic lives in `apps/web/lib/services/<domain>.ts`. It takes a
+  `HouseholdContext`, takes plain typed objects (never `FormData`), scopes every
+  query by `householdId`, and never redirects or calls `revalidatePath`.
+- Route handlers resolve `requireSession()`, validate with Zod, call the
+  service, and return JSON. Wrap them in `withApiErrors` so domain errors map to
+  the envelope above.
+- Server actions in `apps/web/app/actions/` become thin: parse `FormData`, call
+  the same service, then revalidate and redirect.

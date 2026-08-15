@@ -1,6 +1,6 @@
 {
   "name": "@dishes/web",
-  "version": "0.58.1",
+  "version": "0.62.3",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -25,6 +25,7 @@
     "dexie": "^4.4.2",
     "drizzle-orm": "^0.38.3",
     "ioredis": "^5.10.1",
+    "jose": "^6.2.8",
     "jszip": "^3.10.1",
     "lucide-react": "^0.469.0",
     "next": "^15.1.5",

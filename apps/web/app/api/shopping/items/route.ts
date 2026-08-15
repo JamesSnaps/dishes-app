@@ -1,49 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { shoppingLists, shoppingListItems } from "@dishes/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getAutheliaUser } from "@/lib/auth";
-import { requireHousehold } from "@/lib/household";
+import { requireSession } from "@/lib/session";
+import {
+  addItem,
+  ShoppingListNotFoundError,
+  ShoppingValidationError,
+} from "@/lib/services/shopping";
 
+/**
+ * Create endpoint for the PWA's offline mutation queue. The client supplies its
+ * own `id`, `listId` and `position` so an item created on-device keeps its
+ * identity when the queue drains. Response shape is the offline layer's
+ * contract — keep it stable.
+ */
 export async function POST(req: NextRequest) {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
   const body = await req.json();
-  const { id, listId, ingredientName, amount, unit, category, notes, position } = body;
 
-  if (!ingredientName?.trim()) {
-    return NextResponse.json({ error: "ingredientName required" }, { status: 400 });
+  try {
+    const item = await addItem(session, {
+      id: body.id,
+      listId: body.listId,
+      ingredientName: body.ingredientName ?? "",
+      amount: body.amount,
+      unit: body.unit,
+      category: body.category,
+      notes: body.notes,
+      position: body.position ?? 0,
+    });
+
+    return NextResponse.json({ item });
+  } catch (err) {
+    if (err instanceof ShoppingValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    if (err instanceof ShoppingListNotFoundError) {
+      return NextResponse.json({ error: "List not found" }, { status: 404 });
+    }
+    throw err;
   }
-
-  const [list] = await db
-    .select({ id: shoppingLists.id })
-    .from(shoppingLists)
-    .where(
-      and(
-        eq(shoppingLists.id, listId),
-        eq(shoppingLists.householdId, householdId)
-      )
-    )
-    .limit(1);
-
-  if (!list) {
-    return NextResponse.json({ error: "List not found" }, { status: 404 });
-  }
-
-  const [item] = await db
-    .insert(shoppingListItems)
-    .values({
-      id,
-      listId,
-      ingredientName: ingredientName.trim(),
-      amount: amount || null,
-      unit: unit || null,
-      category: category || null,
-      notes: notes || null,
-      position: position ?? 0,
-    })
-    .returning();
-
-  return NextResponse.json({ item });
 }

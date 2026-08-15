@@ -29,6 +29,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Nutrition** — per-serving calorie and macro breakdown (protein, carbs, fat, fibre, sugar, sodium) on every recipe, scaling with serving size. The AI fills it in automatically when generating or editing a recipe, an on-demand "Estimate nutrition" button backfills existing recipes, and values can be entered manually. The concierge accepts a per-serving calorie target and the meal planner accepts a max-calories-per-meal cap
 - **Household push notifications** — opt-in Web Push alerts when someone in the household makes a shared change: adding, removing or clearing shopping-list items, pulling a recipe onto the shopping list, generating the week's shopping list, or adding an AI meal plan. Every household device is notified (including the actor's other devices, so they stay in sync), and rapid bursts of changes are collapsed into a single push per household within a short window
 - **Integrations API** — JSON API with bearer token auth for n8n, Home Assistant, dashboards, and other automation tools
+- **Client API** — a separate `/api/v1` JSON API for Dishes' own clients, authenticated as a specific household member rather than as an anonymous household token. Recipes, the full shopping list, and the meal planner (week view, assigning and moving meals, per-meal and whole-week shopping generation) are covered today; it is the groundwork for a native iOS app and for offline writes beyond the shopping list
 - **PWA & offline** — installable on mobile; a service worker (Serwist) precaches the app shell and caches pages as you visit them, so the app launches and switches between sections even on poor or no signal instead of hanging. The shopping list works fully offline — changes queue locally and sync automatically when you reconnect. Shopping and meal plan refresh on resume (reopening the app re-fetches when online), and the shopping cache also refreshes via Periodic Background Sync where the browser supports it (Chrome/Android & desktop; iOS has no PWA background execution). A global offline indicator shows when you lose signal, opening an unvisited route offline lands on a friendly offline page instead of hanging, and the app auto-recovers from stale-chunk errors after a redeploy. Home-screen shortcuts jump straight to Shopping, Meal Plan, or the AI concierge, and recipe photos are cached for ~30 days so recipes stay readable (with images) offline
 
 ---
@@ -269,6 +270,9 @@ mc anonymous set download dishes/dishes   # for public image URLs
 | `AUTHELIA_NAME_HEADER` | No | Header name for display name. Default: `Remote-Name` |
 | `AUTHELIA_GROUPS_HEADER` | No | Header name for groups. Default: `Remote-Groups` |
 | `NEXT_PUBLIC_AUTHELIA_URL` | No | Authelia portal URL (e.g. `https://auth.example.com`). Enables the Log out option in the sidebar. Leave blank to hide it. |
+| `DISHES_OIDC_ISSUER` | No | Authelia root URL (e.g. `https://auth.example.com`). Enables bearer-token auth on `/api/v1` for native clients. Leave unset and the app stays proxy-headers-only, rejecting every bearer token. |
+| `DISHES_OIDC_CLIENT_ID` | No | OIDC client id registered in Authelia. Used to validate the `aud` claim when the provider issues JWT access tokens. |
+| `DISHES_OIDC_USERINFO_CACHE_SECONDS` | No | How long to cache userinfo lookups. Default: `60`. Set `0` to disable — revocation then takes effect immediately, at the cost of a call to Authelia per request. |
 | `POSTGRES_PASSWORD` | Compose only | PostgreSQL password (used by Docker Compose) |
 | `S3_ENDPOINT` | No | S3-compatible storage endpoint |
 | `S3_ACCESS_KEY` | No | S3 access key |
@@ -284,6 +288,8 @@ mc anonymous set download dishes/dishes   # for public image URLs
 ## Integrations API
 
 The app exposes a JSON API for external tools. Full documentation: [API.md](API.md).
+
+> Dishes has two APIs. `/api/integrations` (below) is for external automation and authenticates with household-scoped tokens. `/api/v1` is the **client API** used by Dishes' own clients — it resolves a specific household member, via Authelia proxy headers in the browser or an OIDC access token from a native app, and is the foundation for the planned native iOS app. See [API.md](API.md), [Authelia OIDC](#authelia-oidc-for-native-clients) and [TODO_MOBILE.md](TODO_MOBILE.md).
 
 Tokens are created at **Settings → Integrations** (admin only). Each token carries granular scopes and is rate-limited at 100 requests/minute via Redis.
 
@@ -305,6 +311,165 @@ curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/js
   -d '{"items":[{"ingredientName":"Milk","amount":"2","unit":"litres","category":"dairy"}]}' \
   https://dishes.yourdomain.com/api/integrations/shopping-list/items
 ```
+
+---
+
+## Authelia OIDC (for native clients)
+
+The browser reaches Dishes through Authelia at the reverse proxy, which injects
+`Remote-User` and friends. A native app connects directly and has no such
+headers, so it authenticates with an OIDC access token instead. Both paths
+resolve to the same household member — nothing else in the app changes.
+
+**This is optional.** Leave `DISHES_OIDC_ISSUER` unset and the app behaves exactly as
+before, rejecting any bearer token with `401`.
+
+### 1. Register the client in Authelia
+
+Add to your Authelia `configuration.yml`. This is a **public** client using PKCE
+— a mobile app cannot keep a client secret, so it must not have one.
+
+```yaml
+identity_providers:
+  oidc:
+    lifespans:
+      access_token: 1h
+      refresh_token: 90d
+    clients:
+      - client_id: dishes-mobile
+        client_name: Dishes iOS
+        public: true
+        authorization_policy: one_factor
+        redirect_uris:
+          - dishes://auth/callback
+        # offline_access + the refresh_token grant are required, or the app
+        # forces a full interactive login every time the access token expires.
+        scopes: [openid, profile, email, groups, offline_access]
+        grant_types: [authorization_code, refresh_token]
+        response_types: [code]
+        require_pkce: true
+        # require_pkce alone still permits the useless 'plain' method.
+        pkce_challenge_method: S256
+        token_endpoint_auth_method: none
+        # First-party app — no consent screen on every login.
+        consent_mode: implicit
+```
+
+`profile` and `groups` are not optional. `preferred_username` (from `profile`)
+is what household membership is keyed on, and roles depend on `groups`.
+
+**Do not set `access_token_signed_response_alg`.** Authelia deliberately omits
+identity claims from access tokens — its maintainers treat them as opaque to
+clients, with identity belonging to the ID token or userinfo endpoint. Turning
+access tokens into JWTs therefore gains nothing here: Dishes still has to call
+userinfo to learn who you are. It is supported (`lib/oidc.ts` verifies the JWT
+locally and then falls through to userinfo for the claims), just pointless.
+
+### 2. Point Dishes at Authelia
+
+```env
+DISHES_OIDC_ISSUER=https://auth.yourdomain.com
+DISHES_OIDC_CLIENT_ID=dishes-mobile
+```
+
+`DISHES_OIDC_ISSUER` must serve `/.well-known/openid-configuration`; Dishes reads
+the JWKS and userinfo endpoints from there rather than hardcoding them.
+
+### 3. Get the access control rules right
+
+This is the part that bites. A **bypassed** request gets no `Remote-User` header
+— Authelia does not evaluate the session for it. So bypassing all of `/api` would
+break every browser-facing API route in the app (`/api/shopping/*` for offline
+sync, `/api/push/*`, `/api/upload`, `/api/cook-assist`), which all identify the
+member from that header.
+
+Bypass only the two self-validating surfaces, and put the rule **above** any
+broader `/api` bypass — Authelia matches rules in order, first match wins:
+
+```yaml
+access_control:
+  rules:
+    - domain: 'dishes.yourdomain.com'
+      policy: bypass
+      resources:
+        - '^/api/v1([/?].*)?$'            # client API — OIDC token or proxy headers
+        - '^/api/integrations([/?].*)?$'  # n8n / Home Assistant household tokens
+        - '^/share/.*$'
+        - '^/_next/static/.*$'
+        - '^/_next/image.*$'
+        - '^/favicon\.ico$'
+        - '^/manifest\.json$'
+    - domain: 'dishes.yourdomain.com'
+      policy: one_factor
+```
+
+`bypass` means "Authelia does not gate it", not "unauthenticated": every
+`/api/v1` route calls `requireSession()` and returns `401` without a valid
+access token or proxy headers.
+
+**Consequence: in a deployment like this, `/api/v1` is bearer-only.** Because it
+is bypassed, browser requests to it arrive without identity headers too, so a
+`curl` with only a session cookie gets `401`. That costs nothing today — the web
+app uses server actions and the older `/api/shopping/*` routes, and nothing in
+the browser calls `/api/v1` — but a future local-first PWA layer will need
+`/api/v1` reachable *with* an identity, which means either serving it on a
+second, authenticated path or having the browser send a token as well.
+
+The `resolveIdentity()` proxy-header path is not dead code: it is what runs when
+`/api/v1` is *not* bypassed (local development, or a deployment that fronts the
+API differently). It just isn't the path this Authelia setup exercises.
+
+### 4. Verify it
+
+`/api/v1/auth/whoami` reports who the server resolved and how.
+
+With no credentials it should return `401` — that is correct, not a failure.
+`/api/v1` is bypassed by Authelia, so a cookie alone carries no identity:
+
+```bash
+curl -s https://dishes.yourdomain.com/api/v1/auth/whoami
+```
+
+To get an access token without a native app, run the PKCE flow from a terminal:
+
+```bash
+DISHES_OIDC_ISSUER=https://auth.yourdomain.com \
+DISHES_APP_URL=https://dishes.yourdomain.com \
+  node scripts/oidc-token.mjs --whoami
+```
+
+It opens your browser at Authelia, catches the redirect on
+`http://localhost:8765/callback`, exchanges the code, prints the access and
+refresh tokens, and (with `--whoami`) calls the endpoint for you. The loopback
+URI must be in the client's `redirect_uris`; use `--manual` to paste the
+redirect URL yourself instead and avoid registering it. `--refresh <token>`
+exchanges a refresh token without signing in again.
+
+The token it prints is a live credential for your account — don't paste the
+output anywhere shared.
+
+Or check by hand. With an access token you should get `200`,
+`transport: "bearer"`, your username, your groups, and a `memberId`:
+
+```bash
+curl -s -H "Authorization: Bearer <access-token>" \
+  https://dishes.yourdomain.com/api/v1/auth/whoami
+```
+
+The `memberId` must match the member the web app attributes your cooks to — if a
+*new* household appears instead, the token is missing `preferred_username` and
+the client needs the `profile` scope.
+
+Reading `oidcConfigured` requires a successful call, so to check the variable
+reached the container when you have no token yet, look at the container
+environment directly:
+
+```bash
+docker exec dishes printenv DISHES_OIDC_ISSUER
+```
+
+Empty output means it didn't arrive — the Compose file maps environment
+variables explicitly, so a new variable in `.env` also has to be added there.
 
 ---
 
