@@ -716,6 +716,100 @@ Returns the same `{ added, merged, skipped }` shape. Entries already flagged as
 added are skipped so re-running never duplicates a meal — except on an override
 pass, which revisits every entry.
 
+### `GET /api/v1/sync`
+
+Changes since a cursor. Omit `cursor` for a **full snapshot** — a first run, or
+a local store that was wiped.
+
+Query: `cursor` (opaque, from a previous response), `limit` (default 200, max 1000).
+
+```json
+{
+  "cursor": "djE6NDIx",
+  "hasMore": false,
+  "changes": {
+    "recipes": [ { "id": "…", "title": "…", "ingredients": [], "steps": [], "tags": [] } ],
+    "shoppingLists": [], "shoppingItems": [],
+    "mealPlans": [], "mealPlanEntries": [], "cookHistory": []
+  },
+  "deleted": { "recipes": ["uuid"], "shoppingLists": [], "shoppingItems": [], "mealPlans": [], "mealPlanEntries": [], "cookHistory": [] }
+}
+```
+
+`changes` carries whole current rows, not field-level diffs — apply them as
+upserts. `deleted` carries ids that are gone. Store `cursor` and pass it next
+time; keep pulling while `hasMore` is true.
+
+**The cursor is opaque.** Don't parse it, compare it, or do arithmetic on it.
+It encodes a position in an append-only change log, not a timestamp — which is
+why there is no clock skew and no overlap window to worry about.
+
+Notes on semantics:
+
+- **Granularity is the aggregate root.** Editing an ingredient, step or tag
+  produces a `recipe` change carrying the whole recipe. Clients replace the
+  recipe rather than reconciling child rows.
+- **Deleting a parent does not list its children.** Deleting a shopping list
+  emits one `shoppingLists` tombstone, not one per item; same for a meal plan
+  and its entries, and a recipe and its ingredients. Cascade locally.
+- **Repeats collapse.** An entity changed ten times within one page appears
+  once, in its final state. Something created and then deleted inside the same
+  page appears only in `deleted`.
+
+### `POST /api/v1/sync`
+
+Upload a batch of mutations — the drain path for an offline queue.
+
+```json
+{
+  "mutations": [
+    { "opId": "client-uuid", "type": "shopping_item.add",
+      "payload": { "ingredientName": "Capers", "amount": "1", "unit": "jar" } },
+    { "opId": "client-uuid", "type": "shopping_item.toggle",
+      "payload": { "itemId": "uuid", "checked": true } }
+  ]
+}
+```
+
+```json
+{
+  "results": [
+    { "opId": "client-uuid", "status": "applied", "id": "server-uuid" },
+    { "opId": "client-uuid", "status": "duplicate", "id": "server-uuid" },
+    { "opId": "client-uuid", "status": "failed", "error": "Shopping list item not found" }
+  ],
+  "cursor": "djE6NDMw"
+}
+```
+
+`opId` is client-generated and must be stable across retries: replaying one
+returns `duplicate` with the original result rather than applying it twice.
+
+Mutations are applied **in array order, individually — not in one transaction**.
+A queue is a sequence of independent user actions, so one failure does not
+discard the rest; check each result. Failures are not recorded in the
+idempotency ledger, so a mutation that failed on transient state can be retried.
+
+Supported `type` values:
+
+| Type | Payload |
+|---|---|
+| `shopping_item.add` | `ingredientName` (required), `amount`, `unit`, `category`, `notes`, `id`, `listId`, `position` |
+| `shopping_item.update` | `itemId` + any of `ingredientName`, `amount`, `unit`, `notes`, `category` |
+| `shopping_item.toggle` | `itemId`, `checked` |
+| `shopping_item.delete` | `itemId` |
+| `shopping_list.clear_checked` | `listId` |
+| `meal_plan_entry.add` | `weekStartDate`, `recipeId`, `dayOfWeek`, `mealType` |
+| `meal_plan_entry.update` | `entryId` + any of `dayOfWeek`, `mealType`, `servings` |
+| `meal_plan_entry.delete` | `entryId` |
+
+Recipe edits are deliberately absent: they are rare offline and much larger to
+merge. Create and edit recipes through `/api/v1/recipes` while connected.
+
+Conflict policy is last-write-wins at whole-entity granularity — the shape that
+suits a family app, where genuine concurrent edits of the same recipe are rare
+and shopping-list changes are near-append-only.
+
 ## Push notifications
 
 Shopping mutations notify the household (throttled to one push per 90 seconds

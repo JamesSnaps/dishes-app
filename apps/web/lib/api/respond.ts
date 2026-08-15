@@ -12,6 +12,7 @@ import {
   MealPlanNotFoundError,
   MealPlanValidationError,
 } from "@/lib/services/meal-plan";
+import { SyncCursorError } from "@/lib/services/sync";
 
 /**
  * Shared error envelope for /api/v1. Every failure the native client can see
@@ -66,7 +67,8 @@ export function withApiErrors<Args extends unknown[]>(
       if (
         err instanceof RecipeValidationError ||
         err instanceof ShoppingValidationError ||
-        err instanceof MealPlanValidationError
+        err instanceof MealPlanValidationError ||
+        err instanceof SyncCursorError
       ) {
         return apiError("invalid_request", err.message, 400);
       }

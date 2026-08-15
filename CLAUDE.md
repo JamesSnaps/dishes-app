@@ -135,7 +135,22 @@ docker exec -it dishes-db psql -U dishes -d dishes -c \
   "ALTER TABLE example ADD COLUMN IF NOT EXISTS new_col text;"
 ```
 
-For multi-statement migrations, either chain multiple `-c` flags or use a heredoc:
+**The `-c` form only works for simple statements.** Anything containing
+`$$`-quoted PL/pgSQL (trigger functions, DO blocks) gets mangled by shell
+quoting. For those, pipe the file instead — and note the migration files ship
+inside the app image at `/app/migrate/drizzle/`, so this works from any
+directory on the server with no repo checkout present:
+
+```bash
+docker exec dishes cat /app/migrate/drizzle/0025_example.sql | docker exec -i dishes-db psql -U dishes -d dishes -v ON_ERROR_STOP=1
+```
+
+Do **not** give commands with paths like `packages/db/drizzle/…`: the server
+runs from the `docker` repo and has no clone of this one. Every command must
+work from any working directory on the server.
+
+For multi-statement migrations that are all simple, either chain multiple `-c`
+flags or use a heredoc:
 
 ```bash
 docker exec -it dishes-db psql -U dishes -d dishes \
