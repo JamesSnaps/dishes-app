@@ -77,8 +77,10 @@ The thing that makes offline actually work, on both platforms.
 
 Ship this before writing any native code and reassess. This is where "clunky on poor signal" actually dies, and it validates the sync design on a platform you can iterate on quickly.
 
-- [ ] Extract `@dishes/client` package: typed API client + sync engine, storage-adapter agnostic
-- [ ] Dexie (already a dependency) as the web storage adapter
+- [x] `/api/web/*` alias so the browser can reach the client API with its session (middleware rewrite; no Authelia change needed)
+- [x] `@dishes/client`: typed API client + sync engine behind a `SyncStore` interface. No Dexie, no React, no timers — the host decides *when* to sync, which keeps it identical on web and native
+- [x] Dexie `SyncStore` implementation for the browser (`apps/web/lib/sync-store.ts`), one table per collection, pull applied in a single transaction with the cursor
+- [ ] Wire the engine into the app: a provider that owns one SyncEngine, syncs on mount/reconnect/resume, and exposes read hooks
 - [ ] Stale-while-revalidate reads: recipe list, recipe detail, shopping list, this week's meal plan paint from cache instantly
 - [ ] Mutation queue with optimistic UI + rollback on failure
 - [ ] Background Sync API registration for queued mutations

@@ -26,6 +26,9 @@ importers:
       '@dishes/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@dishes/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@dishes/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -146,6 +149,16 @@ importers:
         version: 5.9.3
 
   packages/api:
+    dependencies:
+      '@dishes/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/client:
     dependencies:
       '@dishes/shared':
         specifier: workspace:*
