@@ -15,6 +15,7 @@
  */
 
 import { db } from "@/lib/db";
+import { runInTransaction } from "@dishes/db";
 import {
   syncChanges,
   syncOperations,
@@ -499,15 +500,30 @@ export async function push(
     }
 
     try {
-      const outcome = await applyMutation(ctx, mutation);
-      await db
-        .insert(syncOperations)
-        .values({
-          opId: mutation.opId,
-          householdId: ctx.householdId,
-          result: outcome,
-        })
-        .onConflictDoNothing();
+      // The mutation and its ledger entry commit together or not at all.
+      // Applying first and recording after left a window where a crash, a
+      // connection drop or a container restart in between meant the write had
+      // landed but nothing knew it: the client's queue still held the mutation,
+      // the retry found no ledger entry, and it applied a second time — a
+      // duplicate meal on the plan, or an item twice on the list.
+      //
+      // Everything inside joins this transaction, including the domain services
+      // called by applyMutation, without any of them taking a transaction
+      // parameter. See runInTransaction.
+      const outcome = await runInTransaction(async () => {
+        const applied = await applyMutation(ctx, mutation);
+
+        await db
+          .insert(syncOperations)
+          .values({
+            opId: mutation.opId,
+            householdId: ctx.householdId,
+            result: applied,
+          })
+          .onConflictDoNothing();
+
+        return applied;
+      });
 
       results.push({ opId: mutation.opId, status: "applied", ...outcome });
     } catch (err) {

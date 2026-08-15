@@ -58,8 +58,22 @@ export class ShoppingValidationError extends Error {
 const SHOPPING_PUSH_CHANNEL = "shopping";
 const SHOPPING_PUSH_WINDOW_SECONDS = 90;
 
-function notifyShoppingChange(householdId: string, actorName: string) {
-  return notifyHouseholdThrottled(
+/**
+ * Fire-and-forget on purpose, and never awaited by callers.
+ *
+ * A push is a side effect of the write, not part of it: it must not be able to
+ * slow one down, and its failure must not fail one. It also must not sit inside
+ * a transaction — sync's push path now wraps each mutation and its idempotency
+ * ledger entry in one, and awaiting a Redis round-trip plus web-push fan-out in
+ * there would hold a connection from a small pool across network I/O.
+ *
+ * Safe to leave floating: `notifyHouseholdThrottled` handles its own Redis
+ * errors and `notifyHousehold` swallows send failures, so this rejects under no
+ * circumstances. The container is long-lived, so there is no request teardown
+ * to cut it short either.
+ */
+function notifyShoppingChange(householdId: string, actorName: string): void {
+  void notifyHouseholdThrottled(
     householdId,
     SHOPPING_PUSH_CHANNEL,
     SHOPPING_PUSH_WINDOW_SECONDS,
@@ -273,7 +287,7 @@ export async function clearChecked(
     );
 
   if (cleared.count > 0) {
-    await notifyShoppingChange(ctx.householdId, ctx.actorName);
+    notifyShoppingChange(ctx.householdId, ctx.actorName);
   }
 
   return cleared.count;
@@ -331,7 +345,7 @@ export async function addItem(ctx: ActorContext, input: AddItemInput) {
     })
     .returning();
 
-  await notifyShoppingChange(ctx.householdId, ctx.actorName);
+  notifyShoppingChange(ctx.householdId, ctx.actorName);
 
   return item!;
 }
@@ -396,7 +410,7 @@ export async function deleteItem(ctx: ActorContext, itemId: string): Promise<voi
 
   await db.delete(shoppingListItems).where(eq(shoppingListItems.id, itemId));
 
-  await notifyShoppingChange(ctx.householdId, ctx.actorName);
+  notifyShoppingChange(ctx.householdId, ctx.actorName);
 }
 
 // --- Generation from a recipe ----------------------------------------------
@@ -637,7 +651,7 @@ export async function generateFromRecipe(
   }
 
   if (changed) {
-    await notifyShoppingChange(ctx.householdId, ctx.actorName);
+    notifyShoppingChange(ctx.householdId, ctx.actorName);
   }
 
   return { listId: list.id, changed };
