@@ -11,6 +11,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import {
   ApiClient,
   SessionExpiredError,
@@ -25,10 +26,19 @@ import { DexieSyncStore } from "@/lib/sync-store";
  * The engine itself has no timers or listeners by design — that policy lives
  * here, where it can differ from the native app's.
  *
- * Sync triggers: mount, regaining connectivity, and the tab becoming visible
- * again (returning to an installed PWA is the common case). No polling: a
- * household app has minutes-to-hours between changes, and a background poll
- * would cost battery for nothing.
+ * Sync triggers: mount, regaining connectivity, the tab becoming visible again
+ * (returning to an installed PWA is the common case), and route changes. No
+ * polling: a household app has minutes-to-hours between changes, and a
+ * background poll would cost battery for nothing.
+ *
+ * Route changes are here rather than at any call site because of a bug class
+ * that showed up repeatedly: a server action writes to the database, the user
+ * navigates to a screen that renders from the local store, and the store knows
+ * nothing about the write — so the screen shows stale data and looks like the
+ * write was lost. Most of the app's writes still go through server actions
+ * (only shopping items and meal plan entries have sync mutations), so relying
+ * on each one to remember to pull is a trap. Syncing on navigation covers all
+ * of them, including the ones nobody has written yet.
  */
 
 export type SyncState = {
@@ -102,10 +112,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       });
   }, [engine]);
 
+  // Route changes. `sync()` coalesces concurrent runs and a delta pull with
+  // nothing to report is one indexed query, so the cost of the common
+  // navigate-and-nothing-changed case is negligible.
+  const pathname = usePathname();
+
   useEffect(() => {
     if (!engine) return;
-
     sync();
+  }, [engine, pathname, sync]);
+
+  // Mount is covered by the route effect above, which runs on first render too.
+  useEffect(() => {
+    if (!engine) return;
 
     const onOnline = () => sync();
     const onVisible = () => {

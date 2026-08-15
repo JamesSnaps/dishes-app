@@ -115,8 +115,12 @@ export class SyncEngine {
 
       await this.store.applyPull(page.changes, page.deleted, page.cursor);
 
+      // Optional chaining, not indexing: a server that adds a collection this
+      // client doesn't know about (or omits one) would otherwise throw here,
+      // and the catch upstream reports that as "offline" — an app that looks
+      // disconnected while the network is fine, with no way out.
       total += SYNC_COLLECTIONS.reduce(
-        (n, c) => n + page.changes[c].length + page.deleted[c].length,
+        (n, c) => n + (page.changes[c]?.length ?? 0) + (page.deleted[c]?.length ?? 0),
         0
       );
 
@@ -213,6 +217,31 @@ export class SyncEngine {
     this.onChange?.();
 
     return opId;
+  }
+
+  /**
+   * Patch a record in the local store without queueing anything.
+   *
+   * For writes that still go through a server action rather than a sync
+   * mutation — most of the app, since push only covers shopping items and meal
+   * plan entries. The server has already been told (or is about to be); this
+   * just stops the screen showing the old value until the next pull lands.
+   *
+   * The next pull overwrites whatever is written here with the server's row, so
+   * a patch the server ends up rejecting corrects itself with no rollback
+   * bookkeeping. Use it only where the server's answer is a foregone conclusion
+   * — flipping a flag, not anything the server might compute differently.
+   */
+  async patchLocal(
+    collection: SyncCollection,
+    id: string,
+    patch: Record<string, unknown>
+  ): Promise<void> {
+    const existing = await this.store.readOne(collection, id);
+    if (!existing) return;
+
+    await this.store.put(collection, { ...existing, ...patch, id });
+    this.onChange?.();
   }
 
   // --- Reads ----------------------------------------------------------------
