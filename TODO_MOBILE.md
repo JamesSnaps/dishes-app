@@ -144,17 +144,26 @@ The picker's `Recipe` type needs `tags`, `ingredientNames`, `avgRating`,
 recipe card needs. `ingredientNames` comes from the synced recipe's
 `ingredients` array; `avgRating` has to be derived from synced `cookHistory`.
 
-**Still outstanding on this screen.** The conversion covered reads only. Writes
-(add, move, delete, shopping generate) still go through the existing server
-actions, so:
+**Still outstanding on this screen.** The remaining writes (add, delete,
+shopping generate) still go through the existing server actions.
 
-- [ ] Drag-and-drop between days on `engine.mutate()` — the first UI use of the
-  sync *push* path, which is still only verified at the API level (idempotency,
-  batch semantics), never through a real user action
+- [x] **Drag-and-drop between days on `engine.mutate()` — the sync push path is
+  now proven end to end through a real user action**, not just at the API level.
+  `WeekPlanner` takes an optional `onMoveEntry`; it defaults to the
+  `moveMealEntry` server action, and `WeekPlannerLocal` supplies a version that
+  queues `meal_plan_entry.update` instead. Verified online (`POST /api/web/sync`
+  returned `applied`, move survived a reload) and offline (server stopped
+  mid-drag: the UI moved, the mutation sat in the Dexie queue, and it drained to
+  the server on reconnect)
 - [ ] Week navigation via `history.pushState`, the same win as the recipe filter
   chips — arrows currently still wait on the server
+- [ ] Add / delete / shopping-generate over `engine.mutate()`. The sync schema
+  already accepts `meal_plan_entry.add` and `.delete`, so these are the same
+  shape as the move
 - [ ] Stale-while-revalidate reads: recipe list, recipe detail, shopping list, this week's meal plan paint from cache instantly
-- [ ] Mutation queue with optimistic UI + rollback on failure
+- [ ] Mutation queue with optimistic UI + rollback on failure — first real use
+  is the meal-plan drag above; rollback there is implicit (the next pull carries
+  the server's version), which may or may not be enough for the other screens
 - [ ] Background Sync API registration for queued mutations
 - [ ] Offline indicator + "last synced" affordance in the app shell
 - [ ] Cache recipe images for favourites and this week's plan (Cache API)
