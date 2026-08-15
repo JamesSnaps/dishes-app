@@ -7,7 +7,12 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist, StaleWhileRevalidate, ExpirationPlugin } from "serwist";
+import {
+  ExpirationPlugin,
+  NavigationRoute,
+  Serwist,
+  StaleWhileRevalidate,
+} from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -27,71 +32,11 @@ const serwist = new Serwist({
   // so a preload would only start a request whose result is thrown away — and
   // it takes precedence over the route, which defeats the caching entirely.
   navigationPreload: false,
-  // defaultCache includes Next.js-aware runtime caching: static assets, RSC payloads
-  // (?_rsc / RSC header) via NetworkFirst, images, fonts, and API responses.
-  runtimeCaching: [
-    // ── Paint from cache, revalidate behind it ──────────────────────────────
-    //
-    // defaultCache serves pages and RSC payloads NetworkFirst, so every
-    // navigation waits for the server even when an identical copy is already
-    // cached — on a poor connection that is the whole cost of opening a screen
-    // (measured: 61 KB / ~830 ms for /meal-plan at 50 KB/s). These three
-    // matchers run before defaultCache and take the same requests
-    // stale-while-revalidate instead: the cached copy paints immediately and
-    // the refresh lands in the background.
-    //
-    // Safe here because the data on these screens is not the RSC payload's job
-    // any more — the synced local store owns it, and the server render is only
-    // the `initial` fallback. A slightly stale shell is replaced within one
-    // revalidation, and the store is authoritative in the meantime.
-    //
-    // The staleness that *would* bite is a shell from a previous deploy
-    // referencing chunks that no longer exist. That is handled on activate
-    // below, by dropping these caches whenever a new worker takes over.
-    {
-      matcher: ({ request, url: { pathname }, sameOrigin }) =>
-        sameOrigin &&
-        !pathname.startsWith("/api/") &&
-        request.headers.get("RSC") === "1",
-      handler: new StaleWhileRevalidate({
-        cacheName: "pages-rsc",
-        plugins: [
-          new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 24 * 60 * 60 }),
-        ],
-      }),
-    },
-    {
-      matcher: ({ request, url: { pathname }, sameOrigin }) =>
-        sameOrigin &&
-        !pathname.startsWith("/api/") &&
-        request.destination === "document",
-      handler: new StaleWhileRevalidate({
-        cacheName: "pages",
-        plugins: [
-          new ExpirationPlugin({ maxEntries: 32, maxAgeSeconds: 24 * 60 * 60 }),
-        ],
-      }),
-    },
-
-    // Keep recipe photos cached generously so recipes and cook mode stay usable
-    // offline for far longer than the default image window. Evaluated before
-    // defaultCache, so it wins for the Next.js image-optimizer endpoint.
-    {
-      matcher: ({ url, sameOrigin }) =>
-        sameOrigin && url.pathname === "/_next/image",
-      handler: new StaleWhileRevalidate({
-        cacheName: "recipe-images",
-        plugins: [
-          new ExpirationPlugin({
-            maxEntries: 250,
-            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-            purgeOnQuotaError: true,
-          }),
-        ],
-      }),
-    },
-    ...defaultCache,
-  ],
+  // Routes are registered explicitly below rather than through `runtimeCaching`.
+  // Precedence is registration order, and anything passed here is registered
+  // during construction — which is what made the first attempt at this fail: the
+  // navigation route could never be placed ahead of defaultCache's catch-all.
+  //
   // When a never-visited route is opened offline (the request reaches the network
   // as a document load and fails), serve the precached offline page instead of a
   // dead tap.
@@ -104,6 +49,72 @@ const serwist = new Serwist({
     ],
   },
 });
+
+// ── Paint from cache, revalidate behind it ───────────────────────────────────
+//
+// defaultCache serves pages and RSC payloads NetworkFirst, so every navigation
+// waits for the server even when an identical copy is already cached — on a poor
+// connection that is the whole cost of opening a screen (measured: 61 KB /
+// ~830 ms for /meal-plan at 50 KB/s).
+//
+// Worse than slow: its final entry is a same-origin catch-all, and NetworkFirst
+// only falls back to cache on a network *error*. A reverse proxy answering 502
+// while the app server restarts is a perfectly valid response, so that route
+// hands the error page straight to the user with a good copy sitting in the
+// cache. The routes below take those requests stale-while-revalidate instead.
+//
+// Safe here because the data on these screens is no longer the RSC payload's
+// job — the synced local store owns it, and the server render is only the
+// `initial` fallback. A stale shell is replaced within one revalidation, and the
+// store is authoritative in the meantime.
+//
+// The staleness that *would* bite is a shell from a previous deploy referencing
+// chunks that no longer exist. That is handled on activate below.
+
+const pageCache = new StaleWhileRevalidate({
+  cacheName: "pages",
+  plugins: [new ExpirationPlugin({ maxEntries: 32, maxAgeSeconds: 24 * 60 * 60 })],
+});
+
+// NavigationRoute matches on the request being a navigation, which is what a
+// document load actually is — `request.destination === "document"` in a plain
+// matcher lost these to the catch-all.
+serwist.registerRoute(
+  new NavigationRoute(pageCache, {
+    denylist: [/^\/api\//, /^\/_next\//],
+  })
+);
+
+serwist.registerCapture(
+  ({ request, url: { pathname }, sameOrigin }) =>
+    sameOrigin && !pathname.startsWith("/api/") && request.headers.get("RSC") === "1",
+  new StaleWhileRevalidate({
+    cacheName: "pages-rsc",
+    plugins: [new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 24 * 60 * 60 })],
+  })
+);
+
+// Keep recipe photos cached generously so recipes and cook mode stay usable
+// offline for far longer than the default image window.
+serwist.registerCapture(
+  ({ url, sameOrigin }) => sameOrigin && url.pathname === "/_next/image",
+  new StaleWhileRevalidate({
+    cacheName: "recipe-images",
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 250,
+        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        purgeOnQuotaError: true,
+      }),
+    ],
+  })
+);
+
+// Everything else keeps Next.js-aware defaults: static assets, fonts, images,
+// API responses. Registered last, so the routes above win where they overlap.
+for (const entry of defaultCache) {
+  serwist.registerCapture(entry.matcher, entry.handler, entry.method);
+}
 
 serwist.addEventListeners();
 
