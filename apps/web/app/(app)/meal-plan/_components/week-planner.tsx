@@ -104,6 +104,12 @@ export interface WeekPlannerProps {
   todayDayIndex: number;
   topIngredients: TopIngredient[];
   shoppingItemCount: number;
+  /**
+   * How a drag between days is persisted. Defaults to the `moveMealEntry`
+   * server action; `WeekPlannerLocal` supplies a version that goes through the
+   * sync engine instead. The optimistic UI update is done here either way.
+   */
+  onMoveEntry?: (entryId: string, newDay: number) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -514,6 +520,7 @@ export function WeekPlanner({
   todayDayIndex,
   topIngredients,
   shoppingItemCount,
+  onMoveEntry,
 }: WeekPlannerProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -659,7 +666,8 @@ export function WeekPlanner({
     );
     setSelectedDay(newDay);
 
-    startMoveTransition(() => moveMealEntry(entryId, newDay));
+    if (onMoveEntry) onMoveEntry(entryId, newDay);
+    else startMoveTransition(() => moveMealEntry(entryId, newDay));
   }
 
   const totalMeals = localEntries.length;

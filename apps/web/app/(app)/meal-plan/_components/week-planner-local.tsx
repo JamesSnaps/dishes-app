@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import {
   WeekPlanner,
@@ -241,6 +241,43 @@ export function WeekPlannerLocal({
     };
   }, [useLocal, syncedRecipes, cooks, plans, planEntries, lists, items, weekStartDate]);
 
+  /**
+   * Drag between days, pushed through the sync engine rather than the server
+   * action. The optimistic store write lands immediately, so the move survives
+   * the re-read that `onChange` triggers; the queued mutation goes out on the
+   * sync that follows.
+   *
+   * No rollback here on purpose. A mutation the server rejects is dropped from
+   * the queue by the engine (it would never succeed on a retry), and the next
+   * pull carries the server's version of the entry — which restores the old day
+   * without any bookkeeping on this side.
+   */
+  const engine = sync?.engine ?? null;
+  const syncNow = sync?.sync;
+
+  const handleMoveEntry = useCallback(
+    (entryId: string, newDay: number) => {
+      if (!engine) return;
+
+      const row = planEntries.find((e) => e.id === entryId);
+
+      engine
+        .mutate(
+          "meal_plan_entry.update",
+          { entryId, dayOfWeek: newDay },
+          row
+            ? { collection: "mealPlanEntries", record: { ...row, dayOfWeek: newDay } }
+            : undefined
+        )
+        .then(() => syncNow?.())
+        .catch(() => {
+          // Queueing failed (IndexedDB unavailable). The drag is already undone
+          // by the next re-read, so there is nothing to unwind.
+        });
+    },
+    [engine, planEntries, syncNow]
+  );
+
   const data = local ?? initial;
 
   return (
@@ -253,6 +290,9 @@ export function WeekPlannerLocal({
       recipes={data.recipes}
       topIngredients={data.topIngredients}
       shoppingItemCount={data.shoppingItemCount}
+      // Only when the local store is driving the screen: against `initial`,
+      // the entry ids are the same but nothing would re-read the result.
+      onMoveEntry={local ? handleMoveEntry : undefined}
     />
   );
 }
