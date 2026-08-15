@@ -748,6 +748,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
     startGenTransition(async () => {
       const result = await generateMealPlanConcepts({
         slots,
+        weekStartDate: getMondayOf(weekOffset),
         preferences: buildFullPreferences(),
         cuisineFilter: cuisineFilter || undefined,
         tagFilter: tagFilter || undefined,
