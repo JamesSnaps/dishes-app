@@ -19,7 +19,7 @@ Items are ordered by dependency. Phases A and B benefit the web app on their own
 
 The unavoidable prerequisite. Nothing native can start until A1 lands.
 
-### A1. Auth for native clients  ⚠️ blocker
+### A1. Auth for native clients — ✅ done
 
 `getAutheliaUser()` (`apps/web/lib/auth.ts:10`) reads `Remote-User` / `Remote-Name` / `Remote-Groups` headers injected by Authelia. A native app connecting directly has none. Household membership is keyed on `household_members.authelia_user`, so any native auth path **must produce a username**, not just a household id — the existing integration tokens (`apps/web/lib/integration-auth.ts`) carry `householdId` and scopes only.
 
@@ -34,8 +34,9 @@ The unavoidable prerequisite. Nothing native can start until A1 lands.
 - [x] Authelia config written in the `docker` repo — `dishes-mobile` client (S256 PKCE, `offline_access` + `refresh_token`, `consent_mode: implicit`) and Dishes access-control rules reordered above the global `^/api` bypass. Validated with `authelia validate-config`
 - [x] Settled: **no** `access_token_signed_response_alg`. Authelia omits identity claims from access tokens, so JWTs would still need a userinfo call — no gain
 - [x] `scripts/oidc-token.mjs` — terminal PKCE flow so the API can be tested with a real token before the native app exists (loopback or `--manual`, plus `--refresh` and `--whoami`)
-- [ ] **Deploy it** — restart Authelia, set `DISHES_OIDC_ISSUER` / `DISHES_OIDC_CLIENT_ID` in the server `.env`, redeploy Dishes, then confirm with `/api/v1/auth/whoami`
-- [ ] Check whether the old global `^/api` bypass was silently breaking `/api/shopping/*`, `/api/push/*` and `/api/upload` in production (bypassed requests get no `Remote-User`)
+- [x] **Deployed and verified in production (15 Aug 2026)** — Authelia config applied, `DISHES_OIDC_ISSUER` / `DISHES_OIDC_CLIENT_ID` set, v0.62.3 released. Full PKCE flow via `scripts/oidc-token.mjs` returns `transport: "bearer"` with the correct member. **A1 is closed.**
+- [x] Confirmed the header path works after the rule reorder (shopping badge renders). Could not establish whether it was broken *before*, only that it is correct now
+- [ ] Optional hardening, written but not deployed: an explicit `deny` rule for the Dishes domain, so anonymous requests stop falling through to the global `^/api` bypass and being rejected by the app instead of by Authelia
 - [ ] Refresh token handling in the app (server side needs nothing — it only sees access tokens). Revocation is Authelia's, but note opaque tokens stay valid here for up to `DISHES_OIDC_USERINFO_CACHE_SECONDS` after revocation
 - [ ] Device list in Settings: name, last seen, revoke button
 - [x] Document the Authelia OIDC client config in `README.md` (new env vars)
@@ -61,11 +62,14 @@ Not all ~110 actions — only what the mobile app needs. Pattern: move the body 
 
 The thing that makes offline actually work, on both platforms.
 
-- [ ] Add `updated_at` + soft-delete `deleted_at` to all syncable tables (migration — remember `docker exec` commands)
-- [ ] `GET /api/v1/sync?since=<cursor>` — returns changed/deleted recipes, shopping items, meal plan entries, cook history since cursor
-- [ ] `POST /api/v1/sync` — batched mutation upload with client-generated idempotency keys
-- [ ] Conflict policy: last-write-wins per field for recipes; append-only for shopping items and cook history
-- [ ] Cursor is an opaque server-issued token, not a raw timestamp (clock skew)
+- [x] **Change log instead of `updated_at`/`deleted_at`** — `sync_changes`, written by DB triggers (migration `0025`). Captures deletes without adopting soft deletes app-wide, and catches writes from anywhere including manual SQL. Child rows roll up to their aggregate root
+- [x] `GET /api/v1/sync` — delta since a cursor, or a full snapshot when none given; paginated, with repeats collapsed to final state
+- [x] `POST /api/v1/sync` — batched mutations with client-generated `opId`s; replays return `duplicate`, one failure doesn't discard the batch
+- [x] Conflict policy: last-write-wins at whole-entity granularity, documented in `API.md`
+- [x] Cursor is an opaque server-issued token encoding a sequence number, not a timestamp
+- [ ] Recipe edits over sync (deliberately excluded from v1 — rare offline, large to merge)
+- [ ] Collections and pantry over sync (out of the agreed v1 scope)
+- [ ] **Retention for `sync_changes`** — the log grows forever. Prune rows older than the oldest active client cursor, or on a fixed window
 
 ---
 
