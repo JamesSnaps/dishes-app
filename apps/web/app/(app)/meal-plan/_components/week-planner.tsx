@@ -110,6 +110,13 @@ export interface WeekPlannerProps {
    * sync engine instead. The optimistic UI update is done here either way.
    */
   onMoveEntry?: (entryId: string, newDay: number) => void;
+  /**
+   * How a week change is navigated. Defaults to `router.push`;
+   * `WeekPlannerLocal` supplies a `history.pushState` version when the store
+   * can serve the target week without the server. The exit/enter animation is
+   * driven from here either way.
+   */
+  onNavigateWeek?: (weekStartDate: string) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -521,6 +528,7 @@ export function WeekPlanner({
   topIngredients,
   shoppingItemCount,
   onMoveEntry,
+  onNavigateWeek,
 }: WeekPlannerProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -601,6 +609,11 @@ export function WeekPlanner({
       exitTimeoutRef.current = null;
     }
 
+    const go = () => {
+      if (onNavigateWeek) onNavigateWeek(target);
+      else router.push(`/meal-plan?week=${target}`);
+    };
+
     pendingEnterDirection = direction === "next" ? "from-right" : "from-left";
     const el = contentRef.current;
     const exitX = direction === "next" ? -48 : 48;
@@ -610,12 +623,12 @@ export function WeekPlanner({
       el.style.opacity = "0";
       exitTimeoutRef.current = setTimeout(() => {
         exitTimeoutRef.current = null;
-        router.push(`/meal-plan?week=${target}`);
+        go();
       }, 190);
     } else {
-      router.push(`/meal-plan?week=${target}`);
+      go();
     }
-  }, [router]);
+  }, [router, onNavigateWeek]);
 
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;

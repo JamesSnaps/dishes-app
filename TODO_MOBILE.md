@@ -155,8 +155,13 @@ shopping generate) still go through the existing server actions.
   returned `applied`, move survived a reload) and offline (server stopped
   mid-drag: the UI moved, the mutation sat in the Dexie queue, and it drained to
   the server on reconnect)
-- [ ] Week navigation via `history.pushState`, the same win as the recipe filter
-  chips — arrows currently still wait on the server
+- [x] **Week navigation via `history.pushState`.** Better than the filter chips:
+  those still let Next fetch the RSC payload in the background, whereas a week
+  change now issues **no network request at all** — the store already holds every
+  week. Needed one thing the chips didn't: `weekStartDate` is a server prop, so
+  `WeekPlannerLocal` derives the week (and `isCurrentWeek` / `todayDayIndex`)
+  from `useSearchParams` when local, or nothing would re-render. Back/forward
+  verified
 - [ ] Add / delete / shopping-generate over `engine.mutate()`. The sync schema
   already accepts `meal_plan_entry.add` and `.delete`, so these are the same
   shape as the move
