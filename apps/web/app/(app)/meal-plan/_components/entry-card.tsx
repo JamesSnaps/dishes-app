@@ -46,6 +46,7 @@ import {
 import type { ShoppingAddResult } from "@/lib/services/meal-plan";
 import type { MealPlanMutations } from "./week-planner";
 import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
+import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
@@ -128,6 +129,7 @@ interface Props {
 
 export function EntryCard({ entry, weekStartDate, mutations, dragNodeRef, dragListeners, dragAttributes, isDragging }: Props) {
   const router = useRouter();
+  const sync = useSync();
   const [pending, startTransition] = useTransition();
   const { toast } = useToast();
   const { recipe } = entry;
@@ -160,6 +162,18 @@ export function EntryCard({ entry, weekStartDate, mutations, dragNodeRef, dragLi
     else startTransition(() => changeMealEntryType(entry.id, newType));
   }
 
+  /**
+   * The "on list" badge reads `addedToShoppingListAt`, which this server action
+   * stamps on the entry row server-side. When the screen is driven by the local
+   * store that stamp is invisible until something pulls it, so the card sits
+   * there looking as though the add didn't happen. Deliberately not optimistic:
+   * the add can legitimately put nothing on the list (everything already in the
+   * pantry), and the server decides that.
+   */
+  function refreshFromServer() {
+    void sync?.engine?.sync().catch(() => {});
+  }
+
   function describeAdd(result: ShoppingAddResult): string {
     const parts: string[] = [];
     if (result.added > 0) parts.push(`${result.added} added`);
@@ -171,6 +185,7 @@ export function EntryCard({ entry, weekStartDate, mutations, dragNodeRef, dragLi
     startTransition(async () => {
       const result = await addMealEntryToShoppingList(entry.id);
       notifyShoppingChanged();
+      refreshFromServer();
 
       // Nothing reached the list — that used to be indistinguishable from
       // success, so explain it properly rather than in a toast that vanishes.
@@ -205,6 +220,7 @@ export function EntryCard({ entry, weekStartDate, mutations, dragNodeRef, dragLi
         forceInclude: names,
       });
       notifyShoppingChanged();
+      refreshFromServer();
       toast({
         title: "Added to shopping list",
         description: describeAdd(result) || "Nothing to add.",

@@ -35,6 +35,7 @@ import {
 } from "@/app/actions/meal-plan";
 import type { ShoppingAddResult } from "@/lib/services/meal-plan";
 import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
+import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { EntryCard } from "./entry-card";
@@ -572,6 +573,16 @@ export function WeekPlanner({
   const lastWheelMs = useRef(0);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [shoppingPending, startShoppingTransition] = useTransition();
+  const sync = useSync();
+
+  /**
+   * `generateShoppingFromWeek` stamps `addedToShoppingListAt` on every entry it
+   * covers, server-side. The cards read that from the local store, so without a
+   * pull the whole week keeps showing as un-shopped until a refresh.
+   */
+  const refreshFromServer = useCallback(() => {
+    void sync?.engine?.sync().catch(() => {});
+  }, [sync]);
   const [, startMoveTransition] = useTransition();
 
   const [selectedDay, setSelectedDay] = useState<number>(() =>
@@ -763,6 +774,7 @@ export function WeekPlanner({
     startShoppingTransition(async () => {
       const result = await generateShoppingFromWeek(planId);
       notifyShoppingChanged();
+      refreshFromServer();
       reportShoppingResult(result);
     });
   }
@@ -772,6 +784,7 @@ export function WeekPlanner({
     startShoppingTransition(async () => {
       const result = await generateShoppingFromWeek(planId, { forceInclude: names });
       notifyShoppingChanged();
+      refreshFromServer();
       toast({
         title: "Added to shopping list",
         description: `${result.added + result.merged} pantry ingredient${
