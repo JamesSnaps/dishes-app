@@ -12,7 +12,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getRecipeCookHistory } from "@/app/actions/cook-history";
+import { getRecipeCookHistory } from "@/lib/services/cook-history";
 
 // Free-form Q&A about a whole recipe — "what goes with this?", "when should I
 // start cooking?", "can I prep any of it ahead?". Unlike /api/cook-assist this

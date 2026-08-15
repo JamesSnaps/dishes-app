@@ -5,7 +5,7 @@ import { recipes, recipeIngredients, recipeSteps, householdMembers } from "@dish
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { CookingMode } from "./_components/cooking-mode";
-import { getAverageDuration } from "@/app/actions/cook-history";
+import { getAverageDuration } from "@/lib/services/cook-history";
 import { getCookAssistThreads } from "@/app/actions/cook-assist-threads";
 import { isStorageAvailable } from "@/lib/storage";
 

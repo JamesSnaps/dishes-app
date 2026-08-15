@@ -51,11 +51,11 @@ Not all ~110 actions — only what the mobile app needs. Pattern: move the body 
 - [x] `/api/v1/shopping` — complete set: list, add, update, delete, toggle, clear-checked, archive, preview, generate. `clearChecked`, `archiveList` and `generateFromRecipe` are no longer server-action-only
 - [x] Existing `/api/shopping/*` offline endpoints rewired onto the same service (contracts unchanged), so offline-synced edits now notify the household like browser edits do
 - [x] `/api/v1/meal-plan` — week get, add entry, patch (move day / change slot / servings), delete, per-entry shopping add, whole-week shopping generate. The two near-duplicate shopping generators in `app/actions/meal-plan.ts` now share one `applyToShoppingList` in the service
-- [ ] `/api/v1/cook-history` — log, rate, edit, delete
+- [x] `/api/v1/cook-history` — history + stats in one call, log, rate-without-cooking, edit, delete, dish photo
+- [x] `/api/v1/upload` — raw-body image upload sharing one service with the browser's multipart route (a presigned-URL flow was unnecessary; the server already resizes and thumbnails)
 - [ ] `/api/v1/pantry` — list, add, update, delete
 - [ ] `/api/v1/collections` — list, add/remove recipe
-- [ ] `/api/v1/upload` — direct-to-S3 presigned URL flow (native can't reuse the browser upload path)
-- [ ] AI endpoints (`/api/v1/ai/*`) — generate, tweak, ask; must stream (SSE) for native too
+- [ ] AI endpoints (`/api/v1/ai/*`) — generate, tweak, ask; must stream (SSE) for native too. **Much larger than the other domains**: `app/actions/ai.ts` is ~1,300 lines of client setup, prompt building, taste-profile and household-config integration, and the two existing assist routes stream in a browser-specific way. Worth treating as its own piece of work rather than the tail of A2
 - [x] `API.md`: `/api/v1/*` documented as a second section, distinct from `/api/integrations/*`
 
 ### A3. Sync endpoint

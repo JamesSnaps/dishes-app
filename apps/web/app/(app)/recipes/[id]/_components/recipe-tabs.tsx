@@ -6,7 +6,7 @@ import { Badge } from "@dishes/ui";
 import { scaleAmount, servingsScale } from "@/lib/scale-ingredient";
 import { AddToShoppingButton } from "./add-to-shopping-button";
 import { CookHistoryEntryCard } from "./cook-history-entry";
-import type { CookHistoryEntry } from "@/app/actions/cook-history";
+import type { CookHistoryEntry } from "@/lib/services/cook-history";
 
 type Tab = "overview" | "ingredients" | "steps" | "notes" | "history";
 

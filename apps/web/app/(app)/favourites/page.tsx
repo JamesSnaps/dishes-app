@@ -3,7 +3,7 @@ import { recipes } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getCookStatsByRecipe } from "@/app/actions/cook-history";
+import { getCookStatsByRecipe } from "@/lib/services/cook-history";
 import { RecipeCard } from "../recipes/_components/recipe-card";
 import Link from "next/link";
 import { Heart } from "lucide-react";

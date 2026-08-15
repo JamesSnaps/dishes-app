@@ -716,6 +716,77 @@ Returns the same `{ added, merged, skipped }` shape. Entries already flagged as
 added are skipped so re-running never duplicates a meal — except on an override
 pass, which revisits every entry.
 
+### `GET /api/v1/cook-history`
+
+One recipe's cook history plus its derived stats. Query: `recipeId` (required).
+
+```json
+{
+  "entries": [
+    { "id": "…", "cookedAt": "2026-08-15T09:12:00.000Z", "rating": 8.5,
+      "actualDuration": 42, "notes": null, "occasion": null,
+      "cookedFor": null, "photoUrl": null, "source": "cook" }
+  ],
+  "stats": { "cookCount": 1, "averageRating": 8.5 },
+  "averageDuration": null
+}
+```
+
+All three come back together because a recipe screen needs all three.
+
+`source` is `"cook"` or `"rating"`. The average spans every entry, but only
+`cook` entries count towards `cookCount` — rating a dish you haven't made
+shouldn't claim you cooked it. `averageDuration` stays `null` until there are at
+least two timed cooks; one is not a pattern.
+
+### `POST /api/v1/cook-history`
+
+Log a cook. `201` with the new entry id.
+
+```json
+{ "recipeId": "uuid", "rating": 8.5, "actualDuration": 42,
+  "notes": "…", "occasion": "Anniversary", "cookedFor": ["Alice"] }
+```
+
+Only `recipeId` is required. Ratings are 0–10 with half-star precision.
+
+### `POST /api/v1/cook-history/rate`
+
+Rate without logging a cook — recorded as a `rating` entry.
+
+```json
+{ "recipeId": "uuid", "rating": 6, "notes": "…" }
+```
+
+### `PATCH /api/v1/cook-history/{id}`
+
+Any of `rating`, `notes`, `occasion`. Empty body is `400`.
+
+### `DELETE /api/v1/cook-history/{id}`
+
+`204`. Also removes that entry's rating from the recipe average.
+
+### `POST /api/v1/cook-history/{id}/photo`
+
+Dish photo. Send the image as the **raw request body** with a matching
+`Content-Type` — no multipart. JPEG, PNG or WebP, under 15 MB. Stored resized to
+1600px wide with EXIF orientation applied and the tag stripped.
+
+```json
+{ "url": "https://…/dish.jpg" }
+```
+
+### `POST /api/v1/upload`
+
+Recipe image. Raw body again, with `Content-Type`. JPEG, PNG, WebP or GIF, under
+8 MB. `201` on success; `503` when object storage isn't configured.
+
+```json
+{ "url": "https://…/abc.jpg", "thumbnailUrl": "https://…/abc_thumb.jpg" }
+```
+
+`thumbnailUrl` is `null` for GIFs, which aren't resized.
+
 ### `GET /api/v1/sync`
 
 Changes since a cursor. Omit `cursor` for a **full snapshot** — a first run, or
