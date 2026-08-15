@@ -101,6 +101,12 @@ export type TopIngredient = {
  * `meal_plan_entry.update` / `.delete`.
  */
 export type MealPlanMutations = {
+  addEntry: (
+    weekStartDate: string,
+    recipeId: string,
+    dayOfWeek: number,
+    mealType: MealType
+  ) => void;
   moveEntry: (entryId: string, dayOfWeek: number) => void;
   changeEntryType: (entryId: string, mealType: MealType) => void;
   updateEntryServings: (entryId: string, servings: number | null) => void;
@@ -122,13 +128,11 @@ export interface WeekPlannerProps {
    * engine instead. Optimistic UI updates are done by the components either
    * way.
    *
-   * Only the edits the sync schema accepts are here. Adding an entry and
-   * generating a shopping list stay on their server actions — see the notes in
+   * Only the edits the sync schema accepts are here. Generating a shopping
+   * list stays on its server action — see the notes in
    * `week-planner-local.tsx`.
    */
   mutations?: MealPlanMutations;
-  /** Forwarded to `AddEntryDialog`; see its `onAdded`. */
-  onEntryAdded?: () => void;
   /**
    * How a week change is navigated. Defaults to `router.push`;
    * `WeekPlannerLocal` supplies a `history.pushState` version when the store
@@ -556,7 +560,6 @@ export function WeekPlanner({
   topIngredients,
   shoppingItemCount,
   mutations,
-  onEntryAdded,
   onNavigateWeek,
 }: WeekPlannerProps) {
   const router = useRouter();
@@ -848,7 +851,7 @@ export function WeekPlanner({
                 dayOfWeek={selectedDay}
                 dayLabel={selectedDayLabel}
                 recipes={recipes}
-                onAdded={onEntryAdded}
+                onAdd={mutations?.addEntry}
                 trigger={
                   <button
                     className="flex-shrink-0 h-9 w-9 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md transition-colors ml-1"
@@ -975,7 +978,7 @@ export function WeekPlanner({
                   dayOfWeek={selectedDay}
                   dayLabel={selectedDayLabel}
                   recipes={recipes}
-                  onAdded={onEntryAdded}
+                  onAdd={mutations?.addEntry}
                 />
               )}
             </div>

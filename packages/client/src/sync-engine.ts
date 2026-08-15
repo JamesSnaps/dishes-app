@@ -3,6 +3,7 @@ import {
   ApiError,
   SessionExpiredError,
   SYNC_COLLECTIONS,
+  type OptimisticChange,
   type QueuedMutation,
   type SyncCollection,
   type SyncRecord,
@@ -148,6 +149,22 @@ export class SyncEngine {
     const failed = response.results.filter((r) => r.status === "failed");
     for (const f of failed) this.onError?.(new Error(`${f.opId}: ${f.error}`));
 
+    // Drop every temporary row the settled mutations created, whatever the
+    // outcome. Applied or duplicate: the server's own row arrives in this same
+    // cycle's pull, under its real id, and leaving the placeholder would show
+    // the entity twice forever. Failed: this is the rollback.
+    //
+    // Before the dequeue, so a crash in between leaves the mutation queued and
+    // the placeholder intact rather than the other way round.
+    const byOpId = new Map(pending.map((m) => [m.opId, m]));
+    for (const result of response.results) {
+      const temporary = byOpId.get(result.opId)?.temporary;
+      if (!temporary) continue;
+      for (const row of temporary) {
+        await this.store.remove(row.collection, row.id);
+      }
+    }
+
     await this.store.dequeue([...settled, ...failed.map((f) => f.opId)]);
 
     return { pushed: settled.length, failed: failed.length };
@@ -156,23 +173,42 @@ export class SyncEngine {
   // --- Local writes ---------------------------------------------------------
 
   /**
-   * Record a mutation locally and queue it. Applies the optimistic local change
-   * first so the UI updates immediately, then lets the next sync reconcile.
+   * Record a mutation locally and queue it. Applies the optimistic local
+   * changes first so the UI updates immediately, then lets the next sync
+   * reconcile.
+   *
+   * A change marked `temporary` is one the server will really create: it is
+   * written under a client-generated id so the UI has something to show, and
+   * removed again when the mutation settles. That is what makes optimistic
+   * *creates* safe — see `QueuedMutation.temporary`.
    */
   async mutate(
     type: string,
     payload: Record<string, unknown>,
-    optimistic?: { collection: SyncCollection; record?: SyncRecord; removeId?: string }
+    optimistic: OptimisticChange[] = []
   ): Promise<string> {
     const opId = crypto.randomUUID();
+    const temporary: { collection: SyncCollection; id: string }[] = [];
 
-    if (optimistic?.record) {
-      await this.store.put(optimistic.collection, optimistic.record);
-    } else if (optimistic?.removeId) {
-      await this.store.remove(optimistic.collection, optimistic.removeId);
+    for (const change of optimistic) {
+      if (change.record) {
+        await this.store.put(change.collection, change.record);
+        if (change.temporary) {
+          temporary.push({ collection: change.collection, id: change.record.id });
+        }
+      } else if (change.removeId) {
+        await this.store.remove(change.collection, change.removeId);
+      }
     }
 
-    const mutation: QueuedMutation = { opId, type, payload, queuedAt: Date.now() };
+    const mutation: QueuedMutation = {
+      opId,
+      type,
+      payload,
+      queuedAt: Date.now(),
+      ...(temporary.length ? { temporary } : {}),
+    };
+
     await this.store.enqueue(mutation);
     this.onChange?.();
 

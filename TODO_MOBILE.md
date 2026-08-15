@@ -207,22 +207,26 @@ shopping generate) still go through the existing server actions.
   each defaulting to its server action, forwarded down to `EntryCard`. These are
   exactly what `POST /api/v1/sync` accepts as `meal_plan_entry.update` /
   `.delete`
-- [ ] **Adding an entry — needs engine work first, not screen work.** The server
-  assigns the entry id and creates the week's plan row, so an optimistic entry
-  needs a client-generated id; `applyPull` only removes ids the server reports
-  as deleted, so the temporary row would outlive the pull that brings the real
-  one and the meal would show twice, permanently. Needs the engine to reconcile
-  a temp id against the `id` in the push response. Until then adding stays on
-  its server action, with `onEntryAdded` triggering a sync so the store catches
-  up straight away
+- [x] **Adding an entry — done, via temp-id reconciliation in the engine.**
+  `mutate()` now takes a list of optimistic changes, any of which can be marked
+  `temporary`: a row written under a client-generated id that the server really
+  owns. `drainQueue` removes those rows once the mutation settles — on success
+  the server's real row lands in the same cycle's pull, on failure it is the
+  rollback — and the ids are persisted with the queued mutation so a reload
+  mid-flight doesn't strand them. Adding a meal to a week with no plan yet
+  creates *two* placeholders (plan and entry) and both are reconciled.
+  Verified online, offline-then-reconnect, and against the database: one plan
+  row per week, no duplicates
 - [ ] **Shopping-list generation stays a server action** and probably should.
   It is not in the sync schema, and its result (added / topped up /
   skipped-because-pantry) is computed server-side from ingredients and pantry
   stock, so there is nothing meaningful to show optimistically
 - [ ] Stale-while-revalidate reads: recipe list, recipe detail, shopping list, this week's meal plan paint from cache instantly
-- [ ] Mutation queue with optimistic UI + rollback on failure — first real use
-  is the meal-plan drag above; rollback there is implicit (the next pull carries
-  the server's version), which may or may not be enough for the other screens
+- [x] **Mutation queue with optimistic UI + rollback on failure.** Rollback for
+  *edits* is implicit — the next pull carries the server's version, so a
+  rejected change simply reverts. Rollback for *creates* needed the temp-id
+  mechanism above, since there is no server row to revert to. Both are in and
+  exercised by the meal plan; the remaining screens get them for free
 - [ ] Background Sync API registration for queued mutations
 - [ ] Offline indicator + "last synced" affordance in the app shell
 - [ ] Cache recipe images for favourites and this week's plan (Cache API)
