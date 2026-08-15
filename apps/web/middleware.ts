@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// These routes are publicly accessible — they validate access themselves
-const PUBLIC_PATH_PREFIXES = ["/api/integrations", "/share/"];
+// These routes are publicly accessible — they validate access themselves.
+// /api/v1 is the client API: every handler calls requireSession(), which
+// resolves either proxy headers or (once OIDC lands) a bearer token, and
+// returns 401 through the shared error envelope when neither is present.
+const PUBLIC_PATH_PREFIXES = ["/api/integrations", "/api/v1", "/share/"];
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",

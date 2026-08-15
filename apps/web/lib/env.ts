@@ -13,6 +13,16 @@ const envSchema = z.object({
   AUTHELIA_USER_HEADER: z.string().default("Remote-User"),
   AUTHELIA_NAME_HEADER: z.string().default("Remote-Name"),
   AUTHELIA_GROUPS_HEADER: z.string().default("Remote-Groups"),
+  // OIDC — optional; bearer-token auth on /api/v1 is disabled when
+  // DISHES_OIDC_ISSUER is absent, and the app stays proxy-headers-only. Set this to your Authelia
+  // root URL (it must serve /.well-known/openid-configuration).
+  DISHES_OIDC_ISSUER: z.string().url().optional(),
+  DISHES_OIDC_CLIENT_ID: z.string().optional(),
+  DISHES_OIDC_USERINFO_CACHE_SECONDS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(60),
   // S3 / MinIO — optional; image upload is disabled when absent
   S3_ENDPOINT: z.string().url().optional(),
   S3_BUCKET: z.string().optional(),

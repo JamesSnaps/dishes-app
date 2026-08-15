@@ -42,8 +42,8 @@ import {
   changeMealEntryType,
   addMealEntryToShoppingList,
   updateMealEntryServings,
-  type ShoppingAddResult,
 } from "@/app/actions/meal-plan";
+import type { ShoppingAddResult } from "@/lib/services/meal-plan";
 import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
 import { useToast } from "@/hooks/use-toast";
 

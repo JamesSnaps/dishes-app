@@ -1,48 +1,25 @@
 "use server";
 
-import { db } from "@/lib/db";
-import {
-  recipes,
-  recipeIngredients,
-  recipeSteps,
-  recipeTags,
-  collections,
-  recipeCollections,
-} from "@dishes/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
-import { requireHousehold } from "@/lib/household";
-import { MEAL_TYPES } from "@dishes/shared";
+import { requireSession } from "@/lib/session";
+import * as recipeService from "@/lib/services/recipes";
+import type {
+  IngredientInput,
+  RecipeFields,
+  RecipeWriteInput,
+  StepInput,
+} from "@/lib/services/recipes";
 import { suggestCollectionForRecipe, type GeneratedRecipe } from "./ai";
 
-// Keep only valid, de-duplicated meal types. Returns null when nothing valid
-// (column nullable; null = "unknown / fits any slot").
-function sanitizeMealTypes(raw: unknown): string[] | null {
-  if (!Array.isArray(raw)) return null;
-  const valid = [...new Set(raw)].filter(
-    (v): v is string =>
-      typeof v === "string" && (MEAL_TYPES as readonly string[]).includes(v)
-  );
-  return valid.length ? valid : null;
-}
+/**
+ * This module is the web transport for recipe writes: parse FormData, call the
+ * service, then revalidate and navigate. All domain logic lives in
+ * `lib/services/recipes.ts` so the REST routes under `app/api/v1/recipes`
+ * behave identically.
+ */
 
-type IngredientInput = {
-  ingredientName: string;
-  amount: string;
-  unit: string;
-  preparation: string;
-  isOptional: boolean;
-  groupLabel: string;
-};
-
-type StepInput = {
-  instruction: string;
-  durationMinutes: string;
-  timerLabel: string;
-  groupLabel: string;
-};
+// --- Form parsing -----------------------------------------------------------
 
 function parseJSON<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
@@ -53,210 +30,119 @@ function parseJSON<T>(raw: string | null, fallback: T): T {
   }
 }
 
-// Map an AI-generated recipe's nutrition block onto DB columns (per serving).
-// Returns nutritionSource: "ai" only when at least one value is present.
-function aiNutritionFields(recipe: GeneratedRecipe) {
-  const n = recipe.nutrition;
-  const num = (v: number | null | undefined) =>
-    v === null || v === undefined || Number.isNaN(v) ? null : v;
-  const calories = n ? (num(n.calories) == null ? null : Math.round(num(n.calories)!)) : null;
-  const str = (v: number | null | undefined) => {
-    const x = num(v);
-    return x == null ? null : String(x);
-  };
-  const fields = {
-    calories,
-    proteinG: n ? str(n.proteinG) : null,
-    carbsG: n ? str(n.carbsG) : null,
-    fatG: n ? str(n.fatG) : null,
-    fiberG: n ? str(n.fiberG) : null,
-    sugarG: n ? str(n.sugarG) : null,
-    sodiumMg: n ? str(n.sodiumMg) : null,
-  };
-  const hasAny = Object.values(fields).some((v) => v != null);
-  return { ...fields, nutritionSource: hasAny ? ("ai" as const) : ("none" as const) };
-}
+function extractRecipeFields(formData: FormData): RecipeFields {
+  const str = (key: string) => (formData.get(key) as string)?.trim() || null;
 
-// Read manually-entered nutrition values from the recipe form.
-function extractNutritionFields(formData: FormData) {
-  const numStr = (key: string) => {
-    const raw = (formData.get(key) as string)?.trim();
-    if (!raw) return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? String(n) : null;
-  };
-  const calRaw = (formData.get("calories") as string)?.trim();
-  const calories = calRaw && Number.isFinite(Number(calRaw)) ? Math.round(Number(calRaw)) : null;
-  const fields = {
-    calories,
-    proteinG: numStr("proteinG"),
-    carbsG: numStr("carbsG"),
-    fatG: numStr("fatG"),
-    fiberG: numStr("fiberG"),
-    sugarG: numStr("sugarG"),
-    sodiumMg: numStr("sodiumMg"),
-  };
-  const hasAny = Object.values(fields).some((v) => v != null);
-  return { ...fields, nutritionSource: hasAny ? ("manual" as const) : ("none" as const) };
-}
-
-function extractRecipeFields(formData: FormData) {
   return {
     title: (formData.get("title") as string)?.trim() ?? "",
-    description: (formData.get("description") as string)?.trim() || null,
-    cuisine: (formData.get("cuisine") as string)?.trim() || null,
-    prepTimeMinutes:
-      parseInt(formData.get("prepTimeMinutes") as string) || null,
-    cookTimeMinutes:
-      parseInt(formData.get("cookTimeMinutes") as string) || null,
-    servings: (formData.get("servings") as string)?.trim() || null,
-    servingsUnit:
-      (formData.get("servingsUnit") as string)?.trim() || "servings",
-    difficulty:
-      (formData.get("difficulty") as "easy" | "medium" | "hard") || null,
-    mealTypes: sanitizeMealTypes(
+    description: str("description"),
+    cuisine: str("cuisine"),
+    prepTimeMinutes: parseInt(formData.get("prepTimeMinutes") as string) || null,
+    cookTimeMinutes: parseInt(formData.get("cookTimeMinutes") as string) || null,
+    servings: str("servings"),
+    servingsUnit: str("servingsUnit") ?? "servings",
+    difficulty: (formData.get("difficulty") as "easy" | "medium" | "hard") || null,
+    mealTypes: recipeService.sanitizeMealTypes(
       parseJSON<string[]>(formData.get("mealTypes") as string, [])
     ),
-    sourceUrl: (formData.get("sourceUrl") as string)?.trim() || null,
-    notes: (formData.get("notes") as string)?.trim() || null,
-    imageUrl: (formData.get("imageUrl") as string)?.trim() || null,
-    thumbnailUrl: (formData.get("thumbnailUrl") as string)?.trim() || null,
-    ...extractNutritionFields(formData),
+    sourceUrl: str("sourceUrl"),
+    notes: str("notes"),
+    imageUrl: str("imageUrl"),
+    thumbnailUrl: str("thumbnailUrl"),
+    ...recipeService.buildNutrition(
+      {
+        calories: str("calories"),
+        proteinG: str("proteinG"),
+        carbsG: str("carbsG"),
+        fatG: str("fatG"),
+        fiberG: str("fiberG"),
+        sugarG: str("sugarG"),
+        sodiumMg: str("sodiumMg"),
+      },
+      "manual"
+    ),
   };
 }
 
-async function insertIngredients(
-  recipeId: string,
-  ingredients: IngredientInput[]
-) {
-  if (!ingredients.length) return;
-  await db.insert(recipeIngredients).values(
-    ingredients.map((ing, i) => ({
-      recipeId,
-      position: i,
+function extractWriteInput(formData: FormData): RecipeWriteInput {
+  return {
+    fields: extractRecipeFields(formData),
+    ingredients: parseJSON<IngredientInput[]>(formData.get("ingredients") as string, []),
+    steps: parseJSON<StepInput[]>(formData.get("steps") as string, []),
+    tags: ((formData.get("tags") as string) ?? "").split(",").map((t) => t.trim()),
+    collectionId: (formData.get("collectionId") as string) ?? null,
+  };
+}
+
+/** Map an AI-generated recipe onto the service's write input. */
+function generatedToWriteInput(
+  recipe: GeneratedRecipe,
+  collectionId?: string | null
+): RecipeWriteInput {
+  return {
+    fields: {
+      title: recipe.title,
+      description: recipe.description || null,
+      cuisine: recipe.cuisine || null,
+      prepTimeMinutes: recipe.prepTimeMinutes,
+      cookTimeMinutes: recipe.cookTimeMinutes,
+      servings: recipe.servings || null,
+      servingsUnit: recipe.servingsUnit || "servings",
+      difficulty: recipe.difficulty || null,
+      mealTypes: recipeService.sanitizeMealTypes(recipe.mealTypes),
+      sourceUrl: null,
+      notes: recipe.notes,
+      imageUrl: null,
+      thumbnailUrl: null,
+      ...recipeService.buildNutrition(recipe.nutrition, "ai"),
+    },
+    ingredients: recipe.ingredients.map((ing) => ({
       ingredientName: ing.ingredientName,
-      amount: ing.amount || null,
-      unit: ing.unit || null,
-      preparation: ing.preparation || null,
+      amount: ing.amount,
+      unit: ing.unit,
+      preparation: ing.preparation,
       isOptional: ing.isOptional,
-      groupLabel: ing.groupLabel || null,
-    }))
-  );
+      groupLabel: ing.groupLabel,
+    })),
+    steps: recipe.steps.map((s) => ({
+      instruction: s.instruction,
+      durationMinutes: s.durationMinutes,
+      timerLabel: s.timerLabel,
+      groupLabel: s.groupLabel,
+    })),
+    tags: recipe.tags,
+    collectionId: collectionId ?? null,
+    isAiGenerated: true,
+  };
 }
 
-async function insertSteps(recipeId: string, steps: StepInput[]) {
-  if (!steps.length) return;
-  await db.insert(recipeSteps).values(
-    steps.map((step, i) => ({
-      recipeId,
-      position: i,
-      instruction: step.instruction,
-      durationMinutes: step.durationMinutes
-        ? parseInt(step.durationMinutes)
-        : null,
-      timerLabel: step.timerLabel || null,
-      groupLabel: step.groupLabel || null,
-    }))
-  );
-}
+// --- Cache invalidation -----------------------------------------------------
 
-async function insertTags(recipeId: string, tagsRaw: string) {
-  const tags = tagsRaw
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
-  if (!tags.length) return;
-  await db.insert(recipeTags).values(tags.map((tag) => ({ recipeId, tag })));
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Optional collection link supplied by the form (e.g. an AI-suggested collection
-// the user kept). Silently ignores anything that isn't one of this household's
-// collections.
-async function linkCollection(recipeId: string, householdId: string, collectionId: string) {
-  const id = collectionId?.trim();
-  if (!id || !UUID_RE.test(id)) return;
-
-  const [owned] = await db
-    .select({ id: collections.id })
-    .from(collections)
-    .where(and(eq(collections.id, id), eq(collections.householdId, householdId)))
-    .limit(1);
-  if (!owned) return;
-
-  await db.insert(recipeCollections).values({ collectionId: id, recipeId }).onConflictDoNothing();
-  revalidatePath(`/collections/${id}`);
+function revalidateCollections(collectionId: string | null) {
+  if (!collectionId) return;
+  revalidatePath(`/collections/${collectionId}`);
   revalidatePath("/collections");
 }
 
+// --- Actions ----------------------------------------------------------------
+
 export async function createRecipe(formData: FormData) {
-  const user = await getAutheliaUser();
-  const { householdId, memberId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  const fields = extractRecipeFields(formData);
-  if (!fields.title) throw new Error("Title is required");
-
-  const [recipe] = await db
-    .insert(recipes)
-    .values({ householdId, createdById: memberId, ...fields })
-    .returning({ id: recipes.id });
-
-  const recipeId = recipe!.id;
-
-  const ingredients = parseJSON<IngredientInput[]>(
-    formData.get("ingredients") as string,
-    []
+  const { recipeId, linkedCollectionId } = await recipeService.createRecipe(
+    session,
+    extractWriteInput(formData)
   );
-  const steps = parseJSON<StepInput[]>(formData.get("steps") as string, []);
 
-  await Promise.all([
-    insertIngredients(recipeId, ingredients),
-    insertSteps(recipeId, steps),
-    insertTags(recipeId, (formData.get("tags") as string) ?? ""),
-    linkCollection(recipeId, householdId, (formData.get("collectionId") as string) ?? ""),
-  ]);
-
+  revalidateCollections(linkedCollectionId);
+  revalidatePath("/recipes");
   redirect(`/recipes/${recipeId}`);
 }
 
 export async function updateRecipe(recipeId: string, formData: FormData) {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  const existing = await db
-    .select({ id: recipes.id })
-    .from(recipes)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
-    .limit(1);
-
-  if (!existing.length) throw new Error("Recipe not found");
-
-  const fields = extractRecipeFields(formData);
-  if (!fields.title) throw new Error("Title is required");
-
-  const ingredients = parseJSON<IngredientInput[]>(
-    formData.get("ingredients") as string,
-    []
-  );
-  const steps = parseJSON<StepInput[]>(formData.get("steps") as string, []);
-
-  await db
-    .update(recipes)
-    .set(fields)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
-
-  await db
-    .delete(recipeIngredients)
-    .where(eq(recipeIngredients.recipeId, recipeId));
-  await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
-  await db.delete(recipeTags).where(eq(recipeTags.recipeId, recipeId));
-
-  await Promise.all([
-    insertIngredients(recipeId, ingredients),
-    insertSteps(recipeId, steps),
-    insertTags(recipeId, (formData.get("tags") as string) ?? ""),
-  ]);
+  await recipeService.updateRecipe(session, recipeId, extractWriteInput(formData));
 
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
@@ -264,14 +150,9 @@ export async function updateRecipe(recipeId: string, formData: FormData) {
 }
 
 export async function deleteRecipe(recipeId: string) {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  await db
-    .delete(recipes)
-    .where(
-      and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId))
-    );
+  await recipeService.deleteRecipe(session, recipeId);
 
   revalidatePath("/recipes");
   redirect("/recipes");
@@ -281,64 +162,9 @@ export async function saveGeneratedRecipe(
   recipe: GeneratedRecipe
 ): Promise<{ recipeId?: string; collectionName?: string; error?: string }> {
   try {
-    const user = await getAutheliaUser();
-    const { householdId, memberId } = await requireHousehold(user);
+    const session = await requireSession();
 
-    const [newRecipe] = await db
-      .insert(recipes)
-      .values({
-        householdId,
-        createdById: memberId,
-        title: recipe.title,
-        description: recipe.description || null,
-        cuisine: recipe.cuisine || null,
-        prepTimeMinutes: recipe.prepTimeMinutes,
-        cookTimeMinutes: recipe.cookTimeMinutes,
-        servings: recipe.servings || null,
-        servingsUnit: recipe.servingsUnit || "servings",
-        difficulty: recipe.difficulty || null,
-        mealTypes: sanitizeMealTypes(recipe.mealTypes),
-        notes: recipe.notes,
-        isAiGenerated: true,
-        ...aiNutritionFields(recipe),
-      })
-      .returning({ id: recipes.id });
-
-    const newId = newRecipe!.id;
-
-    await Promise.all([
-      recipe.ingredients.length
-        ? db.insert(recipeIngredients).values(
-            recipe.ingredients.map((ing, i) => ({
-              recipeId: newId,
-              position: i,
-              ingredientName: ing.ingredientName,
-              amount: ing.amount || null,
-              unit: ing.unit || null,
-              preparation: ing.preparation || null,
-              isOptional: ing.isOptional,
-              groupLabel: ing.groupLabel || null,
-            }))
-          )
-        : Promise.resolve(),
-      recipe.steps.length
-        ? db.insert(recipeSteps).values(
-            recipe.steps.map((s, i) => ({
-              recipeId: newId,
-              position: i,
-              instruction: s.instruction,
-              durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
-              timerLabel: s.timerLabel || null,
-              groupLabel: s.groupLabel || null,
-            }))
-          )
-        : Promise.resolve(),
-      recipe.tags.length
-        ? db.insert(recipeTags).values(recipe.tags.map((tag) => ({ recipeId: newId, tag })))
-        : Promise.resolve(),
-    ]);
-
-    // File it into an existing collection when the AI is confident it belongs
+    // File it into an existing collection when the AI is confident it belongs.
     const suggestion = await suggestCollectionForRecipe({
       title: recipe.title,
       description: recipe.description,
@@ -346,12 +172,19 @@ export async function saveGeneratedRecipe(
       tags: recipe.tags,
       mealTypes: recipe.mealTypes,
     });
-    if (suggestion.collectionId) {
-      await linkCollection(newId, householdId, suggestion.collectionId);
-    }
 
+    const { recipeId, linkedCollectionId } = await recipeService.createRecipe(
+      session,
+      generatedToWriteInput(recipe, suggestion.collectionId)
+    );
+
+    revalidateCollections(linkedCollectionId);
     revalidatePath("/recipes");
-    return { recipeId: newId, collectionName: suggestion.collectionName };
+
+    return {
+      recipeId,
+      collectionName: linkedCollectionId ? suggestion.collectionName : undefined,
+    };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to save recipe." };
   }
@@ -362,72 +195,18 @@ export async function saveRecipeAsCopy(
   tweaked: GeneratedRecipe
 ): Promise<{ recipeId?: string; error?: string }> {
   try {
-    const user = await getAutheliaUser();
-    const { householdId, memberId } = await requireHousehold(user);
+    const session = await requireSession();
 
-    const [original] = await db
-      .select({ id: recipes.id })
-      .from(recipes)
-      .where(and(eq(recipes.id, originalRecipeId), eq(recipes.householdId, householdId)))
-      .limit(1);
-    if (!original) return { error: "Recipe not found." };
+    // Confirm the original is ours before spawning a copy from it.
+    await recipeService.getRecipe(session, originalRecipeId);
 
-    const [newRecipe] = await db
-      .insert(recipes)
-      .values({
-        householdId,
-        createdById: memberId,
-        title: tweaked.title,
-        description: tweaked.description || null,
-        cuisine: tweaked.cuisine || null,
-        prepTimeMinutes: tweaked.prepTimeMinutes,
-        cookTimeMinutes: tweaked.cookTimeMinutes,
-        servings: tweaked.servings || null,
-        servingsUnit: tweaked.servingsUnit || "servings",
-        difficulty: tweaked.difficulty || null,
-        mealTypes: sanitizeMealTypes(tweaked.mealTypes),
-        notes: tweaked.notes,
-        isAiGenerated: true,
-        ...aiNutritionFields(tweaked),
-      })
-      .returning({ id: recipes.id });
-
-    const newId = newRecipe!.id;
-
-    await Promise.all([
-      tweaked.ingredients.length
-        ? db.insert(recipeIngredients).values(
-            tweaked.ingredients.map((ing, i) => ({
-              recipeId: newId,
-              position: i,
-              ingredientName: ing.ingredientName,
-              amount: ing.amount || null,
-              unit: ing.unit || null,
-              preparation: ing.preparation || null,
-              isOptional: ing.isOptional,
-              groupLabel: ing.groupLabel || null,
-            }))
-          )
-        : Promise.resolve(),
-      tweaked.steps.length
-        ? db.insert(recipeSteps).values(
-            tweaked.steps.map((s, i) => ({
-              recipeId: newId,
-              position: i,
-              instruction: s.instruction,
-              durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
-              timerLabel: s.timerLabel || null,
-              groupLabel: s.groupLabel || null,
-            }))
-          )
-        : Promise.resolve(),
-      tweaked.tags.length
-        ? db.insert(recipeTags).values(tweaked.tags.map((tag) => ({ recipeId: newId, tag })))
-        : Promise.resolve(),
-    ]);
+    const { recipeId } = await recipeService.createRecipe(
+      session,
+      generatedToWriteInput(tweaked)
+    );
 
     revalidatePath("/recipes");
-    return { recipeId: newId };
+    return { recipeId };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to save recipe." };
   }
@@ -438,68 +217,13 @@ export async function applyTweakToRecipe(
   tweaked: GeneratedRecipe
 ): Promise<{ error?: string }> {
   try {
-    const user = await getAutheliaUser();
-    const { householdId } = await requireHousehold(user);
+    const session = await requireSession();
 
-    const [existing] = await db
-      .select({ id: recipes.id })
-      .from(recipes)
-      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
-      .limit(1);
-    if (!existing) return { error: "Recipe not found." };
-
-    await db
-      .update(recipes)
-      .set({
-        title: tweaked.title,
-        description: tweaked.description || null,
-        cuisine: tweaked.cuisine || null,
-        prepTimeMinutes: tweaked.prepTimeMinutes,
-        cookTimeMinutes: tweaked.cookTimeMinutes,
-        servings: tweaked.servings || null,
-        servingsUnit: tweaked.servingsUnit || "servings",
-        difficulty: tweaked.difficulty || null,
-        mealTypes: sanitizeMealTypes(tweaked.mealTypes),
-        notes: tweaked.notes,
-        ...aiNutritionFields(tweaked),
-      })
-      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
-
-    await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
-    await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
-    await db.delete(recipeTags).where(eq(recipeTags.recipeId, recipeId));
-
-    await Promise.all([
-      tweaked.ingredients.length
-        ? db.insert(recipeIngredients).values(
-            tweaked.ingredients.map((ing, i) => ({
-              recipeId,
-              position: i,
-              ingredientName: ing.ingredientName,
-              amount: ing.amount || null,
-              unit: ing.unit || null,
-              preparation: ing.preparation || null,
-              isOptional: ing.isOptional,
-              groupLabel: ing.groupLabel || null,
-            }))
-          )
-        : Promise.resolve(),
-      tweaked.steps.length
-        ? db.insert(recipeSteps).values(
-            tweaked.steps.map((s, i) => ({
-              recipeId,
-              position: i,
-              instruction: s.instruction,
-              durationMinutes: s.durationMinutes ? parseInt(s.durationMinutes) : null,
-              timerLabel: s.timerLabel || null,
-              groupLabel: s.groupLabel || null,
-            }))
-          )
-        : Promise.resolve(),
-      tweaked.tags.length
-        ? db.insert(recipeTags).values(tweaked.tags.map((tag) => ({ recipeId, tag })))
-        : Promise.resolve(),
-    ]);
+    await recipeService.replaceRecipeBody(
+      session,
+      recipeId,
+      generatedToWriteInput(tweaked)
+    );
 
     revalidatePath(`/recipes/${recipeId}`);
     revalidatePath("/recipes");
@@ -510,74 +234,21 @@ export async function applyTweakToRecipe(
 }
 
 export async function bulkAddTags(recipeIds: string[], tags: string[]): Promise<void> {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
-
-  if (!recipeIds.length || !tags.length) return;
-
-  const owned = await db
-    .select({ id: recipes.id })
-    .from(recipes)
-    .where(and(eq(recipes.householdId, householdId), inArray(recipes.id, recipeIds)));
-  const ownedIds = owned.map((r) => r.id);
-  if (!ownedIds.length) return;
-
-  const existing = await db
-    .select({ recipeId: recipeTags.recipeId, tag: recipeTags.tag })
-    .from(recipeTags)
-    .where(and(inArray(recipeTags.recipeId, ownedIds), inArray(recipeTags.tag, tags)));
-
-  const existingSet = new Set(existing.map((e) => `${e.recipeId}:${e.tag}`));
-
-  const toInsert = ownedIds.flatMap((recipeId) =>
-    tags
-      .filter((tag) => !existingSet.has(`${recipeId}:${tag}`))
-      .map((tag) => ({ recipeId, tag }))
-  );
-
-  if (toInsert.length) {
-    await db.insert(recipeTags).values(toInsert);
-  }
-
+  const session = await requireSession();
+  await recipeService.bulkAddTags(session, recipeIds, tags);
   revalidatePath("/recipes");
 }
 
 export async function bulkRemoveTags(recipeIds: string[], tags: string[]): Promise<void> {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
-
-  if (!recipeIds.length || !tags.length) return;
-
-  const owned = await db
-    .select({ id: recipes.id })
-    .from(recipes)
-    .where(and(eq(recipes.householdId, householdId), inArray(recipes.id, recipeIds)));
-  const ownedIds = owned.map((r) => r.id);
-  if (!ownedIds.length) return;
-
-  await db
-    .delete(recipeTags)
-    .where(and(inArray(recipeTags.recipeId, ownedIds), inArray(recipeTags.tag, tags)));
-
+  const session = await requireSession();
+  await recipeService.bulkRemoveTags(session, recipeIds, tags);
   revalidatePath("/recipes");
 }
 
 export async function toggleFavourite(recipeId: string) {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  const [recipe] = await db
-    .select({ isFavourite: recipes.isFavourite })
-    .from(recipes)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
-    .limit(1);
-
-  if (!recipe) throw new Error("Recipe not found");
-
-  await db
-    .update(recipes)
-    .set({ isFavourite: !recipe.isFavourite })
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
+  await recipeService.toggleFavourite(session, recipeId);
 
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
@@ -587,21 +258,9 @@ export async function updateRecipeCookTime(
   recipeId: string,
   cookTimeMinutes: number
 ): Promise<void> {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  const [recipe] = await db
-    .select({ id: recipes.id })
-    .from(recipes)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
-    .limit(1);
-
-  if (!recipe) throw new Error("Recipe not found");
-
-  await db
-    .update(recipes)
-    .set({ cookTimeMinutes })
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
+  await recipeService.updateRecipeCookTime(session, recipeId, cookTimeMinutes);
 
   revalidatePath(`/recipes/${recipeId}`);
 }

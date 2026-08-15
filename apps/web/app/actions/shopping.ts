@@ -1,346 +1,127 @@
 "use server";
 
-import { db } from "@/lib/db";
-import {
-  shoppingLists,
-  shoppingListItems,
-  shoppingListItemRecipes,
-  recipes,
-  recipeIngredients,
-  pantryStaples,
-  pantryStock,
-} from "@dishes/db/schema";
-import { eq, and, asc, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
-import { requireHousehold } from "@/lib/household";
-import { notifyHouseholdThrottled } from "@/lib/push";
-import { getPantryExclusions, isCoveredByPantry } from "@/lib/pantry-exclusions";
+import { requireSession } from "@/lib/session";
+import * as shoppingService from "@/lib/services/shopping";
+import {
+  ShoppingItemNotFoundError,
+  ShoppingListNotFoundError,
+  ShoppingValidationError,
+} from "@/lib/services/shopping";
 
-// Collapse bursts of shopping-list changes into at most one push per household
-// per window. All shopping mutations share this channel so adding a recipe and
-// then typing items doesn't double-notify.
-const SHOPPING_PUSH_CHANNEL = "shopping";
-const SHOPPING_PUSH_WINDOW_SECONDS = 90;
+/**
+ * Web transport for shopping-list writes: parse FormData, call the service,
+ * revalidate. Domain logic lives in `lib/services/shopping.ts`, shared with the
+ * offline endpoints under `app/api/shopping` and the client API under
+ * `app/api/v1/shopping`.
+ */
 
-function notifyShoppingChange(householdId: string, actor: string) {
-  return notifyHouseholdThrottled(
-    householdId,
-    SHOPPING_PUSH_CHANNEL,
-    SHOPPING_PUSH_WINDOW_SECONDS,
-    {
-      title: "🛒 Shopping list updated",
-      body: `${actor} changed the shopping list`,
-      url: "/shopping",
-    }
-  );
-}
+// Note: types are NOT re-exported from here. A "use server" file may only export
+// async functions, and `export type { … } from …` is rejected by the compiler
+// even though it erases at runtime. Consumers import these types straight from
+// `@/lib/services/shopping` with `import type`.
 
-async function getActiveList(householdId: string) {
-  const [list] = await db
-    .select({ id: shoppingLists.id, name: shoppingLists.name })
-    .from(shoppingLists)
-    .where(
-      and(
-        eq(shoppingLists.householdId, householdId),
-        eq(shoppingLists.status, "active")
-      )
-    )
-    .limit(1);
-  return list ?? null;
-}
-
-async function ensureActiveList(householdId: string, memberId: string) {
-  const existing = await getActiveList(householdId);
-  if (existing) return existing;
-
-  const name = `Shopping – ${new Date().toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-  })}`;
-  const [list] = await db
-    .insert(shoppingLists)
-    .values({ householdId, createdById: memberId, name })
-    .returning({ id: shoppingLists.id, name: shoppingLists.name });
-  return list!;
+/**
+ * These actions historically no-opped rather than throwing when an item or list
+ * had already gone (a second click on a stale row, a list archived in another
+ * tab). Preserved deliberately — surfacing an error overlay for a row that is
+ * already gone is worse than doing nothing.
+ */
+function ignoreMissing(err: unknown): void {
+  if (
+    err instanceof ShoppingItemNotFoundError ||
+    err instanceof ShoppingListNotFoundError ||
+    err instanceof ShoppingValidationError
+  ) {
+    return;
+  }
+  throw err;
 }
 
 export async function createList(formData: FormData) {
-  const user = await getAutheliaUser();
-  const { householdId, memberId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  const name =
-    (formData.get("name") as string)?.trim() ||
-    `Shopping – ${new Date().toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-    })}`;
+  await shoppingService.createList(session, formData.get("name") as string);
 
-  await db
-    .insert(shoppingLists)
-    .values({ householdId, createdById: memberId, name });
   revalidatePath("/shopping");
 }
 
 export async function addItem(formData: FormData) {
-  const user = await getAutheliaUser();
-  const { householdId, memberId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  const ingredientName = (formData.get("ingredientName") as string)?.trim();
-  if (!ingredientName) return;
-
-  const list = await ensureActiveList(householdId, memberId);
-
-  const [maxRow] = await db
-    .select({ pos: max(shoppingListItems.position) })
-    .from(shoppingListItems)
-    .where(eq(shoppingListItems.listId, list.id));
-
-  const nextPos = (maxRow?.pos ?? -1) + 1;
-
-  await db.insert(shoppingListItems).values({
-    listId: list.id,
-    ingredientName,
-    amount: (formData.get("amount") as string)?.trim() || null,
-    unit: (formData.get("unit") as string)?.trim() || null,
-    category: (formData.get("category") as string)?.trim() || null,
-    position: nextPos,
-  });
+  try {
+    await shoppingService.addItem(session, {
+      ingredientName: (formData.get("ingredientName") as string) ?? "",
+      amount: (formData.get("amount") as string)?.trim() || null,
+      unit: (formData.get("unit") as string)?.trim() || null,
+      category: (formData.get("category") as string)?.trim() || null,
+    });
+  } catch (err) {
+    ignoreMissing(err);
+    return;
+  }
 
   revalidatePath("/shopping");
-  await notifyShoppingChange(householdId, user.displayName);
 }
 
 export async function toggleItem(itemId: string, checked: boolean) {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  // Verify the item's list belongs to this household
-  const [item] = await db
-    .select({ listId: shoppingListItems.listId })
-    .from(shoppingListItems)
-    .where(eq(shoppingListItems.id, itemId))
-    .limit(1);
-
-  if (!item) return;
-
-  const [list] = await db
-    .select({ id: shoppingLists.id })
-    .from(shoppingLists)
-    .where(
-      and(
-        eq(shoppingLists.id, item.listId),
-        eq(shoppingLists.householdId, householdId)
-      )
-    )
-    .limit(1);
-
-  if (!list) return;
-
-  await db
-    .update(shoppingListItems)
-    .set({ isChecked: checked })
-    .where(eq(shoppingListItems.id, itemId));
+  try {
+    await shoppingService.toggleItem(session, itemId, checked);
+  } catch (err) {
+    ignoreMissing(err);
+    return;
+  }
 
   revalidatePath("/shopping");
 }
 
 export async function clearChecked(listId: string) {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  const [list] = await db
-    .select({ id: shoppingLists.id })
-    .from(shoppingLists)
-    .where(
-      and(
-        eq(shoppingLists.id, listId),
-        eq(shoppingLists.householdId, householdId)
-      )
-    )
-    .limit(1);
-
-  if (!list) return;
-
-  const cleared = await db
-    .delete(shoppingListItems)
-    .where(
-      and(
-        eq(shoppingListItems.listId, listId),
-        eq(shoppingListItems.isChecked, true)
-      )
-    );
+  try {
+    await shoppingService.clearChecked(session, listId);
+  } catch (err) {
+    ignoreMissing(err);
+    return;
+  }
 
   revalidatePath("/shopping");
-  if (cleared.count > 0) {
-    await notifyShoppingChange(householdId, user.displayName);
-  }
 }
 
 export async function archiveList(listId: string) {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  await db
-    .update(shoppingLists)
-    .set({ status: "archived" })
-    .where(
-      and(
-        eq(shoppingLists.id, listId),
-        eq(shoppingLists.householdId, householdId)
-      )
-    );
+  try {
+    await shoppingService.archiveList(session, listId);
+  } catch (err) {
+    ignoreMissing(err);
+    return;
+  }
 
   revalidatePath("/shopping");
 }
 
 export async function deleteItem(itemId: string) {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  // Verify ownership via the list
-  const [item] = await db
-    .select({ listId: shoppingListItems.listId })
-    .from(shoppingListItems)
-    .where(eq(shoppingListItems.id, itemId))
-    .limit(1);
-
-  if (!item) return;
-
-  const [list] = await db
-    .select({ id: shoppingLists.id })
-    .from(shoppingLists)
-    .where(
-      and(
-        eq(shoppingLists.id, item.listId),
-        eq(shoppingLists.householdId, householdId)
-      )
-    )
-    .limit(1);
-
-  if (!list) return;
-
-  await db
-    .delete(shoppingListItems)
-    .where(eq(shoppingListItems.id, itemId));
+  try {
+    await shoppingService.deleteItem(session, itemId);
+  } catch (err) {
+    ignoreMissing(err);
+    return;
+  }
 
   revalidatePath("/shopping");
-  await notifyShoppingChange(householdId, user.displayName);
 }
-
-export type SkippedIngredient = {
-  ingredientName: string;
-  amount: string | null;
-  unit: string | null;
-  reason: "staple" | "in_stock";
-};
-
-export type AddingIngredient = {
-  ingredientName: string;
-  amount: string | null;
-  unit: string | null;
-};
-
-export type ShoppingPreview = {
-  adding: AddingIngredient[];
-  skipped: SkippedIngredient[];
-};
 
 export async function previewShoppingGeneration(
   recipeId: string,
   servings?: number
-): Promise<ShoppingPreview> {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
-
-  const [recipe] = await db
-    .select({ id: recipes.id, servings: recipes.servings })
-    .from(recipes)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
-    .limit(1);
-
-  if (!recipe) return { adding: [], skipped: [] };
-
-  const baseServings = recipe.servings ? parseFloat(recipe.servings) : null;
-  const scale =
-    servings && baseServings && baseServings > 0
-      ? servings / baseServings
-      : 1;
-
-  const [ingredients, staples, stock] = await Promise.all([
-    db
-      .select({
-        ingredientName: recipeIngredients.ingredientName,
-        amount: recipeIngredients.amount,
-        unit: recipeIngredients.unit,
-      })
-      .from(recipeIngredients)
-      .where(eq(recipeIngredients.recipeId, recipeId))
-      .orderBy(asc(recipeIngredients.position)),
-    db
-      .select({ ingredientName: pantryStaples.ingredientName })
-      .from(pantryStaples)
-      .where(eq(pantryStaples.householdId, householdId)),
-    db
-      .select({
-        ingredientName: pantryStock.ingredientName,
-        amount: pantryStock.amount,
-        unit: pantryStock.unit,
-      })
-      .from(pantryStock)
-      .where(eq(pantryStock.householdId, householdId)),
-  ]);
-
-  const stapleNames = new Set(
-    staples.map((s) => s.ingredientName.toLowerCase().trim())
-  );
-
-  const adding: AddingIngredient[] = [];
-  const skipped: SkippedIngredient[] = [];
-
-  for (const ing of ingredients) {
-    const normalName = ing.ingredientName.toLowerCase().trim();
-
-    if (stapleNames.has(normalName)) {
-      skipped.push({
-        ingredientName: ing.ingredientName,
-        amount: ing.amount,
-        unit: ing.unit,
-        reason: "staple",
-      });
-      continue;
-    }
-
-    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
-    const scaledAmount = !isNaN(rawNum) ? rawNum * scale : null;
-
-    if (scaledAmount !== null) {
-      const stockItem = stock.find(
-        (s) =>
-          s.ingredientName.toLowerCase().trim() === normalName &&
-          s.unit === ing.unit
-      );
-      if (stockItem?.amount && parseFloat(stockItem.amount) >= scaledAmount) {
-        skipped.push({
-          ingredientName: ing.ingredientName,
-          amount: ing.amount,
-          unit: ing.unit,
-          reason: "in_stock",
-        });
-        continue;
-      }
-    }
-
-    const scaledAmountStr =
-      scaledAmount !== null ? scaledAmount.toString() : null;
-    adding.push({
-      ingredientName: ing.ingredientName,
-      amount: scaledAmountStr,
-      unit: ing.unit,
-    });
-  }
-
-  return { adding, skipped };
+) {
+  const session = await requireSession();
+  return shoppingService.previewShoppingGeneration(session, recipeId, servings);
 }
 
 export async function generateFromRecipe(
@@ -348,123 +129,9 @@ export async function generateFromRecipe(
   servings?: number,
   forceInclude?: string[]
 ) {
-  const user = await getAutheliaUser();
-  const { householdId, memberId } = await requireHousehold(user);
+  const session = await requireSession();
 
-  const [recipe] = await db
-    .select({ id: recipes.id, servings: recipes.servings, title: recipes.title })
-    .from(recipes)
-    .where(
-      and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId))
-    )
-    .limit(1);
-
-  if (!recipe) throw new Error("Recipe not found");
-
-  const baseServings = recipe.servings ? parseFloat(recipe.servings) : null;
-  const scale =
-    servings && baseServings && baseServings > 0
-      ? servings / baseServings
-      : 1;
-
-  const ingredients = await db
-    .select({
-      ingredientName: recipeIngredients.ingredientName,
-      amount: recipeIngredients.amount,
-      unit: recipeIngredients.unit,
-    })
-    .from(recipeIngredients)
-    .where(eq(recipeIngredients.recipeId, recipeId))
-    .orderBy(asc(recipeIngredients.position));
-
-  const [list, exclusions] = await Promise.all([
-    ensureActiveList(householdId, memberId),
-    getPantryExclusions(householdId),
-  ]);
-
-  const forceIncludeNames = new Set(
-    (forceInclude ?? []).map((n) => n.toLowerCase().trim())
-  );
-
-  const existing = await db
-    .select({
-      id: shoppingListItems.id,
-      ingredientName: shoppingListItems.ingredientName,
-      amount: shoppingListItems.amount,
-      unit: shoppingListItems.unit,
-      position: shoppingListItems.position,
-      isChecked: shoppingListItems.isChecked,
-    })
-    .from(shoppingListItems)
-    .where(eq(shoppingListItems.listId, list.id));
-
-  const maxPos = existing.length
-    ? Math.max(...existing.map((i) => i.position))
-    : -1;
-  let posCounter = maxPos + 1;
-  let changed = false;
-
-  for (const ing of ingredients) {
-    const normalName = ing.ingredientName.toLowerCase().trim();
-
-    const forced = forceIncludeNames.has(normalName);
-
-    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
-    const isNumeric = !isNaN(rawNum);
-    const scaledAmount = isNumeric ? rawNum * scale : null;
-
-    // Skip staples and fully-stocked ingredients — unless explicitly overridden
-    if (!forced && isCoveredByPantry(exclusions, ing.ingredientName, scaledAmount, ing.unit)) {
-      continue;
-    }
-
-    const scaledAmountStr = scaledAmount !== null ? scaledAmount.toString() : null;
-    // Non-numeric amounts like "small handful" / "to taste" go into notes
-    const textNote = !isNumeric && ing.amount ? ing.amount : null;
-
-    const match = existing.find(
-      (e) =>
-        !e.isChecked &&
-        e.ingredientName.toLowerCase().trim() === normalName &&
-        e.unit === ing.unit
-    );
-
-    if (match && match.amount !== null && scaledAmountStr !== null) {
-      const newAmount = (
-        Math.round((parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000) / 1000
-      ).toString();
-      await db
-        .update(shoppingListItems)
-        .set({ amount: newAmount })
-        .where(eq(shoppingListItems.id, match.id));
-      await db
-        .insert(shoppingListItemRecipes)
-        .values({ itemId: match.id, recipeId })
-        .onConflictDoNothing();
-    } else {
-      const [inserted] = await db
-        .insert(shoppingListItems)
-        .values({
-          listId: list.id,
-          recipeId,
-          ingredientName: ing.ingredientName,
-          amount: scaledAmountStr,
-          unit: ing.unit,
-          notes: textNote,
-          position: posCounter++,
-        })
-        .returning({ id: shoppingListItems.id });
-      await db
-        .insert(shoppingListItemRecipes)
-        .values({ itemId: inserted!.id, recipeId })
-        .onConflictDoNothing();
-    }
-    changed = true;
-  }
+  await shoppingService.generateFromRecipe(session, recipeId, servings, forceInclude);
 
   revalidatePath("/shopping");
-
-  if (changed) {
-    await notifyShoppingChange(householdId, user.displayName);
-  }
 }
