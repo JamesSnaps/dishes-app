@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import type { OptimisticChange } from "@dishes/client";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
@@ -222,13 +222,21 @@ export function WeekPlannerLocal({
   const params = useSearchParams();
 
   const { data: syncedRecipes, loading } = useSyncedCollection<SyncRow>("recipes");
-  const { data: cooks } = useSyncedCollection<SyncRow>("cookHistory");
-  const { data: plans } = useSyncedCollection<SyncRow>("mealPlans");
-  const { data: planEntries } = useSyncedCollection<SyncRow>("mealPlanEntries");
-  const { data: lists } = useSyncedCollection<SyncRow>("shoppingLists");
-  const { data: items } = useSyncedCollection<SyncRow>("shoppingItems");
+  const { data: cooks, loading: cooksLoading } = useSyncedCollection<SyncRow>("cookHistory");
+  const { data: plans, loading: plansLoading } = useSyncedCollection<SyncRow>("mealPlans");
+  const { data: planEntries, loading: entriesLoading } =
+    useSyncedCollection<SyncRow>("mealPlanEntries");
+  const { data: lists, loading: listsLoading } = useSyncedCollection<SyncRow>("shoppingLists");
+  const { data: items, loading: itemsLoading } = useSyncedCollection<SyncRow>("shoppingItems");
 
-  const useLocal = Boolean(sync?.engine) && !loading && syncedRecipes.length > 0;
+  // Every collection, not just recipes. Each hook reads IndexedDB on its own
+  // and they resolve at different times, so gating on one of them hands this
+  // component a mix of loaded recipes and a still-empty entry list — a week
+  // that renders empty, or short, for a frame or two before filling in.
+  const storeLoading =
+    loading || cooksLoading || plansLoading || entriesLoading || listsLoading || itemsLoading;
+
+  const useLocal = Boolean(sync?.engine) && !storeLoading && syncedRecipes.length > 0;
 
   /**
    * Which week is on screen.
@@ -261,17 +269,24 @@ export function WeekPlannerLocal({
 
     const plan = plans.find((p) => str(p.weekStartDate) === week) ?? null;
 
+    let missingRecipes = 0;
+
     const entries = plan
       ? planEntries.flatMap((e) => {
           if (e.mealPlanId !== plan.id) return [];
           const recipe = byId.get(str(e.recipeId) ?? "");
           // innerJoin on the server: an entry whose recipe is missing locally
           // is dropped rather than rendered half-empty.
-          return recipe ? [toEntry(e, recipe)] : [];
+          if (!recipe) {
+            missingRecipes += 1;
+            return [];
+          }
+          return [toEntry(e, recipe)];
         })
       : [];
 
     return {
+      missingRecipes,
       planId: plan ? plan.id : null,
       entries,
       recipes,
@@ -303,6 +318,23 @@ export function WeekPlannerLocal({
    */
   const engine = sync?.engine ?? null;
   const syncNow = sync?.sync;
+
+  /**
+   * An entry pointing at a recipe the store doesn't have means the store is
+   * behind the server — most often a plan written server-side (the AI
+   * concierge) whose brand-new stub recipes haven't been pulled yet. Silently
+   * dropping the meal makes that look like data loss, so pull once and let the
+   * memo recompute. Once per mount: if a sync doesn't resolve it, retrying in a
+   * loop won't either.
+   */
+  const missingRecipes = local?.missingRecipes ?? 0;
+  const repairAttempted = useRef(false);
+
+  useEffect(() => {
+    if (!missingRecipes || repairAttempted.current) return;
+    repairAttempted.current = true;
+    syncNow?.();
+  }, [missingRecipes, syncNow]);
 
   const mutations = useMemo<MealPlanMutations | undefined>(() => {
     if (!engine || !local) return undefined;

@@ -42,6 +42,7 @@ import {
   type MealPlanSlot,
 } from "@/app/actions/ai";
 import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
+import { useSync } from "@/components/providers/sync-provider";
 import { saveGeneratedRecipe } from "@/app/actions/recipes";
 import type { RecipeFormDefaults } from "../../recipes/_components/recipe-form";
 
@@ -673,6 +674,10 @@ function SlotGrid({
 
 function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanMyWeekProps) {
   const router = useRouter();
+  // The meal plan screen reads from the local store, so a plan written by this
+  // server action is invisible there until the engine pulls it. See
+  // handleAddToMealPlan.
+  const sync = useSync();
 
   // Default: Mon–Fri dinners
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(
@@ -786,6 +791,18 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
       );
       if (result.debug) setDebugInfo(result.debug);
       if (result.error) { setError(result.error); return; }
+
+      // Pull before navigating. `addAiGeneratedMealPlan` writes straight to the
+      // database, and /meal-plan renders from the local store — without this the
+      // week arrives empty and stays empty until something else triggers a sync.
+      // Awaited, not fired-and-forgotten: the navigation must not win the race.
+      try {
+        await sync?.engine?.sync();
+      } catch {
+        // Offline: the store still catches up on the next sync trigger, and the
+        // server render covers the navigation itself.
+      }
+
       setAdded(true);
       setTimeout(() => router.push(`/meal-plan?week=${weekStart}`), 3000);
     });

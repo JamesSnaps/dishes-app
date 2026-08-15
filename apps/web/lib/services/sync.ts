@@ -30,7 +30,7 @@ import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { HouseholdContext, ActorContext } from "@/lib/session";
 import * as shoppingService from "@/lib/services/shopping";
 import * as mealPlanService from "@/lib/services/meal-plan";
-import { getRecipe } from "@/lib/services/recipes";
+import { getRecipe, RecipeNotFoundError } from "@/lib/services/recipes";
 
 export class SyncCursorError extends Error {
   constructor(message = "Invalid sync cursor") {
@@ -149,9 +149,17 @@ async function loadEntities(
       for (const id of ids) {
         try {
           out.push(await getRecipe(ctx, id));
-        } catch {
+        } catch (err) {
           // Deleted between the log read and now — the next pull carries the
           // tombstone, so dropping it here is correct.
+          //
+          // Anything else must NOT be swallowed. The client advances its cursor
+          // past this page, and nothing re-logs the recipe, so a transient
+          // failure here would drop that recipe from the client permanently —
+          // taking every meal plan entry that references it with it. Failing
+          // the pull leaves the cursor where it was and the next one retries.
+          if (err instanceof RecipeNotFoundError) continue;
+          throw err;
         }
       }
       return out;
