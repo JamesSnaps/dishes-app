@@ -82,6 +82,27 @@ export type QueuedMutation = {
 };
 
 /**
+ * A mutation the server refused, reported so the host can tell the user.
+ *
+ * The engine drops these rather than retrying — the server records no ledger
+ * entry for a failure, so a transient one would have succeeded on the next
+ * attempt, and a persistent one is bad input that never will. Dropping is
+ * right; dropping *silently* is not. The optimistic change has already been
+ * rolled back by the time this is reported, so from the user's side something
+ * they did has just undone itself, and this is the only chance to say why.
+ */
+export type FailedMutation = {
+  opId: string;
+  /** The mutation type, e.g. "meal_plan_entry.add". */
+  type: string;
+  payload: Record<string, unknown>;
+  /** The server's message. Not written for end users. */
+  error: string;
+  /** When the user actually performed the action. */
+  queuedAt: number;
+};
+
+/**
  * Local persistence the engine drives. Implement this once per platform.
  *
  * Implementations must be safe to call concurrently, and `applyPull` should be

@@ -16,10 +16,12 @@ import {
   ApiClient,
   SessionExpiredError,
   SyncEngine,
+  type FailedMutation,
   type SyncCollection,
   type SyncRecord,
 } from "@dishes/client";
 import { DexieSyncStore } from "@/lib/sync-store";
+import { toast } from "@/hooks/use-toast";
 
 /**
  * Owns the one SyncEngine for the browser session and decides *when* to sync.
@@ -57,6 +59,56 @@ type SyncContextValue = SyncState & {
 
 const SyncContext = createContext<SyncContextValue | null>(null);
 
+/**
+ * What the user actually did, per mutation type. The engine rolls the
+ * optimistic change back before reporting, so by the time this runs the thing
+ * being described has already vanished off the screen — the toast exists to
+ * stop that looking like the app losing work at random.
+ */
+const FAILURE_LABEL: Record<string, string> = {
+  "shopping_item.add": "Adding an item to your shopping list",
+  "shopping_item.update": "Editing a shopping list item",
+  "shopping_item.toggle": "Ticking off a shopping list item",
+  "shopping_item.delete": "Removing a shopping list item",
+  "shopping_list.clear_checked": "Clearing off the ticked items",
+  "meal_plan_entry.add": "Adding a meal to your plan",
+  "meal_plan_entry.update": "Moving that meal",
+  "meal_plan_entry.delete": "Removing a meal from your plan",
+};
+
+function describeFailures(failures: FailedMutation[]): string {
+  if (failures.length === 1) {
+    const only = failures[0]!;
+    return FAILURE_LABEL[only.type] ?? "One of your changes";
+  }
+
+  const kinds = new Set(failures.map((f) => f.type));
+  if (kinds.size === 1) {
+    const label = FAILURE_LABEL[failures[0]!.type];
+    return label ? `${label} (${failures.length} times)` : `${failures.length} changes`;
+  }
+  return `${failures.length} of your changes`;
+}
+
+/**
+ * Module scope, not a hook: this is handed to the engine at construction, and
+ * `toast()` dispatches to the Toaster without needing to be called from inside
+ * a component.
+ */
+function reportFailedMutations(failures: FailedMutation[]) {
+  // Still logged — the toast is for the user, this is for diagnosing it later.
+  for (const failure of failures) {
+    console.warn("[sync] mutation rejected:", failure.type, failure.error, failure.payload);
+  }
+
+  toast({
+    variant: "destructive",
+    title: `${describeFailures(failures)} didn't save`,
+    description:
+      "The change has been undone. It usually means someone else changed the same thing first — have a look and try again.",
+  });
+}
+
 /** Base path, not /api/v1: the browser goes through the Authelia-gated door. */
 const WEB_API_BASE = "/api/web";
 
@@ -82,6 +134,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       store: new DexieSyncStore(),
       onChange: () => setVersion((v) => v + 1),
       onError: (err) => console.warn("[sync]", err),
+      onMutationsFailed: reportFailedMutations,
     });
     setEngine(engineRef.current);
   }, []);

@@ -4,6 +4,7 @@ import {
   SessionExpiredError,
   SYNC_COLLECTIONS,
   type OptimisticChange,
+  type FailedMutation,
   type QueuedMutation,
   type SyncCollection,
   type SyncRecord,
@@ -27,6 +28,13 @@ export type SyncEngineOptions = {
   onError?: (err: unknown) => void;
   /** Fired after any change to local data, so a host can re-render. */
   onChange?: () => void;
+  /**
+   * Fired when the server refuses queued mutations, once per batch. The
+   * optimistic changes have already been rolled back — the host's job is to
+   * explain what just reverted. Separate from `onError`, which is for transport
+   * failures the user doesn't need to hear about.
+   */
+  onMutationsFailed?: (failures: FailedMutation[]) => void;
 };
 
 export type SyncOutcome = {
@@ -43,6 +51,7 @@ export class SyncEngine {
   private readonly pageSize: number;
   private readonly onError?: (err: unknown) => void;
   private readonly onChange?: () => void;
+  private readonly onMutationsFailed?: (failures: FailedMutation[]) => void;
 
   /** Guards against two syncs interleaving and double-draining the queue. */
   private inFlight: Promise<SyncOutcome> | null = null;
@@ -53,6 +62,7 @@ export class SyncEngine {
     this.pageSize = opts.pageSize ?? 500;
     this.onError = opts.onError;
     this.onChange = opts.onChange;
+    this.onMutationsFailed = opts.onMutationsFailed;
   }
 
   /**
@@ -151,7 +161,6 @@ export class SyncEngine {
       .map((r) => r.opId);
 
     const failed = response.results.filter((r) => r.status === "failed");
-    for (const f of failed) this.onError?.(new Error(`${f.opId}: ${f.error}`));
 
     // Drop every temporary row the settled mutations created, whatever the
     // outcome. Applied or duplicate: the server's own row arrives in this same
@@ -170,6 +179,23 @@ export class SyncEngine {
     }
 
     await this.store.dequeue([...settled, ...failed.map((f) => f.opId)]);
+
+    // After the rollback and the dequeue: by the time the host hears about
+    // this, the local state it describes is already the state on screen.
+    if (failed.length) {
+      this.onMutationsFailed?.(
+        failed.map((f) => {
+          const original = byOpId.get(f.opId);
+          return {
+            opId: f.opId,
+            type: original?.type ?? "unknown",
+            payload: original?.payload ?? {},
+            error: f.error ?? "Unknown error",
+            queuedAt: original?.queuedAt ?? Date.now(),
+          };
+        })
+      );
+    }
 
     return { pushed: settled.length, failed: failed.length };
   }
