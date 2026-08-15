@@ -424,9 +424,28 @@ equality is the contract the two transports exist to satisfy.
 
 Note that a deployment which bypasses `/api/v1` at the reverse proxy (the
 recommended Authelia setup, since a native client has no session) also strips
-the proxy headers, making `/api/v1` bearer-only in practice. The proxy-header
-path still applies in local development and to any deployment that fronts the
-API differently.
+the proxy headers, making `/api/v1` bearer-only in practice.
+
+### The browser door: `/api/web/*`
+
+Because of that, the same API is also reachable at **`/api/web/*`**, which is
+deliberately *not* in the proxy's bypass list. Authelia authenticates it and
+injects the identity headers, and middleware rewrites the path onto the same
+`/api/v1` handlers.
+
+```
+/api/web/sync        →  /api/v1/sync         (browser, session cookie)
+/api/v1/sync         →  /api/v1/sync         (native, bearer token)
+```
+
+One API, two doors. No handler knows the difference — `requireSession()` already
+accepts either transport, and responses are identical apart from `transport` in
+`whoami`. Use `/api/web` from the PWA and `/api/v1` from native clients.
+
+One thing browser callers must handle: when an Authelia session expires, a
+request to `/api/web/*` gets a **302 to the login portal**, so `fetch` returns
+HTML rather than JSON. Treat a non-JSON response as "session expired" and
+reload, rather than trying to parse it.
 
 ## Error shape
 
