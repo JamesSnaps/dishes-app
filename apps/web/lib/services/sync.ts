@@ -18,6 +18,7 @@ import { db } from "@/lib/db";
 import {
   syncChanges,
   syncOperations,
+  syncPruneState,
   recipes,
   shoppingLists,
   shoppingListItems,
@@ -116,6 +117,17 @@ async function currentSeq(householdId: string): Promise<bigint> {
     .where(eq(syncChanges.householdId, householdId));
 
   return row?.maxSeq ? BigInt(row.maxSeq) : 0n;
+}
+
+/** How far the log has been pruned for this household, or null if never. */
+async function prunedThroughFor(householdId: string): Promise<bigint | null> {
+  const [row] = await db
+    .select({ prunedThrough: syncPruneState.prunedThrough })
+    .from(syncPruneState)
+    .where(eq(syncPruneState.householdId, householdId))
+    .limit(1);
+
+  return row?.prunedThrough ?? null;
 }
 
 /**
@@ -265,6 +277,16 @@ export async function pull(
   if (!opts.cursor) return fullSnapshot(ctx);
 
   const since = decodeCursor(opts.cursor);
+
+  // A cursor below the prune watermark cannot be served as a delta: the rows it
+  // would need are gone. Rejecting it makes the engine drop its store and take
+  // a fresh snapshot, which is correct — silently serving the surviving rows
+  // would leave that client permanently missing whatever was pruned.
+  const prunedThrough = await prunedThroughFor(ctx.householdId);
+  if (prunedThrough !== null && since < prunedThrough) {
+    throw new SyncCursorError("Cursor is older than the retained change log");
+  }
+
   const limit = Math.min(Math.max(opts.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
 
   // One extra row tells us whether another page exists without a second query.
@@ -492,4 +514,134 @@ export async function push(
   }
 
   return { results, cursor: encodeCursor(await currentSeq(ctx.householdId)) };
+}
+
+// --- Retention --------------------------------------------------------------
+
+/**
+ * Days of change log to keep. A client offline for longer than this resyncs
+ * from scratch on its next pull, which is the correct outcome — and for a
+ * household app, a device that has not connected in a month has nothing worth
+ * replaying as a delta anyway.
+ */
+const RETENTION_DAYS = Number(process.env.DISHES_SYNC_RETENTION_DAYS ?? 30);
+
+/** At most one prune per process per this interval. */
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+let lastPruneAt = 0;
+
+/**
+ * Prune opportunistically, at most hourly, without making the caller wait.
+ *
+ * Phase 1 has no worker and no scheduler, and a log that grows forever is a
+ * real problem now rather than a hypothetical one. Piggy-backing on pull keeps
+ * it to zero new infrastructure: a household that never syncs never accrues
+ * rows worth pruning, and one that does gets swept within the hour. The Phase 2
+ * worker should take this over — `pruneSyncLog` is exported for exactly that.
+ *
+ * Errors are swallowed deliberately: retention failing must never turn a
+ * working sync into a failed request.
+ */
+export function maybePruneSyncLog(): void {
+  const now = Date.now();
+  if (now - lastPruneAt < PRUNE_INTERVAL_MS) return;
+  lastPruneAt = now;
+
+  void pruneSyncLog().catch((err) => {
+    console.warn("[sync] prune failed:", err);
+  });
+}
+
+export type PruneResult = {
+  changesDeleted: number;
+  operationsDeleted: number;
+  households: number;
+};
+
+/**
+ * Trim `sync_changes` and `sync_operations` to the retention window.
+ *
+ * The newest row per household is always kept, whatever its age. Without it a
+ * quiet household would lose its entire log, and `currentSeq()` would fall back
+ * to 0 — handing out a cursor that looks like "never synced" and forcing a full
+ * snapshot on every client for no reason.
+ *
+ * Deleting from `sync_operations` is the one part with a real trade-off: an
+ * opId that ages out of the ledger is no longer recognised as a replay, so a
+ * client that queued a mutation and stayed offline past the window could
+ * double-apply it. That needs a device to hold an undelivered mutation for the
+ * whole retention window, and the same client is by then taking a full
+ * snapshot anyway. Worth knowing; not worth a second mechanism.
+ */
+export async function pruneSyncLog(
+  opts: { retentionDays?: number } = {}
+): Promise<PruneResult> {
+  const days = opts.retentionDays ?? RETENTION_DAYS;
+  if (!Number.isFinite(days) || days <= 0) {
+    return { changesDeleted: 0, operationsDeleted: 0, households: 0 };
+  }
+
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  // One statement per concern, in a transaction: the watermark and the deletion
+  // it describes must not be able to disagree.
+  return db.transaction(async (tx) => {
+    const deleted = await tx.execute<{
+      household_id: string;
+      max_seq: string;
+      n: string;
+    }>(sql`
+      WITH newest AS (
+        SELECT household_id, max(seq) AS keep_seq
+        FROM sync_changes
+        GROUP BY household_id
+      ),
+      removed AS (
+        DELETE FROM sync_changes c
+        USING newest n
+        WHERE c.household_id = n.household_id
+          AND c.changed_at < ${cutoff}
+          AND c.seq < n.keep_seq
+        RETURNING c.household_id, c.seq
+      )
+      SELECT household_id, max(seq)::text AS max_seq, count(*)::text AS n
+      FROM removed
+      GROUP BY household_id
+    `);
+
+    // postgres.js returns a RowList — an array, not a { rows } wrapper.
+    const rows = Array.from(deleted);
+    let changesDeleted = 0;
+
+    for (const row of rows) {
+      const maxSeq = BigInt(row.max_seq);
+      changesDeleted += Number(row.n);
+
+      // The watermark only ever moves forward.
+      await tx
+        .insert(syncPruneState)
+        .values({
+          householdId: row.household_id,
+          prunedThrough: maxSeq,
+          prunedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: syncPruneState.householdId,
+          set: {
+            prunedThrough: sql`greatest(${syncPruneState.prunedThrough}, ${maxSeq})`,
+            prunedAt: new Date(),
+          },
+        });
+    }
+
+    const ops = await tx.execute(
+      sql`DELETE FROM sync_operations WHERE applied_at < ${cutoff}`
+    );
+
+    return {
+      changesDeleted,
+      operationsDeleted: ops.count ?? 0,
+      households: rows.length,
+    };
+  });
 }

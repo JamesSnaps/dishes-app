@@ -69,7 +69,7 @@ The thing that makes offline actually work, on both platforms.
 - [x] Cursor is an opaque server-issued token encoding a sequence number, not a timestamp
 - [ ] Recipe edits over sync (deliberately excluded from v1 — rare offline, large to merge)
 - [ ] Collections and pantry over sync (out of the agreed v1 scope)
-- [ ] **Retention for `sync_changes`** — the log grows forever. Prune rows older than the oldest active client cursor, or on a fixed window
+- [x] **Retention for `sync_changes`** — fixed window (`DISHES_SYNC_RETENTION_DAYS`, default 30), pruning `sync_operations` too. A fixed window rather than "oldest active cursor" because nothing tracks clients, and the fallback is already correct: migration `0026` adds `sync_prune_state`, `pull()` rejects a cursor below the household's watermark with `SyncCursorError`, and the engine's existing `invalid_request` handling clears the store and takes a full snapshot. Verified against the dev database — a stale cursor 400s and the very next request is a cursor-less snapshot, with nothing visible to the user. Runs opportunistically after a pull (max hourly, fire-and-forget) since Phase 1 has no worker; `pruneSyncLog()` is exported for the Phase 2 worker to take over
 
 ---
 
@@ -85,10 +85,49 @@ Ship this before writing any native code and reassess. This is where "clunky on 
 - [x] **Favourites converted first, as the pattern** (84 lines vs the recipes list's 1,507). Server render is passed in as `initial` so first paint is unchanged and nothing regresses without a local store; the synced copy takes over once the engine has data. Cook stats are derived client-side from the synced `cookHistory`
 - [x] **Recipes list converted.** `lib/recipe-filtering.ts` mirrors the SQL (title-or-tag search, cuisine, favourites, difficulty, maxTime with the same null handling, any-of tags, three sorts); `RecipesLocalGrid` reads the store, applies them from the URL, and wraps the existing 689-line grid rather than rewriting it, so multi-select and bulk actions are untouched. Parity checked against the server across eight filter combinations
 - [x] **Filter changes no longer block on the server.** `RecipeFilters` uses `history.pushState` when local data is available (Next syncs `useSearchParams` from it), falling back to `router.push` otherwise. Measured: the list re-filters within 50ms, before the RSC request returns. Next still fetches that payload in the background, but nothing waits for it and there is no flicker
-- [ ] Measure cold-load-to-first-paint on a throttled connection, before and after — the remaining "is it actually faster" evidence
-- [ ] Measure cold-load-to-first-paint on a throttled connection, before and after
+- [x] **Measured — and the metric this item asked for was the wrong one.** Cold
+  load still server-renders: every converted screen passes the server's data in
+  as `initial` precisely so first paint doesn't regress, so cold-load-to-first-
+  paint is *unchanged by design* and no before/after number was ever going to
+  move. Production build, `curl` against `next start` (deterministic, unlike
+  browser timings):
+
+  | | bytes | TTFB | total @ 50 KB/s |
+  |---|---|---|---|
+  | `/meal-plan` cold | 61 KB | 25 ms | 831 ms |
+  | `/recipes` cold | 86 KB | 24 ms | 954 ms |
+  | one week change (RSC) | 16 KB | 6 ms | 114 ms |
+
+  What the local-first work actually removed is the third row, repeated on every
+  interaction: a week change now transfers **nothing at all**, and filter
+  changes re-filter locally instead of waiting on the server. The cold 61 KB is
+  untouched, and only the still-open service-worker items below can touch it —
+  which makes "stale-while-revalidate reads" the item that would move this
+  number, not anything already merged
 - [x] **Meal plan converted.** `WeekPlannerLocal` wraps `WeekPlanner` the same way `RecipesLocalGrid` wraps the grid, so its ~690 lines of drag-and-drop, per-entry menus and shopping flows are untouched. Week entries, the picker's recipe list, top ingredients and the shopping badge are all derived from the local store; the server render stays as `initial`. Notes on the reverted first attempt below
-- [ ] Recipe detail; retire `lib/shopping-db.ts` when the shopping screen moves across
+- [ ] **Recipe detail — investigated 15 Aug 2026, deliberately not converted
+  yet.** The wrapper pattern that worked for the list and the meal plan does not
+  transfer, for two reasons:
+
+  1. **It cannot remove the round-trip.** The wins so far came from *same-route*
+     URL changes — filter chips and week arrows — where `pushState` replaces a
+     server fetch. Going list → detail is a *route* change to a server-rendered
+     page, so Next fetches the RSC payload regardless of what the local store
+     holds. A wrapper would only change what renders after that fetch lands.
+  2. **The page is not fully derivable locally.** Of its 12 queries, the store
+     covers the recipe document, cook history, and (via `mealPlans` /
+     `mealPlanEntries`) planner stats. Notes, SMTP config and AI image config
+     are not synced, so the server render is still required.
+
+  What would actually make this screen instant is the service-worker /
+  stale-while-revalidate item below, not a local-store wrapper. Worth settling
+  first: whether `<Link>` prefetch already covers it in production. The cards do
+  use `<Link>`, but prefetch is disabled in dev, so the 402 ms RSC fetch measured
+  on click locally is **not** a production figure, and default prefetch on a
+  dynamic route with no `loading.tsx` boundary may fetch nothing useful. Measure
+  that against a production build before building anything
+
+- [ ] Retire `lib/shopping-db.ts` when the shopping screen moves across
 
 #### Meal plan conversion — how it actually went
 
@@ -187,7 +226,9 @@ shopping generate) still go through the existing server actions.
 - [ ] Background Sync API registration for queued mutations
 - [ ] Offline indicator + "last synced" affordance in the app shell
 - [ ] Cache recipe images for favourites and this week's plan (Cache API)
-- [ ] Measure: cold-load-to-first-paint on a throttled connection, before and after
+- [ ] Re-measure cold-load-to-first-paint once the service-worker items above
+  land — that is the change that can actually move it. Baseline is in the Phase B
+  list: 61 KB / 831 ms at 50 KB/s for `/meal-plan`
 
 ---
 
