@@ -4,12 +4,16 @@ import { eq, and } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getCookStatsByRecipe } from "@/lib/services/cook-history";
-import { RecipeCard } from "../recipes/_components/recipe-card";
-import Link from "next/link";
-import { Heart } from "lucide-react";
+import { FavouritesGrid, type FavouriteRecipe } from "./_components/favourites-grid";
+import { FavouritesHeader } from "./_components/favourites-header";
 
 export const metadata = { title: "Favourites" };
 
+/**
+ * Still server-rendered, so first paint is immediate and works with no local
+ * store. The grid then prefers the synced copy once the engine has data, which
+ * is what makes returning to this page instant instead of a round-trip.
+ */
 export default async function FavouritesPage() {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
@@ -23,6 +27,7 @@ export default async function FavouritesPage() {
         cuisine: recipes.cuisine,
         prepTimeMinutes: recipes.prepTimeMinutes,
         cookTimeMinutes: recipes.cookTimeMinutes,
+        calories: recipes.calories,
         imageUrl: recipes.imageUrl,
         thumbnailUrl: recipes.thumbnailUrl,
         isFavourite: recipes.isFavourite,
@@ -36,49 +41,18 @@ export default async function FavouritesPage() {
     getCookStatsByRecipe(householdId),
   ]);
 
-  const cookStatsByRecipe = new Map(
-    cookStatsRows.map((r) => [
-      r.recipeId,
-      { averageRating: r.averageRating, cookCount: r.cookCount },
-    ])
-  );
+  const statsByRecipe = new Map(cookStatsRows.map((r) => [r.recipeId, r]));
+
+  const initial: FavouriteRecipe[] = favouriteRecipes.map((recipe) => ({
+    ...recipe,
+    averageRating: statsByRecipe.get(recipe.id)?.averageRating ?? null,
+    cookCount: statsByRecipe.get(recipe.id)?.cookCount ?? 0,
+  }));
 
   return (
     <div className="p-4 lg:p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Favourites</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {favouriteRecipes.length} recipe{favouriteRecipes.length !== 1 ? "s" : ""}
-        </p>
-      </div>
-
-      {favouriteRecipes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
-          <Heart className="h-10 w-10 text-muted-foreground/30" />
-          <p className="text-muted-foreground">No favourites yet.</p>
-          <p className="text-sm text-muted-foreground/60">
-            Tap the heart on any{" "}
-            <Link href="/recipes" className="underline underline-offset-2 hover:text-foreground">
-              recipe
-            </Link>{" "}
-            to save it here.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {favouriteRecipes.map((recipe) => {
-            const stats = cookStatsByRecipe.get(recipe.id);
-            return (
-              <RecipeCard
-                key={recipe.id}
-                {...recipe}
-                averageRating={stats?.averageRating ?? null}
-                cookCount={stats?.cookCount ?? 0}
-              />
-            );
-          })}
-        </div>
-      )}
+      <FavouritesHeader initialCount={initial.length} />
+      <FavouritesGrid initial={initial} />
     </div>
   );
 }
