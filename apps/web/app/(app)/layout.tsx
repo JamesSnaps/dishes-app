@@ -7,6 +7,7 @@ import { JobsProvider } from "@/components/providers/jobs-provider";
 import { SyncProvider } from "@/components/providers/sync-provider";
 import { ShoppingCountProvider } from "@/components/providers/shopping-count-context";
 import { UnsavedChangesProvider } from "@/components/unsaved-changes-context";
+import { RefreshOnStalePaint } from "@/components/refresh-on-stale-paint";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { db } from "@/lib/db";
@@ -91,6 +92,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <BottomNav className="lg:hidden" />
 
       <OfflineIndicator />
+      <RefreshOnStalePaint />
     </div>
     </UnsavedChangesProvider>
     </ShoppingCountProvider>

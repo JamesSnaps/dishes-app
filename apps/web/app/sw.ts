@@ -71,9 +71,59 @@ const serwist = new Serwist({
 // The staleness that *would* bite is a shell from a previous deploy referencing
 // chunks that no longer exist. That is handled on activate below.
 
+/**
+ * Tell the open tabs when a revalidation actually changed a page.
+ *
+ * The justification above — "the store owns the data, a stale shell is
+ * harmless" — holds for the screens that read from the sync engine. It does not
+ * hold for the ones that are still pure server renders: /recipes/[id] is the
+ * important one. Edit a recipe and come back to it and stale-while-revalidate
+ * paints the copy from before the edit, with nothing client-side that knows
+ * better. It corrects itself on the *next* visit, which reads as the edit having
+ * been silently reverted.
+ *
+ * So: compare the bodies, and when they differ, tell the page. The client
+ * listener calls router.refresh(), which re-fetches the RSC payload — by then
+ * the cache holds the new copy, so it paints correctly.
+ *
+ * Bodies rather than BroadcastUpdatePlugin's header comparison: that checks
+ * etag / last-modified / content-length, and a streamed RSC response from Next
+ * carries none of them, so every comparison would come back "same".
+ *
+ * No refresh loop: the refresh's own fetch revalidates against a cache entry
+ * that now matches, which broadcasts nothing.
+ */
+const notifyOnChange = {
+  async cacheDidUpdate({
+    oldResponse,
+    newResponse,
+    request,
+  }: {
+    oldResponse?: Response | null;
+    newResponse: Response;
+    request: Request;
+  }) {
+    if (!oldResponse) return; // first time this URL was cached — nothing to revert
+
+    const [before, after] = await Promise.all([
+      oldResponse.clone().text(),
+      newResponse.clone().text(),
+    ]);
+    if (before === after) return;
+
+    const clients = await self.clients.matchAll({ type: "window" });
+    for (const client of clients) {
+      client.postMessage({ type: "PAGE_UPDATED", url: request.url });
+    }
+  },
+};
+
 const pageCache = new StaleWhileRevalidate({
   cacheName: "pages",
-  plugins: [new ExpirationPlugin({ maxEntries: 32, maxAgeSeconds: 24 * 60 * 60 })],
+  plugins: [
+    notifyOnChange,
+    new ExpirationPlugin({ maxEntries: 32, maxAgeSeconds: 24 * 60 * 60 }),
+  ],
 });
 
 // NavigationRoute matches on the request being a navigation, which is what a
@@ -90,7 +140,10 @@ serwist.registerCapture(
     sameOrigin && !pathname.startsWith("/api/") && request.headers.get("RSC") === "1",
   new StaleWhileRevalidate({
     cacheName: "pages-rsc",
-    plugins: [new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 24 * 60 * 60 })],
+    plugins: [
+      notifyOnChange,
+      new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 24 * 60 * 60 }),
+    ],
   })
 );
 
