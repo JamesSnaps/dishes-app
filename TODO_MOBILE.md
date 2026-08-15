@@ -82,7 +82,9 @@ Ship this before writing any native code and reassess. This is where "clunky on 
 - [x] Dexie `SyncStore` implementation for the browser (`apps/web/lib/sync-store.ts`), one table per collection, pull applied in a single transaction with the cursor
 - [x] `SyncProvider` owns one engine and decides *when* to sync (mount, reconnect, tab visible). No polling — a household app is idle for hours at a time
 - [x] Read hooks `useSyncedCollection` / `useSyncedRecord` / `useOnline`, plus a quiet `SyncStatus` affordance in the side nav
-- [ ] Convert the recipes list to read from the store (stale-while-revalidate). The page is currently an RSC doing filtered DB queries, so this means moving filtering/sorting client-side — the largest single conversion, and where the "clunky on poor signal" complaint actually gets fixed
+- [x] **Favourites converted first, as the pattern** (84 lines vs the recipes list's 1,507). Server render is passed in as `initial` so first paint is unchanged and nothing regresses without a local store; the synced copy takes over once the engine has data. Cook stats are derived client-side from the synced `cookHistory`
+- [ ] Convert the recipes list, following the Favourites shape. Bigger: seven filter dimensions and sorting move client-side, and the grid carries multi-select/bulk actions. This is where the "clunky on poor signal" complaint actually gets fixed, since filter changes must stop round-tripping
+- [ ] Measure cold-load-to-first-paint on a throttled connection, before and after
 - [ ] Then meal plan and recipe detail; retire `lib/shopping-db.ts` when the shopping screen moves across
 - [ ] Stale-while-revalidate reads: recipe list, recipe detail, shopping list, this week's meal plan paint from cache instantly
 - [ ] Mutation queue with optimistic UI + rollback on failure
