@@ -4,6 +4,7 @@ import { SideNav } from "@/components/nav/side-nav";
 import { ScrollReset } from "@/components/scroll-reset";
 import { OfflineIndicator } from "@/components/offline-indicator";
 import { JobsProvider } from "@/components/providers/jobs-provider";
+import { SyncProvider } from "@/components/providers/sync-provider";
 import { ShoppingCountProvider } from "@/components/providers/shopping-count-context";
 import { UnsavedChangesProvider } from "@/components/unsaved-changes-context";
 import { getAutheliaUser } from "@/lib/auth";
@@ -65,6 +66,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const pantryItemCount = Number(pantryCountResult[0]?.value ?? 0);
 
   return (
+    <SyncProvider>
     <JobsProvider>
     <ShoppingCountProvider initialCount={shoppingItemCount}>
     <UnsavedChangesProvider>
@@ -93,5 +95,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     </UnsavedChangesProvider>
     </ShoppingCountProvider>
     </JobsProvider>
+    </SyncProvider>
   );
 }
