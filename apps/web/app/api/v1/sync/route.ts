@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/session";
 import { withApiErrors } from "@/lib/api/respond";
 import { pullQuerySchema, pushBodySchema } from "@/lib/api/schemas/sync";
-import { pull, push, type SyncMutation } from "@/lib/services/sync";
+import {
+  maybePruneSyncLog,
+  pull,
+  push,
+  type SyncMutation,
+} from "@/lib/services/sync";
 
 /**
  * Delta sync.
@@ -21,7 +26,13 @@ export const GET = withApiErrors(async (req: NextRequest) => {
     Object.fromEntries(req.nextUrl.searchParams)
   );
 
-  return NextResponse.json(await pull(session, { cursor, limit }));
+  const result = await pull(session, { cursor, limit });
+
+  // After the response is assembled, never before: retention must not add
+  // latency to a sync, and must not be able to fail one.
+  maybePruneSyncLog();
+
+  return NextResponse.json(result);
 });
 
 export const POST = withApiErrors(async (req: NextRequest) => {

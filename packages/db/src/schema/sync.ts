@@ -3,6 +3,7 @@ import {
   uuid,
   varchar,
   timestamp,
+  bigint,
   bigserial,
   index,
   jsonb,
@@ -35,6 +36,22 @@ export const syncChanges = pgTable(
   },
   (t) => [index("sync_changes_household_seq_idx").on(t.householdId, t.seq)]
 );
+
+/**
+ * How far the change log has been pruned, per household.
+ *
+ * Pruning without this would be silently wrong: a client whose cursor sits
+ * below the pruned range would ask for everything after it, receive only the
+ * surviving rows, and never learn the rest existed. `pull()` compares the
+ * incoming cursor against `prunedThrough` and rejects anything older, which the
+ * sync engine turns into a full resnapshot.
+ */
+export const syncPruneState = pgTable("sync_prune_state", {
+  householdId: uuid("household_id").primaryKey(),
+  /** Highest seq deleted for this household. Cursors below it have holes. */
+  prunedThrough: bigint("pruned_through", { mode: "bigint" }).notNull(),
+  prunedAt: timestamp("pruned_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /**
  * Idempotency ledger for uploaded mutations. A client generates an opId per
