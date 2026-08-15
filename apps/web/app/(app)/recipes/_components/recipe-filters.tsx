@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import { useRef, useState, useCallback } from "react";
 import { Heart, Search, SlidersHorizontal, X } from "lucide-react";
 import { Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@dishes/ui";
@@ -71,6 +72,25 @@ interface Props {
 export function RecipeFilters({ cuisines, tags }: Props) {
   const router = useRouter();
   const params = useSearchParams();
+
+  // When the list is being rendered from the local store, a filter change does
+  // not need the server: push the URL with the History API instead of
+  // router.push. Next syncs useSearchParams from it without fetching an RSC
+  // payload, so the grid re-filters locally and the change is instant.
+  //
+  // Falls back to router.push whenever there is no local data — first visit, or
+  // sync unavailable — so the server still does the filtering in that case.
+  const sync = useSync();
+  const { data: localRecipes } = useSyncedCollection("recipes");
+  const canFilterLocally = Boolean(sync?.engine) && localRecipes.length > 0;
+
+  const navigate = useCallback(
+    (url: string) => {
+      if (canFilterLocally) window.history.pushState(null, "", url);
+      else router.push(url);
+    },
+    [canFilterLocally, router]
+  );
   const q = params.get("q") ?? "";
   const cuisine = params.get("cuisine") ?? "";
   const favourites = params.get("favourites") ?? "";
@@ -89,7 +109,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
         const next = new URLSearchParams(params.toString());
         if (value) next.set("q", value);
         else next.delete("q");
-        router.push(`/recipes?${next.toString()}`);
+        navigate(`/recipes?${next.toString()}`);
       }, 300);
     },
     [params, router],
@@ -111,7 +131,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
       if (v) next.set(k, v);
       else next.delete(k);
     }
-    router.push(`/recipes?${next.toString()}`);
+    navigate(`/recipes?${next.toString()}`);
   }
 
   function openSheet() {
@@ -136,7 +156,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     if (pendingTags.length > 0) next.set("tags", pendingTags.join(","));
     if (pendingSort && pendingSort !== "newest") next.set("sort", pendingSort);
     setSheetOpen(false);
-    router.push(`/recipes?${next.toString()}`);
+    navigate(`/recipes?${next.toString()}`);
   }
 
   function clearPending() {
@@ -394,7 +414,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
         {/* Mobile-only clear button */}
         {hasActiveFilters && (
           <button
-            onClick={() => router.push("/recipes")}
+            onClick={() => navigate("/recipes")}
             className="lg:hidden flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
@@ -539,7 +559,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
           <>
             <div className="h-4 w-px bg-border mx-2" />
             <button
-              onClick={() => router.push("/recipes")}
+              onClick={() => navigate("/recipes")}
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
               <X className="h-3 w-3" />
