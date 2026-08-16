@@ -45,7 +45,7 @@ export default async function CookPage({ params, searchParams }: Props) {
       .from(householdMembers)
       .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
       .orderBy(householdMembers.displayName),
-    getAverageDuration(id, householdId),
+    getAverageDuration(householdId, id),
     getCookAssistThreads(id),
   ]);
 

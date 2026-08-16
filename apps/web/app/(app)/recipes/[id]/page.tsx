@@ -96,14 +96,14 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         )
       )
       .then((r) => r[0] ?? { timesPlanned: 0, lastPlannedDate: null }),
-    getCookStats(id, householdId),
-    getRecipeCookHistory(id, householdId),
+    getCookStats(householdId, id),
+    getRecipeCookHistory(householdId, id),
     db
       .select({ id: notes.id, title: notes.title, body: notes.body, updatedAt: notes.updatedAt })
       .from(notes)
       .where(and(eq(notes.recipeId, id), eq(notes.householdId, householdId)))
       .orderBy(desc(notes.updatedAt)),
-    getAverageDuration(id, householdId),
+    getAverageDuration(householdId, id),
     getSmtpConfig(householdId),
     db
       .select({ imageStyle: aiConfigurations.imageStyle })

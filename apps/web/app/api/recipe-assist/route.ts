@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         .where(eq(recipeSteps.recipeId, recipeId))
         .orderBy(asc(recipeSteps.position)),
       db.select().from(recipeTags).where(eq(recipeTags.recipeId, recipeId)),
-      getRecipeCookHistory(recipeId, household.householdId),
+      getRecipeCookHistory(household.householdId, recipeId),
     ]);
 
     if (!recipe) return new Response("Recipe not found", { status: 404 });
