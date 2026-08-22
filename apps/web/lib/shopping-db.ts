@@ -14,6 +14,8 @@ export interface CachedShoppingItem {
   recipeTitle: string | null;
   /** All contributing recipes (primary first) when merged from several. */
   recipeTitles?: string[];
+  /** The same recipes with their ids, so each can be linked to. */
+  recipeSources?: { id: string; title: string }[];
 }
 
 export interface PendingMutation {

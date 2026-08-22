@@ -278,7 +278,12 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
             </button>
           </form>
 
-          <RecipeActionsMenu recipeId={id} recipeTitle={recipe.title} hasSmtp={!!smtpConfig} />
+          <RecipeActionsMenu
+            recipeId={id}
+            recipeTitle={recipe.title}
+            recipeServings={recipe.servings}
+            hasSmtp={!!smtpConfig}
+          />
         </div>
       </div>
 

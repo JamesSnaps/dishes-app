@@ -39,11 +39,12 @@ export async function addMealEntry(
   weekStartDate: string,
   recipeId: string,
   dayOfWeek: number,
-  mealType: MealType
+  mealType: MealType,
+  servings?: number | null
 ) {
   const session = await requireSession();
 
-  await mealPlanService.addEntry(session, weekStartDate, recipeId, dayOfWeek, mealType);
+  await mealPlanService.addEntry(session, weekStartDate, recipeId, dayOfWeek, mealType, servings);
 
   revalidatePath("/meal-plan");
 }

@@ -3,6 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Pencil, ShoppingCart, Trash2, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@dishes/ui";
 import { formatQuantity } from "@/lib/format-quantity";
 import type { ShoppingItem as ShoppingItemType } from "@/hooks/use-shopping-list";
 
@@ -134,42 +141,74 @@ export function ShoppingItem({ item, onToggle, onUpdate, onDelete }: Props) {
           </span>
         )}
         {(() => {
-          const titles =
-            item.recipeTitles && item.recipeTitles.length > 0
-              ? item.recipeTitles
-              : item.recipeTitle
-                ? [item.recipeTitle]
-                : [];
-          if (titles.length === 0) return null;
+          // Prefer the id-carrying sources; fall back to bare titles for items
+          // still held in an older offline cache.
+          const sources =
+            item.recipeSources && item.recipeSources.length > 0
+              ? item.recipeSources
+              : (item.recipeTitles && item.recipeTitles.length > 0
+                  ? item.recipeTitles
+                  : item.recipeTitle
+                    ? [item.recipeTitle]
+                    : []
+                ).map((title) => ({ id: null as string | null, title }));
+          if (sources.length === 0) return null;
 
-          const extra = titles.length - 1;
-          const sourceText = (
-            <>
-              from {titles[0]}
-              {extra > 0 && (
-                <span className="ml-1 rounded-full bg-muted px-1.5 py-px font-medium text-muted-foreground">
-                  +{extra} more
+          const first = sources[0]!;
+          const rest = sources.slice(1);
+          // Full source list on hover — the badge below covers touch devices,
+          // where a title attribute never appears.
+          const fullList = sources.map((s) => s.title).join(", ");
+          const firstId = first.id ?? item.recipeId;
+
+          return (
+            <span className="mt-0.5 flex flex-wrap items-center gap-1 text-xs leading-tight">
+              {firstId ? (
+                <Link
+                  href={`/recipes/${firstId}`}
+                  title={fullList}
+                  className="text-muted-foreground/60 hover:text-primary hover:underline"
+                >
+                  from {first.title}
+                </Link>
+              ) : (
+                <span title={fullList} className="text-muted-foreground/60">
+                  from {first.title}
                 </span>
               )}
-            </>
-          );
-          // Full source list on hover/long-press
-          const fullList = titles.join(", ");
-
-          return item.recipeId ? (
-            <Link
-              href={`/recipes/${item.recipeId}`}
-              title={fullList}
-              className="block text-xs text-muted-foreground/60 hover:text-primary hover:underline leading-tight mt-0.5 w-fit"
-            >
-              {sourceText}
-            </Link>
-          ) : (
-            <span
-              title={fullList}
-              className="block text-xs text-muted-foreground/60 leading-tight mt-0.5"
-            >
-              {sourceText}
+              {rest.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      title={fullList}
+                      aria-label={`Show all ${sources.length} recipes using ${item.ingredientName}`}
+                      className="rounded-full bg-muted px-1.5 py-px font-medium text-muted-foreground transition-colors hover:bg-muted-foreground/20 hover:text-foreground"
+                    >
+                      +{rest.length} more
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="max-w-[16rem]">
+                    <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+                      Also needed for
+                    </DropdownMenuLabel>
+                    {rest.map((source, i) => (
+                      <DropdownMenuItem
+                        key={source.id ?? `${source.title}-${i}`}
+                        asChild={!!source.id}
+                        className="text-xs whitespace-normal"
+                        {...(source.id ? {} : { onSelect: (e: Event) => e.preventDefault() })}
+                      >
+                        {source.id ? (
+                          <Link href={`/recipes/${source.id}`}>{source.title}</Link>
+                        ) : (
+                          <span>{source.title}</span>
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </span>
           );
         })()}

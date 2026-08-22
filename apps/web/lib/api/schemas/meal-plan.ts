@@ -19,6 +19,7 @@ export const addEntrySchema = z.object({
   recipeId: z.string().uuid(),
   dayOfWeek: z.number().int().min(0).max(6),
   mealType: mealTypeSchema,
+  servings: z.number().positive().nullable().optional(),
 });
 
 /**

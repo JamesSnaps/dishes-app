@@ -28,10 +28,11 @@ import { ShareRecipeSheet } from "./share-recipe-sheet";
 interface Props {
   recipeId: string;
   recipeTitle: string;
+  recipeServings?: string | null;
   hasSmtp: boolean;
 }
 
-export function RecipeActionsMenu({ recipeId, recipeTitle, hasSmtp }: Props) {
+export function RecipeActionsMenu({ recipeId, recipeTitle, recipeServings, hasSmtp }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [mealPlanOpen, setMealPlanOpen] = useState(false);
@@ -132,6 +133,7 @@ export function RecipeActionsMenu({ recipeId, recipeTitle, hasSmtp }: Props) {
 
       <AddToMealPlanDialog
         recipeId={recipeId}
+        recipeServings={recipeServings}
         open={mealPlanOpen}
         onOpenChange={setMealPlanOpen}
       />

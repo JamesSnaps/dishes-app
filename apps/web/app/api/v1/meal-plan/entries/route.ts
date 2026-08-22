@@ -8,7 +8,7 @@ import { addEntry } from "@/lib/services/meal-plan";
 export const POST = withApiErrors(async (req: NextRequest) => {
   const session = await requireSession();
 
-  const { weekStartDate, recipeId, dayOfWeek, mealType } = addEntrySchema.parse(
+  const { weekStartDate, recipeId, dayOfWeek, mealType, servings } = addEntrySchema.parse(
     await req.json()
   );
 
@@ -17,7 +17,8 @@ export const POST = withApiErrors(async (req: NextRequest) => {
     weekStartDate,
     recipeId,
     dayOfWeek,
-    mealType
+    mealType,
+    servings
   );
 
   return NextResponse.json({ entryId }, { status: 201 });

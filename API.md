@@ -538,7 +538,8 @@ Toggles the favourite flag and returns the new state.
 ### `GET /api/v1/shopping`
 
 The household's active shopping list and its items, each with the titles of
-every recipe that contributed to it (`recipeTitles`, primary first).
+every recipe that contributed to it (`recipeTitles`, primary first) and the
+same recipes with their ids (`recipeSources`).
 
 ```json
 {
@@ -557,7 +558,8 @@ every recipe that contributed to it (`recipeTitles`, primary first).
       "position": 0,
       "recipeId": null,
       "recipeTitle": null,
-      "recipeTitles": []
+      "recipeTitles": [],
+      "recipeSources": []
     }
   ]
 }
@@ -680,9 +682,13 @@ Returns `201` with `{ "entryId": "uuid" }`.
   "weekStartDate": "2026-09-07",
   "recipeId": "uuid",
   "dayOfWeek": 2,
-  "mealType": "dinner"
+  "mealType": "dinner",
+  "servings": 4
 }
 ```
+
+`servings` is optional — omit it (or send `null`) to use the recipe's own
+servings count.
 
 ### `PATCH /api/v1/meal-plan/entries/{id}`
 

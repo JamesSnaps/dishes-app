@@ -5,7 +5,7 @@ import { shoppingLists, shoppingListItems, recipes } from "@dishes/db/schema";
 import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getItemRecipeTitles, orderTitles } from "@/lib/shopping-item-sources";
+import { getItemRecipeSources, orderSources } from "@/lib/shopping-item-sources";
 import { Button } from "@dishes/ui";
 import { GenerateFromRecipeButton } from "./_components/generate-from-recipe-button";
 import { ShoppingListClient } from "./_components/shopping-list-client";
@@ -74,13 +74,20 @@ export default async function ShoppingPage() {
       .limit(10),
   ]);
 
-  const titlesByItem = await getItemRecipeTitles(items.map((i) => i.id));
+  const sourcesByItem = await getItemRecipeSources(items.map((i) => i.id));
 
-  const initialItems: ShoppingItem[] = items.map((i) => ({
-    ...i,
-    recipeTitle: i.recipeTitle ?? null,
-    recipeTitles: orderTitles(i.recipeTitle ?? null, titlesByItem.get(i.id)),
-  }));
+  const initialItems: ShoppingItem[] = items.map((i) => {
+    const sources = orderSources(
+      i.recipeId && i.recipeTitle ? { id: i.recipeId, title: i.recipeTitle } : null,
+      sourcesByItem.get(i.id)
+    );
+    return {
+      ...i,
+      recipeTitle: i.recipeTitle ?? null,
+      recipeSources: sources,
+      recipeTitles: sources.map((s) => s.title),
+    };
+  });
 
   const checkedCount = initialItems.filter((i) => i.isChecked).length;
 

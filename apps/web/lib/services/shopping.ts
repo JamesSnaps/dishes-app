@@ -24,7 +24,7 @@ import {
 import { eq, and, asc, max, count } from "drizzle-orm";
 import { notifyHouseholdThrottled } from "@/lib/push";
 import { getPantryExclusions, isCoveredByPantry } from "@/lib/pantry-exclusions";
-import { getItemRecipeTitles, orderTitles } from "@/lib/shopping-item-sources";
+import { getItemRecipeSources, orderSources, type RecipeSource } from "@/lib/shopping-item-sources";
 import type { ActorContext, HouseholdContext } from "@/lib/session";
 
 // --- Errors -----------------------------------------------------------------
@@ -178,6 +178,7 @@ export type ShoppingListView = {
     recipeId: string | null;
     recipeTitle: string | null;
     recipeTitles: string[];
+    recipeSources: RecipeSource[];
   }>;
 };
 
@@ -207,16 +208,23 @@ export async function getActiveListWithItems(
     .where(eq(shoppingListItems.listId, list.id))
     .orderBy(asc(shoppingListItems.position));
 
-  const titlesByItem = await getItemRecipeTitles(items.map((i) => i.id));
+  const sourcesByItem = await getItemRecipeSources(items.map((i) => i.id));
 
   return {
     listId: list.id,
     listName: list.name,
-    items: items.map((i) => ({
-      ...i,
-      recipeTitle: i.recipeTitle ?? null,
-      recipeTitles: orderTitles(i.recipeTitle ?? null, titlesByItem.get(i.id)),
-    })),
+    items: items.map((i) => {
+      const sources = orderSources(
+        i.recipeId && i.recipeTitle ? { id: i.recipeId, title: i.recipeTitle } : null,
+        sourcesByItem.get(i.id)
+      );
+      return {
+        ...i,
+        recipeTitle: i.recipeTitle ?? null,
+        recipeSources: sources,
+        recipeTitles: sources.map((s) => s.title),
+      };
+    }),
   };
 }
 

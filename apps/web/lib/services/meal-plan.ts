@@ -248,10 +248,15 @@ export async function addEntry(
   weekStartDate: string,
   recipeId: string,
   dayOfWeek: number,
-  mealType: MealType
+  mealType: MealType,
+  servings?: number | null
 ): Promise<string> {
   assertDayOfWeek(dayOfWeek);
   assertMealType(mealType);
+
+  if (servings !== undefined && servings !== null && (servings <= 0 || !isFinite(servings))) {
+    throw new MealPlanValidationError("servings must be a positive number or null");
+  }
 
   const [recipe] = await db
     .select({ id: recipes.id })
@@ -265,7 +270,13 @@ export async function addEntry(
 
   const [entry] = await db
     .insert(mealPlanEntries)
-    .values({ mealPlanId: plan.id, recipeId, dayOfWeek, mealType })
+    .values({
+      mealPlanId: plan.id,
+      recipeId,
+      dayOfWeek,
+      mealType,
+      servings: servings != null ? String(servings) : null,
+    })
     .returning({ id: mealPlanEntries.id });
 
   return entry!.id;

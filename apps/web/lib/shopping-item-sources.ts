@@ -2,15 +2,19 @@ import { db } from "@/lib/db";
 import { shoppingListItemRecipes, recipes } from "@dishes/db/schema";
 import { eq, inArray, asc } from "drizzle-orm";
 
-/** Map of shopping item id → titles of every recipe that contributed to it. */
-export async function getItemRecipeTitles(
+/** One contributing recipe: enough to link to it from the shopping list. */
+export type RecipeSource = { id: string; title: string };
+
+/** Map of shopping item id → every recipe that contributed to it. */
+export async function getItemRecipeSources(
   itemIds: string[]
-): Promise<Map<string, string[]>> {
+): Promise<Map<string, RecipeSource[]>> {
   if (itemIds.length === 0) return new Map();
 
   const rows = await db
     .select({
       itemId: shoppingListItemRecipes.itemId,
+      id: shoppingListItemRecipes.recipeId,
       title: recipes.title,
     })
     .from(shoppingListItemRecipes)
@@ -18,21 +22,21 @@ export async function getItemRecipeTitles(
     .where(inArray(shoppingListItemRecipes.itemId, itemIds))
     .orderBy(asc(recipes.title));
 
-  const map = new Map<string, string[]>();
+  const map = new Map<string, RecipeSource[]>();
   for (const row of rows) {
     const list = map.get(row.itemId) ?? [];
-    list.push(row.title);
+    list.push({ id: row.id, title: row.title });
     map.set(row.itemId, list);
   }
   return map;
 }
 
-/** All contributing titles with the primary (linked) recipe first. */
-export function orderTitles(
-  primaryTitle: string | null,
-  titles: string[] | undefined
-): string[] {
-  const list = titles ?? (primaryTitle ? [primaryTitle] : []);
-  if (!primaryTitle) return list;
-  return [primaryTitle, ...list.filter((t) => t !== primaryTitle)];
+/** All contributing recipes with the primary (linked) one first, deduped by id. */
+export function orderSources(
+  primary: RecipeSource | null,
+  sources: RecipeSource[] | undefined
+): RecipeSource[] {
+  const list = sources ?? (primary ? [primary] : []);
+  if (!primary) return list;
+  return [primary, ...list.filter((s) => s.id !== primary.id)];
 }

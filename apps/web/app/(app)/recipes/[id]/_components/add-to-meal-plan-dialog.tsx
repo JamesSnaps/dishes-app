@@ -6,6 +6,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  Input,
   DialogHeader,
   DialogTitle,
   Select,
@@ -18,6 +19,8 @@ import { addMealEntry } from "@/app/actions/meal-plan";
 
 interface Props {
   recipeId: string;
+  /** The recipe's own servings count, used as the default for the entry. */
+  recipeServings?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -41,6 +44,12 @@ function todayIso(): string {
   ].join("-");
 }
 
+function parseServings(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const n = parseFloat(value);
+  return isFinite(n) && n > 0 ? n : null;
+}
+
 function toWeekStartAndDay(dateStr: string): { weekStartDate: string; dayOfWeek: number } {
   const [y, m, day] = dateStr.split("-").map(Number);
   const date = new Date(y!, m! - 1, day!);
@@ -56,9 +65,16 @@ function toWeekStartAndDay(dateStr: string): { weekStartDate: string; dayOfWeek:
   return { weekStartDate, dayOfWeek };
 }
 
-export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
+export function AddToMealPlanDialog({
+  recipeId,
+  recipeServings,
+  open,
+  onOpenChange,
+}: Props) {
+  const baseServings = parseServings(recipeServings);
   const [date, setDate] = useState(todayIso);
   const [mealType, setMealType] = useState<MealType>("dinner");
+  const [servings, setServings] = useState(() => (baseServings ? String(baseServings) : ""));
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   function openDatePicker() {
@@ -86,6 +102,7 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
       setTimeout(() => {
         setDate(todayIso());
         setMealType("dinner");
+        setServings(baseServings ? String(baseServings) : "");
         setDone(false);
         setError(null);
       }, 200);
@@ -98,7 +115,8 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
     startTransition(async () => {
       try {
         const { weekStartDate, dayOfWeek } = toWeekStartAndDay(date);
-        await addMealEntry(weekStartDate, recipeId, dayOfWeek, mealType);
+        const parsed = parseServings(servings);
+        await addMealEntry(weekStartDate, recipeId, dayOfWeek, mealType, parsed);
         setDone(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to add to meal plan");
@@ -129,6 +147,7 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
               })}
               {" · "}
               {MEAL_TYPES.find((m) => m.value === mealType)?.label}
+              {parseServings(servings) ? ` · ${parseServings(servings)} servings` : ""}
             </p>
           </div>
         ) : (
@@ -180,6 +199,25 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Servings</label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  value={servings}
+                  onChange={(e) => setServings(e.target.value)}
+                  className="w-24 text-center text-lg font-bold"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {baseServings
+                    ? `Recipe default: ${baseServings}`
+                    : "Leave blank to use the recipe default"}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -193,7 +231,10 @@ export function AddToMealPlanDialog({ recipeId, open, onOpenChange }: Props) {
             <Button onClick={() => handleOpenChange(false)}>Done</Button>
           ) : (
             <>
-              <Button disabled={pending || !date} onClick={handleSubmit}>
+              <Button
+                disabled={pending || !date || (servings !== "" && !parseServings(servings))}
+                onClick={handleSubmit}
+              >
                 {pending ? "Adding…" : "Add to plan"}
               </Button>
               <Button variant="ghost" disabled={pending} onClick={() => handleOpenChange(false)}>
