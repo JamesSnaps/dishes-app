@@ -5,6 +5,7 @@ import { BookOpen, CalendarDays, Home, ShoppingCart, Sparkles } from "lucide-rea
 import { cn } from "@dishes/ui";
 import { NAV_ITEMS } from "./nav-items";
 import { useUnsavedChanges } from "@/components/unsaved-changes-context";
+import { usePrefetchRoutes } from "@/hooks/use-prefetch-routes";
 
 const ICONS = { BookOpen, CalendarDays, Home, ShoppingCart, Sparkles };
 
@@ -16,9 +17,14 @@ interface Props {
 const LEFT_ITEMS = NAV_ITEMS.slice(0, 2);
 const RIGHT_ITEMS = NAV_ITEMS.slice(2);
 
+/** Same reasoning as the side nav: buttons aren't prefetched, so warm them. */
+const PREFETCH_ROUTES = NAV_ITEMS.map((item) => item.href);
+
 export function BottomNav({ className }: Props) {
   const pathname = usePathname();
   const { requestNavigation } = useUnsavedChanges();
+
+  usePrefetchRoutes(PREFETCH_ROUTES);
 
   function NavLink({ href, label, icon }: { href: string; label: string; icon: keyof typeof ICONS }) {
     const Icon = ICONS[icon];

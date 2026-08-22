@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { usePrefetchRoutes } from "@/hooks/use-prefetch-routes";
 import { SyncStatus } from "@/components/sync-status";
 import { useTheme } from "next-themes";
 import {
@@ -118,6 +119,15 @@ function NavLink({
   );
 }
 
+/**
+ * Routes worth warming. Disabled items are excluded (nothing to navigate to),
+ * and /settings is included because it is one tap away in the same rail.
+ */
+const PREFETCH_ROUTES = [...MAIN_NAV, ...PERSONAL_NAV]
+  .filter((item) => !item.disabled)
+  .map((item) => item.href)
+  .concat("/settings");
+
 const AUTHELIA_URL = process.env.NEXT_PUBLIC_AUTHELIA_URL ?? "";
 
 export function SideNav({ className, displayName = "User", avatarUrl = null, shoppingItemCount, todayMealCount, pantryItemCount }: Props) {
@@ -125,6 +135,10 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
   const { resolvedTheme, setTheme } = useTheme();
   const { requestNavigation } = useUnsavedChanges();
   const shoppingCount = useShoppingCount();
+
+  // Nav destinations are buttons, not <Link>s, so Next never prefetches them.
+  // Warm them once so tapping one is a cache hit rather than a round trip.
+  usePrefetchRoutes(PREFETCH_ROUTES);
   // Prefer the live client count (updates as items are checked off) and fall
   // back to the server-rendered prop before the provider has any value.
   const liveShoppingCount = shoppingCount?.count ?? shoppingItemCount;
