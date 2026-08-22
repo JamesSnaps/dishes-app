@@ -4,8 +4,26 @@
     {
       "name": "dishes-web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@dishes/web", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@dishes/web",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "dishes-web-prod",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@dishes/web",
+        "exec",
+        "next",
+        "start",
+        "-p",
+        "3001"
+      ],
+      "port": 3001
     }
   ]
 }
