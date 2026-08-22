@@ -151,6 +151,22 @@ export class ApiError extends Error {
  * expired Authelia session redirected the request to the login portal, so the
  * host should reload rather than try to parse it.
  */
+/**
+ * The request timed out or was aborted before the server answered.
+ *
+ * Distinct from ApiError on purpose: a timeout says nothing about the request
+ * being wrong, only that the connection could not carry it right now. The sync
+ * engine backs off on these rather than retrying at full rate, which is what
+ * stops a weak signal from turning every navigation into another stalled
+ * request.
+ */
+export class NetworkTimeoutError extends Error {
+  constructor(readonly timeoutMs: number) {
+    super(`Request timed out after ${timeoutMs}ms`);
+    this.name = "NetworkTimeoutError";
+  }
+}
+
 export class SessionExpiredError extends Error {
   constructor() {
     super("Session expired — reload to sign in again");

@@ -1,6 +1,7 @@
 import type { ApiClient } from "./api";
 import {
   ApiError,
+  NetworkTimeoutError,
   SessionExpiredError,
   SYNC_COLLECTIONS,
   type OptimisticChange,
@@ -43,6 +44,8 @@ export type SyncOutcome = {
   failed: number;
   /** True when nothing could reach the server. */
   offline: boolean;
+  /** True when this call was skipped because we are backing off. */
+  skipped?: boolean;
 };
 
 export class SyncEngine {
@@ -66,19 +69,64 @@ export class SyncEngine {
   }
 
   /**
+   * Backoff after a failed attempt.
+   *
+   * The problem this solves is a weak signal rather than no signal. With no
+   * signal, requests fail instantly and cost nothing. With one bar,
+   * `navigator.onLine` is still true, so every navigation used to fire another
+   * request that would hang — each one holding a connection and competing for
+   * a few KB/s, so a bad connection produced *more* traffic, not less.
+   *
+   * Doubling from 5s to a 5 minute ceiling. Any success resets it, and an
+   * explicit user request (`force`) ignores it entirely — if someone taps
+   * "sync now", they get an attempt regardless.
+   */
+  private static readonly BACKOFF_MIN_MS = 5_000;
+  private static readonly BACKOFF_MAX_MS = 5 * 60_000;
+  private backoffMs = 0;
+  private nextAttemptAt = 0;
+
+  /** Whether a non-forced sync would currently be skipped. */
+  get isBackingOff(): boolean {
+    return Date.now() < this.nextAttemptAt;
+  }
+
+  /**
    * Push queued mutations, then pull. That order matters: pushing first means
    * the pull returns our own writes in their server-canonical form, so local
    * optimistic copies are reconciled in the same cycle.
    *
    * Concurrent calls share one run rather than queueing another.
    */
-  sync(): Promise<SyncOutcome> {
+  sync(opts: { force?: boolean } = {}): Promise<SyncOutcome> {
     if (this.inFlight) return this.inFlight;
+
+    if (!opts.force && this.isBackingOff) {
+      return Promise.resolve({
+        pulled: 0,
+        pushed: 0,
+        failed: 0,
+        offline: true,
+        skipped: true,
+      });
+    }
 
     this.inFlight = this.run().finally(() => {
       this.inFlight = null;
     });
     return this.inFlight;
+  }
+
+  private noteSuccess(): void {
+    this.backoffMs = 0;
+    this.nextAttemptAt = 0;
+  }
+
+  private noteFailure(): void {
+    this.backoffMs = this.backoffMs
+      ? Math.min(this.backoffMs * 2, SyncEngine.BACKOFF_MAX_MS)
+      : SyncEngine.BACKOFF_MIN_MS;
+    this.nextAttemptAt = Date.now() + this.backoffMs;
   }
 
   private async run(): Promise<SyncOutcome> {
@@ -90,8 +138,17 @@ export class SyncEngine {
       outcome.failed = pushResult.failed;
 
       outcome.pulled = await this.pullAll();
+      this.noteSuccess();
     } catch (err) {
       if (err instanceof SessionExpiredError) throw err; // host must handle
+
+      // Timeouts and transport failures mean "the connection could not carry
+      // this", so slow down. A 4xx/5xx means we reached the server, so the
+      // connection is fine and backing off would only delay recovery.
+      if (err instanceof NetworkTimeoutError || !(err instanceof ApiError)) {
+        this.noteFailure();
+      }
+
       outcome.offline = true;
       this.onError?.(err);
     }
