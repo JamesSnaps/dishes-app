@@ -139,31 +139,53 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setEngine(engineRef.current);
   }, []);
 
-  const sync = useCallback(() => {
-    if (!engine) return;
+  const runSync = useCallback(
+    (opts: { force?: boolean } = {}) => {
+      if (!engine) return;
 
-    setState((s) => ({ ...s, status: "syncing" }));
+      // Backing off and not forced: don't touch status. Flashing "syncing" for
+      // a call that never hits the network would be a lie, and it is exactly
+      // the state a weak signal produces most often.
+      if (!opts.force && engine.isBackingOff) return;
 
-    engine
-      .sync()
-      .then(async (outcome) => {
-        setState({
-          status: outcome.offline ? "offline" : "idle",
-          lastSyncedAt: outcome.offline ? null : Date.now(),
-          pending: await engine.pendingCount(),
+      setState((s) => ({ ...s, status: "syncing" }));
+
+      engine
+        .sync(opts)
+        .then(async (outcome) => {
+          // Resolved before setState: the updater callback is not async, so an
+          // await inside it is a compile error rather than a wait.
+          const pending = await engine.pendingCount();
+
+          setState((s) => ({
+            status: outcome.offline ? "offline" : "idle",
+            // A skipped run learned nothing, so it must not clear the last
+            // successful sync time — the user would see "never synced" while
+            // holding perfectly good local data.
+            lastSyncedAt: outcome.skipped
+              ? s.lastSyncedAt
+              : outcome.offline
+                ? null
+                : Date.now(),
+            pending,
+          }));
+        })
+        .catch(async (err) => {
+          // An expired Authelia session returns the login page as HTML. Reloading
+          // hands the user to the portal instead of leaving the app half-dead.
+          if (err instanceof SessionExpiredError) {
+            window.location.reload();
+            return;
+          }
+          const pending = await engine.pendingCount();
+          setState((s) => ({ ...s, status: "offline", pending }));
         });
-      })
-      .catch(async (err) => {
-        // An expired Authelia session returns the login page as HTML. Reloading
-        // hands the user to the portal instead of leaving the app half-dead.
-        if (err instanceof SessionExpiredError) {
-          window.location.reload();
-          return;
-        }
-        const pending = await engine.pendingCount();
-        setState((s) => ({ ...s, status: "offline", pending }));
-      });
-  }, [engine]);
+    },
+    [engine]
+  );
+
+  /** User-initiated sync always attempts, regardless of backoff. */
+  const sync = useCallback(() => runSync({ force: true }), [runSync]);
 
   // Route changes. `sync()` coalesces concurrent runs and a delta pull with
   // nothing to report is one indexed query, so the cost of the common
@@ -172,16 +194,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!engine) return;
-    sync();
-  }, [engine, pathname, sync]);
+    runSync();
+  }, [engine, pathname, runSync]);
 
   // Mount is covered by the route effect above, which runs on first render too.
   useEffect(() => {
     if (!engine) return;
 
-    const onOnline = () => sync();
+    // Regaining connectivity is genuine new information, so it clears backoff.
+    const onOnline = () => runSync({ force: true });
     const onVisible = () => {
-      if (document.visibilityState === "visible") sync();
+      if (document.visibilityState === "visible") runSync();
     };
 
     window.addEventListener("online", onOnline);
@@ -190,7 +213,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("online", onOnline);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [engine, sync]);
+  }, [engine, runSync]);
 
   // The provider is always rendered, so the component tree is identical on the
   // server and the client. Consumers handle a null engine.

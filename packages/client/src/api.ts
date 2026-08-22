@@ -1,5 +1,6 @@
 import {
   ApiError,
+  NetworkTimeoutError,
   SessionExpiredError,
   type SyncPullResponse,
   type SyncPushResponse,
@@ -15,6 +16,16 @@ import {
  */
 export type ApiClientOptions = {
   baseUrl: string;
+  /**
+   * How long to wait before giving up on a request. Default 8s.
+   *
+   * The value that matters is not "how slow can the server be" but "how long
+   * should a phone on a weak signal hold a connection open before deciding it
+   * is effectively offline". Without this, a stalled request hangs until the
+   * browser's own limit — minutes — while every subsequent navigation queues
+   * another one behind it.
+   */
+  timeoutMs?: number;
   /** Supplies an access token for native clients. Omit in the browser. */
   getToken?: () => string | null | Promise<string | null>;
   fetchImpl?: typeof fetch;
@@ -24,11 +35,13 @@ export class ApiClient {
   private readonly baseUrl: string;
   private readonly getToken?: ApiClientOptions["getToken"];
   private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
 
   constructor(opts: ApiClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/$/, "");
     this.getToken = opts.getToken;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    this.timeoutMs = opts.timeoutMs ?? 8_000;
   }
 
   private async request<T>(
@@ -43,12 +56,34 @@ export class ApiClient {
     const token = await this.getToken?.();
     if (token) headers.set("authorization", `Bearer ${token}`);
 
-    const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      ...init,
-      headers,
-      // The browser door relies on the Authelia session cookie.
-      credentials: this.getToken ? "omit" : "same-origin",
-    });
+    // Combined manually rather than with AbortSignal.any() so the timer is
+    // always cleared — an uncancelled timeout would keep a handle alive for its
+    // full duration after every successful request.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const onCallerAbort = () => controller.abort();
+    init.signal?.addEventListener("abort", onCallerAbort);
+
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers,
+        // The browser door relies on the Authelia session cookie.
+        credentials: this.getToken ? "omit" : "same-origin",
+      });
+    } catch (err) {
+      // A caller-triggered abort is deliberate and not a timeout; anything else
+      // reaching here with an aborted signal is ours.
+      if (controller.signal.aborted && !init.signal?.aborted) {
+        throw new NetworkTimeoutError(this.timeoutMs);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+      init.signal?.removeEventListener("abort", onCallerAbort);
+    }
 
     if (res.status === 204) return undefined as T;
 
