@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/report-client-error";
 import { Button } from "@dishes/ui";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 export default function AppError({ error, reset }: Props) {
   useEffect(() => {
     console.error(error);
+    reportClientError(error, "app-error", { digest: error.digest });
   }, [error]);
 
   return (
@@ -20,6 +22,13 @@ export default function AppError({ error, reset }: Props) {
       <p className="max-w-sm text-muted-foreground">
         {error.message || "An unexpected error occurred. Please try again."}
       </p>
+      {/* The reference ties this screen to the line in the server log, which is
+          the only place the real message survives — production redacts it. */}
+      {error.digest && (
+        <p className="font-mono text-xs text-muted-foreground/60">
+          reference {error.digest}
+        </p>
+      )}
       <Button onClick={reset}>Try again</Button>
     </div>
   );

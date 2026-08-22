@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ErrorReporter } from "@/components/error-reporter";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/toaster";
@@ -43,6 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background antialiased">
+        <ErrorReporter />
         <ThemeProvider>
           {/* Above the route tree so a cook survives navigating out of cooking mode */}
           <CookSessionProvider>

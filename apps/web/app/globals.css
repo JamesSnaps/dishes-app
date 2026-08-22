@@ -51,8 +51,12 @@
 
 @layer utilities {
   /* iOS PWA safe area helpers — used by bottom nav and main scroll area */
+  /* The bottom nav occupies 4rem (h-16) plus the safe-area inset. Padding of
+     exactly that leaves the last element on a screen flush against it — legible
+     only by rubber-banding, which is how the version line on Settings ended up
+     effectively hidden. The extra 1rem is the gap. */
   .pb-nav-safe {
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
   }
   .pb-safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -62,7 +66,8 @@
      Desktop is excluded — there the bar floats bottom-right, clear of content. */
   @media (max-width: 1023px) {
     body[data-cook-session] .pb-nav-safe {
-      padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+      /* Same reasoning with the cooking bar stacked above the nav. */
+      padding-bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
     }
   }
 

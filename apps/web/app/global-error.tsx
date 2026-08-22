@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/report-client-error";
 
 interface Props {
   error: Error & { digest?: string };
@@ -10,6 +11,7 @@ interface Props {
 export default function GlobalError({ error, reset }: Props) {
   useEffect(() => {
     console.error(error);
+    reportClientError(error, "global-error", { digest: error.digest });
   }, [error]);
 
   return (
@@ -20,6 +22,9 @@ export default function GlobalError({ error, reset }: Props) {
         <p className="max-w-sm text-gray-500">
           {error.message || "A critical error occurred."}
         </p>
+        {error.digest && (
+          <p className="font-mono text-xs text-gray-400">reference {error.digest}</p>
+        )}
         <button
           onClick={reset}
           className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
