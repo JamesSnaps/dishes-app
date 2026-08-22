@@ -71,7 +71,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <JobsProvider>
     <ShoppingCountProvider initialCount={shoppingItemCount}>
     <UnsavedChangesProvider>
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden pt-safe-top">
       {/* Desktop sidebar */}
       <SideNav
         className="hidden lg:flex"

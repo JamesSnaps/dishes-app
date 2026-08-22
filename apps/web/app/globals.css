@@ -61,6 +61,16 @@
   .pb-safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+  /* Keep app content out from under the status bar.
+     viewport-fit=cover lets content run edge to edge, and iOS then blurs
+     whatever sits beneath the status bar so the clock stays legible — which
+     smears the colour of anything up there (the New Recipe button, the meal
+     plan FAB) into a haze across the top of the screen. Reserving the inset
+     gives that scrim plain background to work with instead.
+     Zero on desktop, so no media query needed. */
+  .pt-safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 
   /* Make room for the minimised cooking bar, which sits above the bottom nav.
      Desktop is excluded — there the bar floats bottom-right, clear of content. */
