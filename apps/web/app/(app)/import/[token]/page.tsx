@@ -4,10 +4,15 @@ import { LinkIcon, UtensilsCrossed } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { requireSession } from "@/lib/session";
 import { importSharedRecipe, ShareLinkInvalidError } from "@/lib/services/recipe-import";
-import { revalidatePath } from "next/cache";
 
 /**
  * The authenticated half of "Add to my Dishes".
+ *
+ * The import runs during render rather than in an action, which is safe here
+ * only because it is idempotent: a second pass finds the copy it already made
+ * and returns that instead of duplicating. Nothing calls revalidatePath — it
+ * is illegal during render, and dynamic pages are refetched on navigation
+ * anyway, so the recipe list is current when the user reaches it.
  *
  * Deliberately NOT under /share/, which the reverse proxy and middleware let
  * through unauthenticated — this route must go through Authelia so that
@@ -45,10 +50,6 @@ export default async function ImportSharedRecipePage({ params }: Props) {
         </Button>
       </div>
     );
-  }
-
-  if (result.status === "imported") {
-    revalidatePath("/recipes");
   }
 
   const query =

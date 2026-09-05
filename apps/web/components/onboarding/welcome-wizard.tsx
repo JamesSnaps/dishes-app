@@ -119,6 +119,12 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
     setIsIos(/iphone|ipad|ipod/i.test(window.navigator.userAgent));
   }, []);
 
+  // Frozen at mount on purpose. Saving the key revalidates, which flips
+  // hasAiKey to true; recomputing on that would drop the AI step out of the
+  // list mid-flow and slide every later step down an index, skipping the one
+  // the user was about to see.
+  const [hadAiKeyAtStart] = useState(hasAiKey);
+
   // Steps are assembled per-user: no AI step for non-admins or a household
   // that is already configured, no install step inside an installed app.
   const steps = useMemo(() => {
@@ -126,11 +132,11 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
       "welcome",
       "features",
     ];
-    if (isAdmin && !hasAiKey) list.push("ai");
+    if (isAdmin && !hadAiKeyAtStart) list.push("ai");
     if (!alreadyStandalone) list.push("install");
     list.push("done");
     return list;
-  }, [isAdmin, hasAiKey, alreadyStandalone]);
+  }, [isAdmin, hadAiKeyAtStart, alreadyStandalone]);
 
   const current = steps[Math.min(step, steps.length - 1)]!;
   const isLast = step >= steps.length - 1;

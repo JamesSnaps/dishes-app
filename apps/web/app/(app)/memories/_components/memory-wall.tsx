@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Caveat } from "next/font/google";
 import { Shuffle, X, ExternalLink, LayoutGrid, Images } from "lucide-react";
 import Link from "next/link";
@@ -98,6 +98,106 @@ export function MemoryWall({ photos }: Props) {
     return () => window.removeEventListener("resize", update);
   }, []);
 
+  // Each photo's width/height, measured once by preloading it. The wall can't
+  // lay out rows without knowing the shapes, and knowing them also means every
+  // photo's box is the right size before the image arrives, so nothing jumps.
+  const [ratios, setRatios] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      photos.map(
+        p =>
+          new Promise<[string, number]>(resolve => {
+            const img = new window.Image();
+            img.onload = () =>
+              resolve([p.id, img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1]);
+            // A broken photo still needs a box, or the row maths skips it.
+            img.onerror = () => resolve([p.id, 1]);
+            img.src = p.photoUrl;
+          })
+      )
+    ).then(pairs => {
+      if (!cancelled) setRatios(Object.fromEntries(pairs));
+    });
+    return () => { cancelled = true; };
+  }, [photos]);
+
+  // The wall needs its own width to do the row maths; columns-of-fixed-width
+  // would put us back to cropping.
+  const wallRef = useRef<HTMLDivElement>(null);
+  const [wallWidth, setWallWidth] = useState(0);
+  // Keyed on items.length, not []: the component early-returns an empty state
+  // on the first render, so the wrapper this observes doesn't exist yet and a
+  // run-once effect would attach to nothing and never retry.
+  useEffect(() => {
+    const el = wallRef.current;
+    if (!el) return;
+    // Seed synchronously so the first paint with photos already has a width.
+    setWallWidth(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      if (w) setWallWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [items.length]);
+
+  // Justified rows, the way a photo wall is normally built: fill a row with
+  // photos at their own aspect ratios until they exceed the target height,
+  // then scale the row to fit the width exactly. Every row is flush on both
+  // edges and no photo is cropped — the two things a square grid can't do at
+  // once. Only the last row is left short, which reads as deliberate.
+  const WALL_GAP = 4;
+  const targetRowHeight = wallWidth < 640 ? 150 : wallWidth < 1024 ? 200 : 240;
+  // A run of portraits fills a row's width very slowly, so the target height
+  // alone would happily line up seven slivers. The cap closes the row early;
+  // because a shorter row is always a taller one, it only makes photos bigger.
+  const maxPerRow = wallWidth < 640 ? 3 : wallWidth < 1024 ? 4 : 5;
+  const wallRows: { photos: MemoryPhoto[]; height: number }[] = [];
+  if (wallWidth > 0) {
+    const rowHeight = (count: number, sum: number) =>
+      (wallWidth - WALL_GAP * (count - 1)) / sum;
+
+    let row: MemoryPhoto[] = [];
+    let ratioSum = 0;
+    for (const photo of items) {
+      const ratio = ratios[photo.id] ?? 0.8;
+      const heightBefore = row.length ? rowHeight(row.length, ratioSum) : Infinity;
+      row.push(photo);
+      ratioSum += ratio;
+      const heightAfter = rowHeight(row.length, ratioSum);
+
+      if (heightAfter > targetRowHeight && row.length < maxPerRow) continue;
+
+      // Row is full on count alone — keep every photo and let it run tall.
+      if (heightAfter > targetRowHeight) {
+        wallRows.push({ photos: row, height: heightAfter });
+        row = [];
+        ratioSum = 0;
+        continue;
+      }
+
+      // Adding this photo took the row under the target. Whichever side of the
+      // target is closer wins — always taking the photo makes rows of six
+      // squeezed thumbnails where four generous ones were the better fit.
+      if (row.length > 1 && heightBefore - targetRowHeight < targetRowHeight - heightAfter) {
+        row.pop();
+        wallRows.push({ photos: row, height: heightBefore });
+        row = [photo];
+        ratioSum = ratio;
+      } else {
+        wallRows.push({ photos: row, height: heightAfter });
+        row = [];
+        ratioSum = 0;
+      }
+    }
+    if (row.length) {
+      const available = wallWidth - WALL_GAP * (row.length - 1);
+      // Don't stretch a lonely last photo across the whole width.
+      wallRows.push({ photos: row, height: Math.min(targetRowHeight, available / ratioSum) });
+    }
+  }
+
   // Distribute items round-robin into balanced columns. Photos are square,
   // so columns stay roughly level and the wall reads as a clean grid while
   // the per-photo tilt keeps it feeling alive.
@@ -188,6 +288,7 @@ export function MemoryWall({ photos }: Props) {
           it the nowrap caption sets the track's intrinsic minimum and pushes
           the cards past the viewport on narrow screens. */}
       <div
+        ref={wallRef}
         className="transition-all duration-200"
         style={{ opacity: fading ? 0 : 1, transform: fading ? "scale(0.97)" : "scale(1)" }}
       >
@@ -279,37 +380,42 @@ export function MemoryWall({ photos }: Props) {
              photo keep its shape and the wall closes up around them. No
              frames, no rings, no permanent caption — just the pictures, with
              the details surfacing on hover. */
-          <div className="columns-2 gap-1 sm:columns-3 lg:columns-4 xl:columns-5">
-            {items.map(photo => (
-              /* break-inside-avoid lives on a plain wrapper: browsers apply it
-                 unreliably to a button's own box. */
-              <div key={photo.id} className="mb-1 break-inside-avoid">
-                <button
-                  type="button"
-                  onClick={() => setActive(photo)}
-                  aria-label={`${photo.recipeName}, ${relDate(photo.cookedAt)}`}
-                  className="group relative block w-full min-w-0 overflow-hidden bg-zinc-200 dark:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photo.photoUrl}
-                    alt={photo.recipeName}
-                    className="block h-auto w-full transition-transform duration-300 group-hover:scale-[1.04]"
-                    loading="lazy"
-                  />
-                  {/* Details on hover only. Touch devices never fire hover, but
-                      a tap opens the lightbox, which shows all of this and more. */}
-                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
-                    <div className="truncate font-[family-name:var(--font-caveat)] text-[19px] font-semibold leading-tight text-white">
-                      {photo.recipeName}
-                    </div>
-                    {photo.rating != null && (
-                      <div className="font-[family-name:var(--font-caveat)] text-[16px] leading-tight text-amber-300">
-                        {stars(photo.rating)}
+          <div className="flex flex-col" style={{ gap: WALL_GAP }}>
+            {wallRows.map((row, rowIndex) => (
+              <div key={rowIndex} className="flex" style={{ gap: WALL_GAP }}>
+                {row.photos.map(photo => (
+                  <button
+                    key={photo.id}
+                    type="button"
+                    onClick={() => setActive(photo)}
+                    aria-label={`${photo.recipeName}, ${relDate(photo.cookedAt)}`}
+                    className="group relative block min-w-0 shrink-0 overflow-hidden bg-zinc-200 text-left dark:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                    style={{
+                      height: row.height,
+                      width: (ratios[photo.id] ?? 0.8) * row.height,
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.photoUrl}
+                      alt={photo.recipeName}
+                      className="block h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                      loading="lazy"
+                    />
+                    {/* Details on hover only. Touch devices never fire hover, but
+                        a tap opens the lightbox, which shows all of this and more. */}
+                    <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+                      <div className="truncate font-[family-name:var(--font-caveat)] text-[19px] font-semibold leading-tight text-white">
+                        {photo.recipeName}
                       </div>
-                    )}
-                  </div>
-                </button>
+                      {photo.rating != null && (
+                        <div className="font-[family-name:var(--font-caveat)] text-[16px] leading-tight text-amber-300">
+                          {stars(photo.rating)}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
               </div>
             ))}
           </div>
