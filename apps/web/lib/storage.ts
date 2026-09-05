@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  CopyObjectCommand,
+} from "@aws-sdk/client-s3";
 import { env } from "./env";
 
 function s3Configured() {
@@ -42,6 +47,25 @@ export async function uploadFile(
 
   const base = env.S3_PUBLIC_URL ?? env.S3_ENDPOINT;
   return `${base}/${env.S3_BUCKET}/${key}`;
+}
+
+/**
+ * Server-side copy of an existing object to a new key. Used when a recipe is
+ * imported into another household: the copy gets its own object under that
+ * household's prefix, so deleting the original leaves the import intact.
+ */
+export async function copyFile(sourceKey: string, destKey: string): Promise<string> {
+  const client = getClient();
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: env.S3_BUCKET,
+      CopySource: `/${env.S3_BUCKET}/${sourceKey}`,
+      Key: destKey,
+    })
+  );
+
+  const base = env.S3_PUBLIC_URL ?? env.S3_ENDPOINT;
+  return `${base}/${env.S3_BUCKET}/${destKey}`;
 }
 
 /**

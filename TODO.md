@@ -124,6 +124,12 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Nutrition — per-serving calories + macros (protein/carbs/fat/fibre/sugar/sodium) on recipes; AI auto-fills on generate/edit, on-demand "Estimate nutrition" backfill, manual entry; calorie target in concierge + max-calories-per-meal in planner; calories exposed on integrations `today`/`week` and `meal-plan/generate`
 - [x] Recipe meal-type tagging (`recipes.meal_types`) — AI fills it on generate/edit/scan, editable in the recipe form, admin AI backfill for the existing library; the weekly planner matches library recipes to slots by meal type (and hard-rejects mismatches) so breakfast slots stop getting dinner dishes
 
+## Sharing & Onboarding
+- [x] "Add to my Dishes" — `/import/<token>` deep-copies a shared recipe (ingredients, steps, tags, nutrition, image) into the viewer's own household, with `imported_from_recipe_id` / `imported_from_name` attribution, duplicate detection, and a CTA on the public share page (v0.81.0)
+- [x] Welcome wizard — first-run tour (features → optional OpenAI key → PWA install), tracked per member via `household_members.onboarding_completed_at`, replayable from Settings (v0.81.0)
+- [ ] Optional: let an importer re-pull an updated original via `imported_from_recipe_id` (needs the source token to still be active)
+- [ ] Optional: household-to-household recipe sharing without a link (a directory of "friend households" you can push a recipe to)
+
 ## Infrastructure / DevX
 - [x] `.env.local` validation on startup (zod, fail fast)
 - [x] Error boundary + 404/500 pages

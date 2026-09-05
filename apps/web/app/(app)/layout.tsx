@@ -8,10 +8,11 @@ import { SyncProvider } from "@/components/providers/sync-provider";
 import { ShoppingCountProvider } from "@/components/providers/shopping-count-context";
 import { UnsavedChangesProvider } from "@/components/unsaved-changes-context";
 import { RefreshOnStalePaint } from "@/components/refresh-on-stale-paint";
+import { WelcomeWizard } from "@/components/onboarding/welcome-wizard";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { db } from "@/lib/db";
-import { householdMembers, shoppingLists, shoppingListItems, mealPlans, mealPlanEntries, pantryStock } from "@dishes/db/schema";
+import { aiConfigurations, householdMembers, shoppingLists, shoppingListItems, mealPlans, mealPlanEntries, pantryStock } from "@dishes/db/schema";
 import { and, count, eq } from "drizzle-orm";
 
 function getMondayOfWeek(): string {
@@ -34,9 +35,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const weekStartDate = getMondayOfWeek();
   const dayIndex = todayDayIndex();
 
-  const [[member], [activeList], [currentPlan]] = await Promise.all([
+  const [[member], [activeList], [currentPlan], [aiConfig]] = await Promise.all([
     db
-      .select({ displayName: householdMembers.displayName, avatarUrl: householdMembers.avatarUrl })
+      .select({
+        displayName: householdMembers.displayName,
+        avatarUrl: householdMembers.avatarUrl,
+        role: householdMembers.role,
+        onboardingCompletedAt: householdMembers.onboardingCompletedAt,
+      })
       .from(householdMembers)
       .where(eq(householdMembers.id, memberId))
       .limit(1),
@@ -49,6 +55,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       .select({ id: mealPlans.id })
       .from(mealPlans)
       .where(and(eq(mealPlans.householdId, householdId), eq(mealPlans.weekStartDate, weekStartDate)))
+      .limit(1),
+    db
+      .select({ id: aiConfigurations.id })
+      .from(aiConfigurations)
+      .where(eq(aiConfigurations.householdId, householdId))
       .limit(1),
   ]);
 
@@ -93,6 +104,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
       <OfflineIndicator />
       <RefreshOnStalePaint />
+
+      {member && !member.onboardingCompletedAt && (
+        <WelcomeWizard
+          displayName={member.displayName}
+          isAdmin={member.role === "admin"}
+          hasAiKey={!!aiConfig}
+        />
+      )}
     </div>
     </UnsavedChangesProvider>
     </ShoppingCountProvider>

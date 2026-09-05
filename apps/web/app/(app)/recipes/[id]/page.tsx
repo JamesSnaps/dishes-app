@@ -9,6 +9,7 @@ import {
   CalendarDays,
   FileText,
   Plus,
+  Download,
 } from "lucide-react";
 import { eq, and, ne, or, inArray, asc, count, max, lte, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -45,12 +46,19 @@ export const metadata = { title: "Recipe" };
 
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ pendingReview?: string; from?: string; week?: string; back?: string }>;
+  searchParams: Promise<{
+    pendingReview?: string;
+    from?: string;
+    week?: string;
+    back?: string;
+    /** Set by the share-import flow: the source household's name, or "already". */
+    imported?: string;
+  }>;
 }
 
 export default async function RecipeDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { pendingReview, from, week, back } = await searchParams;
+  const { pendingReview, from, week, back, imported } = await searchParams;
   // `back` carries the encoded search string from the recipe list (e.g. "q=pasta&sort=az")
   const recipesBack = back && /^[a-zA-Z0-9%&=+._~-]*$/.test(back) ? `/recipes?${back}` : "/recipes";
   const backHref = from === "meal-plan" && week ? `/meal-plan?week=${week}` : recipesBack;
@@ -261,6 +269,26 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         />
       )}
 
+      {imported && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 p-3.5 shadow-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+            <Download className="h-4 w-4" />
+          </div>
+          <div className="text-sm leading-snug">
+            <p className="font-semibold">
+              {imported === "already"
+                ? "Already in your recipes"
+                : "Added to your recipes"}
+            </p>
+            <p className="text-muted-foreground">
+              {imported === "already"
+                ? "You imported this one before, so we opened your existing copy."
+                : `Your own copy, shared from ${imported}. Edit it however you like — the original is untouched.`}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Title + actions */}
       <div className="mb-4 flex items-start justify-between gap-4">
         <h1 className="text-2xl font-bold leading-tight">{recipe.title}</h1>
@@ -301,6 +329,12 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
           <Badge variant="outline">
             <ChefHat className="mr-1 h-3 w-3" />
             AI
+          </Badge>
+        )}
+        {recipe.importedFromName && (
+          <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary">
+            <Download className="mr-1 h-3 w-3" />
+            From {recipe.importedFromName}
           </Badge>
         )}
         {totalMinutes > 0 && (

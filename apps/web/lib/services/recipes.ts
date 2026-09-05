@@ -94,6 +94,8 @@ export type RecipeWriteInput = {
   /** Optional collection to file the recipe into; ignored if not this household's. */
   collectionId?: string | null;
   isAiGenerated?: boolean;
+  /** Provenance when the recipe arrived through another household's share link. */
+  importedFrom?: { recipeId: string; name: string } | null;
 };
 
 export type RecipeListFilters = {
@@ -380,6 +382,8 @@ export async function createRecipe(
       householdId: ctx.householdId,
       createdById: ctx.memberId,
       isAiGenerated: input.isAiGenerated ?? false,
+      importedFromRecipeId: input.importedFrom?.recipeId ?? null,
+      importedFromName: input.importedFrom?.name ?? null,
       ...input.fields,
     })
     .returning({ id: recipes.id });

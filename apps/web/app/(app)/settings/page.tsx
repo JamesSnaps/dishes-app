@@ -12,6 +12,7 @@ import { BackfillThumbnailsButton } from "./_components/backfill-thumbnails-butt
 import { BackfillMealTypesButton } from "./_components/backfill-meal-types-button";
 import { PushNotificationManager } from "@/components/push-notification-manager";
 import { AssistHistorySection } from "./_components/assist-history-section";
+import { ReplayTourButton } from "./_components/replay-tour-button";
 import { getAssistHistoryStats } from "@/app/actions/assist-history";
 
 export const metadata = { title: "Settings" };
@@ -110,6 +111,7 @@ export default async function SettingsPage() {
             </div>
             <span className="text-muted-foreground">›</span>
           </Link>
+          <ReplayTourButton />
         </div>
       </section>
 

@@ -170,6 +170,10 @@ export function ShareRecipeSheet({ recipeId, recipeTitle, hasSmtp }: Props) {
             <Link className="h-4 w-4 mr-2" />
             {copied === "new" ? "Link copied!" : "Create & copy link"}
           </Button>
+          <p className="-mt-4 text-xs text-muted-foreground">
+            Anyone with the link can read the recipe, and anyone with a Dishes
+            login can save their own copy of it. Revoke a link to stop both.
+          </p>
 
           {/* Email */}
           {hasSmtp && (

@@ -34,11 +34,22 @@ export function AddMemberForm() {
 
   return (
     <form ref={formRef} action={handleSubmit} className="rounded-lg border bg-card p-4">
-      <h3 className="mb-3 font-semibold">Add household member</h3>
+      <h3 className="mb-1 font-semibold">Add household member</h3>
+      <p className="mb-3 text-sm leading-relaxed text-muted-foreground">
+        This creates a profile in your household — it does not create a login.
+        Sign-in accounts live in Authelia and only your server administrator can
+        create them. A profile with no matching Authelia account still works for
+        meal planning and taste preferences; the person just can&apos;t sign in
+        until the administrator adds that exact username.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-muted-foreground">Authelia username</label>
           <Input name="autheliaUser" placeholder="jane.doe" disabled={isPending} required />
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Must match their Authelia username exactly. A typo means they get an
+            empty household of their own instead of joining yours.
+          </p>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-muted-foreground">Display name</label>

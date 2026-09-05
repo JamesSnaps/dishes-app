@@ -23,6 +23,8 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Household model** — multi-member households with role-based permissions (admin / adult / child); all data is household-scoped
 - **Pantry** — staples list (always-available ingredients excluded from shopping lists) and current stock tracking, automatically updated when cooking is completed or a shopping list is archived. The pantry page has search, a multi-column layout on wide screens, quick-add forms at the top of each section, inline editing of stock items, multi-select bulk delete with per-section select-all (clear a whole section — or the whole pantry — in a couple of taps), and A–Z / recently-added sorting for stock. The sidebar shows a live stock-count badge
 - **Recipe sharing** — public share links with a magazine-style page: split hero with large photography, sticky ingredients card, step-by-step method cards with timer chips, per-serving nutrition, and Open Graph metadata so links unfurl with the dish photo in chat apps
+- **Add to my Dishes** — a share link doubles as an import. Anyone with a Dishes login can save their own editable copy of a shared recipe (ingredients, steps, sections, tags, nutrition and a duplicated photo) into their own household, badged "From <household>" and linked back to the original. Re-opening the same link reuses the copy instead of stacking duplicates, and revoking the link stops both reading and importing
+- **Welcome wizard** — first-run tour for a new member: what the app does, then optional steps to add an OpenAI key (admins only, skipped when the household already has one) and install the PWA to the home screen, with iOS-specific instructions where the browser offers no install prompt. Re-runnable any time from Settings
 - **Cook history & ratings** — log every cook with a 0–5 star rating (half-star precision), duration, notes, occasion, and a dish photo; the app learns your actual pace over time. Ratings and notes belong to the individual cook, not the recipe — the headline star rating is the average across entries — and each entry in the History tab can be edited (rating, occasion, notes) or deleted outright to clear duplicates. Rating a recipe from the star row without cooking it is recorded as a "Rating only" entry: it still counts towards the average rating, but not towards how many times you've cooked the dish
 - **Ask AI about a recipe** — one "Ask AI" menu on the recipe page gathers the AI actions: ask a free-form question about the dish (what to serve with it, when to start cooking to eat at a given time, what can be prepped ahead, substitutions), "Tweak for tonight", and "Find similar recipes". Questions are answered against the full ingredient list, method, and your past cooks of that recipe. Answers render as formatted markdown (headings, lists, bold), and each conversation is saved per recipe — reopen a past question to reread the answer or carry it on, delete one, or clear the whole recipe's history. Settings → AI conversation history shows how many conversations are stored and lets an admin purge them in bulk — everything, or only those older than 7/30/90/365 days, across recipe questions, cooking-mode questions, or both
 - **Taste profiling** — builds a per-household preference model from accumulated cook history; scores cuisines, ingredients, and tags by recency-weighted average rating and uses it to personalise AI generation and surface recipe suggestions on the home screen
@@ -405,6 +407,11 @@ access_control:
       policy: one_factor
 ```
 
+Note that only `/share/` is bypassed, not `/import/`. The share page is the
+public, read-only view; `/import/<token>` is the "Add to my Dishes" action and
+must stay behind Authelia so it can resolve (or create) the importer's
+household.
+
 `bypass` means "Authelia does not gate it", not "unauthenticated": every
 `/api/v1` route calls `requireSession()` and returns `401` without a valid
 access token or proxy headers.
@@ -482,6 +489,33 @@ variables explicitly, so a new variable in `.env` also has to be added there.
 | **Admin** | Full access: manage members, recipes, meal plans, shopping, household settings, AI config, integration tokens |
 | **Adult** | Create/edit recipes, use AI, manage shopping lists and meal plans |
 | **Child** | View recipes and meal plans, tick shopping list items, favourite and rate recipes |
+
+---
+
+## Giving Someone Else Their Own Kitchen
+
+Dishes is multi-tenant: a second family can share the instance without seeing
+any of your data. To add one:
+
+1. **Create their Authelia user** and grant it access to the Dishes domain in
+   your access-control rules. There is no in-app sign-up.
+2. **They open the app.** On the first request their household is created
+   automatically (named after their display name) and they become its admin.
+   The welcome wizard runs on that first load.
+3. **They add their own OpenAI key** in Settings → AI, or in the wizard. AI is
+   strictly household-scoped: there is no instance-wide key and no fallback, so
+   their generation is billed to them and invisible to you. Until a key is set,
+   the AI features report that AI is not configured; everything else works.
+
+Their recipes, meal plans, shopping lists and pantry are scoped to their
+household at the query layer, so nothing leaks in either direction.
+
+**Choose their username carefully.** The new household's slug is derived from
+the Authelia username; if that slug already belongs to an existing household,
+the new user is added to *that* household instead of getting their own.
+
+To swap recipes between the two households, share a link from the recipe's
+⋯ menu and have them press **Add to my Dishes** on the page.
 
 ---
 

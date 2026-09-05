@@ -49,6 +49,11 @@ export const recipes = pgTable(
     thumbnailUrl: text("thumbnail_url"),
     sourceUrl: text("source_url"),
     isAiGenerated: boolean("is_ai_generated").notNull().default(false),
+    // Set when this recipe arrived via another household's share link. The
+    // pointer is informational (attribution, future "re-pull the original");
+    // it grants no cross-household read access on its own.
+    importedFromRecipeId: uuid("imported_from_recipe_id"),
+    importedFromName: varchar("imported_from_name", { length: 255 }),
     isFavourite: boolean("is_favourite").notNull().default(false),
     notes: text("notes"),
     // Nutrition — stored per serving. Nullable: not all recipes have data.

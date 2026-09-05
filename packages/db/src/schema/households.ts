@@ -38,6 +38,8 @@ export const householdMembers = pgTable("household_members", {
   dislikes: text("dislikes").array(),
   preferences: text("preferences").array(),
   customNotes: text("custom_notes"),
+  // Null until this member finishes or skips the welcome wizard.
+  onboardingCompletedAt: timestamp("onboarding_completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

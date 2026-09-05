@@ -12,7 +12,9 @@ import {
   Users,
   UtensilsCrossed,
   Wheat,
+  Plus,
 } from "lucide-react";
+import Link from "next/link";
 import { getSharedRecipe } from "@/app/actions/sharing";
 
 interface Props {
@@ -74,6 +76,23 @@ function MetaChip({
         <p className="text-sm font-semibold">{value}</p>
       </div>
     </div>
+  );
+}
+
+/**
+ * The one thing we want a visitor to do. /import/<token> sits behind Authelia,
+ * so a signed-out visitor is sent to log in first and lands back here — and a
+ * first-time user has a household created for them on the way through.
+ */
+function AddToDishesButton({ token, className = "" }: { token: string; className?: string }) {
+  return (
+    <Link
+      href={`/import/${token}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary/80 px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition hover:brightness-110 active:scale-[0.98] ${className}`}
+    >
+      <Plus className="h-4 w-4" />
+      Add to my Dishes
+    </Link>
   );
 }
 
@@ -191,6 +210,13 @@ export default async function SharedRecipePage({ params }: Props) {
               {recipe.calories != null && (
                 <MetaChip icon={Flame} label="Per serving" value={`${recipe.calories} kcal`} />
               )}
+            </div>
+
+            <div className="mt-7">
+              <AddToDishesButton token={token} />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Saves your own editable copy. You&apos;ll be asked to sign in.
+              </p>
             </div>
 
             {macros.length > 0 && (
@@ -312,6 +338,7 @@ export default async function SharedRecipePage({ params }: Props) {
           <p className="text-xs text-muted-foreground">
             The self-hosted family recipe &amp; meal planning app
           </p>
+          <AddToDishesButton token={token} className="mt-4" />
         </div>
       </footer>
     </div>
