@@ -1,8 +1,9 @@
 {
   "name": "@dishes/web",
-  "version": "0.81.4",
+  "version": "0.82.0",
   "private": true,
   "scripts": {
+    "check:share-scope": "tsx scripts/check-share-scope.ts",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

@@ -15,3 +15,4 @@ export * from "./push-subscriptions";
 export * from "./cook-assist-threads";
 export * from "./recipe-assist-threads";
 export * from "./sync";
+export * from "./library-shares";

@@ -183,9 +183,21 @@ async function assertOwned(recipeId: string, householdId: string): Promise<void>
   if (!row) throw new RecipeNotFoundError();
 }
 
-async function insertIngredients(recipeId: string, ingredients: IngredientInput[]) {
+/**
+ * A transaction handle, or the plain connection. Every write helper accepts
+ * one so a caller that needs several inserts to land together — importing a
+ * whole recipe, or a batch of them — can pass a transaction, and a recipe can
+ * never be left half-built by a failure between its rows.
+ */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0] | typeof db;
+
+async function insertIngredients(
+  tx: Tx,
+  recipeId: string,
+  ingredients: IngredientInput[]
+) {
   if (!ingredients.length) return;
-  await db.insert(recipeIngredients).values(
+  await tx.insert(recipeIngredients).values(
     ingredients.map((ing, i) => ({
       recipeId,
       position: i,
@@ -199,9 +211,9 @@ async function insertIngredients(recipeId: string, ingredients: IngredientInput[
   );
 }
 
-async function insertSteps(recipeId: string, steps: StepInput[]) {
+async function insertSteps(tx: Tx, recipeId: string, steps: StepInput[]) {
   if (!steps.length) return;
-  await db.insert(recipeSteps).values(
+  await tx.insert(recipeSteps).values(
     steps.map((step, i) => ({
       recipeId,
       position: i,
@@ -213,10 +225,10 @@ async function insertSteps(recipeId: string, steps: StepInput[]) {
   );
 }
 
-async function insertTags(recipeId: string, tags: string[]) {
+async function insertTags(tx: Tx, recipeId: string, tags: string[]) {
   const clean = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
   if (!clean.length) return;
-  await db.insert(recipeTags).values(clean.map((tag) => ({ recipeId, tag })));
+  await tx.insert(recipeTags).values(clean.map((tag) => ({ recipeId, tag })));
 }
 
 /**
@@ -227,6 +239,7 @@ async function insertTags(recipeId: string, tags: string[]) {
  * paths to revalidate.
  */
 async function linkCollection(
+  tx: Tx,
   recipeId: string,
   householdId: string,
   collectionId: string | null | undefined
@@ -234,14 +247,14 @@ async function linkCollection(
   const id = collectionId?.trim();
   if (!id || !UUID_RE.test(id)) return null;
 
-  const [owned] = await db
+  const [owned] = await tx
     .select({ id: collections.id })
     .from(collections)
     .where(and(eq(collections.id, id), eq(collections.householdId, householdId)))
     .limit(1);
   if (!owned) return null;
 
-  await db
+  await tx
     .insert(recipeCollections)
     .values({ collectionId: id, recipeId })
     .onConflictDoNothing();
@@ -252,16 +265,17 @@ async function linkCollection(
 /** Replace the full child-row set for a recipe (ingredients, steps, tags). */
 async function replaceChildren(
   recipeId: string,
-  input: Pick<RecipeWriteInput, "ingredients" | "steps" | "tags">
+  input: Pick<RecipeWriteInput, "ingredients" | "steps" | "tags">,
+  tx: Tx = db
 ) {
-  await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
-  await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
-  await db.delete(recipeTags).where(eq(recipeTags.recipeId, recipeId));
+  await tx.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
+  await tx.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
+  await tx.delete(recipeTags).where(eq(recipeTags.recipeId, recipeId));
 
   await Promise.all([
-    insertIngredients(recipeId, input.ingredients),
-    insertSteps(recipeId, input.steps),
-    insertTags(recipeId, input.tags),
+    insertIngredients(tx, recipeId, input.ingredients),
+    insertSteps(tx, recipeId, input.steps),
+    insertTags(tx, recipeId, input.tags),
   ]);
 }
 
@@ -370,13 +384,15 @@ export type CreateRecipeResult = { recipeId: string; linkedCollectionId: string 
 
 export async function createRecipe(
   ctx: HouseholdContext,
-  input: RecipeWriteInput
+  input: RecipeWriteInput,
+  /** Pass a transaction when the recipe must land atomically with other writes. */
+  tx: Tx = db
 ): Promise<CreateRecipeResult> {
   if (!input.fields.title?.trim()) {
     throw new RecipeValidationError("Title is required");
   }
 
-  const [recipe] = await db
+  const [recipe] = await tx
     .insert(recipes)
     .values({
       householdId: ctx.householdId,
@@ -391,10 +407,10 @@ export async function createRecipe(
   const recipeId = recipe!.id;
 
   const [, , , linkedCollectionId] = await Promise.all([
-    insertIngredients(recipeId, input.ingredients),
-    insertSteps(recipeId, input.steps),
-    insertTags(recipeId, input.tags),
-    linkCollection(recipeId, ctx.householdId, input.collectionId),
+    insertIngredients(tx, recipeId, input.ingredients),
+    insertSteps(tx, recipeId, input.steps),
+    insertTags(tx, recipeId, input.tags),
+    linkCollection(tx, recipeId, ctx.householdId, input.collectionId),
   ]);
 
   return { recipeId, linkedCollectionId };

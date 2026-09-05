@@ -24,6 +24,14 @@ export type HouseholdContext = Pick<Membership, "householdId" | "memberId">;
 /** For services that attribute an action to a person (push copy, audit text). */
 export type ActorContext = HouseholdContext & Pick<Session, "actorName">;
 
+/**
+ * For services whose write path is role-gated. The check belongs in the
+ * service rather than the action so REST route handlers inherit it too;
+ * HouseholdContext stays role-free so the many services that don't care
+ * aren't made to carry it.
+ */
+export type PrivilegedContext = HouseholdContext & Pick<Membership, "role">;
+
 export async function requireSession(): Promise<Session> {
   const user = await resolveIdentity();
   const membership = await requireHousehold(user);
