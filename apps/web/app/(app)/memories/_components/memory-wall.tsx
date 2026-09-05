@@ -146,9 +146,12 @@ export function MemoryWall({ photos }: Props) {
         <div className="flex shrink-0 items-center gap-2">
           {/* View toggle */}
           <div className="flex items-center rounded-full bg-white/70 dark:bg-zinc-800 p-1 shadow-sm ring-1 ring-black/5 dark:ring-white/10">
+            {/* The stored keys predate the labels: "wall" is the polaroid
+                scatter, "grid" is now the borderless wall. Renaming the keys
+                would reset everyone's saved preference, so they stay. */}
             {([
-              { key: "wall" as const, label: "Photos", smLabel: "Wall", Icon: Images },
-              { key: "grid" as const, label: "Grid", smLabel: "Grid", Icon: LayoutGrid },
+              { key: "wall" as const, label: "Polaroid", smLabel: "Polaroid", Icon: Images },
+              { key: "grid" as const, label: "Wall", smLabel: "Wall", Icon: LayoutGrid },
             ]).map(({ key, label, smLabel, Icon }) => (
               <button
                 key={key}
@@ -270,32 +273,44 @@ export function MemoryWall({ photos }: Props) {
           </div>
           </>
         ) : (
-          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2 lg:grid-cols-5 xl:grid-cols-6">
+          /* Wall — a masonry of photos at their own aspect ratio. Square
+             thumbnails cropped the heart out of a tall plated shot or a wide
+             table scene, so nothing is cropped here: CSS columns let each
+             photo keep its shape and the wall closes up around them. No
+             frames, no rings, no permanent caption — just the pictures, with
+             the details surfacing on hover. */
+          <div className="columns-2 gap-1 sm:columns-3 lg:columns-4 xl:columns-5">
             {items.map(photo => (
-              <button
-                key={photo.id}
-                type="button"
-                onClick={() => setActive(photo)}
-                aria-label={`${photo.recipeName}, ${relDate(photo.cookedAt)}`}
-                className="group relative block min-w-0 overflow-hidden rounded-lg bg-zinc-200 dark:bg-zinc-800 shadow-sm ring-1 ring-black/5 active:scale-95 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo.photoUrl}
-                  alt={photo.recipeName}
-                  className="w-full aspect-square object-cover transition-transform duration-200 group-hover:scale-105"
-                  loading="lazy"
-                />
-                {/* Title band — gradient so text stays readable over any photo */}
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-1.5 pb-1 pt-5">
-                  <div className="truncate text-[11px] font-medium leading-tight text-white">
-                    {photo.recipeName}
+              /* break-inside-avoid lives on a plain wrapper: browsers apply it
+                 unreliably to a button's own box. */
+              <div key={photo.id} className="mb-1 break-inside-avoid">
+                <button
+                  type="button"
+                  onClick={() => setActive(photo)}
+                  aria-label={`${photo.recipeName}, ${relDate(photo.cookedAt)}`}
+                  className="group relative block w-full min-w-0 overflow-hidden bg-zinc-200 dark:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo.photoUrl}
+                    alt={photo.recipeName}
+                    className="block h-auto w-full transition-transform duration-300 group-hover:scale-[1.04]"
+                    loading="lazy"
+                  />
+                  {/* Details on hover only. Touch devices never fire hover, but
+                      a tap opens the lightbox, which shows all of this and more. */}
+                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <div className="truncate font-[family-name:var(--font-caveat)] text-[19px] font-semibold leading-tight text-white">
+                      {photo.recipeName}
+                    </div>
+                    {photo.rating != null && (
+                      <div className="font-[family-name:var(--font-caveat)] text-[16px] leading-tight text-amber-300">
+                        {stars(photo.rating)}
+                      </div>
+                    )}
                   </div>
-                  {photo.rating != null && (
-                    <div className="text-[10px] leading-tight text-amber-300">{stars(photo.rating)}</div>
-                  )}
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}
