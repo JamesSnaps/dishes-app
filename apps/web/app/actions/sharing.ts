@@ -167,7 +167,6 @@ export async function getSharedRecipe(token: string) {
         difficulty: recipes.difficulty,
         imageUrl: recipes.imageUrl,
         thumbnailUrl: recipes.thumbnailUrl,
-        notes: recipes.notes,
         createdAt: recipes.createdAt,
         calories: recipes.calories,
         proteinG: recipes.proteinG,

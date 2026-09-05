@@ -166,7 +166,11 @@ export async function importSharedRecipe(
       difficulty: source.difficulty,
       mealTypes: source.mealTypes,
       sourceUrl: source.sourceUrl,
-      notes: source.notes,
+      // Notes are the owner's private annotations — "halve the chilli", "Dad
+      // hated this". They are not part of the recipe as far as anyone else is
+      // concerned, and the public share page has never displayed them, so they
+      // must not ride along in a copy either.
+      notes: null,
       imageUrl: images.imageUrl,
       thumbnailUrl: images.thumbnailUrl,
       calories: source.calories,
