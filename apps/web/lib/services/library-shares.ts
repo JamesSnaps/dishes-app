@@ -78,6 +78,9 @@ export type OutgoingShare = {
   redeemedAt: Date | null;
   granteeHouseholdName: string | null;
   baseScope: ShareBaseScope;
+  /** The current selection, so the owner's scope editor opens pre-filled. */
+  includeCollectionIds: string[];
+  includeTags: string[];
   excludeTags: string[];
   revokedAt: Date | null;
   revokedBy: "owner" | "grantee" | null;
@@ -318,6 +321,8 @@ export async function listOutgoingLibraryShares(
         redeemedAt: row.redeemedAt,
         granteeHouseholdName: row.granteeHouseholdName,
         baseScope: row.baseScope,
+        includeCollectionIds: scope.includeCollectionIds,
+        includeTags: scope.includeTags,
         excludeTags: row.excludeTags ?? [],
         revokedAt: row.revokedByOwnerAt ?? row.revokedByGranteeAt ?? null,
         revokedBy: row.revokedByOwnerAt

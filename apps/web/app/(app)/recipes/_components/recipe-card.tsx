@@ -24,6 +24,14 @@ type RecipeCardProps = {
   selected?: boolean;
   onToggle?: (id: string) => void;
   backSearch?: string;
+  /**
+   * Someone else's recipe, seen through a shared library. Hides the favourite
+   * button (you can't favourite what you don't own) and skips the recipes-list
+   * scroll bookmark, which belongs to /recipes.
+   */
+  readOnly?: boolean;
+  /** Overrides the default /recipes/<id> destination. */
+  href?: string;
 };
 
 function totalTime(prep: number | null, cook: number | null): string | null {
@@ -53,6 +61,8 @@ export function RecipeCard({
   selected = false,
   onToggle,
   backSearch,
+  readOnly = false,
+  href: hrefOverride,
 }: RecipeCardProps) {
   const time = totalTime(prepTimeMinutes, cookTimeMinutes);
 
@@ -83,7 +93,7 @@ export function RecipeCard({
           )}>
             {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
           </div>
-        ) : (
+        ) : readOnly ? null : (
           <div className="absolute top-2 right-2">
             <FavouriteButton recipeId={id} isFavourite={isFavourite} size="sm" />
           </div>
@@ -162,9 +172,12 @@ export function RecipeCard({
     );
   }
 
-  const href = backSearch ? `/recipes/${id}?back=${encodeURIComponent(backSearch)}` : `/recipes/${id}`;
+  const target =
+    hrefOverride ??
+    (backSearch ? `/recipes/${id}?back=${encodeURIComponent(backSearch)}` : `/recipes/${id}`);
 
   function handleClick() {
+    if (readOnly) return;
     try {
       sessionStorage.setItem(
         "recipes-list-state",
@@ -174,7 +187,7 @@ export function RecipeCard({
   }
 
   return (
-    <Link href={href} className="group block" onClick={handleClick}>
+    <Link href={target} className="group block" onClick={handleClick}>
       {cardContent}
     </Link>
   );

@@ -111,6 +111,16 @@ export default async function SettingsPage() {
             </div>
             <span className="text-muted-foreground">›</span>
           </Link>
+          <Link
+            href="/settings/library-shares"
+            className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 hover:bg-accent transition-colors"
+          >
+            <div>
+              <p className="font-medium">Shared libraries</p>
+              <p className="text-sm text-muted-foreground">Let another household browse and copy from your recipes</p>
+            </div>
+            <span className="text-muted-foreground">›</span>
+          </Link>
           <ReplayTourButton />
         </div>
       </section>

@@ -14,6 +14,7 @@ import {
   HelpCircle,
   Home,
   Images,
+  Library,
   LogOut,
   Moon,
   Package,
@@ -68,6 +69,7 @@ const PERSONAL_NAV: NavItem[] = [
   { href: "/collections", label: "Collections", icon: FolderOpen },
   { href: "/memories", label: "Memories", icon: Images },
   { href: "/notes", label: "My Notes", icon: FileText },
+  { href: "/shared", label: "Shared with me", icon: Library },
 ];
 
 function NavLink({

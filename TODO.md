@@ -130,8 +130,10 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 ## Sharing & Onboarding
 - [x] "Add to my Dishes" — `/import/<token>` deep-copies a shared recipe (ingredients, steps, tags, nutrition, image) into the viewer's own household, with `imported_from_recipe_id` / `imported_from_name` attribution, duplicate detection, and a CTA on the public share page (v0.81.0)
 - [x] Welcome wizard — first-run tour (features → optional OpenAI key → PWA install), tracked per member via `household_members.onboarding_completed_at`, replayable from Settings (v0.81.0)
-- [ ] Optional: let an importer re-pull an updated original via `imported_from_recipe_id` (needs the source token to still be active)
-- [ ] Optional: household-to-household recipe sharing without a link (a directory of "friend households" you can push a recipe to)
+- [x] Shared libraries — household-to-household grants with a scope model (all / collections / tags, plus exclude-tags), one-time invitation codes, read-only browsing, and single or multi-select import into a "From <household>" collection (v0.82.0)
+- [x] Scope drift guard — `pnpm --filter @dishes/web check:share-scope` asserts that what browse shows is exactly what import authorises, across every scope permutation (v0.82.0)
+- [ ] Optional: let an importer re-pull an updated original (needs the source still in scope)
+- [ ] Optional: notify the owner when someone copies from their library
 
 ## Infrastructure / DevX
 - [x] `.env.local` validation on startup (zod, fail fast)

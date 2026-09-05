@@ -24,6 +24,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Pantry** — staples list (always-available ingredients excluded from shopping lists) and current stock tracking, automatically updated when cooking is completed or a shopping list is archived. The pantry page has search, a multi-column layout on wide screens, quick-add forms at the top of each section, inline editing of stock items, multi-select bulk delete with per-section select-all (clear a whole section — or the whole pantry — in a couple of taps), and A–Z / recently-added sorting for stock. The sidebar shows a live stock-count badge
 - **Recipe sharing** — public share links with a magazine-style page: split hero with large photography, sticky ingredients card, step-by-step method cards with timer chips, per-serving nutrition, and Open Graph metadata so links unfurl with the dish photo in chat apps
 - **Memories** (`/memories`) — every photo you've taken while cooking, in two views: a polaroid scatter with hand-placed tilt, and a borderless wall that lays photos out as a masonry at their own aspect ratio, so landscape and portrait shots aren't cropped to squares. The wall shows nothing but the pictures until you hover, when the dish name and rating fade in; tapping any photo opens it with the date, occasion, who you cooked for and your notes
+- **Shared libraries** — open part of your recipe library to another household on the same instance. Scope it to everything, to named collections, or to named tags, and add a list of tags to hide on top of any of those (exclusions always win, even over a shared collection). They accept a one-time invitation link, after which the library appears permanently under **Shared with me**: they browse it read-only, take a copy of a single recipe, or multi-select several and get them filed into a "From <household>" collection. The grant is live — recipes you add later that match the scope simply appear — and either side can end it at any time, leaving already-copied recipes in place. Your meal plans, shopping lists, pantry and private recipe notes are never exposed
 - **Add to my Dishes** — a share link doubles as an import. Anyone with a Dishes login can save their own editable copy of a shared recipe (ingredients, steps, sections, tags, nutrition and a duplicated photo) into their own household, badged "From <household>" and linked back to the original. Re-opening the same link reuses the copy instead of stacking duplicates, and revoking the link stops both reading and importing
 - **Welcome wizard** — first-run tour for a new member: what the app does, then optional steps to add an OpenAI key (admins only, skipped when the household already has one) and install the PWA to the home screen, with iOS-specific instructions where the browser offers no install prompt. Re-runnable any time from Settings
 - **Cook history & ratings** — log every cook with a 0–5 star rating (half-star precision), duration, notes, occasion, and a dish photo; the app learns your actual pace over time. Ratings and notes belong to the individual cook, not the recipe — the headline star rating is the average across entries — and each entry in the History tab can be edited (rating, occasion, notes) or deleted outright to clear duplicates. Rating a recipe from the star row without cooking it is recorded as a "Rating only" entry: it still counts towards the average rating, but not towards how many times you've cooked the dish
@@ -408,10 +409,12 @@ access_control:
       policy: one_factor
 ```
 
-Note that only `/share/` is bypassed, not `/import/`. The share page is the
-public, read-only view; `/import/<token>` is the "Add to my Dishes" action and
-must stay behind Authelia so it can resolve (or create) the importer's
-household.
+Note that only `/share/` is bypassed. `/import/`, `/shared/` and
+`/library-invite/` must **not** be added to that list. The share page is the
+public, read-only view; the other three identify the acting household, so they
+have to go through Authelia — `/import/<token>` resolves (or creates) the
+importer's household, `/shared/` reads another household's recipes under a
+grant, and `/library-invite/` decides who a grant belongs to.
 
 `bypass` means "Authelia does not gate it", not "unauthenticated": every
 `/api/v1` route calls `requireSession()` and returns `401` without a valid
