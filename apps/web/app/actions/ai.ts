@@ -6,7 +6,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { aiConfigurations, recipes, recipeIngredients, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles, collections } from "@dishes/db/schema";
-import { eq, and, count, max, avg, desc, inArray, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, count, max, avg, desc, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import { MEAL_TYPES } from "@dishes/shared";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
@@ -15,6 +15,16 @@ import { uploadFile, isStorageAvailable, keyFromUrl } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import { revalidatePath } from "next/cache";
 import { getStyleSuffix } from "@/lib/image-styles";
+import { createLogger } from "@/lib/logger";
+import { FREQUENT_MIN_USES } from "@/lib/services/recipe-library";
+
+const log = createLogger("ai");
+
+/** How many recipes the meal planner reads out of the library before ranking. */
+const LIBRARY_SCAN_LIMIT = 1000;
+/** Ceiling on how many library recipes fit in one prompt. Below this the model
+ *  sees the entire eligible album; above it, a uniform random sample. */
+const PROMPT_RECIPE_COUNT = 120;
 
 // ── Shared types ───────────────────────────────────────────────────────────────
 
@@ -851,6 +861,10 @@ export async function generateMealPlanConcepts(params: {
   cuisineFilter?: string;
   tagFilter?: string;
   unusedOnly?: boolean;
+  /** Restrict the library to recipes explicitly starred as favourites. */
+  favouritesOnly?: boolean;
+  /** Restrict the library to dishes this household actually cooks regularly. */
+  frequentsOnly?: boolean;
   ratedOnly?: boolean;
   memberIds?: string[];
   maxCaloriesPerMeal?: number;
@@ -858,7 +872,7 @@ export async function generateMealPlanConcepts(params: {
    *  avoid clashing with meals already slotted into that week. */
   weekStartDate?: string;
 }): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
-  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, ratedOnly, memberIds, maxCaloriesPerMeal, weekStartDate } = params;
+  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, favouritesOnly, frequentsOnly, ratedOnly, memberIds, maxCaloriesPerMeal, weekStartDate } = params;
   if (!requestedSlots.length)
     return { error: "Please select at least one slot to plan." };
 
@@ -888,7 +902,12 @@ export async function generateMealPlanConcepts(params: {
 
     const noTagMatches = tagFilter && taggedIds !== null && taggedIds.length === 0;
 
-    const rawLibrary = noTagMatches
+    // The library is assembled from three separate queries on purpose. Joining
+    // meal_plan_entries and cook_history onto recipes in one grouped query
+    // fans out — every plan entry multiplies against every cook-history row —
+    // so count(entries) came back as entries × history rows, and any recipe
+    // both planned and cooked reported a wildly inflated "cooked 24×".
+    const libraryRows = noTagMatches
       ? []
       : await db
           .select({
@@ -900,17 +919,9 @@ export async function generateMealPlanConcepts(params: {
             prepTimeMinutes: recipes.prepTimeMinutes,
             cookTimeMinutes: recipes.cookTimeMinutes,
             mealTypes: recipes.mealTypes,
-            timesPlanned: count(mealPlanEntries.id),
-            lastPlannedDate: max(mealPlans.weekStartDate),
-            avgRating: avg(cookHistory.rating),
+            isFavourite: recipes.isFavourite,
           })
           .from(recipes)
-          .leftJoin(mealPlanEntries, eq(mealPlanEntries.recipeId, recipes.id))
-          // No date bound here on purpose: a recipe already slotted into a
-          // *future* week must still count as recently planned, otherwise
-          // regenerating an upcoming week keeps proposing the same dishes.
-          .leftJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
-          .leftJoin(cookHistory, eq(cookHistory.recipeId, recipes.id))
           .where(
             and(
               eq(recipes.householdId, householdId),
@@ -918,17 +929,81 @@ export async function generateMealPlanConcepts(params: {
               taggedIds && taggedIds.length > 0 ? inArray(recipes.id, taggedIds) : undefined,
             )
           )
-          .groupBy(
-            recipes.id,
-            recipes.title,
-            recipes.cuisine,
-            recipes.difficulty,
-            recipes.calories,
-            recipes.prepTimeMinutes,
-            recipes.cookTimeMinutes,
-            recipes.mealTypes
-          )
-          .limit(200);
+          // Randomised, not just deterministic. The original took an unordered
+          // LIMIT 200, so past that size Postgres returned whichever 200 rows
+          // it liked — in practice the same ones every time, which is exactly
+          // why older recipes never surfaced. Any fixed ordering (newest
+          // first, say) has the same failure on a large enough library, just
+          // aimed at a different slice. Random sampling is size-proof.
+          .orderBy(sql`random()`)
+          .limit(LIBRARY_SCAN_LIMIT);
+
+    const libraryRowIds = libraryRows.map((r) => r.id);
+
+    const [planStatRows, cookStatRows] = libraryRowIds.length
+      ? await Promise.all([
+          db
+            .select({
+              recipeId: mealPlanEntries.recipeId,
+              timesPlanned: count(mealPlanEntries.id),
+              lastPlannedDate: max(mealPlans.weekStartDate),
+            })
+            .from(mealPlanEntries)
+            // No date bound here on purpose: a recipe already slotted into a
+            // *future* week must still count as recently planned, otherwise
+            // regenerating an upcoming week keeps proposing the same dishes.
+            .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
+            .where(
+              and(
+                eq(mealPlans.householdId, householdId),
+                inArray(mealPlanEntries.recipeId, libraryRowIds)
+              )
+            )
+            .groupBy(mealPlanEntries.recipeId),
+          db
+            .select({
+              recipeId: cookHistory.recipeId,
+              avgRating: avg(cookHistory.rating),
+              lastCookedAt: max(cookHistory.cookedAt),
+              // Rating-only rows aren't cooks, so they don't count here.
+              timesCooked: count(sql`case when ${cookHistory.source} = 'cook' then 1 end`),
+            })
+            .from(cookHistory)
+            .where(inArray(cookHistory.recipeId, libraryRowIds))
+            .groupBy(cookHistory.recipeId),
+        ])
+      : [[], []];
+
+    const planStats = new Map(planStatRows.map((r) => [r.recipeId, r]));
+    const cookStats = new Map(cookStatRows.map((r) => [r.recipeId, r]));
+
+    const rawLibrary = libraryRows.map((r) => {
+      const plan = planStats.get(r.id);
+      const cook = cookStats.get(r.id);
+      // A recipe can be cooked without ever being planned. Take the later of
+      // the two as "last used" so logging a cook rests the recipe as well.
+      const cookedDate = cook?.lastCookedAt
+        ? new Date(cook.lastCookedAt).toISOString().split("T")[0]!
+        : null;
+      const plannedDate = plan?.lastPlannedDate ?? null;
+      const lastUsedDate =
+        plannedDate && cookedDate
+          ? plannedDate > cookedDate
+            ? plannedDate
+            : cookedDate
+          : (plannedDate ?? cookedDate);
+      const timesPlanned = plan ? Number(plan.timesPlanned) : 0;
+      const timesCooked = cook ? Number(cook.timesCooked) : 0;
+      return {
+        ...r,
+        timesPlanned,
+        // A recipe can be planned without being cooked, or cooked without ever
+        // being planned. Neither number alone is "how much we use this".
+        timesUsed: Math.max(timesPlanned, timesCooked),
+        lastPlannedDate: lastUsedDate,
+        avgRating: cook?.avgRating ?? null,
+      };
+    });
 
     // Whole weeks since a recipe was last planned. Future plans clamp to 0 so a
     // dish already slotted into an upcoming week counts as "just planned".
@@ -941,62 +1016,106 @@ export async function generateMealPlanConcepts(params: {
       return Math.max(0, weeks);
     }
 
-    // Recipes used in the last 2 weeks are excluded from the selectable library
-    // and passed to the AI as a "do not repeat" list
-    const COOLDOWN_WEEKS = 2;
-    const recentlyCookedTitles: string[] = [];
+    // Recipes used recently are excluded from the selectable library and passed
+    // to the AI as a "do not repeat" list. Three weeks, not two: at two, a dish
+    // cooked exactly a fortnight ago scored weeksAgo === 2 and slipped straight
+    // back into the next plan.
+    const COOLDOWN_WEEKS = 3;
 
-    const filteredLibrary = rawLibrary.filter((r) => {
-      if (unusedOnly && Number(r.timesPlanned) > 0) return false;
-      if (ratedOnly && !r.avgRating) return false;
-      // Exclude library recipes over the per-meal calorie cap (recipes with no
-      // calorie data are kept — we can't tell, so we don't hide them).
-      if (maxCaloriesPerMeal && r.calories != null && r.calories > maxCaloriesPerMeal)
-        return false;
-      const weeksAgo = weeksSincePlanned(r.lastPlannedDate);
-      if (weeksAgo !== null && weeksAgo < COOLDOWN_WEEKS) {
-        recentlyCookedTitles.push(r.title);
-        return false;
-      }
-      return true;
-    });
-
-    // Score: rating is the main quality signal, and time since last planned is a
-    // *bonus* — the longer a recipe has gone unused, the more it deserves a turn.
-    // Frequently-planned dishes are damped so favourites don't crowd out the rest.
-    function scoreRecipe(r: { avgRating: string | null; timesPlanned: number; lastPlannedDate: string | null }): number {
-      const rating = r.avgRating ? parseFloat(r.avgRating) : 3.5;
-      const planned = Math.min(Number(r.timesPlanned), 10);
-      const weeksAgo = weeksSincePlanned(r.lastPlannedDate);
-      // Never tried sits near the top of the neglect curve without beating a
-      // well-loved recipe that has simply been rested for a few months.
-      const neglectBonus = weeksAgo === null ? 34 : Math.min(weeksAgo, 26) * 1.5;
-      const overuseP = planned * 1.5;
-      // Small jitter so consecutive generations don't produce an identical ranking.
-      const jitter = Math.random() * 8;
-      return rating * 12 + neglectBonus - overuseP + jitter;
+    /**
+     * Apply the filters at a given cooldown. Returns the eligible recipes and
+     * the titles held back by recency, which the prompt lists as "do not
+     * suggest these".
+     */
+    function applyFilters(cooldownWeeks: number) {
+      const recentTitles: string[] = [];
+      const eligible = rawLibrary.filter((r) => {
+        if (unusedOnly && r.timesUsed > 0) return false;
+        // The household's own star, not a guess from history.
+        if (favouritesOnly && !r.isFavourite) return false;
+        if (frequentsOnly && r.timesUsed < FREQUENT_MIN_USES) return false;
+        if (ratedOnly && !r.avgRating) return false;
+        // Exclude library recipes over the per-meal calorie cap (recipes with
+        // no calorie data are kept — we can't tell, so we don't hide them).
+        if (maxCaloriesPerMeal && r.calories != null && r.calories > maxCaloriesPerMeal)
+          return false;
+        const weeksAgo = weeksSincePlanned(r.lastPlannedDate);
+        if (weeksAgo !== null && weeksAgo < cooldownWeeks) {
+          recentTitles.push(r.title);
+          return false;
+        }
+        return true;
+      });
+      return { eligible, recentTitles };
     }
 
-    const scored = [...filteredLibrary].sort((a, b) => scoreRecipe(b) - scoreRecipe(a));
-    const topPicks = scored.slice(0, 45);
+    // A three-week cooldown on a small or heavily-filtered library can leave
+    // nothing eligible at all. That used to fail silently: the library block
+    // dropped out of the prompt entirely and the AI invented a whole week of
+    // new recipes while the album sat unused. Relax the cooldown instead, and
+    // only then give up on reuse.
+    let cooldownUsed = COOLDOWN_WEEKS;
+    let { eligible: filteredLibrary, recentTitles: recentlyCookedTitles } =
+      applyFilters(COOLDOWN_WEEKS);
 
-    // Variety bucket: most-neglected recipes from the remainder
-    const varietyPicks = scored
-      .slice(45)
-      .sort((a, b) => (weeksSincePlanned(b.lastPlannedDate) ?? 999) - (weeksSincePlanned(a.lastPlannedDate) ?? 999))
-      .slice(0, 30);
+    if (filteredLibrary.length < requestedSlots.length && rawLibrary.length > 0) {
+      for (const relaxed of [1, 0]) {
+        const retry = applyFilters(relaxed);
+        if (retry.eligible.length > filteredLibrary.length) {
+          filteredLibrary = retry.eligible;
+          recentlyCookedTitles = retry.recentTitles;
+          cooldownUsed = relaxed;
+        }
+        if (filteredLibrary.length >= requestedSlots.length) break;
+      }
+    }
 
-    // Shuffle the combined list before numbering it: presenting recipes in rank
-    // order makes the model gravitate to the first few entries every time. The
-    // per-recipe rating and history text still carries the quality signal.
-    const libraryRecipes = [...topPicks, ...varietyPicks];
+    // Selection is a uniform random sample of everything eligible — no scoring
+    // by rating, cook count or neglect. Every recipe in the album gets an equal
+    // shot. Preference is expressed through the explicit filters (rated only,
+    // not yet tried, cuisine, tag), never inferred from history behind the
+    // household's back.
+    const libraryRecipes = [...filteredLibrary];
     for (let i = libraryRecipes.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [libraryRecipes[i], libraryRecipes[j]] = [libraryRecipes[j]!, libraryRecipes[i]!];
     }
+    // Only trimmed if the eligible set is larger than one prompt can carry.
+    // Because the shuffle came first, the trim is itself unbiased.
+    const trimmedFrom = libraryRecipes.length;
+    libraryRecipes.length = Math.min(libraryRecipes.length, PROMPT_RECIPE_COUNT);
 
-    // Tags and cook notes are fetched only for the ~75 recipes that actually
-    // reach the prompt, not the whole 200-row library scan.
+    // Debug trace of how the library narrowed. Turn on "Debug (verbose)" under
+    // Settings → Developer to see this in the container logs; it answers the
+    // question "how many of my recipes did it actually consider?".
+    log.debug(
+      `meal-plan library: scanned ${libraryRows.length}` +
+        (libraryRows.length === LIBRARY_SCAN_LIMIT
+          ? ` (HIT SCAN LIMIT of ${LIBRARY_SCAN_LIMIT} — some recipes were never read)`
+          : "") +
+        `, ${rawLibrary.length - filteredLibrary.length} filtered out ` +
+        `(${recentlyCookedTitles.length} in ${cooldownUsed}-week cooldown` +
+        (cooldownUsed !== COOLDOWN_WEEKS
+          ? `, RELAXED from ${COOLDOWN_WEEKS} — too few recipes were eligible`
+          : "") +
+        `), ` +
+        `${filteredLibrary.length} eligible, ${libraryRecipes.length} sent to the model ` +
+        (trimmedFrom > libraryRecipes.length
+          ? `(randomly sampled from ${trimmedFrom} — prompt cap ${PROMPT_RECIPE_COUNT}). `
+          : "(the whole eligible album). ") +
+        `Filters: cuisine=${cuisineFilter ?? "any"}, tag=${tagFilter ?? "any"}, ` +
+        `unusedOnly=${!!unusedOnly}, favouritesOnly=${!!favouritesOnly}, frequentsOnly=${!!frequentsOnly}, ratedOnly=${!!ratedOnly}, maxKcal=${maxCaloriesPerMeal ?? "none"}. ` +
+        `Never-tried in prompt: ${libraryRecipes.filter((r) => !r.lastPlannedDate).length}.`
+    );
+    log.debug(
+      "meal-plan library titles:",
+      libraryRecipes
+        .map((r) => `${r.title} (${r.timesPlanned}×, last ${r.lastPlannedDate ?? "never"})`)
+        .join(" | ")
+    );
+
+    // Tags and cook notes are fetched only for the recipes that actually reach
+    // the prompt, not the whole library scan.
     const libraryIds = libraryRecipes.map((r) => r.id);
 
     const [tagRows, noteRows] = libraryIds.length
@@ -1047,7 +1166,7 @@ export async function generateMealPlanConcepts(params: {
     }
 
     const libraryContext = libraryRecipes.length > 0
-      ? `\n\nRECIPE LIBRARY — use "libraryIndex" to reference these (1-based). Each recipe can only appear once per plan. The list is in no particular order: judge each entry on its rating and history, not its position. A "note:" is the household's own feedback from the last time they cooked it — treat it as authoritative and let it steer which slot the recipe suits, or whether to pick it at all.\n` +
+      ? `\n\nRECIPE LIBRARY — use "libraryIndex" to reference these (1-based). Each recipe can only appear once per plan. The list is in random order and every entry is an equally valid choice: do NOT prefer a recipe because it is highly rated or often cooked, and do NOT avoid one because it is unrated or never tried. Pick on fit for the slot alone. A "note:" is the household's own feedback from the last time they cooked it — treat it as authoritative and let it steer which slot the recipe suits, or whether to pick it at all.\n` +
         libraryRecipes
           .map((r, i) => {
             const times = Number(r.timesPlanned);
@@ -1068,11 +1187,11 @@ export async function generateMealPlanConcepts(params: {
           .join("\n") +
         `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe. STRICT RULE: only reuse a library recipe in a slot whose meal type is listed in that recipe's "suits:" field. For recipes marked "suits: untagged" the meal type is unknown — only reuse one in a breakfast/snack/dessert slot if its title makes it unmistakably suitable; when in doubt use 0. If nothing in the library suits the slot, use 0 and suggest a fitting new recipe instead.
 
-VARIETY IS A PRIORITY. Actively spread your picks across the library rather than clustering on the same few favourites: deliberately give "never tried" recipes and ones last cooked months ago a turn, and vary cuisine and main protein across the week. A plan that reuses this household's usual rotation is a poor plan. Aim for at least one never-tried or long-neglected recipe in every plan of three or more slots.`
+VARIETY IS A PRIORITY. Spread your picks right across the list rather than clustering on the entries near the top or on one style of dish, and vary cuisine and main protein across the week. Treat the whole list as fair game.`
       : "";
 
     const recentlyUsedBlock = recentlyCookedTitles.length > 0
-      ? `\n\nRECENTLY COOKED (last ${COOLDOWN_WEEKS} weeks) — do NOT suggest these again this week: ${recentlyCookedTitles.join(", ")}.`
+      ? `\n\nRECENTLY COOKED (last ${cooldownUsed} weeks) — do NOT suggest these again this week: ${recentlyCookedTitles.join(", ")}.`
       : "";
 
     const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];

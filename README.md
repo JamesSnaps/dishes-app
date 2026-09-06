@@ -523,6 +523,43 @@ To swap recipes between the two households, share a link from the recipe's
 
 ---
 
+## Debugging the Meal Planner
+
+By default the planner draws uniformly at random from your entire recipe album —
+ratings and cook counts do not tilt the odds. Narrow it deliberately with the
+**Suggestion style** buttons, which are real library filters:
+
+| Style | What the planner may pick from |
+|---|---|
+| *(none)* | Every recipe in the library, equal chance |
+| From our favourites | Only recipes you have starred as favourites |
+| Our regulars | Only dishes planned or cooked 3+ times |
+| Try something new | Only never-tried recipes, plus fresh AI ideas |
+| Mix it up | Everything, with a nudge towards some new suggestions |
+
+Each button shows how many recipes it can draw from, and expands to preview the
+actual titles — so you can see at a glance whether a style has enough behind it.
+The *Rated only*, cuisine, tag and calorie filters stack on top. Recipes used in
+the last three weeks are held back so last fortnight's dinners don't come
+straight back; if that leaves too few to fill the week, the cooldown relaxes
+automatically and the debug log says so. The one
+automatic exclusion is a three-week recency cooldown so last fortnight's dinners
+don't come straight back.
+
+If the AI meal planner still keeps proposing the same handful of recipes, set
+**Settings → Developer → Server log level** to *Debug (verbose)* and generate a
+plan. The container logs then show exactly what the planner considered:
+
+```bash
+docker logs -f dishes 2>&1 | grep '\[ai\] meal-plan'
+```
+
+You get one summary line — how many recipes were scanned, how many were filtered
+out, how many sat in the recency cooldown, and how many actually reached the
+model — followed by the full list of titles sent, each with its plan count and
+last-used date. Set the level back to *Info* when you're done; the title list is
+long.
+
 ## Roadmap
 
 ### Phase 1 ✓ complete

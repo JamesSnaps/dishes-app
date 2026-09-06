@@ -26,6 +26,7 @@ import {
   Tag,
   Star,
   Shuffle,
+  Repeat,
   Lightbulb,
   BookOpen,
   Target,
@@ -42,6 +43,7 @@ import {
   type MealPlanSlot,
 } from "@/app/actions/ai";
 import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
+import type { StyleBreakdown, LibraryStyle } from "@/lib/services/recipe-library";
 import { useSync } from "@/components/providers/sync-provider";
 import { saveGeneratedRecipe } from "@/app/actions/recipes";
 import type { RecipeFormDefaults } from "../../recipes/_components/recipe-form";
@@ -435,24 +437,53 @@ type PlanMyWeekProps = {
   availableCuisines: string[];
   availableTags: string[];
   members?: Member[];
+  styleBreakdown: StyleBreakdown;
 };
 
-type FrequencyMode = "favourites" | "new" | "mix" | null;
+type FrequencyMode = "favourites" | "regulars" | "new" | "mix" | null;
 
-const FREQUENCY_MODES: { mode: FrequencyMode; label: string; icon: React.ElementType; hint: string; activeClass: string; inactiveClass: string }[] = [
+/**
+ * The suggestion styles are real library filters, not prompt prose. They used
+ * to append a sentence like "prefer recipes we cook often" to the preferences,
+ * which contradicted the system prompt's instruction to treat every library
+ * entry as an equally valid pick — and being in the user message, the prose
+ * tended to win. `hint` now only carries what a filter genuinely cannot say.
+ */
+const FREQUENCY_MODES: {
+  mode: Exclude<FrequencyMode, null>;
+  label: string;
+  icon: React.ElementType;
+  hint: string | null;
+  description: string;
+  activeClass: string;
+  inactiveClass: string;
+}[] = [
   {
     mode: "favourites",
     label: "From our favourites",
     icon: Star,
-    hint: "Prefer recipes from our library that we cook often and already love",
+    hint: null,
+    description: "Only recipes we have starred as favourites",
     activeClass: "border-amber-400 bg-amber-500 text-white",
     inactiveClass: "border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-400 dark:hover:border-amber-700",
+  },
+  {
+    mode: "regulars",
+    label: "Our regulars",
+    icon: Repeat,
+    hint: null,
+    description: "Only dishes we have cooked or planned three or more times",
+    activeClass: "border-rose-400 bg-rose-500 text-white",
+    inactiveClass: "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700",
   },
   {
     mode: "new",
     label: "Try something new",
     icon: Lightbulb,
-    hint: "Prioritise recipes from our library we haven't tried, or suggest fresh ideas we've never cooked",
+    // The filter narrows the library to never-tried recipes; only the appetite
+    // for inventing brand-new dishes needs saying in words.
+    hint: "Lean towards suggesting brand-new recipes we have never cooked, rather than reusing the library, wherever a slot allows it",
+    description: "Only library recipes we have never tried, plus fresh ideas",
     activeClass: "border-violet-400 bg-violet-500 text-white",
     inactiveClass: "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400 dark:hover:border-violet-700",
   },
@@ -460,7 +491,8 @@ const FREQUENCY_MODES: { mode: FrequencyMode; label: string; icon: React.Element
     mode: "mix",
     label: "Mix it up",
     icon: Shuffle,
-    hint: "Balance familiar library favourites with some new suggestions we haven't tried recently",
+    hint: "Balance reused library recipes with a couple of brand-new suggestions",
+    description: "Anything in the library — every recipe gets an equal chance",
     activeClass: "border-emerald-400 bg-emerald-500 text-white",
     inactiveClass: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400 dark:hover:border-emerald-700",
   },
@@ -672,7 +704,7 @@ function SlotGrid({
 
 // ── Plan My Week tab ───────────────────────────────────────────────────────────
 
-function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanMyWeekProps) {
+function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBreakdown }: PlanMyWeekProps) {
   const router = useRouter();
   // The meal plan screen reads from the local store, so a plan written by this
   // server action is invisible there until the engine pulls it. See
@@ -689,7 +721,21 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
   const [frequencyMode, setFrequencyMode] = useState<FrequencyMode>(null);
   const [cuisineFilter, setCuisineFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
-  const [unusedOnly, setUnusedOnly] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const activeStyle = FREQUENCY_MODES.find((f) => f.mode === frequencyMode) ?? null;
+  // "Mix it up" draws on the whole library, so it has no bucket of its own.
+  const breakdownKey: LibraryStyle | null =
+    frequencyMode === "favourites" || frequencyMode === "regulars" || frequencyMode === "new"
+      ? frequencyMode
+      : null;
+  const styleCount = breakdownKey ? styleBreakdown.counts[breakdownKey] : styleBreakdown.total;
+  const previewTitles = breakdownKey ? styleBreakdown.samples[breakdownKey] : [];
+  const previewTruncated = breakdownKey ? styleBreakdown.truncated[breakdownKey] : false;
+
+  // Derived from the suggestion style so the two can never disagree.
+  const unusedOnly = frequencyMode === "new";
+  const favouritesOnly = frequencyMode === "favourites";
+  const frequentsOnly = frequencyMode === "regulars";
   const [ratedOnly, setRatedOnly] = useState(false);
   const [maxCaloriesPerMeal, setMaxCaloriesPerMeal] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -720,7 +766,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
   function buildFullPreferences(): string {
     const parts: string[] = [];
     const freq = FREQUENCY_MODES.find((f) => f.mode === frequencyMode);
-    if (freq) parts.push(freq.hint);
+    if (freq?.hint) parts.push(freq.hint);
     if (preferences.trim()) parts.push(preferences.trim());
     return parts.join(". ");
   }
@@ -728,7 +774,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
   function handleClearLibraryFilters() {
     setCuisineFilter("");
     setTagFilter("");
-    setUnusedOnly(false);
+    setFrequencyMode(null);
     setRatedOnly(false);
     setMaxCaloriesPerMeal("");
   }
@@ -758,6 +804,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
         cuisineFilter: cuisineFilter || undefined,
         tagFilter: tagFilter || undefined,
         unusedOnly: unusedOnly || undefined,
+        favouritesOnly: favouritesOnly || undefined,
+        frequentsOnly: frequentsOnly || undefined,
         ratedOnly: ratedOnly || undefined,
         memberIds: selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : undefined,
         maxCaloriesPerMeal: (() => {
@@ -853,7 +901,11 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
         <div>
           <p className="text-sm font-medium mb-2">Suggestion style</p>
           <div className="flex flex-wrap gap-2">
-            {FREQUENCY_MODES.map(({ mode, label, icon: Icon, activeClass, inactiveClass }) => (
+            {FREQUENCY_MODES.map(({ mode, label, icon: Icon, activeClass, inactiveClass }) => {
+              const bucket =
+                mode === "favourites" || mode === "regulars" || mode === "new" ? mode : null;
+              const available = bucket ? styleBreakdown.counts[bucket] : styleBreakdown.total;
+              return (
               <button
                 key={mode}
                 type="button"
@@ -866,9 +918,62 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
               >
                 <Icon className="h-3.5 w-3.5" />
                 {label}
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none",
+                    frequencyMode === mode ? "bg-white/25" : "bg-black/5 dark:bg-white/10"
+                  )}
+                >
+                  {available}
+                </span>
               </button>
-            ))}
+              );
+            })}
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {activeStyle
+              ? `${activeStyle.description} — ${styleCount} of your ${styleBreakdown.total} recipes.`
+              : `No style chosen — all ${styleBreakdown.total} of your recipes have an equal chance.`}
+          </p>
+          {activeStyle && previewTitles.length > 0 && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setShowPreview((v) => !v)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                {showPreview ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                {showPreview ? "Hide" : "Preview"} the {styleCount} recipe{styleCount === 1 ? "" : "s"} it can pick from
+              </button>
+              {showPreview && (
+                <div className="mt-2 max-h-44 overflow-y-auto rounded-lg border bg-muted/40 p-2.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {previewTitles.map((title) => (
+                      <span
+                        key={title}
+                        className="rounded-full bg-background px-2 py-0.5 text-xs shadow-sm"
+                      >
+                        {title}
+                      </span>
+                    ))}
+                  </div>
+                  {previewTruncated && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      …and {styleCount - previewTitles.length} more.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {activeStyle && styleCount === 0 && (
+            <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+              No recipes match this style yet, so the planner will invent every meal
+              from scratch. {frequencyMode === "favourites"
+                ? "Star a few recipes to build this list up."
+                : "Cook or plan a few more meals and this will fill out."}
+            </p>
+          )}
         </div>
 
         {/* Library filters */}
@@ -895,20 +1000,6 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
                 disabled={isGenerating || isAdding}
               />
             )}
-            <button
-              type="button"
-              onClick={() => setUnusedOnly((v) => !v)}
-              disabled={isGenerating || isAdding}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
-                unusedOnly
-                  ? "border-teal-400 bg-teal-500 text-white"
-                  : "border-teal-200 bg-teal-50 text-teal-700 hover:border-teal-300 dark:border-teal-800 dark:bg-teal-950/50 dark:text-teal-400 dark:hover:border-teal-700"
-              )}
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              Not yet tried
-            </button>
             <button
               type="button"
               onClick={() => setRatedOnly((v) => !v)}
@@ -942,7 +1033,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [] }: PlanM
             />
             <span className="text-xs text-muted-foreground">kcal / serving</span>
           </div>
-          {(cuisineFilter || tagFilter || unusedOnly || ratedOnly || maxCaloriesPerMeal) && (
+          {(cuisineFilter || tagFilter || frequencyMode || ratedOnly || maxCaloriesPerMeal) && (
             <button
               type="button"
               onClick={handleClearLibraryFilters}
@@ -1788,7 +1879,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function ConciergeClient({ availableCuisines, availableTags, members }: PlanMyWeekProps & { members: Member[] }) {
+export function ConciergeClient({ availableCuisines, availableTags, members, styleBreakdown }: PlanMyWeekProps & { members: Member[] }) {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") === "plan" ? "plan" : "recipe";
   const [activeTab, setActiveTab] = useState<"recipe" | "plan">(initialTab);
@@ -1856,7 +1947,7 @@ export function ConciergeClient({ availableCuisines, availableTags, members }: P
         </button>
       </div>
 
-      {activeTab === "recipe" ? <FindRecipeTab members={members} /> : <PlanMyWeekTab availableCuisines={availableCuisines} availableTags={availableTags} members={members} />}
+      {activeTab === "recipe" ? <FindRecipeTab members={members} /> : <PlanMyWeekTab availableCuisines={availableCuisines} availableTags={availableTags} members={members} styleBreakdown={styleBreakdown} />}
     </div>
   );
 }

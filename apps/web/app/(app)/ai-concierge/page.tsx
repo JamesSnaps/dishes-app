@@ -8,6 +8,7 @@ import { getAiConfig } from "@/app/actions/settings";
 import { db } from "@/lib/db";
 import { recipes, recipeTags, householdMembers } from "@dishes/db/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
+import { getStyleBreakdown } from "@/lib/services/recipe-library";
 import { ConciergeClient } from "./_components/concierge-client";
 
 export const metadata = { title: "AI Concierge" };
@@ -15,8 +16,9 @@ export const metadata = { title: "AI Concierge" };
 export default async function AiConciergePage() {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
-  const [aiConfig, cuisineRows, tagRows, memberRows] = await Promise.all([
+  const [aiConfig, styleBreakdown, cuisineRows, tagRows, memberRows] = await Promise.all([
     getAiConfig(householdId),
+    getStyleBreakdown(householdId),
     db
       .selectDistinct({ cuisine: recipes.cuisine })
       .from(recipes)
@@ -57,7 +59,12 @@ export default async function AiConciergePage() {
 
   return (
     <Suspense>
-      <ConciergeClient availableCuisines={availableCuisines} availableTags={availableTags} members={members} />
+      <ConciergeClient
+        availableCuisines={availableCuisines}
+        availableTags={availableTags}
+        members={members}
+        styleBreakdown={styleBreakdown}
+      />
     </Suspense>
   );
 }

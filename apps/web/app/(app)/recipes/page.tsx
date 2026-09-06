@@ -73,7 +73,7 @@ export default async function RecipesPage({ searchParams }: Props) {
     }
   }
 
-  const [allRecipes, cuisineRows, cookStatsRows, tagRows, collectionRows] = await Promise.all([
+  const [allRecipes, totalCountRows, cuisineRows, cookStatsRows, tagRows, collectionRows] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -91,6 +91,12 @@ export default async function RecipesPage({ searchParams }: Props) {
       .from(recipes)
       .where(and(...conditions))
       .orderBy(desc(recipes.createdAt)),
+    // Unfiltered household total, so the header can say "12 of 128" rather than
+    // only ever reporting what the current filters left behind.
+    db
+      .select({ total: count() })
+      .from(recipes)
+      .where(eq(recipes.householdId, householdId)),
     db
       .selectDistinct({ cuisine: recipes.cuisine })
       .from(recipes)
@@ -126,6 +132,9 @@ export default async function RecipesPage({ searchParams }: Props) {
     ])
   );
 
+  const totalRecipes = Number(totalCountRows[0]?.total ?? 0);
+  const isFiltered = allRecipes.length !== totalRecipes;
+
   const cuisines = cuisineRows
     .map((r) => r.cuisine)
     .filter((c): c is string => Boolean(c));
@@ -138,7 +147,16 @@ export default async function RecipesPage({ searchParams }: Props) {
     <div className="p-4 lg:p-8">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Recipes</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Recipes</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {totalRecipes === 0
+              ? "Nothing in the collection yet"
+              : isFiltered
+                ? `${allRecipes.length} of ${totalRecipes} recipes`
+                : `${totalRecipes} ${totalRecipes === 1 ? "recipe" : "recipes"} in your collection`}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <CrumbImportModal />
           <Button asChild size="sm">
