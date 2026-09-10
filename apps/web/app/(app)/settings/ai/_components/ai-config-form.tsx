@@ -32,6 +32,7 @@ const CHAT_MODELS = [
 ];
 
 const IMAGE_MODELS = [
+  { value: "gpt-image-2.5-flare", label: "GPT Image 2.5 Flare" },
   { value: "gpt-image-2", label: "GPT Image 2 (recommended)" },
   { value: "dall-e-3", label: "DALL·E 3" },
   { value: "dall-e-2", label: "DALL·E 2" },

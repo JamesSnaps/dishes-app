@@ -74,48 +74,6 @@ function extractWriteInput(formData: FormData): RecipeWriteInput {
   };
 }
 
-/** Map an AI-generated recipe onto the service's write input. */
-function generatedToWriteInput(
-  recipe: GeneratedRecipe,
-  collectionId?: string | null
-): RecipeWriteInput {
-  return {
-    fields: {
-      title: recipe.title,
-      description: recipe.description || null,
-      cuisine: recipe.cuisine || null,
-      prepTimeMinutes: recipe.prepTimeMinutes,
-      cookTimeMinutes: recipe.cookTimeMinutes,
-      servings: recipe.servings || null,
-      servingsUnit: recipe.servingsUnit || "servings",
-      difficulty: recipe.difficulty || null,
-      mealTypes: recipeService.sanitizeMealTypes(recipe.mealTypes),
-      sourceUrl: null,
-      notes: recipe.notes,
-      imageUrl: null,
-      thumbnailUrl: null,
-      ...recipeService.buildNutrition(recipe.nutrition, "ai"),
-    },
-    ingredients: recipe.ingredients.map((ing) => ({
-      ingredientName: ing.ingredientName,
-      amount: ing.amount,
-      unit: ing.unit,
-      preparation: ing.preparation,
-      isOptional: ing.isOptional,
-      groupLabel: ing.groupLabel,
-    })),
-    steps: recipe.steps.map((s) => ({
-      instruction: s.instruction,
-      durationMinutes: s.durationMinutes,
-      timerLabel: s.timerLabel,
-      groupLabel: s.groupLabel,
-    })),
-    tags: recipe.tags,
-    collectionId: collectionId ?? null,
-    isAiGenerated: true,
-  };
-}
-
 // --- Cache invalidation -----------------------------------------------------
 
 function revalidateCollections(collectionId: string | null) {
@@ -175,7 +133,7 @@ export async function saveGeneratedRecipe(
 
     const { recipeId, linkedCollectionId } = await recipeService.createRecipe(
       session,
-      generatedToWriteInput(recipe, suggestion.collectionId)
+      recipeService.generatedToWriteInput(recipe, suggestion.collectionId)
     );
 
     revalidateCollections(linkedCollectionId);
@@ -202,7 +160,7 @@ export async function saveRecipeAsCopy(
 
     const { recipeId } = await recipeService.createRecipe(
       session,
-      generatedToWriteInput(tweaked)
+      recipeService.generatedToWriteInput(tweaked)
     );
 
     revalidatePath("/recipes");
@@ -222,7 +180,7 @@ export async function applyTweakToRecipe(
     await recipeService.replaceRecipeBody(
       session,
       recipeId,
-      generatedToWriteInput(tweaked)
+      recipeService.generatedToWriteInput(tweaked)
     );
 
     revalidatePath(`/recipes/${recipeId}`);

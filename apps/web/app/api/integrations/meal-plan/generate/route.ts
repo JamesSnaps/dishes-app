@@ -10,26 +10,46 @@ import {
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import OpenAI from "openai";
+import * as recipeService from "@/lib/services/recipes";
+import {
+  buildSystemAddendum,
+  createStructuredRecipe,
+  fullRecipeSystemPrompt,
+  fullRecipeUserPrompt,
+  maxTokensParam,
+} from "@/lib/ai/recipe-generation";
 
 const VALID_MEAL_TYPES = ["breakfast", "lunch", "dinner", "dessert", "snack"] as const;
 type MealType = (typeof VALID_MEAL_TYPES)[number];
 
 async function getOpenAiClient(householdId: string) {
   const [config] = await db
-    .select({ encryptedApiKey: aiConfigurations.encryptedApiKey, model: aiConfigurations.model })
+    .select({
+      encryptedApiKey: aiConfigurations.encryptedApiKey,
+      model: aiConfigurations.model,
+      defaultPrompt: aiConfigurations.defaultPrompt,
+      kitchenEquipment: aiConfigurations.kitchenEquipment,
+      measurementSystem: aiConfigurations.measurementSystem,
+    })
     .from(aiConfigurations)
     .where(eq(aiConfigurations.householdId, householdId))
     .limit(1);
 
   if (!config) throw new Error("AI not configured for this household");
-  return { client: new OpenAI({ apiKey: decrypt(config.encryptedApiKey) }), model: config.model };
+  return {
+    // Native fetch, not the SDK's bundled node-fetch — see lib/ai notes.
+    client: new OpenAI({ apiKey: decrypt(config.encryptedApiKey), fetch: globalThis.fetch }),
+    model: config.model,
+    addendum: buildSystemAddendum(
+      config.defaultPrompt,
+      config.measurementSystem,
+      config.kitchenEquipment
+    ),
+  };
 }
 
-function maxTokensParam(model: string, tokens: number): { max_tokens?: number; max_completion_tokens?: number } {
-  return /^gpt-5/i.test(model)
-    ? { max_completion_tokens: tokens }
-    : { max_tokens: tokens };
-}
+/** How many recipes to write at once, so a full week isn't one burst of calls. */
+const RECIPE_CONCURRENCY = 3;
 
 function mondayOf(date: Date): string {
   const d = new Date(date);
@@ -147,7 +167,7 @@ export const POST = withIntegrationAuth(
 
     // ── Ask AI for N concepts ──────────────────────────────────────────────────
 
-    const { client, model } = await getOpenAiClient(ctx.householdId);
+    const { client, model, addendum } = await getOpenAiClient(ctx.householdId);
 
     const dayLabels = targetDays.map(dayName).join(", ");
     const completion = await client.chat.completions.create({
@@ -185,46 +205,111 @@ Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (egg
 
     // ── Persist recipes + entries ──────────────────────────────────────────────
 
-    const created: { dayOfWeek: number; day: string; mealType: MealType; recipeTitle: string; recipeId: string; calories: number | null }[] = [];
+    type CreatedMeal = {
+      dayOfWeek: number;
+      day: string;
+      mealType: MealType;
+      recipeTitle: string;
+      recipeId: string;
+      calories: number | null;
+      /** False when the full write-up failed and only the concept was saved. */
+      complete: boolean;
+    };
 
-    for (let i = 0; i < targetDays.length; i++) {
-      const dow = targetDays[i]!;
-      const meal = meals[i]!;
+    const created: CreatedMeal[] = [];
 
-      const [recipe] = await db
-        .insert(recipes)
-        .values({
-          householdId: ctx.householdId,
-          title: meal.title,
-          description: meal.description,
-          cuisine: meal.cuisine,
-          difficulty: meal.difficulty,
-          prepTimeMinutes: meal.prepTimeMinutes,
-          cookTimeMinutes: meal.cookTimeMinutes,
-          servings: "4",
-          servingsUnit: "servings",
-          isAiGenerated: true,
-          ...(typeof meal.calories === "number" && Number.isFinite(meal.calories)
-            ? { calories: Math.round(meal.calories), nutritionSource: "ai" as const }
-            : {}),
-        })
-        .returning({ id: recipes.id });
+    // Write each concept up as a complete recipe — ingredients, steps, tags and
+    // nutrition — then link it into the plan. A concept saved on its own is an
+    // empty recipe the family can't cook from, so this second pass is the point
+    // of the endpoint, not a nicety. If one write-up fails the concept is still
+    // saved and flagged `complete: false`, so a single bad response can't cost
+    // the whole week.
+    const generateOne = async (dow: number, meal: (typeof meals)[number]): Promise<CreatedMeal> => {
+      // The concept's estimate, superseded by the full recipe's own nutrition
+      // once that lands — the response should report what was actually stored.
+      let calories =
+        typeof meal.calories === "number" && Number.isFinite(meal.calories)
+          ? Math.round(meal.calories)
+          : null;
+
+      const concept = {
+        title: meal.title,
+        description: meal.description,
+        cuisine: meal.cuisine,
+        difficulty: meal.difficulty,
+        tags: [],
+      };
+
+      let recipeId: string;
+      let complete = true;
+
+      try {
+        const full = await createStructuredRecipe(client, model, [
+          { role: "system", content: fullRecipeSystemPrompt(addendum) },
+          {
+            role: "user",
+            content: fullRecipeUserPrompt(concept, mealType, maxCaloriesPerMeal ?? calories ?? undefined),
+          },
+        ]);
+
+        ({ recipeId } = await recipeService.createRecipe(
+          { householdId: ctx.householdId, memberId: null },
+          recipeService.generatedToWriteInput(full)
+        ));
+
+        const fullCalories = full.nutrition?.calories;
+        if (typeof fullCalories === "number" && Number.isFinite(fullCalories)) {
+          calories = Math.round(fullCalories);
+        }
+      } catch (err) {
+        console.error(
+          `[integrations/meal-plan/generate] could not write "${meal.title}" in full:`,
+          err instanceof Error ? err.message : err
+        );
+        complete = false;
+        const [stub] = await db
+          .insert(recipes)
+          .values({
+            householdId: ctx.householdId,
+            title: meal.title,
+            description: meal.description,
+            cuisine: meal.cuisine,
+            difficulty: meal.difficulty,
+            prepTimeMinutes: meal.prepTimeMinutes,
+            cookTimeMinutes: meal.cookTimeMinutes,
+            servings: "4",
+            servingsUnit: "servings",
+            isAiGenerated: true,
+            ...(calories !== null ? { calories, nutritionSource: "ai" as const } : {}),
+          })
+          .returning({ id: recipes.id });
+        recipeId = stub!.id;
+      }
 
       await db.insert(mealPlanEntries).values({
         mealPlanId: planId,
-        recipeId: recipe!.id,
+        recipeId,
         dayOfWeek: dow,
         mealType,
       });
 
-      created.push({
+      return {
         dayOfWeek: dow,
         day: dayName(dow),
         mealType,
         recipeTitle: meal.title,
-        recipeId: recipe!.id,
-        calories: typeof meal.calories === "number" && Number.isFinite(meal.calories) ? Math.round(meal.calories) : null,
-      });
+        recipeId,
+        calories,
+        complete,
+      };
+    };
+
+    for (let i = 0; i < targetDays.length; i += RECIPE_CONCURRENCY) {
+      const batch = targetDays.slice(i, i + RECIPE_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map((dow, j) => generateOne(dow, meals[i + j]!))
+      );
+      created.push(...results);
     }
 
     return NextResponse.json({ planId, weekStartDate, mealType, meals: created }, { status: 201 });

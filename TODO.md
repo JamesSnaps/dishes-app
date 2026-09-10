@@ -111,6 +111,9 @@ Tracks remaining work for Phase 1. Update this file as tasks are completed or ad
 - [x] Fix: meal-planner paths (`generateShoppingFromWeek`, `addMealEntryToShoppingList`) now apply the same pantry staple/stock exclusions as `generateFromRecipe`, via shared `lib/pantry-exclusions.ts` (v0.48.1)
 - [x] Multi-recipe item sources — `shopping_list_item_recipes` junction table records every recipe that contributed to a merged item; list shows "from X +N more" with the full list on hover (v0.49.0)
 - [x] Fix: "Generate shopping list" on the meal planner re-added meals already on the list, doubling quantities — now only processes entries with no `added_to_shopping_list_at`, and the button disables with "All meals on list" when nothing is pending (v0.48.2)
+- [x] Fix: meal planner slots for brand-new dishes saved as empty recipe stubs (title only, no ingredients or steps) — the full recipe is now generated and saved before the plan is written (v0.87.1)
+- [x] `gpt-image-2.5-flare` added to the image model picker in Settings → AI (v0.87.2)
+- [x] Fix: `POST /api/integrations/meal-plan/generate` had the same empty-stub problem — n8n/Home Assistant plans now write each meal up as a complete recipe (and respect the household's measurement system, default prompt and equipment); response gains `complete` (v0.87.1)
 - [x] Cooking mode "Mark ingredients as used" button — deducts recipe ingredients from stock after cooking
 - [x] Shopping list "Complete & add to pantry" — adds checked items to stock when archiving a list
 

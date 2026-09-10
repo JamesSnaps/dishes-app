@@ -23,6 +23,7 @@ import {
 import { eq, and, inArray, or, ilike, isNotNull, sql, desc, asc } from "drizzle-orm";
 import { MEAL_TYPES } from "@dishes/shared";
 import type { HouseholdContext } from "@/lib/session";
+import type { GeneratedRecipe } from "@/app/actions/ai";
 
 // --- Errors -----------------------------------------------------------------
 
@@ -109,6 +110,54 @@ export type RecipeListFilters = {
   limit?: number;
   offset?: number;
 };
+
+// --- AI mapping -------------------------------------------------------------
+
+/**
+ * Map an AI-generated recipe onto the service's write input. Lives here rather
+ * than in the action layer so the meal planner can persist a fully generated
+ * recipe the same way the concierge does.
+ */
+export function generatedToWriteInput(
+  recipe: GeneratedRecipe,
+  collectionId?: string | null
+): RecipeWriteInput {
+  return {
+    fields: {
+      title: recipe.title,
+      description: recipe.description || null,
+      cuisine: recipe.cuisine || null,
+      prepTimeMinutes: recipe.prepTimeMinutes,
+      cookTimeMinutes: recipe.cookTimeMinutes,
+      servings: recipe.servings || null,
+      servingsUnit: recipe.servingsUnit || "servings",
+      difficulty: recipe.difficulty || null,
+      mealTypes: sanitizeMealTypes(recipe.mealTypes),
+      sourceUrl: null,
+      notes: recipe.notes,
+      imageUrl: null,
+      thumbnailUrl: null,
+      ...buildNutrition(recipe.nutrition, "ai"),
+    },
+    ingredients: recipe.ingredients.map((ing) => ({
+      ingredientName: ing.ingredientName,
+      amount: ing.amount,
+      unit: ing.unit,
+      preparation: ing.preparation,
+      isOptional: ing.isOptional,
+      groupLabel: ing.groupLabel,
+    })),
+    steps: recipe.steps.map((s) => ({
+      instruction: s.instruction,
+      durationMinutes: s.durationMinutes,
+      timerLabel: s.timerLabel,
+      groupLabel: s.groupLabel,
+    })),
+    tags: recipe.tags,
+    collectionId: collectionId ?? null,
+    isAiGenerated: true,
+  };
+}
 
 // --- Helpers ----------------------------------------------------------------
 
@@ -382,8 +431,15 @@ export async function getRecipe(ctx: HouseholdContext, recipeId: string) {
 
 export type CreateRecipeResult = { recipeId: string; linkedCollectionId: string | null };
 
+/**
+ * Author of a recipe write. `memberId: null` is for writes driven by an
+ * integration token, where there is no person behind the request — the recipe
+ * simply has no creator, exactly as before this path existed.
+ */
+export type RecipeAuthorContext = { householdId: string; memberId: string | null };
+
 export async function createRecipe(
-  ctx: HouseholdContext,
+  ctx: RecipeAuthorContext,
   input: RecipeWriteInput,
   /** Pass a transaction when the recipe must land atomically with other writes. */
   tx: Tx = db

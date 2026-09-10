@@ -258,7 +258,9 @@ Adds a single item from a plain-text string. Designed for Siri Shortcuts and voi
 
 ### `POST /api/integrations/meal-plan/generate`
 
-Triggers AI meal plan generation for a given week. Creates stub recipes and adds them to the meal plan. The household must have an AI API key configured in **Settings → AI**.
+Triggers AI meal plan generation for a given week. Each meal is written up as a **complete recipe** — ingredients, steps, tags and per-serving nutrition — saved to the household library and linked into the meal plan. The household must have an AI API key configured in **Settings → AI**.
+
+Because every meal costs a second AI call, a full week takes appreciably longer than a single day — allow for it in n8n/Home Assistant timeouts. Recipes are written three at a time. If one write-up fails, that meal is still saved from its concept alone and returned with `"complete": false`.
 
 **Scope:** `write:meal_plan`
 
@@ -286,6 +288,8 @@ Triggers AI meal plan generation for a given week. Creates stub recipes and adds
 | `overwrite` | boolean | `false` | If `true`, replaces existing entries for the same day+mealType slots. Other meal types on those days are left untouched. |
 | `maxCaloriesPerMeal` | number | — | Optional per-serving calorie cap (kcal). The AI keeps each meal at or below it; the generated recipe stores the AI's per-serving calorie estimate. |
 
+`calories` in the response is the finished recipe's own per-serving estimate, and `complete` is `false` only for a meal whose full write-up failed.
+
 **Day selection examples**
 
 | Goal | Body |
@@ -310,7 +314,8 @@ Triggers AI meal plan generation for a given week. Creates stub recipes and adds
       "mealType": "dinner",
       "recipeTitle": "Chicken Tikka Masala",
       "recipeId": "uuid",
-      "calories": 650
+      "calories": 650,
+      "complete": true
     },
     {
       "dayOfWeek": 2,
@@ -318,7 +323,8 @@ Triggers AI meal plan generation for a given week. Creates stub recipes and adds
       "mealType": "dinner",
       "recipeTitle": "Spaghetti Bolognese",
       "recipeId": "uuid",
-      "calories": 580
+      "calories": 580,
+      "complete": true
     }
   ]
 }

@@ -1,14 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/session";
+import { requireSession, type Session } from "@/lib/session";
 import * as mealPlanService from "@/lib/services/meal-plan";
 import {
   MealPlanEntryNotFoundError,
   MealPlanNotFoundError,
   MealPlanValidationError,
 } from "@/lib/services/meal-plan";
+import { generateFullRecipe } from "./ai";
 import type { MealPlanSlot } from "./ai";
+import * as recipeService from "@/lib/services/recipes";
 import type { MealType } from "@dishes/shared";
 
 /**
@@ -106,6 +108,65 @@ export async function updateMealEntryServings(
   revalidatePath("/meal-plan");
 }
 
+/** How many recipes to write at once. Enough to keep the wait short without
+ *  hammering the AI provider with a whole week of requests in one burst. */
+const NEW_RECIPE_CONCURRENCY = 3;
+
+/**
+ * Turn every "brand-new recipe" slot into a real, complete recipe.
+ *
+ * The meal planner returns invented slots as a concept — title, description,
+ * cuisine, difficulty — with no recipeId. Generate the full recipe and save it,
+ * then hand the planner the resulting id. A slot whose generation fails is left
+ * untouched, so the planner still creates its stub and the week is never lost
+ * over one bad response.
+ */
+async function fillNewSlots(
+  session: Session,
+  slots: MealPlanSlot[],
+  memberIds: string[]
+): Promise<MealPlanSlot[]> {
+  const filled = [...slots];
+  const pending = slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(({ slot }) => !slot.recipeId);
+
+  for (let i = 0; i < pending.length; i += NEW_RECIPE_CONCURRENCY) {
+    const batch = pending.slice(i, i + NEW_RECIPE_CONCURRENCY);
+    await Promise.all(
+      batch.map(async ({ slot, index }) => {
+        try {
+          const { recipe, error } = await generateFullRecipe(
+            {
+              title: slot.title,
+              description: slot.description,
+              cuisine: slot.cuisine,
+              difficulty: slot.difficulty,
+              tags: [],
+            },
+            memberIds,
+            slot.mealType
+          );
+          if (error || !recipe) throw new Error(error ?? "No recipe returned.");
+
+          const { recipeId } = await recipeService.createRecipe(
+            session,
+            recipeService.generatedToWriteInput(recipe)
+          );
+          filled[index] = { ...slot, recipeId };
+        } catch (err) {
+          console.error(
+            `[addAiGeneratedMealPlan] could not write "${slot.title}":`,
+            err instanceof Error ? err.message : err
+          );
+        }
+      })
+    );
+  }
+
+  return filled;
+}
+
 export async function addAiGeneratedMealPlan(
   weekStartDate: string,
   slots: MealPlanSlot[],
@@ -122,10 +183,18 @@ export async function addAiGeneratedMealPlan(
     debug.householdId = session.householdId;
     debug.memberId = session.memberId;
 
+    // Slots the AI invented (no recipeId) are only a title and a one-line
+    // description. Write them out in full before they reach the planner —
+    // otherwise the plan links to an empty recipe with no ingredients or steps.
+    const filledSlots = await fillNewSlots(session, slots, memberIds);
+    debug.recipesGenerated = filledSlots.filter(
+      (s, i) => !slots[i]!.recipeId && s.recipeId
+    ).length;
+
     const { planId, entryCount } = await mealPlanService.addAiGeneratedPlan(
       session,
       weekStartDate,
-      slots,
+      filledSlots,
       memberIds
     );
     debug.planId = planId;

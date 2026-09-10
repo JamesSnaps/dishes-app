@@ -859,6 +859,11 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const canGenerate = selectedSlots.size > 0;
   const weekLabel = weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : "Week after";
   const includedCount = generatedSlots ? generatedSlots.length - rejectedSlots.size : 0;
+  // Slots with no recipeId are invented dishes — each one is written out as a
+  // full recipe when the plan is added, which is the slow part of that step.
+  const newRecipeCount = generatedSlots
+    ? generatedSlots.filter((slot, idx) => !rejectedSlots.has(idx) && !slot.recipeId).length
+    : 0;
 
   return (
     <div className="space-y-5">
@@ -1210,7 +1215,12 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                 size="lg"
               >
                 {isAdding ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />Adding to planner…</>
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {newRecipeCount > 0
+                      ? `Writing ${newRecipeCount} new recipe${newRecipeCount !== 1 ? "s" : ""}…`
+                      : "Adding to planner…"}
+                  </>
                 ) : (
                   <><CalendarDays className="h-4 w-4" />Add {includedCount} meal{includedCount !== 1 ? "s" : ""} to Meal Plan</>
                 )}
