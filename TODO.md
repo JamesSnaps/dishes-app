@@ -2,6 +2,11 @@
 
 Tracks remaining work for Phase 1. Update this file as tasks are completed or added.
 
+**v1.0.0** — every Phase 1 goal is shipped, along with collections, notes,
+nutrition, taste profiles, cook history, shared libraries, the integrations
+API, the offline PWA and the `/api/v1` surface the native app builds on. The
+items still open below are optional extras or Phase 2 / mobile groundwork.
+
 ---
 
 ## Foundation
