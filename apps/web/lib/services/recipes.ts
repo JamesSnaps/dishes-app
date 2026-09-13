@@ -23,7 +23,7 @@ import {
 import { eq, and, inArray, or, ilike, isNotNull, sql, desc, asc } from "drizzle-orm";
 import { MEAL_TYPES } from "@dishes/shared";
 import type { HouseholdContext } from "@/lib/session";
-import type { GeneratedRecipe } from "@/app/actions/ai";
+import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
 // --- Errors -----------------------------------------------------------------
 

@@ -90,9 +90,25 @@ const serwist = new Serwist({
  * etag / last-modified / content-length, and a streamed RSC response from Next
  * carries none of them, so every comparison would come back "same".
  *
- * No refresh loop: the refresh's own fetch revalidates against a cache entry
- * that now matches, which broadcasts nothing.
+ * Loop risk, and why there is a cooldown: the refresh's own fetch comes back
+ * through this same route and is compared again. The original reasoning here —
+ * that it revalidates against a cache entry which now matches, so broadcasts
+ * nothing — only holds when the server render is byte-identical two requests
+ * running. It is not, for any page carrying a relative timestamp, an ordering
+ * that depends on `now()`, or a streamed body whose chunk boundaries move.
+ * Those pages broadcast on every revalidation and drive an endless refresh.
+ *
+ * On iOS that is fatal: Safari throws "Attempt to use history.replaceState()
+ * more than 100 times per 10 seconds" at the router and the page dies with
+ * "Application error: a client-side exception has occurred". So broadcasts are
+ * capped per URL here, and the client applies its own budget on top
+ * (`components/refresh-on-stale-paint.tsx`).
  */
+
+/** Last broadcast per URL, so a non-deterministic page cannot spin. */
+const lastNotifiedAt = new Map<string, number>();
+const NOTIFY_COOLDOWN_MS = 5_000;
+
 const notifyOnChange = {
   async cacheDidUpdate({
     oldResponse,
@@ -110,6 +126,11 @@ const notifyOnChange = {
       newResponse.clone().text(),
     ]);
     if (before === after) return;
+
+    const now = Date.now();
+    const last = lastNotifiedAt.get(request.url) ?? 0;
+    if (now - last < NOTIFY_COOLDOWN_MS) return;
+    lastNotifiedAt.set(request.url, now);
 
     const clients = await self.clients.matchAll({ type: "window" });
     for (const client of clients) {

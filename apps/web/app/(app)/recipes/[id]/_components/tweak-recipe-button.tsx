@@ -11,7 +11,8 @@ import {
   SheetTitle,
   Textarea,
 } from "@dishes/ui";
-import { improveRecipe, type GeneratedRecipe } from "@/app/actions/ai";
+import { improveRecipe } from "@/app/actions/ai";
+import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { saveRecipeAsCopy, applyTweakToRecipe } from "@/app/actions/recipes";
 
 interface Props {

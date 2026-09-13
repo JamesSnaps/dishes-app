@@ -40,7 +40,7 @@ import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/lib/services/cook-history";
 import { getSmtpConfig } from "@/app/actions/sharing";
 import { isStorageAvailable } from "@/lib/storage";
-import type { GeneratedRecipe } from "@/app/actions/ai";
+import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
 export const metadata = { title: "Recipe" };
 

@@ -41,7 +41,8 @@ import {
   SelectValue,
 } from "@dishes/ui";
 import { deleteAllCookAssistThreadsForRecipe } from "@/app/actions/cook-assist-threads";
-import { improveRecipe, generateRecipeImageUrl, type GeneratedRecipe } from "@/app/actions/ai";
+import { improveRecipe, generateRecipeImageUrl } from "@/app/actions/ai";
+import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { IMAGE_STYLES } from "@/lib/image-styles";
 import type { ImageStyleValue } from "@/lib/image-styles";
 import { addPendingImageJob } from "@/components/providers/jobs-provider";
@@ -957,7 +958,13 @@ export function RecipeForm({
       }
       await action(formData);
     } catch (err) {
-      // next/navigation redirect() throws a special error — let Next.js handle it
+      // next/navigation redirect() throws a special error. By the time it lands
+      // here Next has already performed the navigation, so there is nothing left
+      // to hand back to it — and re-throwing made things worse: this runs in a
+      // promise nobody awaits (the form's onSubmit does not await the handler),
+      // so the re-thrown error became an unhandled rejection, reported as a
+      // crash on every single save. Swallow it and leave `isSubmitting` set:
+      // the page is on its way out.
       if (
         err &&
         typeof err === "object" &&
@@ -965,7 +972,7 @@ export function RecipeForm({
         typeof (err as { digest: unknown }).digest === "string" &&
         (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
       ) {
-        throw err;
+        return;
       }
       const message =
         err instanceof Error ? err.message : "Something went wrong. Please try again.";

@@ -6,7 +6,7 @@ import { RecipeForm, type RecipeFormDefaults } from "../_components/recipe-form"
 import type { ImageStyleValue } from "@/lib/image-styles";
 import { AiConcierge } from "../_components/ai-concierge";
 import { PhotoImportModal } from "../_components/photo-import-modal";
-import type { GeneratedRecipe } from "@/app/actions/ai";
+import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
 interface NewRecipeClientProps {
   hasAi: boolean;

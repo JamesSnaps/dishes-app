@@ -10,7 +10,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@dishes/ui";
-import { analyzeRecipePhoto, type GeneratedRecipe } from "@/app/actions/ai";
+import { analyzeRecipePhoto } from "@/app/actions/ai";
+import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

@@ -131,6 +131,23 @@ export default async function SettingsPage() {
           <LogLevelSection current={logLevel} />
           <section className="mb-8">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Diagnostics
+            </h2>
+            <Link
+              href="/settings/diagnostics"
+              className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 hover:bg-accent transition-colors"
+            >
+              <div>
+                <p className="font-medium">Crash reports</p>
+                <p className="text-sm text-muted-foreground">
+                  See what went wrong behind &ldquo;Application error&rdquo; on any device
+                </p>
+              </div>
+              <span className="text-muted-foreground">›</span>
+            </Link>
+          </section>
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Maintenance
             </h2>
             <div className="rounded-lg border bg-card p-4 space-y-4">

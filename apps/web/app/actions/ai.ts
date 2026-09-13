@@ -25,13 +25,10 @@ import {
   NUTRITION_SCHEMA_FRAGMENT,
 } from "@/lib/ai/recipe-generation";
 
-// Re-exported so the many callers that import these from the actions module
-// keep working; the definitions live in `lib/ai/recipe-generation.ts`.
-export type {
-  ConceptCard,
-  GeneratedRecipe,
-  RecipeNutrition,
-} from "@/lib/ai/recipe-generation";
+// NOTE: these types are NOT re-exported from here. A "use server" module may
+// only export async functions, and `export type { ... } from` is rejected by the
+// compiler before the types are erased — which broke every dev build. Callers
+// import them from `@/lib/ai/recipe-generation` directly.
 import type { ConceptCard, GeneratedRecipe, RecipeNutrition } from "@/lib/ai/recipe-generation";
 
 const log = createLogger("ai");

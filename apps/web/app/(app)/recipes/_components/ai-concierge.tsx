@@ -15,13 +15,8 @@ import {
   Badge,
 } from "@dishes/ui";
 
-import {
-  generateConcepts,
-  generateFullRecipe,
-  suggestCollectionForRecipe,
-  type ConceptCard,
-  type GeneratedRecipe,
-} from "@/app/actions/ai";
+import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe } from "@/app/actions/ai";
+import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { saveGeneratedRecipe } from "@/app/actions/recipes";
 import type { RecipeFormDefaults } from "./recipe-form";
 

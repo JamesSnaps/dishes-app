@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@dishes/ui";
-import type { GeneratedRecipe } from "@/app/actions/ai";
+import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { AskRecipeSheet } from "./ask-recipe-sheet";
 import { TweakRecipeButton } from "./tweak-recipe-button";
 import { SimilarRecipesButton } from "./similar-recipes-button";

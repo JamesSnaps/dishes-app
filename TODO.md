@@ -147,6 +147,9 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] `.env.local` validation on startup (zod, fail fast)
 - [x] Error boundary + 404/500 pages
 - [x] `README.md` — local dev setup, Docker deploy instructions
+- [x] Client crash diagnostics — reports persisted to `client_errors` and readable in-app at Settings → Crash reports (v1.1.0)
+- [x] Fix iOS PWA crash — unbounded stale-paint refresh loop tripping Safari's `history.replaceState()` rate limit (v1.1.1)
+- [x] Fix `NEXT_REDIRECT` re-thrown into a floating promise on every recipe save, reported as a crash (v1.1.1)
 
 ---
 

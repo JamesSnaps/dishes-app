@@ -33,15 +33,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { Button, Textarea, cn } from "@dishes/ui";
-import {
-  generateConcepts,
-  generateFullRecipe,
-  suggestCollectionForRecipe,
-  generateMealPlanConcepts,
-  type ConceptCard,
-  type GeneratedRecipe,
-  type MealPlanSlot,
-} from "@/app/actions/ai";
+import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe, generateMealPlanConcepts, type MealPlanSlot } from "@/app/actions/ai";
+import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
 import type { StyleBreakdown, LibraryStyle } from "@/lib/services/recipe-library";
 import { useSync } from "@/components/providers/sync-provider";

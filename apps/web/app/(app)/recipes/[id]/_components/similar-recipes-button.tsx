@@ -4,7 +4,8 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea } from "@dishes/ui";
-import { generateSimilarConcepts, generateFullRecipe, type ConceptCard, type GeneratedRecipe } from "@/app/actions/ai";
+import { generateSimilarConcepts, generateFullRecipe } from "@/app/actions/ai";
+import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
 // ── Tiny helpers (mirrors concierge-client.tsx) ───────────────────────────────
 

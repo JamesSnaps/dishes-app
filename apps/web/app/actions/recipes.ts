@@ -10,7 +10,8 @@ import type {
   RecipeWriteInput,
   StepInput,
 } from "@/lib/services/recipes";
-import { suggestCollectionForRecipe, type GeneratedRecipe } from "./ai";
+import { suggestCollectionForRecipe } from "./ai";
+import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
 /**
  * This module is the web transport for recipe writes: parse FormData, call the
