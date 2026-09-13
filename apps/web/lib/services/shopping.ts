@@ -731,23 +731,33 @@ export async function generateFromRecipe(
     // Non-numeric amounts like "small handful" / "to taste" go into notes
     const textNote = !isNumeric && ing.amount ? ing.amount : null;
 
-    const match = existing.find(
+    // Prefer a row still to be bought, falling back to one already ticked off —
+    // see applyToShoppingList in services/meal-plan.ts for why a ticked row has
+    // to match. An item in the basket already covers the need; re-adding it as
+    // an unbought line is what made a finished shop reappear.
+    const sameLine = existing.filter(
       (e) =>
-        !e.isChecked &&
-        e.ingredientName.toLowerCase().trim() === normalName &&
-        e.unit === ing.unit
+        e.ingredientName.toLowerCase().trim() === normalName && e.unit === ing.unit
     );
+    const openMatch = sameLine.find((e) => !e.isChecked);
+    const match = openMatch ?? sameLine[0];
 
-    if (match && match.amount !== null && scaledAmountStr !== null) {
-      const newAmount = (
-        Math.round(
-          (parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000
-        ) / 1000
-      ).toString();
-      await db
-        .update(shoppingListItems)
-        .set({ amount: newAmount })
-        .where(eq(shoppingListItems.id, match.id));
+    if (match) {
+      // Top up only a row still to be bought, and only when both amounts are
+      // numeric. Note this also covers the amount-less case: "coconut cream"
+      // with no quantity used to fall through to a second identical row.
+      if (openMatch && match.amount !== null && scaledAmountStr !== null) {
+        const newAmount = (
+          Math.round(
+            (parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000
+          ) / 1000
+        ).toString();
+        await db
+          .update(shoppingListItems)
+          .set({ amount: newAmount })
+          .where(eq(shoppingListItems.id, match.id));
+        match.amount = newAmount;
+      }
       await db
         .insert(shoppingListItemRecipes)
         .values({ itemId: match.id, recipeId })
@@ -769,6 +779,16 @@ export async function generateFromRecipe(
         .insert(shoppingListItemRecipes)
         .values({ itemId: inserted!.id, recipeId })
         .onConflictDoNothing();
+      // Visible to the rest of this run, so a recipe naming the same
+      // ingredient twice merges rather than adding it twice.
+      existing.push({
+        id: inserted!.id,
+        ingredientName: ing.ingredientName,
+        amount: scaledAmountStr,
+        unit: ing.unit,
+        position: posCounter - 1,
+        isChecked: false,
+      });
     }
     changed = true;
   }

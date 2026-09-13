@@ -13,7 +13,7 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { db } from "@/lib/db";
 import { aiConfigurations, householdMembers, shoppingLists, shoppingListItems, mealPlans, mealPlanEntries, pantryStock } from "@dishes/db/schema";
-import { and, count, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 
 function getMondayOfWeek(): string {
   const d = new Date();
@@ -50,6 +50,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       .select({ id: shoppingLists.id })
       .from(shoppingLists)
       .where(and(eq(shoppingLists.householdId, householdId), eq(shoppingLists.status, "active")))
+      // Same list getActiveList picks — see services/shopping.ts.
+      .orderBy(asc(shoppingLists.createdAt))
       .limit(1),
     db
       .select({ id: mealPlans.id })

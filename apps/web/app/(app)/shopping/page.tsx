@@ -27,6 +27,9 @@ export default async function ShoppingPage() {
         eq(shoppingLists.status, "active")
       )
     )
+    // Must match getActiveList in services/shopping.ts — an unordered LIMIT 1
+    // can resolve to a different list than the one writes land in.
+    .orderBy(asc(shoppingLists.createdAt))
     .limit(1);
 
   const [items, allRecipes, mostOrdered] = await Promise.all([

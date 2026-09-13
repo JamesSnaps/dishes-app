@@ -5,6 +5,26 @@ import { shoppingDB, type CachedShoppingItem } from "@/lib/shopping-db";
 
 export type ShoppingItem = CachedShoppingItem;
 
+/**
+ * A local change that the server has not confirmed yet.
+ *
+ * Every server snapshot we receive — on mount, and on every resume — is older
+ * than whatever the user just did on this device. Without a record of the
+ * in-flight work, applying a snapshot silently reverts it: tick six things off
+ * in the aisle, switch to the supermarket's own app, switch back, and the
+ * resume handler overwrites all six with the state the server had before they
+ * landed. `inflight` counts requests still in the air, `queued` counts ones
+ * parked in the offline queue; the entry survives until both reach zero, and
+ * until then it is re-applied over anything the server says.
+ */
+type PendingOp = {
+  patch: Partial<ShoppingItem>;
+  deleted: boolean;
+  added: ShoppingItem | null;
+  inflight: number;
+  queued: number;
+};
+
 interface UseShoppingListReturn {
   items: ShoppingItem[];
   toggle: (itemId: string, checked: boolean) => Promise<void>;
@@ -38,35 +58,74 @@ export function useShoppingList(
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const flushingRef = useRef(false);
+  const pendingOpsRef = useRef(new Map<string, PendingOp>());
 
-  useEffect(() => {
-    if (!listId) return;
+  const getOp = useCallback((itemId: string): PendingOp => {
+    const existing = pendingOpsRef.current.get(itemId);
+    if (existing) return existing;
+    const fresh: PendingOp = {
+      patch: {},
+      deleted: false,
+      added: null,
+      inflight: 0,
+      queued: 0,
+    };
+    pendingOpsRef.current.set(itemId, fresh);
+    return fresh;
+  }, []);
 
-    async function hydrate() {
-      if (initialItems.length > 0) {
-        await shoppingDB.items.bulkPut(initialItems);
+  /** Forget an op once nothing about it is outstanding — the server now agrees. */
+  const settleOp = useCallback((itemId: string) => {
+    const op = pendingOpsRef.current.get(itemId);
+    if (op && op.inflight <= 0 && op.queued <= 0) {
+      pendingOpsRef.current.delete(itemId);
+    }
+  }, []);
+
+  /**
+   * Server truth with this device's unconfirmed changes laid back on top.
+   *
+   * Never hand a raw server snapshot to `setItems` — go through here, or local
+   * work is lost the moment the app resumes.
+   */
+  const overlay = useCallback((serverItems: ShoppingItem[]): ShoppingItem[] => {
+    const ops = pendingOpsRef.current;
+    if (ops.size === 0) return serverItems;
+
+    const merged: ShoppingItem[] = [];
+    const seen = new Set<string>();
+
+    for (const item of serverItems) {
+      seen.add(item.id);
+      const op = ops.get(item.id);
+      if (!op) {
+        merged.push(item);
+        continue;
       }
-
-      // Remove items from old lists so IDB doesn't grow unboundedly
-      await shoppingDB.items
-        .filter((i) => i.listId !== listId)
-        .delete();
-
-      const cached = await shoppingDB.items
-        .where("listId")
-        .equals(listId!)
-        .sortBy("position");
-      if (cached.length > 0) {
-        setItems(cached);
-      }
-
-      const count = await shoppingDB.pendingMutations.count();
-      setPendingCount(count);
+      if (op.deleted) continue;
+      merged.push({ ...item, ...op.patch });
     }
 
-    hydrate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listId]);
+    // Items added on this device that the snapshot predates.
+    for (const [id, op] of ops) {
+      if (op.added && !op.deleted && !seen.has(id)) {
+        merged.push({ ...op.added, ...op.patch });
+      }
+    }
+
+    return merged.sort((a, b) => a.position - b.position);
+  }, []);
+
+  /** Apply a server snapshot to both React state and the offline cache. */
+  const applySnapshot = useCallback(
+    async (serverItems: ShoppingItem[], snapshotListId: string) => {
+      const next = overlay(serverItems);
+      await shoppingDB.items.where("listId").equals(snapshotListId).delete();
+      await shoppingDB.items.bulkPut(next);
+      setItems(next);
+    },
+    [overlay]
+  );
 
   const flushPending = useCallback(async () => {
     if (flushingRef.current) return;
@@ -78,6 +137,7 @@ export function useShoppingList(
         .orderBy("createdAt")
         .toArray();
 
+      let drained = true;
       for (const mutation of mutations) {
         try {
           const res = await fetch(mutation.url, {
@@ -90,22 +150,33 @@ export function useShoppingList(
             await shoppingDB.pendingMutations.delete(mutation.id!);
           } else {
             // 5xx or network error — stop and let the next online event retry
+            drained = false;
             break;
           }
         } catch {
           // Network failure — stop flushing
+          drained = false;
           break;
         }
       }
 
+      // The queue is empty, so everything that was parked has reached the
+      // server and the next snapshot will contain it. Requests still in the air
+      // are a different matter — those keep their override until they answer.
+      if (drained) {
+        for (const [id, op] of pendingOpsRef.current) {
+          if (op.queued <= 0) continue;
+          op.queued = 0;
+          settleOp(id);
+        }
+      }
+
       // Re-sync canonical state from server after flushing
-      const res = await fetch("/api/shopping/active");
+      const res = await fetch("/api/shopping/active", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data.listId) {
-          await shoppingDB.items.where("listId").equals(data.listId).delete();
-          await shoppingDB.items.bulkPut(data.items);
-          setItems(data.items);
+          await applySnapshot(data.items as ShoppingItem[], data.listId);
         }
       }
     } finally {
@@ -114,7 +185,46 @@ export function useShoppingList(
       const count = await shoppingDB.pendingMutations.count();
       setPendingCount(count);
     }
-  }, []);
+  }, [applySnapshot, settleOp]);
+
+  useEffect(() => {
+    if (!listId) return;
+
+    async function hydrate() {
+      // Remove items from old lists so IDB doesn't grow unboundedly
+      await shoppingDB.items.filter((i) => i.listId !== listId).delete();
+
+      const count = await shoppingDB.pendingMutations.count();
+      setPendingCount(count);
+
+      if (count > 0) {
+        // Work is still parked in the queue, so the server payload this page
+        // rendered from predates it. The overrides that would have protected
+        // it live in memory and did not survive the reload, so trust the
+        // offline cache instead and let the flush reconcile the two.
+        const cached = await shoppingDB.items
+          .where("listId")
+          .equals(listId!)
+          .sortBy("position");
+        if (cached.length > 0) setItems(cached);
+        if (navigator.onLine) flushPending();
+        return;
+      }
+
+      if (initialItems.length > 0) {
+        await applySnapshot(initialItems, listId!);
+      } else {
+        const cached = await shoppingDB.items
+          .where("listId")
+          .equals(listId!)
+          .sortBy("position");
+        if (cached.length > 0) setItems(cached);
+      }
+    }
+
+    hydrate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listId]);
 
   useEffect(() => {
     window.addEventListener("online", flushPending);
@@ -151,28 +261,33 @@ export function useShoppingList(
     }
   }
 
-  const toggle = useCallback(
-    async (itemId: string, checked: boolean) => {
-      setItems((prev) =>
-        prev.map((i) => (i.id === itemId ? { ...i, isChecked: checked } : i))
-      );
-      await shoppingDB.items.update(itemId, { isChecked: checked });
-
-      const url = `/api/shopping/items/${itemId}/toggle`;
-      const body = JSON.stringify({ checked });
-
+  /**
+   * Send a mutation, parking it in the offline queue if it doesn't get through.
+   * The caller has already recorded the local override; this only settles it.
+   */
+  const send = useCallback(
+    async (
+      itemId: string,
+      op: PendingOp,
+      req: { url: string; method: string; body: string }
+    ) => {
+      op.inflight++;
       try {
-        const res = await fetch(url, {
-          method: "POST",
+        const res = await fetch(req.url, {
+          method: req.method,
           headers: { "Content-Type": "application/json" },
-          body,
+          ...(req.body ? { body: req.body } : {}),
         });
-        if (!res.ok) throw new Error("toggle failed");
+        if (!res.ok) throw new Error(`${req.method} ${req.url} failed`);
+        op.inflight--;
+        settleOp(itemId);
       } catch {
+        op.inflight--;
+        op.queued++;
         await shoppingDB.pendingMutations.add({
-          url,
-          method: "POST",
-          body,
+          url: req.url,
+          method: req.method,
+          body: req.body,
           createdAt: Date.now(),
         });
         const count = await shoppingDB.pendingMutations.count();
@@ -180,7 +295,26 @@ export function useShoppingList(
         registerSync();
       }
     },
-    []
+    [settleOp]
+  );
+
+  const toggle = useCallback(
+    async (itemId: string, checked: boolean) => {
+      const op = getOp(itemId);
+      op.patch.isChecked = checked;
+
+      setItems((prev) =>
+        prev.map((i) => (i.id === itemId ? { ...i, isChecked: checked } : i))
+      );
+      await shoppingDB.items.update(itemId, { isChecked: checked });
+
+      await send(itemId, op, {
+        url: `/api/shopping/items/${itemId}/toggle`,
+        method: "POST",
+        body: JSON.stringify({ checked }),
+      });
+    },
+    [getOp, send]
   );
 
   const update = useCallback(
@@ -197,57 +331,39 @@ export function useShoppingList(
         data.ingredientName !== undefined ? data.ingredientName.trim() : undefined;
       const patch = { ...data, ...(trimmedName !== undefined ? { ingredientName: trimmedName } : {}) };
 
+      const op = getOp(itemId);
+      Object.assign(op.patch, patch);
+
       setItems((prev) =>
         prev.map((i) => (i.id === itemId ? { ...i, ...patch } : i))
       );
       await shoppingDB.items.update(itemId, patch);
 
-      const url = `/api/shopping/items/${itemId}`;
-      const body = JSON.stringify(patch);
-
-      try {
-        const res = await fetch(url, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body,
-        });
-        if (!res.ok) throw new Error("update failed");
-      } catch {
-        await shoppingDB.pendingMutations.add({
-          url,
-          method: "PATCH",
-          body,
-          createdAt: Date.now(),
-        });
-        const count = await shoppingDB.pendingMutations.count();
-        setPendingCount(count);
-        registerSync();
-      }
+      await send(itemId, op, {
+        url: `/api/shopping/items/${itemId}`,
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
     },
-    []
+    [getOp, send]
   );
 
-  const remove = useCallback(async (itemId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== itemId));
-    await shoppingDB.items.delete(itemId);
+  const remove = useCallback(
+    async (itemId: string) => {
+      const op = getOp(itemId);
+      op.deleted = true;
 
-    const url = `/api/shopping/items/${itemId}`;
+      setItems((prev) => prev.filter((i) => i.id !== itemId));
+      await shoppingDB.items.delete(itemId);
 
-    try {
-      const res = await fetch(url, { method: "DELETE" });
-      if (!res.ok) throw new Error("delete failed");
-    } catch {
-      await shoppingDB.pendingMutations.add({
-        url,
+      await send(itemId, op, {
+        url: `/api/shopping/items/${itemId}`,
         method: "DELETE",
         body: "",
-        createdAt: Date.now(),
       });
-      const count = await shoppingDB.pendingMutations.count();
-      setPendingCount(count);
-      registerSync();
-    }
-  }, []);
+    },
+    [getOp, send]
+  );
 
   const add = useCallback(
     async (data: {
@@ -273,36 +389,30 @@ export function useShoppingList(
         recipeTitle: null,
       };
 
+      const op = getOp(id);
+      op.added = newItem;
+
       setItems((prev) => [...prev, newItem]);
       await shoppingDB.items.put(newItem);
 
-      const url = "/api/shopping/items";
-      const body = JSON.stringify({ id, listId, ...data, position: maxPos + 1 });
-
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-        });
-        if (!res.ok) throw new Error("add failed");
-      } catch {
-        await shoppingDB.pendingMutations.add({
-          url,
-          method: "POST",
-          body,
-          createdAt: Date.now(),
-        });
-        const count = await shoppingDB.pendingMutations.count();
-        setPendingCount(count);
-        registerSync();
-      }
+      await send(id, op, {
+        url: "/api/shopping/items",
+        method: "POST",
+        body: JSON.stringify({ id, listId, ...data, position: maxPos + 1 }),
+      });
     },
-    [listId, items]
+    [listId, items, getOp, send]
   );
 
   const clearCheckedLocal = useCallback(() => {
-    setItems((prev) => prev.filter((i) => !i.isChecked));
+    setItems((prev) => {
+      // Mark them deleted locally too, so a resume snapshot taken before the
+      // server action commits doesn't bring them straight back.
+      for (const item of prev) {
+        if (item.isChecked) getOp(item.id).deleted = true;
+      }
+      return prev.filter((i) => !i.isChecked);
+    });
     if (listId) {
       shoppingDB.items
         .where("listId")
@@ -310,7 +420,7 @@ export function useShoppingList(
         .filter((i) => i.isChecked)
         .delete();
     }
-  }, [listId]);
+  }, [listId, getOp]);
 
   return {
     items,

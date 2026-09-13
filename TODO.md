@@ -152,6 +152,9 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Fix `NEXT_REDIRECT` re-thrown into a floating promise on every recipe save, reported as a crash (v1.1.1)
 - [x] Add ingredients to the shopping list from cooking mode's checklist (v1.2.0)
 - [x] Cook-mode shopping adds top up existing rows and flag what's already listed, instead of duplicating (v1.2.0)
+- [x] Fix ticked-off shopping items reverting on resume — server snapshots overwrote unconfirmed local changes on every `visibilitychange`/`focus` (v1.2.1)
+- [x] Fix a finished shop reappearing when a meal is added — ticked and amount-less rows were excluded from merge matching and re-added as new lines (v1.2.1)
+- [x] Resolve the active shopping list deterministically everywhere — five queries used `LIMIT 1` with no `ORDER BY` (v1.2.1)
 
 ---
 

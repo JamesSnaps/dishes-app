@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withIntegrationAuth } from "@/lib/integration-auth";
 import { db } from "@/lib/db";
 import { shoppingLists, shoppingListItems } from "@dishes/db/schema";
-import { eq, and, max } from "drizzle-orm";
+import { eq, and, asc, max } from "drizzle-orm";
 
 async function getOrCreateActiveList(householdId: string) {
   const [existing] = await db
@@ -11,6 +11,8 @@ async function getOrCreateActiveList(householdId: string) {
     .where(
       and(eq(shoppingLists.householdId, householdId), eq(shoppingLists.status, "active"))
     )
+    // Same list getActiveList picks — see services/shopping.ts.
+    .orderBy(asc(shoppingLists.createdAt))
     .limit(1);
 
   if (existing) return existing;

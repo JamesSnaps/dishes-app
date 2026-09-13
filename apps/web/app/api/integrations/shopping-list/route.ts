@@ -17,6 +17,8 @@ export const GET = withIntegrationAuth(
           eq(shoppingLists.status, "active")
         )
       )
+      // Same list getActiveList picks — see services/shopping.ts.
+      .orderBy(asc(shoppingLists.createdAt))
       .limit(1);
 
     if (!list) {

@@ -503,25 +503,37 @@ async function applyToShoppingList(
     const scaledAmountStr =
       ing.amount !== null ? (Math.round(ing.amount * 1000) / 1000).toString() : null;
 
-    const match = existingItems.find(
-      (e) =>
-        !e.isChecked &&
-        e.ingredientName.toLowerCase().trim() === normalName &&
-        e.unit === ing.unit
-    );
-
     const sourceRows = ing.recipeIds.map((recipeId) => ({ recipeId }));
 
-    if (match && match.amount !== null && scaledAmountStr !== null) {
-      const newAmount = (
-        Math.round(
-          (parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000
-        ) / 1000
-      ).toString();
-      await db
-        .update(shoppingListItems)
-        .set({ amount: newAmount })
-        .where(eq(shoppingListItems.id, match.id));
+    // Prefer a row still to be bought, but fall back to one already ticked off.
+    // Excluding ticked rows from matching is what put a whole completed shop
+    // back on the list: tick off the week's ingredients, add one more meal, and
+    // every ingredient it shares with that shop returns as a fresh unbought
+    // line. Something in the basket already satisfies the need.
+    const sameLine = existingItems.filter(
+      (e) =>
+        e.ingredientName.toLowerCase().trim() === normalName && e.unit === ing.unit
+    );
+    const openMatch = sameLine.find((e) => !e.isChecked);
+    const match = openMatch ?? sameLine[0];
+
+    if (match) {
+      // Only a row still to be bought gets topped up, and only when both sides
+      // are numeric — a ticked row is in the basket, so raising its quantity
+      // would be a number nobody acts on. Either way it is already on the list,
+      // which is the part that matters; record the extra source and move on.
+      if (openMatch && match.amount !== null && scaledAmountStr !== null) {
+        const newAmount = (
+          Math.round(
+            (parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000
+          ) / 1000
+        ).toString();
+        await db
+          .update(shoppingListItems)
+          .set({ amount: newAmount })
+          .where(eq(shoppingListItems.id, match.id));
+        match.amount = newAmount;
+      }
       await db
         .insert(shoppingListItemRecipes)
         .values(sourceRows.map((r) => ({ ...r, itemId: match.id })))
@@ -544,6 +556,16 @@ async function applyToShoppingList(
         .insert(shoppingListItemRecipes)
         .values(sourceRows.map((r) => ({ ...r, itemId: inserted!.id })))
         .onConflictDoNothing();
+      // Visible to the rest of this batch, so a recipe naming the same
+      // ingredient twice merges instead of adding it twice.
+      existingItems.push({
+        id: inserted!.id,
+        ingredientName: ing.ingredientName,
+        amount: scaledAmountStr,
+        unit: ing.unit,
+        position: posCounter - 1,
+        isChecked: false,
+      });
       result.added++;
     }
   }
