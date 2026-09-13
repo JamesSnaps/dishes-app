@@ -8,6 +8,7 @@ import { CookingMode } from "./_components/cooking-mode";
 import { getAverageDuration } from "@/lib/services/cook-history";
 import { getCookAssistThreads } from "@/app/actions/cook-assist-threads";
 import { isStorageAvailable } from "@/lib/storage";
+import { getActiveListItemNames } from "@/lib/services/shopping";
 
 export const metadata = { title: "Cooking Mode" };
 
@@ -21,9 +22,10 @@ export default async function CookPage({ params, searchParams }: Props) {
   const { servings: servingsParam } = await searchParams;
   const initialServings = servingsParam ? parseFloat(servingsParam) : undefined;
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const { householdId, memberId } = await requireHousehold(user);
 
-  const [recipe, ingredients, steps, members, avgDuration, assistThreads] = await Promise.all([
+  const [recipe, ingredients, steps, members, avgDuration, assistThreads, onShoppingList] =
+    await Promise.all([
     db
       .select()
       .from(recipes)
@@ -47,6 +49,9 @@ export default async function CookPage({ params, searchParams }: Props) {
       .orderBy(householdMembers.displayName),
     getAverageDuration(householdId, id),
     getCookAssistThreads(id),
+    // So the checklist can show what the meal plan already put on the list,
+    // before you tap rather than after.
+    getActiveListItemNames({ householdId, memberId }),
   ]);
 
   if (!recipe) notFound();
@@ -61,6 +66,7 @@ export default async function CookPage({ params, searchParams }: Props) {
       storageAvailable={isStorageAvailable()}
       initialServings={initialServings}
       initialAssistThreads={assistThreads}
+      onShoppingList={onShoppingList}
     />
   );
 }

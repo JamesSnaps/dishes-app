@@ -64,6 +64,39 @@ export async function addItem(formData: FormData) {
   revalidatePath("/shopping");
 }
 
+/**
+ * Add a single ingredient to the household's active shopping list from cooking
+ * mode, topping up an existing row rather than duplicating it.
+ *
+ * Separate from `addItem` because cooking mode needs a result to react to: it
+ * adds one row straight from the ingredient checklist and shows a toast, rather
+ * than submitting a form and re-rendering a page. `ensureActiveList` in the
+ * service means there is no list to pick or create first — you notice you are
+ * out of something mid-cook, tap once, and carry on.
+ */
+export async function addIngredientToShoppingList(input: {
+  ingredientName: string;
+  amount?: string | null;
+  unit?: string | null;
+}): Promise<
+  { ok: true; outcome: "added" | "topped-up" } | { ok: false; error: string }
+> {
+  const session = await requireSession();
+
+  let result: Awaited<ReturnType<typeof shoppingService.addOrTopUpItem>>;
+  try {
+    result = await shoppingService.addOrTopUpItem(session, input);
+  } catch (err) {
+    if (err instanceof ShoppingValidationError) {
+      return { ok: false, error: err.message };
+    }
+    throw err;
+  }
+
+  revalidatePath("/shopping");
+  return { ok: true, outcome: result.outcome };
+}
+
 export async function toggleItem(itemId: string, checked: boolean) {
   const session = await requireSession();
 

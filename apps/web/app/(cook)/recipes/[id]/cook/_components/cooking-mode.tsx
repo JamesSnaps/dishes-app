@@ -23,6 +23,7 @@ import {
   Send,
   Loader2,
   Trash2,
+  ShoppingCart,
 } from "lucide-react";
 import { Button } from "@dishes/ui";
 import {
@@ -33,6 +34,8 @@ import {
 } from "@/components/providers/cook-session-provider";
 import { CookDebrief } from "./cook-debrief";
 import { scaleAmount } from "@/lib/scale-ingredient";
+import { addIngredientToShoppingList } from "@/app/actions/shopping";
+import { toast } from "@/hooks/use-toast";
 import type { recipes, recipeIngredients, recipeSteps } from "@dishes/db/schema";
 
 type Recipe = typeof recipes.$inferSelect;
@@ -50,6 +53,8 @@ interface Props {
   storageAvailable?: boolean;
   initialServings?: number;
   initialAssistThreads?: Array<{ id: string; stepNumber: number; messages: Array<{ role: "user" | "assistant"; content: string }> }>;
+  /** Lowercased names already on the active shopping list and not ticked off. */
+  onShoppingList?: string[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -861,7 +866,7 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration, storageAvailable, initialServings, initialAssistThreads }: Props) {
+export function CookingMode({ recipe, ingredients, steps, householdMembers = [], avgDuration, storageAvailable, initialServings, initialAssistThreads, onShoppingList = [] }: Props) {
   const router = useRouter();
   const [isComplete, setIsComplete] = useState(false);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
@@ -896,6 +901,69 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   const checkedIngredients = useMemo(
     () => new Set(active?.checkedIngredientIds ?? []),
     [active]
+  );
+
+  // Ingredients sent to the shopping list from this checklist. Local to the
+  // screen on purpose: it is feedback on a tap, not cook state worth persisting
+  // — you are noting what to re-buy, not tracking the cook.
+  const [addedToList, setAddedToList] = useState<Set<string>>(new Set());
+  const [addingToList, setAddingToList] = useState<string | null>(null);
+
+  // Ingredients the list already covers when the cook starts — almost always
+  // the whole recipe if the meal was planned. Shown distinctly from the ones
+  // added during this cook: "already covered" is information, "just added" is
+  // confirmation of something you did.
+  const alreadyOnList = useMemo(() => {
+    const names = new Set(onShoppingList);
+    return new Set(
+      ingredients
+        .filter((ing) => names.has(ing.ingredientName.toLowerCase().trim()))
+        .map((ing) => ing.id)
+    );
+  }, [ingredients, onShoppingList]);
+
+  const handleAddToShoppingList = useCallback(
+    async (ing: Ingredient, scaleFactor: number) => {
+      if (addedToList.has(ing.id) || addingToList === ing.id) return;
+      setAddingToList(ing.id);
+      try {
+        // The scaled amount, not the recipe's: what you actually need is what
+        // this cook is using, which is the number on screen next to it.
+        const result = await addIngredientToShoppingList({
+          ingredientName: ing.ingredientName,
+          amount: ing.amount ? scaleAmount(ing.amount, scaleFactor) : null,
+          unit: ing.unit,
+        });
+        if (result.ok) {
+          setAddedToList((prev) => new Set(prev).add(ing.id));
+          toast({
+            title:
+              result.outcome === "topped-up"
+                ? "Topped up on the shopping list"
+                : "Added to shopping list",
+            description:
+              result.outcome === "topped-up"
+                ? `${ing.ingredientName} was already on the list — amount increased`
+                : ing.ingredientName,
+          });
+        } else {
+          toast({
+            title: "Couldn't add to shopping list",
+            description: result.error ?? "Please try again.",
+            variant: "destructive",
+          });
+        }
+      } catch {
+        toast({
+          title: "Couldn't add to shopping list",
+          description: "Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setAddingToList(null);
+      }
+    },
+    [addedToList, addingToList]
   );
 
   // Claim the session for this recipe once storage has been read. Same recipe →
@@ -1479,6 +1547,55 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     {isActive && !isChecked && (
                       <span className="ml-auto shrink-0 mt-0.5 h-1.5 w-1.5 rounded-full bg-orange-500" />
                     )}
+                    {/* Ran out mid-cook? One tap puts it on the shopping list.
+                        `ml-auto` only when the active dot isn't already holding
+                        the right edge, so the row layout doesn't jump. */}
+                    {(() => {
+                      const justAdded = addedToList.has(ing.id);
+                      const onList = justAdded || alreadyOnList.has(ing.id);
+                      // Still tappable when it was already on the list: needing
+                      // more of something you already listed is a real case, and
+                      // the server tops the amount up rather than duplicating.
+                      // Only the in-flight request and this cook's own adds lock
+                      // the button, so a double-tap cannot double-count.
+                      return (
+                        <button
+                          onClick={() => handleAddToShoppingList(ing, scale)}
+                          disabled={justAdded || addingToList === ing.id}
+                          title={
+                            justAdded
+                              ? "Added to your shopping list"
+                              : onList
+                              ? "Already on your shopping list — tap to add more"
+                              : "Add to shopping list"
+                          }
+                          className={`${isActive && !isChecked ? "ml-2" : "ml-auto"} shrink-0 mt-0.5 rounded-md p-1.5 transition-colors ${
+                            justAdded
+                              ? "text-green-500"
+                              : onList
+                              ? "text-blue-500/70 hover:bg-muted hover:text-blue-500"
+                              : "text-muted-foreground/40 hover:bg-muted hover:text-foreground active:bg-muted"
+                          }`}
+                          aria-label={
+                            justAdded
+                              ? `${ing.ingredientName} added to shopping list`
+                              : onList
+                              ? `${ing.ingredientName} is already on the shopping list. Add more`
+                              : `Add ${ing.ingredientName} to shopping list`
+                          }
+                        >
+                          {addingToList === ing.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : justAdded ? (
+                            <CheckCircle2 className="h-4 w-4 fill-green-500/20" />
+                          ) : (
+                            <ShoppingCart
+                              className={`h-4 w-4 ${onList ? "fill-blue-500/15" : ""}`}
+                            />
+                          )}
+                        </button>
+                      );
+                    })()}
                   </li>
                 );
               })}

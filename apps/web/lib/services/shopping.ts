@@ -320,6 +320,121 @@ export type AddItemInput = {
   position?: number;
 };
 
+/**
+ * Add one ingredient to the active list, topping up a row that is already there
+ * rather than adding a second one.
+ *
+ * Same matching rule `generateFromRecipe` uses — normalised name plus unit, and
+ * only against rows not yet ticked off — so the two entry points agree about
+ * what counts as "the same thing". Without this, adding from cooking mode
+ * duplicated whatever the meal plan had already put on the list, which is the
+ * common case rather than the rare one: if you planned the meal, every
+ * ingredient is already there.
+ *
+ * A ticked row is deliberately not matched. It means you already bought that,
+ * and needing it again is a new thing to buy, not a correction to the old line.
+ *
+ * Pantry staples are NOT skipped here, unlike list generation. Tapping the
+ * button is an explicit "I have run out of this" — the same intent as
+ * generateFromRecipe's forceInclude — so honouring it is the point.
+ */
+/**
+ * Names already on the active list and not yet ticked off, lowercased.
+ *
+ * Read-only companion to `addOrTopUpItem`, so cooking mode can show what is
+ * already covered before you tap rather than only after. Matching on name alone
+ * (not name + unit, as the write path does) is deliberate: this drives a hint,
+ * and "flour is on the list" is the useful thing to know even if the unit
+ * differs. Returns an empty array when the household has no active list.
+ */
+export async function getActiveListItemNames(
+  ctx: HouseholdContext
+): Promise<string[]> {
+  const list = await getActiveList(ctx);
+  if (!list) return [];
+
+  const rows = await db
+    .select({
+      ingredientName: shoppingListItems.ingredientName,
+      isChecked: shoppingListItems.isChecked,
+    })
+    .from(shoppingListItems)
+    .where(eq(shoppingListItems.listId, list.id));
+
+  return rows
+    .filter((r) => !r.isChecked)
+    .map((r) => r.ingredientName.toLowerCase().trim());
+}
+
+export async function addOrTopUpItem(
+  ctx: ActorContext,
+  input: { ingredientName: string; amount?: string | null; unit?: string | null }
+): Promise<{ outcome: "added" | "topped-up"; ingredientName: string }> {
+  const ingredientName = input.ingredientName?.trim();
+  if (!ingredientName) {
+    throw new ShoppingValidationError("ingredientName required");
+  }
+
+  const list = await ensureActiveList(ctx);
+  const unit = input.unit?.trim() || null;
+  const normalName = ingredientName.toLowerCase();
+
+  const existing = await db
+    .select({
+      id: shoppingListItems.id,
+      ingredientName: shoppingListItems.ingredientName,
+      amount: shoppingListItems.amount,
+      unit: shoppingListItems.unit,
+      position: shoppingListItems.position,
+      isChecked: shoppingListItems.isChecked,
+    })
+    .from(shoppingListItems)
+    .where(eq(shoppingListItems.listId, list.id));
+
+  const match = existing.find(
+    (e) =>
+      !e.isChecked &&
+      e.ingredientName.toLowerCase().trim() === normalName &&
+      e.unit === unit
+  );
+
+  const rawNum = input.amount != null ? parseFloat(input.amount) : NaN;
+  const isNumeric = !isNaN(rawNum);
+  const amountStr = isNumeric ? rawNum.toString() : null;
+  // Non-numeric amounts ("a splash", "to taste") are not addable — they go in
+  // notes, exactly as list generation treats them.
+  const textNote = !isNumeric && input.amount ? input.amount : null;
+
+  if (match) {
+    // Only sum when both sides are numeric. "2 onions" + "a few onions" has no
+    // meaningful total, so leave the existing amount alone rather than inventing
+    // one; the row is on the list either way, which is what matters.
+    if (match.amount !== null && amountStr !== null) {
+      const newAmount = (
+        Math.round((parseFloat(match.amount) + parseFloat(amountStr)) * 1000) / 1000
+      ).toString();
+      await db
+        .update(shoppingListItems)
+        .set({ amount: newAmount })
+        .where(eq(shoppingListItems.id, match.id));
+    }
+    return { outcome: "topped-up", ingredientName: match.ingredientName };
+  }
+
+  const maxPos = existing.length ? Math.max(...existing.map((i) => i.position)) : -1;
+
+  await db.insert(shoppingListItems).values({
+    listId: list.id,
+    ingredientName,
+    amount: amountStr,
+    unit,
+    notes: textNote,
+    position: maxPos + 1,
+  });
+
+  return { outcome: "added", ingredientName };
+}
+
 export async function addItem(ctx: ActorContext, input: AddItemInput) {
   const ingredientName = input.ingredientName?.trim();
   if (!ingredientName) {
