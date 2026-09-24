@@ -9,6 +9,8 @@
  * be reasoned about, and reused by the native app later.
  */
 
+import { isHeartHealthy } from "./heart-healthy";
+
 export type FilterableRecipe = {
   id: string;
   title: string;
@@ -18,6 +20,9 @@ export type FilterableRecipe = {
   cookTimeMinutes: number | null;
   isFavourite: boolean;
   tags?: string[];
+  ingredientNames?: string[];
+  saturatedFatG?: number | string | null;
+  fiberG?: number | string | null;
   averageRating: number | null;
   cookCount: number;
   createdAt?: string | null;
@@ -27,6 +32,7 @@ export type RecipeFilters = {
   q?: string;
   cuisine?: string;
   favourites?: string;
+  heart?: string;
   difficulty?: string;
   maxTime?: string;
   tags?: string;
@@ -36,7 +42,7 @@ export type RecipeFilters = {
 const DIFFICULTIES = ["easy", "medium", "hard"];
 
 export function hasActiveFilters(f: RecipeFilters): boolean {
-  return Boolean(f.q || f.cuisine || f.favourites || f.difficulty || f.maxTime || f.tags);
+  return Boolean(f.q || f.cuisine || f.favourites || f.heart || f.difficulty || f.maxTime || f.tags);
 }
 
 export function filterRecipes<T extends FilterableRecipe>(
@@ -45,13 +51,14 @@ export function filterRecipes<T extends FilterableRecipe>(
 ): T[] {
   let out = recipes;
 
-  // Matches the SQL: title ILIKE, OR any tag ILIKE.
+  // Matches the SQL: title ILIKE, OR any tag ILIKE, OR any ingredient name ILIKE.
   const q = f.q?.trim().toLowerCase();
   if (q) {
     out = out.filter(
       (r) =>
         r.title.toLowerCase().includes(q) ||
-        (r.tags ?? []).some((t) => t.toLowerCase().includes(q))
+        (r.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
+        (r.ingredientNames ?? []).some((i) => i.toLowerCase().includes(q))
     );
   }
 
@@ -59,6 +66,8 @@ export function filterRecipes<T extends FilterableRecipe>(
   if (cuisine) out = out.filter((r) => r.cuisine === cuisine);
 
   if (f.favourites === "1") out = out.filter((r) => r.isFavourite);
+
+  if (f.heart === "1") out = out.filter(isHeartHealthy);
 
   const difficulty = f.difficulty?.trim();
   if (difficulty && DIFFICULTIES.includes(difficulty)) {

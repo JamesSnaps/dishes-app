@@ -6,6 +6,7 @@ import {
   filterAndSortRecipes,
   type FilterableRecipe,
 } from "@/lib/recipe-filtering";
+import { isHeartHealthy } from "@/lib/heart-healthy";
 import { RecipesGrid } from "./recipes-grid";
 
 /**
@@ -27,6 +28,7 @@ type GridRecipe = FilterableRecipe & {
   imageUrl: string | null;
   thumbnailUrl: string | null;
   isAiGenerated: boolean;
+  heartHealthy?: boolean;
 };
 
 type SyncedRecipe = Record<string, unknown> & { id: string };
@@ -80,11 +82,22 @@ function toGridRecipes(recipes: SyncedRecipe[], cooks: SyncedCook[]): GridRecipe
       prepTimeMinutes: (r.prepTimeMinutes as number | null) ?? null,
       cookTimeMinutes: (r.cookTimeMinutes as number | null) ?? null,
       calories: (r.calories as number | null) ?? null,
+      saturatedFatG: (r.saturatedFatG as string | number | null) ?? null,
+      fiberG: (r.fiberG as string | number | null) ?? null,
+      heartHealthy: isHeartHealthy({
+        saturatedFatG: r.saturatedFatG as string | number | null,
+        fiberG: r.fiberG as string | number | null,
+      }),
       imageUrl: (r.imageUrl as string | null) ?? null,
       thumbnailUrl: (r.thumbnailUrl as string | null) ?? null,
       isFavourite: r.isFavourite === true,
       isAiGenerated: r.isAiGenerated === true,
       tags: Array.isArray(r.tags) ? (r.tags as string[]) : [],
+      ingredientNames: Array.isArray(r.ingredients)
+        ? (r.ingredients as { ingredientName?: unknown }[])
+            .map((i) => i?.ingredientName)
+            .filter((n): n is string => typeof n === "string")
+        : [],
       createdAt:
         typeof r.createdAt === "string"
           ? r.createdAt
@@ -117,6 +130,7 @@ export function RecipesLocalGrid({
         q: params.get("q") ?? undefined,
         cuisine: params.get("cuisine") ?? undefined,
         favourites: params.get("favourites") ?? undefined,
+        heart: params.get("heart") ?? undefined,
         difficulty: params.get("difficulty") ?? undefined,
         maxTime: params.get("maxTime") ?? undefined,
         tags: params.get("tags") ?? undefined,

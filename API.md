@@ -477,7 +477,8 @@ Distinct from the Integrations API's flat `{ "error": "…" }`:
 
 Lists the household's recipes.
 
-Query parameters (all optional): `q`, `cuisine`, `favourites` (`0`/`1`),
+Query parameters (all optional): `q` (matches title, tags or ingredient names), `cuisine`, `favourites` (`0`/`1`),
+`heartHealthy` (`0`/`1` — at most 4 g saturated fat and at least 3 g fibre per serving),
 `difficulty` (`easy`/`medium`/`hard`), `maxTime` (minutes, prep + cook),
 `tags` (comma-separated), `sort` (`recent` default, `title`, `time`),
 `limit` (default 100, max 500), `offset`.
@@ -513,6 +514,9 @@ steps and tags.
   "collectionId": null
 }
 ```
+
+`nutrition` is per serving and accepts `calories`, `proteinG`, `carbsG`, `fatG`,
+`saturatedFatG`, `fiberG`, `sugarG` and `sodiumMg` — all optional.
 
 Only `title` is required. `mealTypes` entries that aren't valid meal types are
 dropped. `collectionId` is ignored unless it names one of this household's

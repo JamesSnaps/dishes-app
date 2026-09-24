@@ -103,6 +103,7 @@ export type SharedRecipeDetail = SharedRecipeSummary & {
   proteinG: string | null;
   carbsG: string | null;
   fatG: string | null;
+  saturatedFatG: string | null;
   sourceUrl: string | null;
   ingredients: {
     id: string;
@@ -145,6 +146,7 @@ export async function getSharedRecipeDetail(
       proteinG: recipes.proteinG,
       carbsG: recipes.carbsG,
       fatG: recipes.fatG,
+      saturatedFatG: recipes.saturatedFatG,
       sourceUrl: recipes.sourceUrl,
     })
     .from(recipes)

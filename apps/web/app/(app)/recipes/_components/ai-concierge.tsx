@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2, AlertCircle, Target, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, Target, Check, ChevronDown, ChevronUp, HeartPulse } from "lucide-react";
 import { cn } from "@dishes/ui";
 import {
   Button,
@@ -50,6 +50,7 @@ function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
     proteinG: r.nutrition?.proteinG == null ? null : String(r.nutrition.proteinG),
     carbsG: r.nutrition?.carbsG == null ? null : String(r.nutrition.carbsG),
     fatG: r.nutrition?.fatG == null ? null : String(r.nutrition.fatG),
+    saturatedFatG: r.nutrition?.saturatedFatG == null ? null : String(r.nutrition.saturatedFatG),
     fiberG: r.nutrition?.fiberG == null ? null : String(r.nutrition.fiberG),
     sugarG: r.nutrition?.sugarG == null ? null : String(r.nutrition.sugarG),
     sodiumMg: r.nutrition?.sodiumMg == null ? null : String(r.nutrition.sodiumMg),
@@ -215,6 +216,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   const [promptText, setPromptText] = useState("");
   const [mealType, setMealType] = useState<string>("");
   const [targetCalories, setTargetCalories] = useState<string>("");
+  const [heartHealthy, setHeartHealthy] = useState(false);
   const [concepts, setConcepts] = useState<ConceptCard[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
@@ -238,6 +240,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
     setPromptText("");
     setMealType("");
     setTargetCalories("");
+    setHeartHealthy(false);
     setConcepts([]);
     setSelected(new Set());
     setBatchItems([]);
@@ -253,7 +256,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   function handleGenerateConcepts() {
     setError(null);
     startTransition(async () => {
-      const result = await generateConcepts(promptText, undefined, mealType || undefined, parsedTargetCalories);
+      const result = await generateConcepts(promptText, undefined, mealType || undefined, parsedTargetCalories, { heartHealthy });
       if (result.error) {
         setError(result.error);
         return;
@@ -277,7 +280,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       difficulty: "medium",
     };
     startTransition(async () => {
-      const result = await generateFullRecipe(directConcept, undefined, mealType || undefined, parsedTargetCalories);
+      const result = await generateFullRecipe(directConcept, undefined, mealType || undefined, parsedTargetCalories, { heartHealthy });
       if (result.error) {
         setError(result.error);
         setStep("prompt");
@@ -306,7 +309,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       setError(null);
       setStep("generating");
       startTransition(async () => {
-        const result = await generateFullRecipe(chosenConcepts[0]!, undefined, mealType || undefined, parsedTargetCalories);
+        const result = await generateFullRecipe(chosenConcepts[0]!, undefined, mealType || undefined, parsedTargetCalories, { heartHealthy });
         if (result.error) {
           setError(result.error);
           setStep("concepts");
@@ -334,7 +337,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
             updated[i]!.concept,
             undefined,
             mealType || undefined,
-            parsedTargetCalories
+            parsedTargetCalories,
+            { heartHealthy }
           );
           if (genResult.error) {
             updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
@@ -461,6 +465,22 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                     <span className="text-xs text-muted-foreground">kcal</span>
                   </div>
                 </div>
+
+                {/* Heart-healthy */}
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => setHeartHealthy((v) => !v)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all disabled:pointer-events-none",
+                    heartHealthy
+                      ? "border-rose-400 bg-rose-500 text-white"
+                      : "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700"
+                  )}
+                >
+                  <HeartPulse className="h-3.5 w-3.5" />
+                  Heart-healthy
+                </button>
 
                 <Textarea
                   value={promptText}

@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import { useRef, useState, useCallback } from "react";
-import { Heart, Search, SlidersHorizontal, X } from "lucide-react";
+import { Heart, HeartPulse, Search, SlidersHorizontal, X } from "lucide-react";
 import { Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@dishes/ui";
 
 const SORT_OPTIONS = [
@@ -94,6 +94,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const q = params.get("q") ?? "";
   const cuisine = params.get("cuisine") ?? "";
   const favourites = params.get("favourites") ?? "";
+  const heart = params.get("heart") ?? "";
   const difficulty = params.get("difficulty") ?? "";
   const maxTime = params.get("maxTime") ?? "";
   const activeTags = (params.get("tags") ?? "").split(",").filter(Boolean);
@@ -120,6 +121,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const [tagSearch, setTagSearch] = useState("");
   const [pendingCuisine, setPendingCuisine] = useState(cuisine);
   const [pendingFavourites, setPendingFavourites] = useState(favourites === "1");
+  const [pendingHeart, setPendingHeart] = useState(heart === "1");
   const [pendingDifficulty, setPendingDifficulty] = useState(difficulty);
   const [pendingMaxTime, setPendingMaxTime] = useState(maxTime);
   const [pendingTags, setPendingTags] = useState<string[]>(activeTags);
@@ -137,6 +139,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   function openSheet() {
     setPendingCuisine(cuisine);
     setPendingFavourites(favourites === "1");
+    setPendingHeart(heart === "1");
     setPendingDifficulty(difficulty);
     setPendingMaxTime(maxTime);
     setPendingTags(activeTags);
@@ -151,6 +154,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     if (currentQ) next.set("q", currentQ);
     if (pendingCuisine) next.set("cuisine", pendingCuisine);
     if (pendingFavourites) next.set("favourites", "1");
+    if (pendingHeart) next.set("heart", "1");
     if (pendingDifficulty) next.set("difficulty", pendingDifficulty);
     if (pendingMaxTime) next.set("maxTime", pendingMaxTime);
     if (pendingTags.length > 0) next.set("tags", pendingTags.join(","));
@@ -162,6 +166,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   function clearPending() {
     setPendingCuisine("");
     setPendingFavourites(false);
+    setPendingHeart(false);
     setPendingDifficulty("");
     setPendingMaxTime("");
     setPendingTags([]);
@@ -186,6 +191,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const activeFilterCount =
     (cuisine ? 1 : 0) +
     (favourites === "1" ? 1 : 0) +
+    (heart === "1" ? 1 : 0) +
     (difficulty ? 1 : 0) +
     (maxTime ? 1 : 0) +
     activeTags.length +
@@ -194,12 +200,13 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const pendingFilterCount =
     (pendingCuisine ? 1 : 0) +
     (pendingFavourites ? 1 : 0) +
+    (pendingHeart ? 1 : 0) +
     (pendingDifficulty ? 1 : 0) +
     (pendingMaxTime ? 1 : 0) +
     pendingTags.length +
     (pendingSort !== "newest" ? 1 : 0);
 
-  const hasActiveFilters = !!(q || cuisine || favourites || difficulty || maxTime || activeTags.length || sort !== "newest");
+  const hasActiveFilters = !!(q || cuisine || favourites || heart || difficulty || maxTime || activeTags.length || sort !== "newest");
 
   // Sheet tag list: selected tags first, then the rest, narrowed by the search box
   const normalizedTagSearch = tagSearch.trim().toLowerCase();
@@ -217,7 +224,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
           <Input
             ref={searchRef}
             defaultValue={q}
-            placeholder="Search recipes…"
+            placeholder="Search recipes or ingredients…"
             className="pl-9 bg-muted border-0 focus-visible:ring-1"
             onChange={(e) => handleSearchChange(e.target.value)}
             onKeyDown={(e) => {
@@ -299,6 +306,25 @@ export function RecipeFilters({ cuisines, tags }: Props) {
                     />
                   </div>
                 </label>
+                <label className="mt-2 flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3">
+                  <span className="flex items-center gap-2 text-sm">
+                    <HeartPulse className="h-4 w-4 text-rose-500" />
+                    Heart-healthy only
+                  </span>
+                  <div
+                    onClick={() => setPendingHeart((v) => !v)}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${pendingHeart ? "bg-rose-500" : "bg-muted"}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        pendingHeart ? "translate-x-5" : "translate-x-0.5"
+                      }`}
+                    />
+                  </div>
+                </label>
+                <p className="mt-1.5 px-1 text-xs text-muted-foreground">
+                  Low saturated fat and good fibre per serving. Recipes without nutrition data won&rsquo;t show.
+                </p>
               </div>
 
               {/* Difficulty */}
@@ -456,6 +482,20 @@ export function RecipeFilters({ cuisines, tags }: Props) {
           Favourites
         </button>
 
+        {/* Heart-healthy toggle */}
+        <button
+          onClick={() => push({ heart: heart === "1" ? "" : "1" })}
+          title="Low saturated fat and good fibre per serving"
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors mr-3 ${
+            heart === "1"
+              ? "bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-sm"
+              : "bg-muted text-muted-foreground hover:bg-muted/70"
+          }`}
+        >
+          <HeartPulse className="h-3 w-3" />
+          Heart-healthy
+        </button>
+
         <div className="h-4 w-px bg-border mx-2" />
 
         {/* Difficulty */}
@@ -578,6 +618,16 @@ export function RecipeFilters({ cuisines, tags }: Props) {
               className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
             >
               {cuisine}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {heart === "1" && (
+            <button
+              onClick={() => push({ heart: "" })}
+              className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400"
+            >
+              <HeartPulse className="h-3 w-3" />
+              Heart-healthy
               <X className="h-3 w-3" />
             </button>
           )}

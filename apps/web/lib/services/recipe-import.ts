@@ -223,6 +223,7 @@ function buildWriteInput(
       proteinG: source.proteinG,
       carbsG: source.carbsG,
       fatG: source.fatG,
+      saturatedFatG: source.saturatedFatG,
       fiberG: source.fiberG,
       sugarG: source.sugarG,
       sodiumMg: source.sodiumMg,

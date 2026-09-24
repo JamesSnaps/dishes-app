@@ -105,6 +105,7 @@ export type RecipeFormDefaults = {
   proteinG?: string | null;
   carbsG?: string | null;
   fatG?: string | null;
+  saturatedFatG?: string | null;
   fiberG?: string | null;
   sugarG?: string | null;
   sodiumMg?: string | null;
@@ -439,6 +440,7 @@ export function RecipeForm({
   const [proteinG, setProteinG] = useState(numDefault(defaults.proteinG));
   const [carbsG, setCarbsG] = useState(numDefault(defaults.carbsG));
   const [fatG, setFatG] = useState(numDefault(defaults.fatG));
+  const [saturatedFatG, setSaturatedFatG] = useState(numDefault(defaults.saturatedFatG));
   const [fiberG, setFiberG] = useState(numDefault(defaults.fiberG));
   const [sugarG, setSugarG] = useState(numDefault(defaults.sugarG));
   const [sodiumMg, setSodiumMg] = useState(numDefault(defaults.sodiumMg));
@@ -621,6 +623,7 @@ export function RecipeForm({
       setProteinG(ns(r.nutrition.proteinG));
       setCarbsG(ns(r.nutrition.carbsG));
       setFatG(ns(r.nutrition.fatG));
+      setSaturatedFatG(ns(r.nutrition.saturatedFatG));
       setFiberG(ns(r.nutrition.fiberG));
       setSugarG(ns(r.nutrition.sugarG));
       setSodiumMg(ns(r.nutrition.sodiumMg));
@@ -943,6 +946,7 @@ export function RecipeForm({
     formData.set("proteinG", proteinG);
     formData.set("carbsG", carbsG);
     formData.set("fatG", fatG);
+    formData.set("saturatedFatG", saturatedFatG);
     formData.set("fiberG", fiberG);
     formData.set("sugarG", sugarG);
     formData.set("sodiumMg", sodiumMg);
@@ -1670,6 +1674,7 @@ export function RecipeForm({
     { label: "Protein", value: proteinG, set: setProteinG, name: "proteinG", unit: "g" },
     { label: "Carbs", value: carbsG, set: setCarbsG, name: "carbsG", unit: "g" },
     { label: "Fat", value: fatG, set: setFatG, name: "fatG", unit: "g" },
+    { label: "Sat. fat", value: saturatedFatG, set: setSaturatedFatG, name: "saturatedFatG", unit: "g" },
     { label: "Fiber", value: fiberG, set: setFiberG, name: "fiberG", unit: "g" },
     { label: "Sugar", value: sugarG, set: setSugarG, name: "sugarG", unit: "g" },
     { label: "Sodium", value: sodiumMg, set: setSodiumMg, name: "sodiumMg", unit: "mg" },

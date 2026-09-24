@@ -134,6 +134,7 @@ export default async function SharedRecipePage({ params }: Props) {
     recipe.proteinG != null && { label: "Protein", value: `${parseFloat(recipe.proteinG)}g`, icon: Dumbbell },
     recipe.carbsG != null && { label: "Carbs", value: `${parseFloat(recipe.carbsG)}g`, icon: Wheat },
     recipe.fatG != null && { label: "Fat", value: `${parseFloat(recipe.fatG)}g`, icon: Flame },
+    recipe.saturatedFatG != null && { label: "Sat. fat", value: `${parseFloat(recipe.saturatedFatG)}g`, icon: Flame },
   ].filter(Boolean) as { label: string; value: string; icon: React.ElementType }[];
 
   return (

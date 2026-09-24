@@ -24,6 +24,10 @@ import { eq, and, inArray, or, ilike, isNotNull, sql, desc, asc } from "drizzle-
 import { MEAL_TYPES } from "@dishes/shared";
 import type { HouseholdContext } from "@/lib/session";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
+import {
+  HEART_HEALTHY_MAX_SATURATED_FAT_G,
+  HEART_HEALTHY_MIN_FIBER_G,
+} from "@/lib/heart-healthy";
 
 // --- Errors -----------------------------------------------------------------
 
@@ -65,6 +69,7 @@ export type NutritionInput = {
   proteinG: string | null;
   carbsG: string | null;
   fatG: string | null;
+  saturatedFatG: string | null;
   fiberG: string | null;
   sugarG: string | null;
   sodiumMg: string | null;
@@ -103,6 +108,7 @@ export type RecipeListFilters = {
   q?: string;
   cuisine?: string;
   favouritesOnly?: boolean;
+  heartHealthyOnly?: boolean;
   difficulty?: string;
   maxTotalMinutes?: number;
   tags?: string[];
@@ -178,6 +184,7 @@ export const EMPTY_NUTRITION: NutritionInput = {
   proteinG: null,
   carbsG: null,
   fatG: null,
+  saturatedFatG: null,
   fiberG: null,
   sugarG: null,
   sodiumMg: null,
@@ -194,6 +201,7 @@ export function buildNutrition(
     proteinG?: number | string | null;
     carbsG?: number | string | null;
     fatG?: number | string | null;
+    saturatedFatG?: number | string | null;
     fiberG?: number | string | null;
     sugarG?: number | string | null;
     sodiumMg?: number | string | null;
@@ -212,6 +220,7 @@ export function buildNutrition(
     proteinG: decimal(values?.proteinG),
     carbsG: decimal(values?.carbsG),
     fatG: decimal(values?.fatG),
+    saturatedFatG: decimal(values?.saturatedFatG),
     fiberG: decimal(values?.fiberG),
     sugarG: decimal(values?.sugarG),
     sodiumMg: decimal(values?.sodiumMg),
@@ -330,6 +339,15 @@ async function replaceChildren(
 
 // --- Reads ------------------------------------------------------------------
 
+/**
+ * SQL twin of `isHeartHealthy` (lib/heart-healthy.ts). A NULL on either side
+ * fails the comparison, so recipes without the numbers are excluded — same as
+ * the client rule.
+ */
+export function heartHealthyCondition() {
+  return sql`${recipes.saturatedFatG} <= ${HEART_HEALTHY_MAX_SATURATED_FAT_G} AND ${recipes.fiberG} >= ${HEART_HEALTHY_MIN_FIBER_G}`;
+}
+
 export async function listRecipes(
   ctx: HouseholdContext,
   filters: RecipeListFilters = {}
@@ -347,6 +365,13 @@ export async function listRecipes(
             .select({ id: recipeTags.recipeId })
             .from(recipeTags)
             .where(ilike(recipeTags.tag, `%${q}%`))
+        ),
+        inArray(
+          recipes.id,
+          db
+            .select({ id: recipeIngredients.recipeId })
+            .from(recipeIngredients)
+            .where(ilike(recipeIngredients.ingredientName, `%${q}%`))
         )
       )!
     );
@@ -356,6 +381,7 @@ export async function listRecipes(
   if (cuisine) conditions.push(eq(recipes.cuisine, cuisine));
 
   if (filters.favouritesOnly) conditions.push(eq(recipes.isFavourite, true));
+  if (filters.heartHealthyOnly) conditions.push(heartHealthyCondition());
 
   const difficulty = filters.difficulty?.trim();
   if (difficulty && ["easy", "medium", "hard"].includes(difficulty)) {

@@ -124,7 +124,8 @@ const NEW_RECIPE_CONCURRENCY = 3;
 async function fillNewSlots(
   session: Session,
   slots: MealPlanSlot[],
-  memberIds: string[]
+  memberIds: string[],
+  heartHealthy: boolean
 ): Promise<MealPlanSlot[]> {
   const filled = [...slots];
   const pending = slots
@@ -145,7 +146,9 @@ async function fillNewSlots(
               tags: [],
             },
             memberIds,
-            slot.mealType
+            slot.mealType,
+            undefined,
+            { heartHealthy }
           );
           if (error || !recipe) throw new Error(error ?? "No recipe returned.");
 
@@ -170,7 +173,8 @@ async function fillNewSlots(
 export async function addAiGeneratedMealPlan(
   weekStartDate: string,
   slots: MealPlanSlot[],
-  memberIds: string[] = []
+  memberIds: string[] = [],
+  options: { heartHealthy?: boolean } = {}
 ): Promise<{ success?: boolean; error?: string; debug?: Record<string, unknown> }> {
   const debug: Record<string, unknown> = {
     weekStartDate,
@@ -186,7 +190,7 @@ export async function addAiGeneratedMealPlan(
     // Slots the AI invented (no recipeId) are only a title and a one-line
     // description. Write them out in full before they reach the planner —
     // otherwise the plan links to an empty recipe with no ingredients or steps.
-    const filledSlots = await fillNewSlots(session, slots, memberIds);
+    const filledSlots = await fillNewSlots(session, slots, memberIds, !!options.heartHealthy);
     debug.recipesGenerated = filledSlots.filter(
       (s, i) => !slots[i]!.recipeId && s.recipeId
     ).length;

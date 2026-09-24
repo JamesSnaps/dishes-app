@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { aiConfigurations, recipes, recipeIngredients, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles, collections } from "@dishes/db/schema";
 import { eq, and, count, max, avg, desc, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import { MEAL_TYPES } from "@dishes/shared";
+import { CHOLESTEROL_DIETARY_FLAG, isHeartHealthy } from "@/lib/heart-healthy";
 import { decrypt } from "@/lib/crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -17,9 +18,11 @@ import { createLogger } from "@/lib/logger";
 import { FREQUENT_MIN_USES } from "@/lib/services/recipe-library";
 import {
   buildSystemAddendum,
+  createHeartHealthyRecipe,
   createStructuredRecipe,
   fullRecipeSystemPrompt,
   fullRecipeUserPrompt,
+  HEART_HEALTHY_GUIDANCE,
   maxTokensParam,
   MEAL_TYPES_SCHEMA_FRAGMENT,
   NUTRITION_SCHEMA_FRAGMENT,
@@ -119,6 +122,7 @@ async function buildMemberConstraints(memberIds: string[], householdId: string):
 
   const currentYear = new Date().getFullYear();
   let hasYoungChild = false;
+  let hasCholesterolDiet = false;
 
   const lines = members.map((m) => {
     // Surface age / child status so suggestions can be tailored to who's eating.
@@ -133,6 +137,7 @@ async function buildMemberConstraints(memberIds: string[], householdId: string):
     }
     const parts: string[] = [`${descriptor}:`];
     if (m.dietaryFlags?.length) parts.push(`dietary requirements: ${m.dietaryFlags.join(", ")}`);
+    if (m.dietaryFlags?.includes(CHOLESTEROL_DIETARY_FLAG)) hasCholesterolDiet = true;
     if (m.dislikes?.length) parts.push(`dislikes: ${m.dislikes.join(", ")}`);
     if (m.preferences?.length) parts.push(`loves: ${m.preferences.join(", ")}`);
     if (m.customNotes?.trim()) parts.push(m.customNotes.trim());
@@ -143,6 +148,9 @@ async function buildMemberConstraints(memberIds: string[], householdId: string):
   if (hasYoungChild) {
     guidance +=
       " One or more diners is a young child, so keep every suggestion genuinely simple, mild and child-friendly with small, age-appropriate portions and easy-to-eat textures. Do not suggest elaborate, rich or restaurant-style dishes, and avoid common choking hazards for very young children.";
+  }
+  if (hasCholesterolDiet) {
+    guidance += ` Someone eating is on a cholesterol-lowering diet, so every dish must be heart-healthy. ${HEART_HEALTHY_GUIDANCE}`;
   }
   return guidance;
 }
@@ -191,7 +199,8 @@ export async function generateConcepts(
   prompt: string,
   memberIds?: string[],
   mealType?: string,
-  targetCalories?: number
+  targetCalories?: number,
+  options?: { heartHealthy?: boolean }
 ): Promise<{ concepts?: ConceptCard[]; error?: string }> {
   if (!prompt.trim())
     return { error: "Please describe what you'd like to cook." };
@@ -218,6 +227,9 @@ export async function generateConcepts(
       targetCalories && targetCalories > 0
         ? `\nIMPORTANT: Each concept should be achievable at roughly ${targetCalories} kcal per serving — favour ingredients and portion sizes that fit that calorie target.`
         : "";
+    const heartInstruction = options?.heartHealthy
+      ? `\nIMPORTANT: Every concept must be a naturally heart-healthy dish for someone lowering their cholesterol — built around fish, pulses, wholegrains, vegetables and unsaturated fats, not cream, butter, cheese or fatty red meat. ${HEART_HEALTHY_GUIDANCE}`
+      : "";
 
     const completion = await client.chat.completions.create({
       model,
@@ -228,7 +240,7 @@ export async function generateConcepts(
           role: "system",
           content: `You are a helpful chef helping a family choose what to cook. Return exactly 5 distinct recipe concepts as JSON.
 Format: {"concepts": [{"title": "...", "description": "1-2 sentences", "cuisine": "...", "tags": ["..."], "difficulty": "easy"|"medium"|"hard"}]}
-Make the 5 concepts meaningfully different from each other in style or cuisine, but always match their effort, richness and portion size to what the user actually asked for. If the user asks for something simple, quick, light or for a child, every concept must stay simple — do not pad the list with elaborate or restaurant-style dishes.${mealTypeInstruction}${calorieInstruction}${addendum}`,
+Make the 5 concepts meaningfully different from each other in style or cuisine, but always match their effort, richness and portion size to what the user actually asked for. If the user asks for something simple, quick, light or for a child, every concept must stay simple — do not pad the list with elaborate or restaurant-style dishes.${mealTypeInstruction}${calorieInstruction}${heartInstruction}${addendum}`,
         },
         { role: "user", content: prompt },
       ],
@@ -391,9 +403,118 @@ CRITICAL: When the user asks to add, remove, or change an ingredient, you MUST u
   }
 }
 
+// ── Make an existing recipe heart-healthy ─────────────────────────────────────
+// A fixed-purpose tweak: rewrite the recipe for a cholesterol-lowering diet,
+// with the same nutrition check-and-revise pass the concierge uses. Nothing is
+// saved here — the tweak sheet offers "save as copy" (a variant) or "update
+// original", same as any other tweak.
+
+export async function makeRecipeHeartHealthy(
+  current: GeneratedRecipe
+): Promise<{ recipe?: GeneratedRecipe; heartHealthy?: boolean; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } =
+      await getOpenAiClient(householdId);
+
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
+
+    const result = await createHeartHealthyRecipe(client, model, [
+      { role: "system", content: fullRecipeSystemPrompt(addendum) },
+      {
+        role: "user",
+        content: `Here is an existing recipe:\n${JSON.stringify(current, null, 2)}\n\nRewrite it as a heart-healthy version of the same dish. ${HEART_HEALTHY_GUIDANCE}
+Keep it recognisably the same meal — same cuisine, same character, same servings. Change only what the diet needs; leave ingredients that are already fine alone. Keep the title unless a headline ingredient changes, in which case adjust it to match (e.g. "Beef & Lentil Bolognese").
+Start "notes" with a line beginning "Heart-healthy swaps:" listing each change as "old → new", then keep any existing notes after it. Recalculate the nutrition from the new ingredients.`,
+      },
+    ]);
+
+    return result;
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
 // ── Estimate nutrition for an existing recipe ──────────────────────────────────
 // On-demand: loads the recipe's ingredients/servings, asks the AI for a
 // per-serving estimate, persists it (nutritionSource = "ai"), and revalidates.
+
+type NutritionSubject = {
+  title: string;
+  servings: string | null;
+  servingsUnit: string | null;
+  ingredients: { ingredientName: string; amount: string | null; unit: string | null }[];
+};
+
+/** One AI call: per-serving nutrition for a recipe, or null if nothing usable came back. */
+async function estimateNutritionFor(
+  ai: AiConfig,
+  recipe: NutritionSubject
+): Promise<RecipeNutrition | null> {
+  const ingredientList = recipe.ingredients
+    .map((r) => `- ${[r.amount, r.unit, r.ingredientName].filter(Boolean).join(" ")}`)
+    .join("\n");
+  const servings = recipe.servings ? `${recipe.servings} ${recipe.servingsUnit ?? "servings"}` : "unknown (assume 4 servings)";
+
+  const completion = await ai.client.chat.completions.create({
+    model: ai.model,
+    response_format: { type: "json_object" },
+    ...maxTokensParam(ai.model, 400),
+    messages: [
+      {
+        role: "system",
+        content: `You are a nutrition estimator. Given a recipe's ingredients and the number of servings, return a best-effort PER-SERVING nutrition estimate as JSON matching exactly:
+{
+  "calories": number (kcal per serving),
+  "proteinG": number, "carbsG": number, "fatG": number,
+  "saturatedFatG": number,
+  "fiberG": number, "sugarG": number, "sodiumMg": number
+}
+Base your estimate on standard food composition data. Measurement system: ${ai.measurementSystem}. Return realistic numbers, never null.`,
+      },
+      {
+        role: "user",
+        content: `Recipe: ${recipe.title}\nServings: ${servings}\nIngredients:\n${ingredientList}`,
+      },
+    ],
+  });
+
+  const raw = completion.choices[0]?.message?.content ?? "";
+  const parsed = JSON.parse(raw) as Partial<RecipeNutrition>;
+
+  const num = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const nutrition: RecipeNutrition = {
+    calories: num(parsed.calories),
+    proteinG: num(parsed.proteinG),
+    carbsG: num(parsed.carbsG),
+    fatG: num(parsed.fatG),
+    saturatedFatG: num(parsed.saturatedFatG),
+    fiberG: num(parsed.fiberG),
+    sugarG: num(parsed.sugarG),
+    sodiumMg: num(parsed.sodiumMg),
+  };
+
+  return Object.values(nutrition).some((v) => v != null) ? nutrition : null;
+}
+
+const decimalOrNull = (v: number | null) => (v == null ? null : String(v));
+
+/** Column values for a full AI nutrition estimate. */
+function nutritionColumns(n: RecipeNutrition) {
+  return {
+    calories: n.calories == null ? null : Math.round(n.calories),
+    proteinG: decimalOrNull(n.proteinG),
+    carbsG: decimalOrNull(n.carbsG),
+    fatG: decimalOrNull(n.fatG),
+    saturatedFatG: decimalOrNull(n.saturatedFatG),
+    fiberG: decimalOrNull(n.fiberG),
+    sugarG: decimalOrNull(n.sugarG),
+    sodiumMg: decimalOrNull(n.sodiumMg),
+    nutritionSource: "ai" as const,
+  };
+}
 
 export async function estimateNutrition(
   recipeId: string
@@ -425,69 +546,100 @@ export async function estimateNutrition(
     if (!ingredientRows.length)
       return { error: "This recipe has no ingredients to estimate from." };
 
-    const { client, model, measurementSystem } = await getOpenAiClient(householdId);
-
-    const ingredientList = ingredientRows
-      .map((r) => `- ${[r.amount, r.unit, r.ingredientName].filter(Boolean).join(" ")}`)
-      .join("\n");
-    const servings = recipe.servings ? `${recipe.servings} ${recipe.servingsUnit ?? "servings"}` : "unknown (assume 4 servings)";
-
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: "json_object" },
-      ...maxTokensParam(model, 400),
-      messages: [
-        {
-          role: "system",
-          content: `You are a nutrition estimator. Given a recipe's ingredients and the number of servings, return a best-effort PER-SERVING nutrition estimate as JSON matching exactly:
-{
-  "calories": number (kcal per serving),
-  "proteinG": number, "carbsG": number, "fatG": number,
-  "fiberG": number, "sugarG": number, "sodiumMg": number
-}
-Base your estimate on standard food composition data. Measurement system: ${measurementSystem}. Return realistic numbers, never null.`,
-        },
-        {
-          role: "user",
-          content: `Recipe: ${recipe.title}\nServings: ${servings}\nIngredients:\n${ingredientList}`,
-        },
-      ],
-    });
-
-    const raw = completion.choices[0]?.message?.content ?? "";
-    const parsed = JSON.parse(raw) as Partial<RecipeNutrition>;
-
-    const num = (v: unknown) =>
-      typeof v === "number" && Number.isFinite(v) ? v : null;
-    const nutrition: RecipeNutrition = {
-      calories: num(parsed.calories),
-      proteinG: num(parsed.proteinG),
-      carbsG: num(parsed.carbsG),
-      fatG: num(parsed.fatG),
-      fiberG: num(parsed.fiberG),
-      sugarG: num(parsed.sugarG),
-      sodiumMg: num(parsed.sodiumMg),
-    };
-
-    const hasAny = Object.values(nutrition).some((v) => v != null);
-    if (!hasAny) return { error: "Could not estimate nutrition for this recipe." };
+    const ai = await getOpenAiClient(householdId);
+    const nutrition = await estimateNutritionFor(ai, { ...recipe, ingredients: ingredientRows });
+    if (!nutrition) return { error: "Could not estimate nutrition for this recipe." };
 
     await db
       .update(recipes)
-      .set({
-        calories: nutrition.calories == null ? null : Math.round(nutrition.calories),
-        proteinG: nutrition.proteinG == null ? null : String(nutrition.proteinG),
-        carbsG: nutrition.carbsG == null ? null : String(nutrition.carbsG),
-        fatG: nutrition.fatG == null ? null : String(nutrition.fatG),
-        fiberG: nutrition.fiberG == null ? null : String(nutrition.fiberG),
-        sugarG: nutrition.sugarG == null ? null : String(nutrition.sugarG),
-        sodiumMg: nutrition.sodiumMg == null ? null : String(nutrition.sodiumMg),
-        nutritionSource: "ai",
-      })
+      .set(nutritionColumns(nutrition))
       .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)));
 
     revalidatePath(`/recipes/${recipeId}`);
     return { nutrition };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Backfill saturated fat ─────────────────────────────────────────────────────
+// Recipes estimated before saturated fat was tracked have every other number but
+// not this one, so the heart-healthy filter can't judge them. Re-estimates each
+// such recipe. Manually entered nutrition is the owner's — only the missing
+// saturated fat is filled in there; AI (or absent) nutrition is refreshed whole.
+
+export async function backfillSaturatedFat(): Promise<{
+  total?: number;
+  updated?: number;
+  error?: string;
+}> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId, role } = await requireHousehold(user);
+    if (role !== "admin") return { error: "Admin only." };
+
+    const pending = await db
+      .select({
+        id: recipes.id,
+        title: recipes.title,
+        servings: recipes.servings,
+        servingsUnit: recipes.servingsUnit,
+        nutritionSource: recipes.nutritionSource,
+      })
+      .from(recipes)
+      .where(and(eq(recipes.householdId, householdId), isNull(recipes.saturatedFatG)));
+
+    if (!pending.length) return { total: 0, updated: 0 };
+
+    const ingredientRows = await db
+      .select({
+        recipeId: recipeIngredients.recipeId,
+        ingredientName: recipeIngredients.ingredientName,
+        amount: recipeIngredients.amount,
+        unit: recipeIngredients.unit,
+      })
+      .from(recipeIngredients)
+      .where(inArray(recipeIngredients.recipeId, pending.map((r) => r.id)));
+
+    const byRecipe = new Map<string, typeof ingredientRows>();
+    for (const row of ingredientRows) {
+      byRecipe.set(row.recipeId, [...(byRecipe.get(row.recipeId) ?? []), row]);
+    }
+
+    const ai = await getOpenAiClient(householdId);
+
+    let updated = 0;
+    // A handful at a time: one call per recipe, but not hundreds in flight at once.
+    const CONCURRENCY = 5;
+    for (let start = 0; start < pending.length; start += CONCURRENCY) {
+      await Promise.all(
+        pending.slice(start, start + CONCURRENCY).map(async (recipe) => {
+          const ingredients = byRecipe.get(recipe.id);
+          if (!ingredients?.length) return;
+          let nutrition: RecipeNutrition | null;
+          try {
+            nutrition = await estimateNutritionFor(ai, { ...recipe, ingredients });
+          } catch (err) {
+            log.warn("saturated fat backfill: estimate failed", { recipeId: recipe.id, err });
+            return; // one bad recipe shouldn't stop the rest
+          }
+          if (nutrition?.saturatedFatG == null) return;
+
+          await db
+            .update(recipes)
+            .set(
+              recipe.nutritionSource === "manual"
+                ? { saturatedFatG: String(nutrition.saturatedFatG) }
+                : nutritionColumns(nutrition)
+            )
+            .where(and(eq(recipes.id, recipe.id), eq(recipes.householdId, householdId)));
+          updated++;
+        })
+      );
+    }
+
+    revalidatePath("/recipes");
+    return { total: pending.length, updated };
   } catch (err) {
     return { error: classifyError(err) };
   }
@@ -584,7 +736,8 @@ export async function generateFullRecipe(
   concept: ConceptCard,
   memberIds?: string[],
   mealType?: string,
-  targetCalories?: number
+  targetCalories?: number,
+  options?: { heartHealthy?: boolean }
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
     const user = await getAutheliaUser();
@@ -597,10 +750,17 @@ export async function generateFullRecipe(
 
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum + memberConstraints;
 
-    const recipe = await createStructuredRecipe(client, model, [
+    const messages: OpenAI.ChatCompletionMessageParam[] = [
       { role: "system", content: fullRecipeSystemPrompt(addendum) },
-      { role: "user", content: fullRecipeUserPrompt(concept, mealType, targetCalories) },
-    ]);
+      {
+        role: "user",
+        content: fullRecipeUserPrompt(concept, mealType, targetCalories, options?.heartHealthy),
+      },
+    ];
+
+    const recipe = options?.heartHealthy
+      ? (await createHeartHealthyRecipe(client, model, messages)).recipe
+      : await createStructuredRecipe(client, model, messages);
 
     return { recipe };
   } catch (err) {
@@ -692,11 +852,13 @@ export async function generateMealPlanConcepts(params: {
   ratedOnly?: boolean;
   memberIds?: string[];
   maxCaloriesPerMeal?: number;
+  /** Cholesterol-lowering week: filters the library and adds weekly food rules. */
+  heartHealthy?: boolean;
   /** Monday of the week being planned (YYYY-MM-DD), for seasonality and to
    *  avoid clashing with meals already slotted into that week. */
   weekStartDate?: string;
 }): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
-  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, favouritesOnly, frequentsOnly, ratedOnly, memberIds, maxCaloriesPerMeal, weekStartDate } = params;
+  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, favouritesOnly, frequentsOnly, ratedOnly, memberIds, maxCaloriesPerMeal, heartHealthy, weekStartDate } = params;
   if (!requestedSlots.length)
     return { error: "Please select at least one slot to plan." };
 
@@ -740,6 +902,8 @@ export async function generateMealPlanConcepts(params: {
             cuisine: recipes.cuisine,
             difficulty: recipes.difficulty,
             calories: recipes.calories,
+            saturatedFatG: recipes.saturatedFatG,
+            fiberG: recipes.fiberG,
             prepTimeMinutes: recipes.prepTimeMinutes,
             cookTimeMinutes: recipes.cookTimeMinutes,
             mealTypes: recipes.mealTypes,
@@ -863,6 +1027,11 @@ export async function generateMealPlanConcepts(params: {
         // no calorie data are kept — we can't tell, so we don't hide them).
         if (maxCaloriesPerMeal && r.calories != null && r.calories > maxCaloriesPerMeal)
           return false;
+        // Heart-healthy week: drop recipes whose numbers are known and miss.
+        // Recipes without the numbers stay (same as calories) — the prompt
+        // marks them so the model can judge them by what they are.
+        if (heartHealthy && r.saturatedFatG != null && r.fiberG != null && !isHeartHealthy(r))
+          return false;
         const weeksAgo = weeksSincePlanned(r.lastPlannedDate);
         if (weeksAgo !== null && weeksAgo < cooldownWeeks) {
           recentTitles.push(r.title);
@@ -928,7 +1097,7 @@ export async function generateMealPlanConcepts(params: {
           ? `(randomly sampled from ${trimmedFrom} — prompt cap ${PROMPT_RECIPE_COUNT}). `
           : "(the whole eligible album). ") +
         `Filters: cuisine=${cuisineFilter ?? "any"}, tag=${tagFilter ?? "any"}, ` +
-        `unusedOnly=${!!unusedOnly}, favouritesOnly=${!!favouritesOnly}, frequentsOnly=${!!frequentsOnly}, ratedOnly=${!!ratedOnly}, maxKcal=${maxCaloriesPerMeal ?? "none"}. ` +
+        `unusedOnly=${!!unusedOnly}, favouritesOnly=${!!favouritesOnly}, frequentsOnly=${!!frequentsOnly}, ratedOnly=${!!ratedOnly}, maxKcal=${maxCaloriesPerMeal ?? "none"}, heartHealthy=${!!heartHealthy}. ` +
         `Never-tried in prompt: ${libraryRecipes.filter((r) => !r.lastPlannedDate).length}.`
     );
     log.debug(
@@ -997,6 +1166,11 @@ export async function generateMealPlanConcepts(params: {
             const rating = r.avgRating ? `⭐${parseFloat(r.avgRating).toFixed(1)}` : "unrated";
             const history = times === 0 ? "never tried" : `cooked ${times}×, ${relativeWeeks(r.lastPlannedDate)}`;
             const cals = r.calories != null ? `, ~${r.calories}kcal` : "";
+            const heart = heartHealthy
+              ? isHeartHealthy(r)
+                ? ", heart-healthy ✓"
+                : ", heart-healthy: unknown"
+              : "";
             const totalTime = (r.prepTimeMinutes ?? 0) + (r.cookTimeMinutes ?? 0);
             const time = totalTime > 0 ? `, ${totalTime}min` : "";
             const meals = r.mealTypes && r.mealTypes.length
@@ -1006,7 +1180,7 @@ export async function generateMealPlanConcepts(params: {
             const tags = tagList?.length ? `, tags: ${tagList.slice(0, 6).join("/")}` : "";
             const note = noteByRecipe.get(r.id);
             const noteText = note ? ` — note: "${note}"` : "";
-            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}${cals}${time}${tags}${meals}] — ${history}${noteText}`;
+            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}${cals}${heart}${time}${tags}${meals}] — ${history}${noteText}`;
           })
           .join("\n") +
         `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe. STRICT RULE: only reuse a library recipe in a slot whose meal type is listed in that recipe's "suits:" field. For recipes marked "suits: untagged" the meal type is unknown — only reuse one in a breakfast/snack/dessert slot if its title makes it unmistakably suitable; when in doubt use 0. If nothing in the library suits the slot, use 0 and suggest a fitting new recipe instead.
@@ -1067,8 +1241,12 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
     const calorieBlock = maxCaloriesPerMeal
       ? `\n\nCALORIE LIMIT: every meal must stay at or below roughly ${maxCaloriesPerMeal} kcal per serving. Library recipes shown with a kcal value already fit. For new suggestions (libraryIndex 0) and any library recipe without a kcal value, choose dishes whose typical per-serving calories are within this limit.`
       : "";
+    const heartBlock = heartHealthy
+      ? `\n\nHEART-HEALTHY WEEK — this household is following a cholesterol-lowering diet. Across a full week of dinners: oily fish (salmon, mackerel, sardines, trout) at least twice; a meal built mainly on beans, lentils, chickpeas or tofu at least three times; red meat at most once, and no processed meat (bacon, sausages, ham, salami). Scale these down in proportion when planning fewer slots. Breakfasts should lean on oats, wholegrains, fruit, nuts and low-fat yoghurt rather than fry-ups, pastries or butter. Library recipes marked "heart-healthy ✓" already meet the targets; only reuse one marked "heart-healthy: unknown" if it is plainly a lean, vegetable- or pulse-led dish. For new suggestions (libraryIndex 0): ${HEART_HEALTHY_GUIDANCE}`
+      : "";
     const fullAddendum =
       addendum +
+      heartBlock +
       recentlyUsedBlock +
       alreadyPlannedBlock +
       seasonBlock +

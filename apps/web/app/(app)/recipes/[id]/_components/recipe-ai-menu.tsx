@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Wand2, MessageCircleQuestion, ChevronDown } from "lucide-react";
+import { Sparkles, Wand2, MessageCircleQuestion, ChevronDown, HeartPulse } from "lucide-react";
 import {
   Button,
   DropdownMenu,
@@ -27,6 +27,7 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Pro
   const [askOpen, setAskOpen] = useState(false);
   const [tweakOpen, setTweakOpen] = useState(false);
   const [similarOpen, setSimilarOpen] = useState(false);
+  const [heartOpen, setHeartOpen] = useState(false);
 
   const items = [
     {
@@ -40,6 +41,12 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Pro
       label: "Tweak for tonight",
       hint: "Adapt it for this occasion",
       onSelect: () => setTweakOpen(true),
+    },
+    {
+      icon: HeartPulse,
+      label: "Make it heart-healthy",
+      hint: "Lower saturated fat, more fibre, same dish",
+      onSelect: () => setHeartOpen(true),
     },
     {
       icon: Sparkles,
@@ -93,6 +100,14 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Pro
         open={tweakOpen}
         onOpenChange={setTweakOpen}
         hideTrigger
+      />
+      <TweakRecipeButton
+        recipeId={recipeId}
+        recipe={recipe}
+        open={heartOpen}
+        onOpenChange={setHeartOpen}
+        hideTrigger
+        preset="heart-healthy"
       />
       <SimilarRecipesButton
         recipeId={recipeId}

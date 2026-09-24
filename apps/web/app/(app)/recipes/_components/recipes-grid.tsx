@@ -36,6 +36,7 @@ type Recipe = {
   thumbnailUrl?: string | null;
   isFavourite: boolean;
   isAiGenerated: boolean;
+  heartHealthy?: boolean;
   averageRating?: number | null;
   cookCount?: number;
 };

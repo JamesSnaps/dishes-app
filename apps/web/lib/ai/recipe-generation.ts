@@ -11,6 +11,11 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import {
+  HEART_HEALTHY_MAX_SATURATED_FAT_G,
+  HEART_HEALTHY_MIN_FIBER_G,
+  isHeartHealthy,
+} from "@/lib/heart-healthy";
 
 // --- Types ------------------------------------------------------------------
 
@@ -20,6 +25,7 @@ export type RecipeNutrition = {
   proteinG: number | null;
   carbsG: number | null;
   fatG: number | null;
+  saturatedFatG: number | null;
   fiberG: number | null;
   sugarG: number | null;
   sodiumMg: number | null;
@@ -106,6 +112,7 @@ export const generatedRecipeSchema = z.object({
       proteinG: z.number().nonnegative(),
       carbsG: z.number().nonnegative(),
       fatG: z.number().nonnegative(),
+      saturatedFatG: z.number().nonnegative(),
       fiberG: z.number().nonnegative(),
       sugarG: z.number().nonnegative(),
       sodiumMg: z.number().nonnegative(),
@@ -123,8 +130,14 @@ export const MEAL_TYPES_SCHEMA_FRAGMENT = `  "mealTypes": string[] (which meals 
 export const NUTRITION_SCHEMA_FRAGMENT = `  "nutrition": {
     "calories": number (kcal per serving),
     "proteinG": number, "carbsG": number, "fatG": number,
+    "saturatedFatG": number,
     "fiberG": number, "sugarG": number, "sodiumMg": number
   } (best-effort per-serving estimate based on the ingredients and servings; use realistic values, never null)`;
+
+// Cholesterol-lowering guidance, shared by concept generation, full recipes and
+// the "make this heart-healthy" rewrite. The numbers are the same ones the
+// heart-healthy filter checks, so a recipe written to this brief gets the badge.
+export const HEART_HEALTHY_GUIDANCE = `It must suit a cholesterol-lowering diet: at most ${HEART_HEALTHY_MAX_SATURATED_FAT_G}g saturated fat and at least ${HEART_HEALTHY_MIN_FIBER_G}g fibre per serving. Cook with olive or rapeseed oil, not butter, ghee, lard or coconut oil. Favour fish (oily fish is ideal), skinless poultry, beans, lentils, chickpeas and tofu over fatty or processed red meat. Swap cream, full-fat cheese and coconut milk for low-fat yoghurt, reduced-fat alternatives or a small amount of a strongly flavoured cheese. Build in oats, barley, pulses, wholegrains, vegetables and nuts. Keep salt moderate. It should still taste generous — make swaps, don't just shrink the portion.`;
 
 /** Household AI settings folded into a system prompt suffix. */
 export function buildSystemAddendum(
@@ -177,9 +190,10 @@ Use realistic quantities and clear step-by-step instructions. Use groupLabel on 
 export function fullRecipeUserPrompt(
   concept: ConceptCard,
   mealType?: string,
-  targetCalories?: number
+  targetCalories?: number,
+  heartHealthy?: boolean
 ): string {
-  return `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}${targetCalories && targetCalories > 0 ? `\nCalorie target: aim for roughly ${targetCalories} kcal per serving — adjust quantities and ingredient choices to land near this.` : ""}`;
+  return `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}${targetCalories && targetCalories > 0 ? `\nCalorie target: aim for roughly ${targetCalories} kcal per serving — adjust quantities and ingredient choices to land near this.` : ""}${heartHealthy ? `\nHeart-healthy: ${HEART_HEALTHY_GUIDANCE}` : ""}`;
 }
 
 // --- The call ---------------------------------------------------------------
@@ -221,4 +235,36 @@ export async function createStructuredRecipe(
   }
 
   throw new Error("The recipe response was cut off after reaching the maximum output length.");
+}
+
+
+/**
+ * Generate a recipe that is meant to be heart-healthy, and hold the model to it.
+ *
+ * The prompt asks for the targets, but a model will happily write a "healthy"
+ * korma with a pot of cream in it. So the returned nutrition is checked against
+ * the same rule the filter uses, and a miss gets one revision pass with the
+ * actual numbers quoted back. One pass only — if it still misses, the recipe is
+ * returned as-is and simply won't carry the badge, rather than looping on cost.
+ */
+export async function createHeartHealthyRecipe(
+  client: OpenAI,
+  model: string,
+  messages: OpenAI.ChatCompletionMessageParam[]
+): Promise<{ recipe: GeneratedRecipe; heartHealthy: boolean }> {
+  const first = await createStructuredRecipe(client, model, messages);
+  if (isHeartHealthy(first.nutrition ?? {})) return { recipe: first, heartHealthy: true };
+
+  const satFat = first.nutrition?.saturatedFatG;
+  const fiber = first.nutrition?.fiberG;
+  const revised = await createStructuredRecipe(client, model, [
+    ...messages,
+    { role: "assistant", content: JSON.stringify(first) },
+    {
+      role: "user",
+      content: `That recipe comes to ${satFat ?? "?"}g saturated fat and ${fiber ?? "?"}g fibre per serving. The target is at most ${HEART_HEALTHY_MAX_SATURATED_FAT_G}g saturated fat and at least ${HEART_HEALTHY_MIN_FIBER_G}g fibre. Revise the ingredients (swap the high saturated fat ones, add pulses, wholegrains or vegetables) and return the complete recipe again in the same schema. Recalculate the nutrition honestly from the new ingredients — do not just lower the numbers.`,
+    },
+  ]);
+
+  return { recipe: revised, heartHealthy: isHeartHealthy(revised.nutrition ?? {}) };
 }

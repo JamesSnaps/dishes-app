@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Wand2, Copy, Save } from "lucide-react";
+import { Wand2, Copy, Save, HeartPulse, CheckCircle2, AlertTriangle } from "lucide-react";
 import {
   Button,
   Sheet,
@@ -11,7 +11,8 @@ import {
   SheetTitle,
   Textarea,
 } from "@dishes/ui";
-import { improveRecipe } from "@/app/actions/ai";
+import { improveRecipe, makeRecipeHeartHealthy } from "@/app/actions/ai";
+import { isHeartHealthy } from "@/lib/heart-healthy";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { saveRecipeAsCopy, applyTweakToRecipe } from "@/app/actions/recipes";
 
@@ -24,6 +25,11 @@ interface Props {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
+  /**
+   * A fixed-purpose tweak that runs as soon as the sheet opens, instead of
+   * asking what to change. The result, refine and save steps are the same.
+   */
+  preset?: "heart-healthy";
 }
 
 type Phase = "idle" | "loading" | "result";
@@ -47,6 +53,7 @@ export function TweakRecipeButton({
   open: controlledOpen,
   onOpenChange,
   hideTrigger = false,
+  preset,
 }: Props) {
   const isDesktop = useIsDesktop();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -60,6 +67,8 @@ export function TweakRecipeButton({
   const [refineError, setRefineError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [refining, setRefining] = useState(false);
+  // Guards the auto-run against firing twice for one open (StrictMode, re-renders).
+  const presetRunForOpen = useRef(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -73,13 +82,43 @@ export function TweakRecipeButton({
     setError(null);
     setRefineError(null);
     setSaveError(null);
+    if (!preset) return;
+    if (presetRunForOpen.current) return;
+    presetRunForOpen.current = true;
+    void runPreset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    if (!open) presetRunForOpen.current = false;
+  }, [open]);
+
+  async function runPreset() {
+    setPhase("loading");
+    setError(null);
+    const result = await makeRecipeHeartHealthy(recipe);
+    if (result.error || !result.recipe) {
+      setError(result.error ?? "Something went wrong.");
+      setPhase("idle");
+    } else {
+      setTweaked(result.recipe);
+      setPhase("result");
+    }
+  }
 
   function handleOpen() {
     setOpen(true);
   }
 
   function handleStartOver() {
+    if (preset) {
+      setTweaked(null);
+      setRefinePrompt("");
+      setRefineError(null);
+      setSaveError(null);
+      void runPreset();
+      return;
+    }
     setPhase("idle");
     setPrompt("");
     setRefinePrompt("");
@@ -166,17 +205,47 @@ export function TweakRecipeButton({
         >
           <SheetHeader className="px-4 pt-5 pb-3 border-b shrink-0 pr-12">
             <SheetTitle className="flex items-center gap-2">
-              <Wand2 className="h-4 w-4" />
-              Tweak for tonight
+              {preset ? (
+                <>
+                  <HeartPulse className="h-4 w-4 text-rose-500" />
+                  Make it heart-healthy
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4" />
+                  Tweak for tonight
+                </>
+              )}
             </SheetTitle>
             <p className="text-sm text-muted-foreground">
               {phase === "result"
-                ? "Temporary — nothing is saved yet"
-                : "Describe what you'd like to change for this occasion"}
+                ? preset
+                  ? "Nothing is saved yet — keep it as a copy, or replace the original"
+                  : "Temporary — nothing is saved yet"
+                : preset
+                  ? "Lower saturated fat, more fibre, same dish"
+                  : "Describe what you'd like to change for this occasion"}
             </p>
           </SheetHeader>
 
-          {phase === "idle" && (
+          {phase === "idle" && preset && (
+            <div className="flex flex-col gap-4 p-4 flex-1 overflow-y-auto">
+              {error && (
+                <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                  {error}
+                </p>
+              )}
+              <Button
+                onClick={() => void runPreset()}
+                className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white hover:opacity-90"
+              >
+                <HeartPulse className="mr-2 h-4 w-4" />
+                Try again
+              </Button>
+            </div>
+          )}
+
+          {phase === "idle" && !preset && (
             <div className="flex flex-col gap-4 p-4 flex-1 overflow-y-auto">
               {error && (
                 <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
@@ -202,13 +271,17 @@ export function TweakRecipeButton({
           {phase === "loading" && (
             <div className="flex flex-1 items-center justify-center gap-3 text-muted-foreground">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              <span className="text-sm">Tweaking recipe…</span>
+              <span className="text-sm">
+                {preset ? "Making it heart-healthy… this can take a minute" : "Tweaking recipe…"}
+              </span>
             </div>
           )}
 
           {phase === "result" && tweaked && (
             <>
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+                {preset && <HeartHealthyComparison before={recipe} after={tweaked} />}
+
                 {tweaked.title !== recipe.title && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
@@ -346,5 +419,74 @@ export function TweakRecipeButton({
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+function NutrientDelta({
+  label,
+  before,
+  after,
+  goodWhen,
+}: {
+  label: string;
+  before: number | null | undefined;
+  after: number | null | undefined;
+  goodWhen: "lower" | "higher";
+}) {
+  const improved =
+    before != null && after != null && (goodWhen === "lower" ? after < before : after > before);
+  return (
+    <div className="rounded-lg bg-white/70 px-3 py-2 shadow-sm dark:bg-white/5">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-sm">
+        <span className="text-muted-foreground">{before != null ? `${before}g` : "—"}</span>
+        <span className="mx-1.5 text-muted-foreground">→</span>
+        <span className={improved ? "font-semibold text-emerald-700 dark:text-emerald-400" : "font-semibold"}>
+          {after != null ? `${after}g` : "—"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Before/after for the two numbers the heart-healthy rule cares about. */
+function HeartHealthyComparison({
+  before,
+  after,
+}: {
+  before: GeneratedRecipe;
+  after: GeneratedRecipe;
+}) {
+  const passes = isHeartHealthy(after.nutrition ?? {});
+  return (
+    <div className="rounded-xl border border-rose-200/60 bg-gradient-to-br from-rose-50 to-pink-50 p-3 dark:border-rose-900/40 dark:from-rose-950/30 dark:to-pink-950/20">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        {passes ? (
+          <>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            Meets the heart-healthy targets
+          </>
+        ) : (
+          <>
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            Better, but still over target — try refining below
+          </>
+        )}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <NutrientDelta
+          label="Sat. fat / serving"
+          before={before.nutrition?.saturatedFatG}
+          after={after.nutrition?.saturatedFatG}
+          goodWhen="lower"
+        />
+        <NutrientDelta
+          label="Fibre / serving"
+          before={before.nutrition?.fiberG}
+          after={after.nutrition?.fiberG}
+          goodWhen="higher"
+        />
+      </div>
+    </div>
   );
 }

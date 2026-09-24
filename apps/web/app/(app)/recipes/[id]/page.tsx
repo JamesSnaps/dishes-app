@@ -56,6 +56,13 @@ interface Props {
   }>;
 }
 
+/** Decimal columns come back as strings; the AI recipe shape wants numbers. */
+function numOrNull(v: string | null): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export default async function RecipeDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
   const { pendingReview, from, week, back, imported } = await searchParams;
@@ -233,6 +240,16 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
       groupLabel: s.groupLabel ?? "",
     })),
     notes: recipe.notes,
+    nutrition: {
+      calories: recipe.calories,
+      proteinG: numOrNull(recipe.proteinG),
+      carbsG: numOrNull(recipe.carbsG),
+      fatG: numOrNull(recipe.fatG),
+      saturatedFatG: numOrNull(recipe.saturatedFatG),
+      fiberG: numOrNull(recipe.fiberG),
+      sugarG: numOrNull(recipe.sugarG),
+      sodiumMg: numOrNull(recipe.sodiumMg),
+    },
   };
 
   return (
@@ -419,6 +436,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
             proteinG: recipe.proteinG,
             carbsG: recipe.carbsG,
             fatG: recipe.fatG,
+            saturatedFatG: recipe.saturatedFatG,
             fiberG: recipe.fiberG,
             sugarG: recipe.sugarG,
             sodiumMg: recipe.sodiumMg,

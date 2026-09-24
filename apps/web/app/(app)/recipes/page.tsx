@@ -3,8 +3,10 @@ import { Suspense } from "react";
 import { Plus } from "lucide-react";
 import { FolderOpen } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes, recipeTags, collections, recipeCollections } from "@dishes/db/schema";
+import { recipes, recipeTags, recipeIngredients, collections, recipeCollections } from "@dishes/db/schema";
 import { getCookStatsByRecipe } from "@/lib/services/cook-history";
+import { heartHealthyCondition } from "@/lib/services/recipes";
+import { isHeartHealthy } from "@/lib/heart-healthy";
 import { eq, and, ilike, isNotNull, or, inArray, count, sql, desc } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -20,6 +22,7 @@ interface Props {
     q?: string;
     cuisine?: string;
     favourites?: string;
+    heart?: string;
     difficulty?: string;
     maxTime?: string;
     tags?: string;
@@ -31,7 +34,7 @@ export default async function RecipesPage({ searchParams }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const { q, cuisine, favourites, difficulty, maxTime, tags, sort } = await searchParams;
+  const { q, cuisine, favourites, heart, difficulty, maxTime, tags, sort } = await searchParams;
 
   const conditions = [eq(recipes.householdId, householdId)];
   if (q?.trim()) {
@@ -41,12 +44,20 @@ export default async function RecipesPage({ searchParams }: Props) {
         inArray(
           recipes.id,
           db.select({ id: recipeTags.recipeId }).from(recipeTags).where(ilike(recipeTags.tag, `%${q.trim()}%`))
+        ),
+        inArray(
+          recipes.id,
+          db
+            .select({ id: recipeIngredients.recipeId })
+            .from(recipeIngredients)
+            .where(ilike(recipeIngredients.ingredientName, `%${q.trim()}%`))
         )
       )!
     );
   }
   if (cuisine?.trim()) conditions.push(eq(recipes.cuisine, cuisine.trim()));
   if (favourites === "1") conditions.push(eq(recipes.isFavourite, true));
+  if (heart === "1") conditions.push(heartHealthyCondition());
   if (difficulty?.trim() && ["easy", "medium", "hard"].includes(difficulty)) {
     conditions.push(eq(recipes.difficulty, difficulty as "easy" | "medium" | "hard"));
   }
@@ -83,6 +94,8 @@ export default async function RecipesPage({ searchParams }: Props) {
         prepTimeMinutes: recipes.prepTimeMinutes,
         cookTimeMinutes: recipes.cookTimeMinutes,
         calories: recipes.calories,
+        saturatedFatG: recipes.saturatedFatG,
+        fiberG: recipes.fiberG,
         imageUrl: recipes.imageUrl,
         thumbnailUrl: recipes.thumbnailUrl,
         isFavourite: recipes.isFavourite,
@@ -206,11 +219,11 @@ export default async function RecipesPage({ searchParams }: Props) {
       {allRecipes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-muted-foreground">
-            {q || cuisine || favourites || difficulty || maxTime || tags
+            {q || cuisine || favourites || heart || difficulty || maxTime || tags
               ? "No recipes match your filters."
               : "No recipes yet. Add your first one!"}
           </p>
-          {!q && !cuisine && !favourites && !difficulty && !maxTime && !tags && (
+          {!q && !cuisine && !favourites && !heart && !difficulty && !maxTime && !tags && (
             <Button asChild className="mt-4">
               <Link href="/recipes/new">Add a recipe</Link>
             </Button>
@@ -223,6 +236,7 @@ export default async function RecipesPage({ searchParams }: Props) {
               const stats = cookStatsByRecipe.get(recipe.id);
               return {
                 ...recipe,
+                heartHealthy: isHeartHealthy(recipe),
                 averageRating: stats?.averageRating ?? null,
                 cookCount: stats?.cookCount ?? 0,
               };

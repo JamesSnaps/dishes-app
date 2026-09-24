@@ -84,6 +84,16 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Save generated recipe to the library
 - [x] Handle OpenAI errors gracefully (quota, key invalid, timeout)
 
+## Heart-healthy (cholesterol-lowering) diet
+- [x] Saturated fat per serving (column, AI estimate, form, nutrition panel, share page, API)
+- [x] Settings → Maintenance backfill for saturated fat on existing recipes
+- [x] Heart-healthy filter + card badge (≤ 4 g sat fat, ≥ 3 g fibre per serving) — server, on-device and `/api/v1/recipes`
+- [x] Concierge "Heart-healthy" option with nutrition check and one revision pass
+- [x] "Make it heart-healthy" AI rewrite on the recipe page (save as copy or update original)
+- [x] Meal planner "Heart-healthy week" quick-select (oily fish ×2, pulses ×3, red meat ≤1; filters high-sat-fat library recipes; new recipes go through the check pass)
+- [x] "Cholesterol-lowering" member dietary toggle — AI guidance when they're eating, pre-selects heart-healthy in concierge + planner
+- [ ] Weekly saturated fat / fibre summary on the meal plan view
+
 ## AI — Photo Recipe Import
 - [x] Scan a recipe photo (camera or gallery) from the New Recipe page
 - [x] Client-side image resize before sending (≤ 1600 px JPEG)

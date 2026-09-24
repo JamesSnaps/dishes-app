@@ -10,6 +10,7 @@ import { recipes, recipeTags, householdMembers } from "@dishes/db/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { getStyleBreakdown } from "@/lib/services/recipe-library";
 import { ConciergeClient } from "./_components/concierge-client";
+import { mentionsCholesterolDiet } from "@/lib/heart-healthy";
 
 export const metadata = { title: "AI Concierge" };
 
@@ -31,14 +32,30 @@ export default async function AiConciergePage() {
       .where(eq(recipes.householdId, householdId))
       .orderBy(recipeTags.tag),
     db
-      .select({ id: householdMembers.id, displayName: householdMembers.displayName })
+      .select({
+        id: householdMembers.id,
+        displayName: householdMembers.displayName,
+        dietaryFlags: householdMembers.dietaryFlags,
+        preferences: householdMembers.preferences,
+        customNotes: householdMembers.customNotes,
+      })
       .from(householdMembers)
       .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
       .orderBy(householdMembers.displayName),
   ]);
   const availableCuisines = cuisineRows.map((r) => r.cuisine).filter((c): c is string => c !== null);
   const availableTags = tagRows.map((r) => r.tag);
-  const members = memberRows;
+  // Only the flag leaves the server — the planner needs to know whether to
+  // pre-select "Heart-healthy", not what anyone's notes say.
+  const members = memberRows.map((m) => ({
+    id: m.id,
+    displayName: m.displayName,
+    cholesterolDiet: mentionsCholesterolDiet([
+      ...(m.dietaryFlags ?? []),
+      ...(m.preferences ?? []),
+      m.customNotes,
+    ]),
+  }));
 
   if (!aiConfig?.hasKey) {
     return (

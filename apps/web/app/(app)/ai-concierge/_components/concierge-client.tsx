@@ -31,6 +31,7 @@ import {
   BookOpen,
   Target,
   CheckCircle2,
+  HeartPulse,
 } from "lucide-react";
 import { Button, Textarea, cn } from "@dishes/ui";
 import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe, generateMealPlanConcepts, type MealPlanSlot } from "@/app/actions/ai";
@@ -68,7 +69,17 @@ const PREFERENCES = [
     activeClass: "border-violet-400 bg-violet-500 text-white",
     inactiveClass: "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400 dark:hover:border-violet-700",
   },
+  {
+    // Not just prompt text: selecting this also switches on the nutrition
+    // check-and-revise pass (see HEART_HEALTHY_PREF below).
+    label: "Heart-healthy",
+    icon: HeartPulse,
+    activeClass: "border-rose-400 bg-rose-500 text-white",
+    inactiveClass: "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700",
+  },
 ] as const;
+
+const HEART_HEALTHY_PREF = "Heart-healthy";
 
 const QUICK_PROMPTS = [
   {
@@ -414,7 +425,12 @@ function FilterChip({
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Member = { id: string; displayName: string };
+type Member = {
+  id: string;
+  displayName: string;
+  /** Their dietary notes mention cholesterol — ticking them pre-selects Heart-healthy. */
+  cholesterolDiet?: boolean;
+};
 
 type BatchItem = {
   concept: ConceptCard;
@@ -731,6 +747,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const frequentsOnly = frequencyMode === "regulars";
   const [ratedOnly, setRatedOnly] = useState(false);
   const [maxCaloriesPerMeal, setMaxCaloriesPerMeal] = useState("");
+  const [heartHealthy, setHeartHealthy] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [generatedSlots, setGeneratedSlots] = useState<MealPlanSlot[] | null>(null);
   const [rejectedSlots, setRejectedSlots] = useState<Set<number>>(new Set());
@@ -770,9 +787,15 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
     setFrequencyMode(null);
     setRatedOnly(false);
     setMaxCaloriesPerMeal("");
+    setHeartHealthy(false);
   }
 
   function togglePlanMember(id: string) {
+    // Ticking someone on a cholesterol-lowering diet switches the preset on.
+    // Only ever on, never off — the toggle stays the household's call.
+    if (!selectedMemberIds.has(id) && members.find((m) => m.id === id)?.cholesterolDiet) {
+      setHeartHealthy(true);
+    }
     setSelectedMemberIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -805,6 +828,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
           const n = parseInt(maxCaloriesPerMeal, 10);
           return Number.isFinite(n) && n > 0 ? n : undefined;
         })(),
+        heartHealthy: heartHealthy || undefined,
       });
       if (result.error) { setError(result.error); return; }
       setGeneratedSlots(result.slots!);
@@ -828,7 +852,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
       const result = await addAiGeneratedMealPlan(
         weekStart,
         slotsToAdd,
-        selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : []
+        selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : [],
+        { heartHealthy }
       );
       if (result.debug) setDebugInfo(result.debug);
       if (result.error) { setError(result.error); return; }
@@ -1012,7 +1037,28 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
               <Star className="h-3.5 w-3.5" />
               Rated only
             </button>
+            <button
+              type="button"
+              onClick={() => setHeartHealthy((v) => !v)}
+              disabled={isGenerating || isAdding}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
+                heartHealthy
+                  ? "border-rose-400 bg-rose-500 text-white"
+                  : "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700"
+              )}
+            >
+              <HeartPulse className="h-3.5 w-3.5" />
+              Heart-healthy week
+            </button>
           </div>
+          {heartHealthy && (
+            <p className="mt-2 rounded-lg border border-rose-200/60 bg-gradient-to-br from-rose-50 to-pink-50 p-2.5 text-xs text-rose-900 dark:border-rose-900/40 dark:from-rose-950/30 dark:to-pink-950/20 dark:text-rose-200">
+              Oily fish twice, pulses three times, red meat once at most (scaled to the slots you pick).
+              Library recipes known to be high in saturated fat are left out, and new recipes are
+              written and checked against the heart-healthy targets.
+            </p>
+          )}
           <div className="mt-3 flex items-center gap-2">
             <label htmlFor="max-cal-per-meal" className="text-sm font-medium text-muted-foreground">
               Max calories per meal
@@ -1031,7 +1077,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
             />
             <span className="text-xs text-muted-foreground">kcal / serving</span>
           </div>
-          {(cuisineFilter || tagFilter || frequencyMode || ratedOnly || maxCaloriesPerMeal) && (
+          {(cuisineFilter || tagFilter || frequencyMode || ratedOnly || maxCaloriesPerMeal || heartHealthy) && (
             <button
               type="button"
               onClick={handleClearLibraryFilters}
@@ -1242,6 +1288,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const [promptText, setPromptText] = useState("");
   const [mealType, setMealType] = useState<string>("");
   const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set());
+  const heartHealthy = selectedPrefs.has(HEART_HEALTHY_PREF);
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
   const [concepts, setConcepts] = useState<ConceptCard[] | null>(null);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
@@ -1291,7 +1338,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     setSelectedIndices(new Set());
     setBatchItems(null);
     startTransition(async () => {
-      const result = await generateConcepts(full, Array.from(selectedMemberIds), mealType || undefined);
+      const result = await generateConcepts(full, Array.from(selectedMemberIds), mealType || undefined, undefined, { heartHealthy });
       if (result.error) { setError(result.error); return; }
       setConcepts(result.concepts!);
       setTimeout(() => {
@@ -1314,6 +1361,9 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   }
 
   function toggleMember(id: string) {
+    if (!selectedMemberIds.has(id) && members.find((m) => m.id === id)?.cholesterolDiet) {
+      setSelectedPrefs((prev) => new Set(prev).add(HEART_HEALTHY_PREF));
+    }
     setSelectedMemberIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -1338,7 +1388,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       setError(null);
       setGeneratingIdx(idx);
       startTransition(async () => {
-        const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined);
+        const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined, undefined, { heartHealthy });
         if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
         const defaults = await withSuggestedCollection(result.recipe!);
         sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
@@ -1352,7 +1402,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
         for (let i = 0; i < updated.length; i++) {
           updated[i] = { ...updated[i]!, status: "generating" };
           setBatchItems([...updated]);
-          const genResult = await generateFullRecipe(updated[i]!.concept, Array.from(selectedMemberIds), mealType || undefined);
+          const genResult = await generateFullRecipe(updated[i]!.concept, Array.from(selectedMemberIds), mealType || undefined, undefined, { heartHealthy });
           if (genResult.error) {
             updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
             setBatchItems([...updated]);
@@ -1388,7 +1438,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       difficulty: "medium",
     };
     startTransition(async () => {
-      const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds), mealType || undefined);
+      const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds), mealType || undefined, undefined, { heartHealthy });
       if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
       const defaults = await withSuggestedCollection(result.recipe!);
       sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
@@ -1680,6 +1730,27 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Heart-healthy */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => togglePref(HEART_HEALTHY_PREF)}
+                  disabled={isPending}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+                    heartHealthy
+                      ? "border-rose-400 bg-rose-500 text-white"
+                      : "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700"
+                  )}
+                >
+                  <HeartPulse className="h-3.5 w-3.5" />
+                  Heart-healthy
+                </button>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Low saturated fat, good fibre — the AI checks its numbers and revises if it misses.
+                </p>
               </div>
 
               {error && <ErrorBanner message={error} />}

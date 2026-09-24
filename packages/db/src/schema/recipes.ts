@@ -61,6 +61,7 @@ export const recipes = pgTable(
     proteinG: decimal("protein_g", { precision: 6, scale: 1 }),
     carbsG: decimal("carbs_g", { precision: 6, scale: 1 }),
     fatG: decimal("fat_g", { precision: 6, scale: 1 }),
+    saturatedFatG: decimal("saturated_fat_g", { precision: 6, scale: 1 }),
     fiberG: decimal("fiber_g", { precision: 6, scale: 1 }),
     sugarG: decimal("sugar_g", { precision: 6, scale: 1 }),
     sodiumMg: decimal("sodium_mg", { precision: 7, scale: 1 }),

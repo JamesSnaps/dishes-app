@@ -11,6 +11,7 @@ import {
 } from "@dishes/ui";
 import { Button, Input, Textarea } from "@dishes/ui";
 import { updateMemberPreferences } from "@/app/actions/settings";
+import { CHOLESTEROL_DIETARY_FLAG } from "@/lib/heart-healthy";
 
 type MemberRole = "admin" | "adult" | "child";
 
@@ -25,6 +26,7 @@ const DIETARY_FLAGS = [
   "Kosher",
   "Low-FODMAP",
   "Egg-free",
+  CHOLESTEROL_DIETARY_FLAG,
 ];
 
 interface Props {

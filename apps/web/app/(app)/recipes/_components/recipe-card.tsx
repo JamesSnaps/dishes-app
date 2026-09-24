@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Clock, Flame, UtensilsCrossed } from "lucide-react";
+import { Check, Clock, Flame, HeartPulse, UtensilsCrossed } from "lucide-react";
 import { Badge, Card, cn } from "@dishes/ui";
 import { FavouriteButton } from "./favourite-button";
 import { StarRating } from "../[id]/_components/star-rating";
@@ -18,6 +18,8 @@ type RecipeCardProps = {
   thumbnailUrl?: string | null;
   isFavourite: boolean;
   isAiGenerated: boolean;
+  /** Low saturated fat, decent fibre — see lib/heart-healthy.ts. */
+  heartHealthy?: boolean;
   averageRating?: number | null;
   cookCount?: number;
   selectable?: boolean;
@@ -55,6 +57,7 @@ export function RecipeCard({
   thumbnailUrl,
   isFavourite,
   isAiGenerated,
+  heartHealthy,
   averageRating,
   cookCount,
   selectable = false,
@@ -122,7 +125,7 @@ export function RecipeCard({
           </div>
         )}
 
-        {(cuisine || isAiGenerated) && (
+        {(cuisine || isAiGenerated || heartHealthy) && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {cuisine && (
               <Badge variant="secondary" className="text-xs">
@@ -133,6 +136,15 @@ export function RecipeCard({
               <Badge variant="outline" className="text-xs">
                 AI
               </Badge>
+            )}
+            {heartHealthy && (
+              <span
+                title="Heart-healthy: low saturated fat, good fibre"
+                className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-2 py-0.5 text-xs font-medium text-white shadow-sm"
+              >
+                <HeartPulse className="h-3 w-3" />
+                Heart-healthy
+              </span>
             )}
           </div>
         )}

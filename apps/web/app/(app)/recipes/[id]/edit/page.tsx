@@ -101,6 +101,7 @@ export default async function EditRecipePage({ params }: Props) {
           proteinG: recipe.proteinG ?? undefined,
           carbsG: recipe.carbsG ?? undefined,
           fatG: recipe.fatG ?? undefined,
+          saturatedFatG: recipe.saturatedFatG ?? undefined,
           fiberG: recipe.fiberG ?? undefined,
           sugarG: recipe.sugarG ?? undefined,
           sodiumMg: recipe.sodiumMg ?? undefined,

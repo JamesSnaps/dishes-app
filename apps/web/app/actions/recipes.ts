@@ -56,6 +56,7 @@ function extractRecipeFields(formData: FormData): RecipeFields {
         proteinG: str("proteinG"),
         carbsG: str("carbsG"),
         fatG: str("fatG"),
+        saturatedFatG: str("saturatedFatG"),
         fiberG: str("fiberG"),
         sugarG: str("sugarG"),
         sodiumMg: str("sodiumMg"),

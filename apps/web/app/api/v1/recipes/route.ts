@@ -25,6 +25,7 @@ export const GET = withApiErrors(async (req: NextRequest) => {
     q: query.q,
     cuisine: query.cuisine,
     favouritesOnly: query.favourites === "1",
+    heartHealthyOnly: query.heartHealthy === "1",
     difficulty: query.difficulty,
     maxTotalMinutes: query.maxTime,
     tags: query.tags?.split(",").filter(Boolean),

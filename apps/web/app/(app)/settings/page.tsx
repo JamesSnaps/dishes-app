@@ -10,6 +10,7 @@ import { AppearanceSection } from "./_components/appearance-section";
 import { LogLevelSection } from "./_components/log-level-section";
 import { BackfillThumbnailsButton } from "./_components/backfill-thumbnails-button";
 import { BackfillMealTypesButton } from "./_components/backfill-meal-types-button";
+import { BackfillSaturatedFatButton } from "./_components/backfill-saturated-fat-button";
 import { PushNotificationManager } from "@/components/push-notification-manager";
 import { AssistHistorySection } from "./_components/assist-history-section";
 import { ReplayTourButton } from "./_components/replay-tour-button";
@@ -153,6 +154,7 @@ export default async function SettingsPage() {
             <div className="rounded-lg border bg-card p-4 space-y-4">
               <BackfillThumbnailsButton />
               <BackfillMealTypesButton />
+              <BackfillSaturatedFatButton />
             </div>
           </section>
         </>

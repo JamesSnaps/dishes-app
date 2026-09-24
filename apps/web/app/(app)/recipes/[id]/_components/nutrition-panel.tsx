@@ -9,6 +9,7 @@ type Nutrition = {
   proteinG: string | null;
   carbsG: string | null;
   fatG: string | null;
+  saturatedFatG: string | null;
   fiberG: string | null;
   sugarG: string | null;
   sodiumMg: string | null;
@@ -56,6 +57,7 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
           proteinG: n.proteinG == null ? null : String(n.proteinG),
           carbsG: n.carbsG == null ? null : String(n.carbsG),
           fatG: n.fatG == null ? null : String(n.fatG),
+          saturatedFatG: n.saturatedFatG == null ? null : String(n.saturatedFatG),
           fiberG: n.fiberG == null ? null : String(n.fiberG),
           sugarG: n.sugarG == null ? null : String(n.sugarG),
           sodiumMg: n.sodiumMg == null ? null : String(n.sodiumMg),
@@ -69,6 +71,7 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
     { label: "Protein", value: fmt(data.proteinG, scaleFactor, 1), unit: "g" },
     { label: "Carbs", value: fmt(data.carbsG, scaleFactor, 1), unit: "g" },
     { label: "Fat", value: fmt(data.fatG, scaleFactor, 1), unit: "g" },
+    { label: "Sat. fat", value: fmt(data.saturatedFatG, scaleFactor, 1), unit: "g" },
     { label: "Fiber", value: fmt(data.fiberG, scaleFactor, 1), unit: "g" },
     { label: "Sugar", value: fmt(data.sugarG, scaleFactor, 1), unit: "g" },
     { label: "Sodium", value: fmt(data.sodiumMg, scaleFactor, 0), unit: "mg" },
