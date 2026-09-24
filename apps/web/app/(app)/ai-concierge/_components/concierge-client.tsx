@@ -42,6 +42,48 @@ import { useSync } from "@/components/providers/sync-provider";
 import { saveGeneratedRecipe } from "@/app/actions/recipes";
 import type { RecipeFormDefaults } from "../../recipes/_components/recipe-form";
 
+// ── Heart-healthy status in the plan preview ───────────────────────────────────
+
+const HEART_STATUS_BADGES = {
+  yes: {
+    label: "Heart-healthy",
+    title: "Meets the heart-healthy targets",
+    className: "border-rose-400 bg-rose-500 text-white",
+  },
+  new: {
+    label: "Will be heart-healthy",
+    title: "A new recipe — written and checked against the heart-healthy targets",
+    className: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400",
+  },
+  unknown: {
+    label: "Heart status unknown",
+    title: "No saturated fat / fibre figures yet — Settings → Maintenance can estimate them",
+    className: "border-muted-foreground/20 bg-muted text-muted-foreground",
+  },
+  no: {
+    label: "Over heart targets",
+    title: "Higher in saturated fat or lower in fibre than the heart-healthy targets",
+    className: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+  },
+} as const;
+
+function HeartStatusBadge({ status }: { status?: MealPlanSlot["heartStatus"] }) {
+  if (!status) return null;
+  const badge = HEART_STATUS_BADGES[status];
+  return (
+    <span
+      title={badge.title}
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+        badge.className
+      )}
+    >
+      <HeartPulse className="h-2.5 w-2.5" />
+      {badge.label}
+    </span>
+  );
+}
+
 // ── Static data ────────────────────────────────────────────────────────────────
 
 const PREFERENCES = [
@@ -1226,6 +1268,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                                   New recipe
                                 </span>
                               )}
+                              <HeartStatusBadge status={slot.heartStatus} />
                             </div>
                             {!rejected && (
                               <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{slot.description}</p>

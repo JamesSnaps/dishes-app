@@ -39,6 +39,7 @@ import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { EntryCard } from "./entry-card";
+import { WeekNutritionCard } from "./week-nutrition-card";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "dessert", "snack"];
@@ -89,6 +90,11 @@ export type Recipe = {
   tags: string[];
   avgRating: number | null;
   ingredientNames: string[];
+  // Per serving, for the weekly nutrition card. Optional so the picker and
+  // other callers that don't care can leave them out.
+  calories?: number | null;
+  saturatedFatG?: string | null;
+  fiberG?: string | null;
 };
 
 export type TopIngredient = {
@@ -123,6 +129,8 @@ export interface WeekPlannerProps {
   todayDayIndex: number;
   topIngredients: TopIngredient[];
   shoppingItemCount: number;
+  /** Someone in the household is on a cholesterol-lowering diet: show the weekly targets. */
+  heartFocus?: boolean;
   /**
    * How entry edits are persisted. Every field defaults to the matching server
    * action; `WeekPlannerLocal` supplies versions that go through the sync
@@ -560,6 +568,7 @@ export function WeekPlanner({
   todayDayIndex,
   topIngredients,
   shoppingItemCount,
+  heartFocus = false,
   mutations,
   onNavigateWeek,
 }: WeekPlannerProps) {
@@ -1000,6 +1009,8 @@ export function WeekPlanner({
             <div className="hidden lg:flex flex-col gap-4 sticky top-8">
               <MealTypePieChart entries={localEntries} />
 
+              <WeekNutritionCard entries={localEntries} recipes={recipes} heartFocus={heartFocus} />
+
               <div className="rounded-xl border bg-card p-4">
                 <h3 className="font-semibold text-sm mb-3">Tools &amp; Actions</h3>
                 <div className="space-y-2">
@@ -1051,6 +1062,11 @@ export function WeekPlanner({
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Mobile: weekly nutrition */}
+          <div className="mt-6 lg:hidden">
+            <WeekNutritionCard entries={localEntries} recipes={recipes} heartFocus={heartFocus} />
           </div>
 
           {/* Mobile: generate shopping list */}

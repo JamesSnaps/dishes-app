@@ -9,6 +9,8 @@ import { getItemRecipeSources, orderSources } from "@/lib/shopping-item-sources"
 import { Button } from "@dishes/ui";
 import { GenerateFromRecipeButton } from "./_components/generate-from-recipe-button";
 import { ShoppingListClient } from "./_components/shopping-list-client";
+import { HeartSwapsProvider } from "./_components/heart-swaps-context";
+import { householdHasCholesterolDiet } from "@/lib/services/heart-focus";
 import { createList } from "@/app/actions/shopping";
 import type { ShoppingItem } from "@/hooks/use-shopping-list";
 
@@ -32,7 +34,7 @@ export default async function ShoppingPage() {
     .orderBy(asc(shoppingLists.createdAt))
     .limit(1);
 
-  const [items, allRecipes, mostOrdered] = await Promise.all([
+  const [items, allRecipes, mostOrdered, showHeartSwaps] = await Promise.all([
     activeList
       ? db
           .select({
@@ -75,6 +77,9 @@ export default async function ShoppingPage() {
       .groupBy(shoppingListItems.ingredientName)
       .orderBy(desc(sql`count(*)`))
       .limit(10),
+    // Swap hints only for households where someone is on a cholesterol-lowering
+    // diet — for everyone else "swap your butter" would just be nagging.
+    householdHasCholesterolDiet(householdId),
   ]);
 
   const sourcesByItem = await getItemRecipeSources(items.map((i) => i.id));
@@ -135,12 +140,14 @@ export default async function ShoppingPage() {
               </form>
             </div>
           ) : (
-            <ShoppingListClient
-              key={syncKey}
-              listId={activeList.id}
-              initialItems={initialItems}
-              mostOrdered={mostOrdered}
-            />
+            <HeartSwapsProvider enabled={showHeartSwaps}>
+              <ShoppingListClient
+                key={syncKey}
+                listId={activeList.id}
+                initialItems={initialItems}
+                mostOrdered={mostOrdered}
+              />
+            </HeartSwapsProvider>
           )}
 
         </div>

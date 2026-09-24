@@ -335,6 +335,18 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* Stats — the only way in on mobile, where the side nav is hidden */}
+      <Link
+        href="/stats"
+        className="flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-rose-500 p-4 text-white shadow-sm transition-opacity hover:opacity-95"
+      >
+        <span>
+          <span className="block text-base font-semibold">What we&rsquo;ve been eating</span>
+          <span className="block text-sm text-white/85">Stats, heart health and who ate what</span>
+        </span>
+        <span className="shrink-0 rounded-full bg-white/20 px-3 py-1 text-sm font-medium">See stats →</span>
+      </Link>
+
       {/* Memories strip */}
       {recentPhotos.length > 0 && (
         <section>

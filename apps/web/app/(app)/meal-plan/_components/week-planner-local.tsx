@@ -129,6 +129,9 @@ function toPickerRecipe(r: SyncRow, avgRating: number | null): Recipe {
     tags: strArray(r.tags),
     avgRating,
     ingredientNames: ingredientNames(r.ingredients),
+    calories: num(r.calories),
+    saturatedFatG: decimalStr(r.saturatedFatG),
+    fiberG: decimalStr(r.fiberG),
   };
 }
 
@@ -204,7 +207,7 @@ function shoppingCountFrom(lists: SyncRow[], items: SyncRow[]): number {
 
 type Props = Pick<
   WeekPlannerProps,
-  "weekStartDate" | "isCurrentWeek" | "todayDayIndex"
+  "weekStartDate" | "isCurrentWeek" | "todayDayIndex" | "heartFocus"
 > & {
   initial: Pick<
     WeekPlannerProps,
@@ -216,6 +219,7 @@ export function WeekPlannerLocal({
   weekStartDate,
   isCurrentWeek,
   todayDayIndex,
+  heartFocus,
   initial,
 }: Props) {
   const sync = useSync();
@@ -444,6 +448,7 @@ export function WeekPlannerLocal({
       recipes={data.recipes}
       topIngredients={data.topIngredients}
       shoppingItemCount={data.shoppingItemCount}
+      heartFocus={heartFocus}
       // Both only when the local store is driving the screen: against
       // `initial`, nothing would re-read the result.
       mutations={mutations}

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { mealPlans, mealPlanEntries, recipes, recipeTags, recipeIngredients, cookHistory, shoppingLists, shoppingListItems } from "@dishes/db/schema";
+import { householdHasCholesterolDiet } from "@/lib/services/heart-focus";
 import { eq, and, inArray, count, avg } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -48,7 +49,7 @@ export default async function MealPlanPage({
     )
     .limit(1);
 
-  const [allEntries, allRecipesRaw] = await Promise.all([
+  const [allEntries, allRecipesRaw, heartFocus] = await Promise.all([
     plan
       ? db
           .select({
@@ -99,10 +100,14 @@ export default async function MealPlanPage({
         prepTimeMinutes: recipes.prepTimeMinutes,
         cookTimeMinutes: recipes.cookTimeMinutes,
         isFavourite: recipes.isFavourite,
+        calories: recipes.calories,
+        saturatedFatG: recipes.saturatedFatG,
+        fiberG: recipes.fiberG,
       })
       .from(recipes)
       .where(eq(recipes.householdId, householdId))
       .orderBy(recipes.title),
+    householdHasCholesterolDiet(householdId),
   ]);
 
   // Fetch tags and avg ratings for picker
@@ -210,6 +215,7 @@ export default async function MealPlanPage({
         weekStartDate={weekStartDate}
         isCurrentWeek={isCurrentWeek}
         todayDayIndex={isCurrentWeek ? getTodayDayIndex() : -1}
+        heartFocus={heartFocus}
         initial={{
           planId: plan?.id ?? null,
           entries: allEntries,

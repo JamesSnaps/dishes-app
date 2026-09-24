@@ -29,7 +29,7 @@ export function BackfillSaturatedFatButton() {
       <div>
         <p className="font-medium text-sm">Estimate saturated fat</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Use AI to add saturated fat to recipes that don't have it yet, so the
+          Use AI to add saturated fat to recipes that don&rsquo;t have it yet, so the
           heart-healthy filter can judge them. One AI call per recipe.
           {result && (
             <span className="ml-1 text-green-600 dark:text-green-400">

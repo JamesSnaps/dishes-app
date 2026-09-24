@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Pencil, ShoppingCart, Trash2, X } from "lucide-react";
+import { Check, HeartPulse, Pencil, ShoppingCart, Trash2, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@dishes/ui";
 import { formatQuantity } from "@/lib/format-quantity";
+import { heartSwapFor } from "@/lib/heart-swaps";
+import { useHeartSwaps } from "./heart-swaps-context";
 import type { ShoppingItem as ShoppingItemType } from "@/hooks/use-shopping-list";
 
 interface Props {
@@ -26,6 +28,7 @@ interface Props {
 }
 
 export function ShoppingItem({ item, onToggle, onUpdate, onDelete }: Props) {
+  const showHeartSwaps = useHeartSwaps();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(item.ingredientName);
   const [amount, setAmount] = useState(item.amount ?? "");
@@ -115,6 +118,8 @@ export function ShoppingItem({ item, onToggle, onUpdate, onDelete }: Props) {
     );
   }
 
+  const swap = showHeartSwaps && !item.isChecked ? heartSwapFor(item.ingredientName) : null;
+
   const { amount: displayAmount, unit: displayUnit } = formatQuantity(item.amount, item.unit);
   const label = [displayAmount, displayUnit, item.ingredientName]
     .filter(Boolean)
@@ -138,6 +143,15 @@ export function ShoppingItem({ item, onToggle, onUpdate, onDelete }: Props) {
         {item.notes && (
           <span className="ml-1 text-sm text-muted-foreground">
             ({item.notes})
+          </span>
+        )}
+        {swap && (
+          <span
+            title={swap.why}
+            className="mt-1 flex w-fit items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-700 dark:text-rose-300"
+          >
+            <HeartPulse className="h-3 w-3 shrink-0" />
+            Swap? {swap.swap}
           </span>
         )}
         {(() => {

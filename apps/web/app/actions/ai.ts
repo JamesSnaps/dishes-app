@@ -837,6 +837,13 @@ export type MealPlanSlot = {
   cuisine: string;
   difficulty: "easy" | "medium" | "hard";
   recipeId?: string | null; // set when the AI picks from the existing library
+  /**
+   * Heart-healthy status for the preview. "yes" is set whenever a library pick
+   * meets the targets; the rest only when the heart-healthy week is on:
+   * "unknown" (library pick without the numbers), "no" (library pick that
+   * misses), "new" (a new recipe, which will be written to the targets).
+   */
+  heartStatus?: "yes" | "no" | "unknown" | "new";
 };
 
 export async function generateMealPlanConcepts(params: {
@@ -1298,17 +1305,25 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
         // isn't among them, the model mis-assigned it (e.g. a dinner dish into
         // a breakfast slot). Drop the reuse and keep the slot as a new concept.
         if (lib.mealTypes && lib.mealTypes.length && !lib.mealTypes.includes(slot.mealType)) {
-          return { ...slot, recipeId: null };
+          return { ...slot, recipeId: null, heartStatus: heartHealthy ? ("new" as const) : undefined };
         }
+        const libHeart = isHeartHealthy(lib)
+          ? ("yes" as const)
+          : !heartHealthy
+            ? undefined
+            : lib.saturatedFatG != null && lib.fiberG != null
+              ? ("no" as const)
+              : ("unknown" as const);
         return {
           ...slot,
+          heartStatus: libHeart,
           title: lib.title,
           cuisine: lib.cuisine ?? slot.cuisine,
           difficulty: (lib.difficulty ?? slot.difficulty) as MealPlanSlot["difficulty"],
           recipeId: lib.id,
         };
       }
-      return { ...slot, recipeId: null };
+      return { ...slot, recipeId: null, heartStatus: heartHealthy ? ("new" as const) : undefined };
     });
 
     return { slots: resolvedSlots };
