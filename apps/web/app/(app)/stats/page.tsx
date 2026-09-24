@@ -27,6 +27,7 @@ import {
 } from "@/lib/meal-stats";
 import { STATS_RANGES, getStatsReport, parseRange, type StatsRange } from "@/lib/services/stats";
 import { BarList, DataTable, Section, ShareColumns, StatTile } from "./_components/stat-pieces";
+import { PrintButton } from "./_components/print-button";
 
 export const metadata = { title: "Stats" };
 
@@ -50,20 +51,33 @@ const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", 
 export default async function StatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; person?: string }>;
 }) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
-  const range = parseRange((await searchParams).range);
-  const report = await getStatsReport(householdId, range);
+  const params = await searchParams;
+  const range = parseRange(params.range);
+  const report = await getStatsReport(householdId, range, params.person);
+  const personParam = report.person ? `&person=${report.person.id}` : "";
   const { totals, summary } = report;
 
   const missingNutrition = summary.meals - summary.withNutrition;
 
   return (
     <div className="mx-auto max-w-5xl p-4 lg:p-8">
+      {/* Print-only title: what this PDF is, for whom, and when */}
+      <div className="mb-6 hidden border-b pb-3 print:block">
+        <h1 className="text-2xl font-bold">
+          Eating stats{report.person ? ` — ${report.person.name}` : ""}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {DATE.format(new Date(report.from + "T00:00:00Z"))} to {DATE.format(new Date(report.to + "T00:00:00Z"))} ·
+          generated {DATE.format(new Date())} from Dishes
+        </p>
+      </div>
+
       {/* Header + range */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3 print:hidden">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <BarChart3 className="h-6 w-6 text-primary" />
@@ -77,7 +91,7 @@ export default async function StatsPage({
           {(Object.keys(STATS_RANGES) as StatsRange[]).map((key) => (
             <Link
               key={key}
-              href={`/stats?range=${key}`}
+              href={`/stats?range=${key}${personParam}`}
               aria-current={key === range ? "page" : undefined}
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium transition-colors",
@@ -90,6 +104,35 @@ export default async function StatsPage({
             </Link>
           ))}
         </nav>
+      </div>
+
+      {/* Whose stats, and export */}
+      <div className="-mt-3 mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
+        {report.members.length > 1 ? (
+          <nav className="flex flex-wrap gap-1.5" aria-label="Person">
+            {[{ id: "", name: "Everyone" }, ...report.members].map((m) => {
+              const active = (report.person?.id ?? "") === m.id;
+              return (
+                <Link
+                  key={m.id || "everyone"}
+                  href={`/stats?range=${range}${m.id ? `&person=${m.id}` : ""}`}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    active
+                      ? "border-blue-400 bg-blue-500 text-white"
+                      : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400"
+                  )}
+                >
+                  {m.name}
+                </Link>
+              );
+            })}
+          </nav>
+        ) : (
+          <span />
+        )}
+        <PrintButton />
       </div>
 
       {totals.meals === 0 ? (
@@ -246,8 +289,8 @@ export default async function StatsPage({
           {/* By person */}
           {report.people.length > 0 && (
             <Section
-              title="By person"
               icon={<Users className="h-4 w-4 text-blue-500" />}
+              title={report.person ? report.person.name : "By person"}
               description="A meal counts for everyone unless a logged cook says who was eating."
             >
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -258,8 +301,12 @@ export default async function StatsPage({
             </Section>
           )}
 
-          {/* Worth a look */}
-          <Section title="Worth a look" icon={<Lightbulb className="h-4 w-4 text-amber-500" />}>
+          {/* Worth a look — app nudges, left out of the PDF */}
+          <Section
+            title="Worth a look"
+            icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
+            className="print:hidden"
+          >
             <div className="grid gap-5 lg:grid-cols-2">
               <div>
                 <h3 className="mb-2 text-sm font-medium">Favourites you haven&rsquo;t had in a while</h3>
@@ -308,6 +355,11 @@ export default async function StatsPage({
               </div>
             </div>
           </Section>
+          <p className="hidden text-xs text-muted-foreground print:block">
+            Figures are per-serving estimates from recipe nutrition data (much of it AI-estimated), and
+            &ldquo;eaten&rdquo; means meals on the household meal plan or logged as cooked. A guide to
+            eating patterns, not a clinical record.
+          </p>
         </div>
       )}
     </div>

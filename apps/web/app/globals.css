@@ -107,3 +107,26 @@
     overscroll-behavior: none;
   }
 }
+
+/* Printing (Stats → Download PDF). The app shell is a fixed-height screen with
+   its own scrolling <main>; on paper that would clip everything to one page, so
+   let it flow, drop the navigation, and keep the tinted backgrounds. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: white !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .h-screen {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  #main-scroll {
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+}

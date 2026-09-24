@@ -87,7 +87,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden pt-safe-top">
       {/* Desktop sidebar */}
       <SideNav
-        className="hidden lg:flex"
+        className="hidden lg:flex print:hidden"
         displayName={member?.displayName ?? user.displayName}
         avatarUrl={member?.avatarUrl ?? null}
         shoppingItemCount={shoppingItemCount}
@@ -102,7 +102,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </main>
 
       {/* Mobile bottom nav */}
-      <BottomNav className="lg:hidden" />
+      <BottomNav className="lg:hidden print:hidden" />
 
       <OfflineIndicator />
       <RefreshOnStalePaint />

@@ -21,7 +21,7 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-2xl border bg-card/80 p-4 shadow-sm lg:p-5", className)}>
+    <section className={cn("break-inside-avoid rounded-2xl border bg-card/80 p-4 shadow-sm lg:p-5 print:shadow-none", className)}>
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-base font-semibold">
           {icon}
@@ -160,7 +160,7 @@ export function DataTable({
   rows: (string | number)[][];
 }) {
   return (
-    <details className="mt-3 text-sm">
+    <details className="mt-3 text-sm print:hidden">
       <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
         Show as table
       </summary>

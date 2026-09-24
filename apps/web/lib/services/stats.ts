@@ -90,6 +90,13 @@ export type PersonStats = {
 
 export type StatsReport = {
   range: StatsRange;
+  /** Set when the report is narrowed to one member's meals. */
+  person: { id: string; name: string } | null;
+  /** Every active member, for the person picker. */
+  members: { id: string; name: string }[];
+  /** First and last day covered (YYYY-MM-DD). */
+  from: string;
+  to: string;
   weeks: number;
   heartFocus: boolean;
   totals: {
@@ -163,7 +170,11 @@ function perWeek(proteins: Record<ProteinKind, number>, weeks: number): Record<P
 
 // ── The report ───────────────────────────────────────────────────────────────
 
-export async function getStatsReport(householdId: string, range: StatsRange): Promise<StatsReport> {
+export async function getStatsReport(
+  householdId: string,
+  range: StatsRange,
+  personId?: string
+): Promise<StatsReport> {
   const today = isoDate(new Date());
 
   const [plannedRows, cookRows, recipeRows, memberRows] = await Promise.all([
@@ -261,7 +272,17 @@ export async function getStatsReport(householdId: string, range: StatsRange): Pr
   const rangeDays = STATS_RANGES[range].days;
   const firstEver = allMeals[0]?.date ?? today;
   const from = rangeDays === null ? firstEver : addDays(today, -(rangeDays - 1));
-  const meals = allMeals.filter((m) => m.date >= from && m.date <= today);
+  // One person's report: only the meals they ate (everyone's, unless a logged
+  // cook names who was eating). Scoped to this household's members, so a
+  // stray id just falls back to the whole household.
+  const personRow = personId ? memberRows.find((m) => m.id === personId) : undefined;
+  const ateIt = (m: Meal, displayName: string) => {
+    const name = displayName.trim().toLowerCase();
+    return m.who === null || m.who.some((w) => w.trim().toLowerCase() === name);
+  };
+  const meals = allMeals.filter(
+    (m) => m.date >= from && m.date <= today && (!personRow || ateIt(m, personRow.displayName))
+  );
   const weeks = Math.max(1, (daysBetween(from, today) + 1) / 7);
 
   const factsOf = (m: Meal): MealFacts => {
@@ -347,9 +368,8 @@ export async function getStatsReport(householdId: string, range: StatsRange): Pr
 
   // ── People ───────────────────────────────────────────────────────────────────
 
-  const people: PersonStats[] = memberRows.map((m) => {
-    const name = m.displayName.trim().toLowerCase();
-    const theirs = meals.filter((meal) => meal.who === null || meal.who.some((w) => w.trim().toLowerCase() === name));
+  const people: PersonStats[] = (personRow ? [personRow] : memberRows).map((m) => {
+    const theirs = meals.filter((meal) => ateIt(meal, m.displayName));
     const s = summariseMeals(theirs.map(factsOf));
     const topCuisine =
       topN(countBy(theirs, (meal) => recipeById.get(meal.recipeId)?.cuisine ?? null), 1)[0]?.[0] ?? null;
@@ -396,6 +416,10 @@ export async function getStatsReport(householdId: string, range: StatsRange): Pr
 
   return {
     range,
+    person: personRow ? { id: personRow.id, name: personRow.displayName } : null,
+    members: memberRows.map((m) => ({ id: m.id, name: m.displayName })),
+    from,
+    to: today,
     weeks,
     heartFocus: people.some((p) => p.cholesterolDiet),
     totals: {
