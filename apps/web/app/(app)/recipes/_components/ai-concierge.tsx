@@ -32,7 +32,7 @@ function difficultyVariant(d: string): "default" | "secondary" | "outline" {
   return "outline";
 }
 
-function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
+export function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
   return {
     title: r.title,
     description: r.description,
@@ -42,6 +42,7 @@ function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
     cookTimeMinutes: r.cookTimeMinutes,
     servings: r.servings,
     servingsUnit: r.servingsUnit,
+    mealTypes: r.mealTypes,
     tags: r.tags,
     notes: r.notes,
     ingredients: r.ingredients,

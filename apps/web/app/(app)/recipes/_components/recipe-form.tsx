@@ -550,6 +550,23 @@ export function RecipeForm({
   const [aiApplied, setAiApplied] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
 
+  /** The nutrition fields as the AI schema expects them, or null if empty. */
+  function currentNutrition(): GeneratedRecipe["nutrition"] {
+    const num = (v: string) => (v.trim() === "" ? null : Number(v));
+    const values = {
+      calories: num(calories),
+      proteinG: num(proteinG),
+      carbsG: num(carbsG),
+      fatG: num(fatG),
+      saturatedFatG: num(saturatedFatG),
+      fiberG: num(fiberG),
+      sugarG: num(sugarG),
+      sodiumMg: num(sodiumMg),
+    };
+    if (Object.values(values).some((v) => v == null || !Number.isFinite(v))) return null;
+    return values as NonNullable<GeneratedRecipe["nutrition"]>;
+  }
+
   async function handleAiImprove() {
     if (!aiPrompt.trim()) return;
     setAiLoading(true);
@@ -577,6 +594,9 @@ export function RecipeForm({
         groupLabel,
       })),
       notes: notes || null,
+      // Without this the model has nothing to "keep" and can hand back an
+      // empty block, which used to blank the fields on the next save.
+      nutrition: currentNutrition(),
     };
 
     const result = await improveRecipe(current, aiPrompt);
@@ -618,15 +638,20 @@ export function RecipeForm({
       )
     );
     if (r.nutrition) {
-      const ns = (v: number | null | undefined) => (v == null ? "" : String(v));
-      setCalories(ns(r.nutrition.calories));
-      setProteinG(ns(r.nutrition.proteinG));
-      setCarbsG(ns(r.nutrition.carbsG));
-      setFatG(ns(r.nutrition.fatG));
-      setSaturatedFatG(ns(r.nutrition.saturatedFatG));
-      setFiberG(ns(r.nutrition.fiberG));
-      setSugarG(ns(r.nutrition.sugarG));
-      setSodiumMg(ns(r.nutrition.sodiumMg));
+      // Only take values the model actually gave — a null or missing number
+      // keeps what's already in the field rather than clearing it.
+      const n = r.nutrition as Partial<Record<keyof typeof r.nutrition, unknown>>;
+      const apply = (v: unknown, set: (s: string) => void) => {
+        if (typeof v === "number" && Number.isFinite(v)) set(String(v));
+      };
+      apply(n.calories, setCalories);
+      apply(n.proteinG, setProteinG);
+      apply(n.carbsG, setCarbsG);
+      apply(n.fatG, setFatG);
+      apply(n.saturatedFatG, setSaturatedFatG);
+      apply(n.fiberG, setFiberG);
+      apply(n.sugarG, setSugarG);
+      apply(n.sodiumMg, setSodiumMg);
     }
     setAiApplied(true);
     setAiSummary(result.summary ?? null);

@@ -40,6 +40,7 @@ import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-pla
 import type { StyleBreakdown, LibraryStyle } from "@/lib/services/recipe-library";
 import { useSync } from "@/components/providers/sync-provider";
 import { saveGeneratedRecipe } from "@/app/actions/recipes";
+import { recipeToDefaults } from "@/app/(app)/recipes/_components/ai-concierge";
 import type { RecipeFormDefaults } from "../../recipes/_components/recipe-form";
 
 // ── Heart-healthy status in the plan preview ───────────────────────────────────
@@ -232,16 +233,6 @@ function difficultyClass(d: string) {
   if (d === "easy") return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800";
   if (d === "hard") return "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800";
   return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-800";
-}
-
-function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
-  return {
-    title: r.title, description: r.description, cuisine: r.cuisine,
-    difficulty: r.difficulty, prepTimeMinutes: r.prepTimeMinutes,
-    cookTimeMinutes: r.cookTimeMinutes, servings: r.servings,
-    servingsUnit: r.servingsUnit, tags: r.tags, notes: r.notes,
-    ingredients: r.ingredients, steps: r.steps,
-  };
 }
 
 // Form defaults plus the collection the AI thinks the recipe belongs in, so the

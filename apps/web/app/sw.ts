@@ -147,18 +147,27 @@ const pageCache = new StaleWhileRevalidate({
   ],
 });
 
+// Edit forms seed their fields from the server render once, on mount. A stale
+// paint there is not corrected by the refresh above — the form keeps the old
+// values and saving writes them back (e.g. wiping nutrition estimated since the
+// page was cached). They fall through to defaultCache's NetworkFirst instead.
+const FORM_PAGE = /\/edit\/?$/;
+
 // NavigationRoute matches on the request being a navigation, which is what a
 // document load actually is — `request.destination === "document"` in a plain
 // matcher lost these to the catch-all.
 serwist.registerRoute(
   new NavigationRoute(pageCache, {
-    denylist: [/^\/api\//, /^\/_next\//],
+    denylist: [/^\/api\//, /^\/_next\//, FORM_PAGE],
   })
 );
 
 serwist.registerCapture(
   ({ request, url: { pathname }, sameOrigin }) =>
-    sameOrigin && !pathname.startsWith("/api/") && request.headers.get("RSC") === "1",
+    sameOrigin &&
+    !pathname.startsWith("/api/") &&
+    !FORM_PAGE.test(pathname) &&
+    request.headers.get("RSC") === "1",
   new StaleWhileRevalidate({
     cacheName: "pages-rsc",
     plugins: [
