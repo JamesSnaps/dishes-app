@@ -38,6 +38,7 @@ import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe, gener
 import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
 import type { StyleBreakdown, LibraryStyle } from "@/lib/services/recipe-library";
+import { StarRating } from "@/app/(app)/recipes/[id]/_components/star-rating";
 import { useSync } from "@/components/providers/sync-provider";
 import { saveGeneratedRecipe } from "@/app/actions/recipes";
 import { recipeToDefaults } from "@/app/(app)/recipes/_components/ai-concierge";
@@ -1318,6 +1319,15 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                                 </span>
                               )}
                               <HeartStatusBadge status={slot.heartStatus} />
+                              {slot.recipeId && slot.avgRating != null && (
+                                <span
+                                  title="Your household's average rating"
+                                  className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                                >
+                                  <StarRating value={slot.avgRating} readonly size="sm" />
+                                  {slot.avgRating / 2}/5
+                                </span>
+                              )}
                             </div>
                             {!rejected && (
                               <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{slot.description}</p>

@@ -848,6 +848,8 @@ export type MealPlanSlot = {
    * misses), "new" (a new recipe, which will be written to the targets).
    */
   heartStatus?: "yes" | "no" | "unknown" | "new";
+  /** Household average rating (0–10) for library picks; null when unrated. */
+  avgRating?: number | null;
 };
 
 export async function generateMealPlanConcepts(params: {
@@ -1407,6 +1409,7 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
           cuisine: lib.cuisine ?? slot.cuisine,
           difficulty: (lib.difficulty ?? slot.difficulty) as MealPlanSlot["difficulty"],
           recipeId: lib.id,
+          avgRating: lib.avgRating != null ? Math.round(parseFloat(lib.avgRating) * 10) / 10 : null,
         };
       }
       return { ...slot, recipeId: null, heartStatus: heartHealthy ? ("new" as const) : undefined };
