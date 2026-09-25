@@ -41,6 +41,10 @@ interface RecipeTabsProps {
   steps: Step[];
   tags: { id: string; tag: string }[];
   cookHistory: CookHistoryEntry[];
+  recipeTitle: string;
+  members: { id: string; displayName: string }[];
+  ownName: string | null;
+  storageAvailable: boolean;
 }
 
 // Group a list into contiguous runs sharing a section heading. A blank/null
@@ -82,6 +86,10 @@ export function RecipeTabs({
   steps,
   tags,
   cookHistory,
+  recipeTitle,
+  members,
+  ownName,
+  storageAvailable,
 }: RecipeTabsProps) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -343,7 +351,14 @@ export function RecipeTabs({
                   you&apos;ve cooked it.
                 </p>
                 {cookHistory.map((entry) => (
-                  <CookHistoryEntryCard key={entry.id} entry={entry} />
+                  <CookHistoryEntryCard
+                    key={entry.id}
+                    entry={entry}
+                    recipeTitle={recipeTitle}
+                    members={members}
+                    ownName={ownName}
+                    storageAvailable={storageAvailable}
+                  />
                 ))}
               </>
             )}

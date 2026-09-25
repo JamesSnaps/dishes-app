@@ -100,6 +100,10 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Stats page (`/stats`): totals, heart health by week/month, protein mix vs targets, most eaten, cuisines, per person, "worth a look"
 - [x] Stats: per-person view and "Download PDF" (print-to-PDF snapshot)
 - [x] Dishes Wrapped (`/wrapped`): year-in-food story slides with shareable PNG cards
+- [x] Per-person ratings on cooks; Wrapped favourites, disagreement and critics slides
+- [x] Wrapped: photo collage, photo of the year, review quote, AI recap from review notes
+- [x] Household ratings: each cook averages everyone's voices; per-person breakdown on recipes; planner avoids dishes an eater rated ≤2★
+- [x] Edit a history entry with the full review form (duration, who ate, ratings, photo)
 - [ ] Record who ate planned meals (not just logged cooks), so per-person stats don't have to assume everyone
 
 ## AI — Photo Recipe Import

@@ -21,6 +21,7 @@ import {
   mealPlans,
   mealPlanEntries,
   notes,
+  householdMembers,
 } from "@dishes/db/schema";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
@@ -40,6 +41,7 @@ import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/lib/services/cook-history";
 import { getSmtpConfig } from "@/app/actions/sharing";
 import { isStorageAvailable } from "@/lib/storage";
+import { ratingsByPerson } from "@/lib/cook-ratings";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
 export const metadata = { title: "Recipe" };
@@ -71,11 +73,11 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
   const backHref = from === "meal-plan" && week ? `/meal-plan?week=${week}` : recipesBack;
   const backLabel = from === "meal-plan" ? "Meal Plan" : "Recipes";
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const { householdId, memberId } = await requireHousehold(user);
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration, smtpConfig, aiConfig] = await Promise.all([
+  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration, smtpConfig, aiConfig, members] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -126,9 +128,17 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
       .where(eq(aiConfigurations.householdId, householdId))
       .limit(1)
       .then((r) => r[0] ?? null),
+    db
+      .select({ id: householdMembers.id, displayName: householdMembers.displayName })
+      .from(householdMembers)
+      .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
+      .orderBy(householdMembers.displayName),
   ]);
 
   if (!recipe) notFound();
+
+  const ownName = members.find((m) => m.id === memberId)?.displayName ?? null;
+  const personRatings = ratingsByPerson(cookHistoryRows);
 
   // Related recipes: same cuisine or shared tags, deduplicated, max 4
   const tagValues = tags.map((t) => t.tag);
@@ -402,10 +412,30 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
             Cooked {cookStats.cookCount === 1 ? "once" : `${cookStats.cookCount} times`}
           </span>
         ) : null}
+        {personRatings.length > 1 && (
+          <span className="flex flex-wrap gap-1.5" aria-label="Ratings by person">
+            {personRatings.map((p) => (
+              <span
+                key={p.name}
+                title={`${p.name}'s average over ${p.count} ${p.count === 1 ? "rating" : "ratings"}`}
+                className={
+                  p.average <= 4
+                    ? "rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                    : "rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200"
+                }
+              >
+                {p.name} ★ {Math.round(p.average * 5) / 10}
+              </span>
+            ))}
+          </span>
+        )}
         <AddCookReviewSheet
           recipeId={id}
           recipeTitle={recipe.title}
           pendingCookId={pendingReview ?? null}
+          pendingEntry={pendingReview ? (cookHistoryRows.find((e) => e.id === pendingReview) ?? null) : null}
+          members={members}
+          ownName={ownName}
           storageAvailable={isStorageAvailable()}
         />
       </div>
@@ -459,6 +489,10 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         steps={steps}
         tags={tags}
         cookHistory={cookHistoryRows}
+        recipeTitle={recipe.title}
+        members={members}
+        ownName={ownName}
+        storageAvailable={isStorageAvailable()}
       />
 
       {/* Linked notes */}

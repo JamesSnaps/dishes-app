@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Loader2, Pause, Play, Share2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Pause, Play, RefreshCw, Share2, Sparkles, X } from "lucide-react";
+import { generateWrappedRecap } from "@/app/actions/ai";
 import { cn } from "@dishes/ui";
 import type { WrappedReport } from "@/lib/services/wrapped";
 
@@ -61,7 +62,15 @@ function RankList({ items, dark }: { items: { name: string; sub: string }[]; dar
   );
 }
 
-function buildSlides(r: WrappedReport): Slide[] {
+type RecapState = {
+  text: string | null;
+  loading: boolean;
+  error: string | null;
+  available: boolean;
+  generate: (regenerate?: boolean) => void;
+};
+
+function buildSlides(r: WrappedReport, recap: RecapState): Slide[] {
   const t = r.totals;
   const so = r.inProgress ? " so far" : "";
   const slides: Slide[] = [];
@@ -329,11 +338,181 @@ function buildSlides(r: WrappedReport): Slide[] {
                 <div className="rounded-2xl bg-white/10 px-4 py-3 shadow-lg">
                   <p className="text-sm font-bold uppercase tracking-wider text-fuchsia-300">{p.name}</p>
                   <p className="truncate text-xl font-black">{p.topRecipe}</p>
-                  {p.topCuisine && <p className="text-sm opacity-75">Mostly {p.topCuisine}</p>}
+                  <p className="text-sm opacity-75">
+                    {p.topRecipeBasis === "rated" ? `Their top rating · ★ ${p.topRecipeRating}` : "Their most eaten"}
+                    {p.topCuisine && ` · mostly ${p.topCuisine}`}
+                  </p>
                 </div>
               </Rise>
             ))}
           </div>
+        </>
+      ),
+    });
+  }
+
+  if (r.disagreement || r.critics) {
+    const d = r.disagreement;
+    slides.push({
+      id: "disagreement",
+      bg: "bg-gradient-to-br from-red-500 via-orange-500 to-yellow-400",
+      blobs: ["bg-pink-500", "bg-yellow-200"],
+      card: d ? "disagreement" : undefined,
+      body: (
+        <>
+          {d && (
+            <>
+              <Rise><Kicker>Biggest disagreement</Kicker></Rise>
+              <Rise i={1}><h2 className="mt-4 text-4xl font-black leading-tight tracking-tight">{d.recipe}</h2></Rise>
+              <div className="mt-8 grid grid-cols-2 gap-3">
+                <div className="animate-wrapped-pop rounded-3xl bg-white/25 p-4 shadow-xl" style={{ animationDelay: "700ms" }}>
+                  <p className="text-5xl font-black">★{d.high.rating}</p>
+                  <p className="mt-1 truncate text-lg font-bold">{d.high.name}</p>
+                  <p className="text-sm opacity-80">loved it</p>
+                </div>
+                <div className="animate-wrapped-pop rounded-3xl bg-black/25 p-4 shadow-xl" style={{ animationDelay: "1000ms" }}>
+                  <p className="text-5xl font-black">★{d.low.rating}</p>
+                  <p className="mt-1 truncate text-lg font-bold">{d.low.name}</p>
+                  <p className="text-sm opacity-80">…not so much</p>
+                </div>
+              </div>
+            </>
+          )}
+          {r.critics && (
+            <Rise i={4}>
+              <div className={cn("space-y-2 text-left", d ? "mt-8" : "")}>
+                {!d && <Kicker>The critics</Kicker>}
+                <p className="rounded-2xl bg-black/20 px-4 py-3 text-lg font-bold shadow-lg">
+                  🧐 Harshest critic: {r.critics.harshest.name} <span className="opacity-80">(avg ★{r.critics.harshest.avg})</span>
+                </p>
+                <p className="rounded-2xl bg-white/20 px-4 py-3 text-lg font-bold shadow-lg">
+                  😋 Easiest to please: {r.critics.easiest.name} <span className="opacity-80">(avg ★{r.critics.easiest.avg})</span>
+                </p>
+              </div>
+            </Rise>
+          )}
+        </>
+      ),
+    });
+  }
+
+  if (r.photos.length >= 4) {
+    slides.push({
+      id: "photos",
+      bg: "bg-gradient-to-br from-zinc-900 via-rose-950 to-zinc-900",
+      blobs: ["bg-rose-500", "bg-amber-400"],
+      body: (
+        <>
+          <Rise><Kicker>{n(r.totals.photos)} food {r.totals.photos === 1 ? "photo" : "photos"} this year</Kicker></Rise>
+          <div className="mt-6 grid grid-cols-3 gap-2">
+            {r.photos.map((p, i) => (
+              <div
+                key={p.url}
+                className="animate-wrapped-pop overflow-hidden rounded-xl shadow-xl ring-2 ring-white/20"
+                style={{ animationDelay: `${300 + i * 120}ms`, transform: `rotate(${((i * 37) % 7) - 3}deg)` }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.url} alt={p.recipe} className="aspect-square w-full object-cover" />
+              </div>
+            ))}
+          </div>
+        </>
+      ),
+    });
+  }
+
+  if (r.photoOfYear) {
+    const p = r.photoOfYear;
+    slides.push({
+      id: "photo-of-year",
+      bg: "bg-gradient-to-br from-amber-300 via-rose-400 to-fuchsia-600",
+      blobs: ["bg-yellow-100", "bg-purple-700"],
+      card: "photo",
+      body: (
+        <>
+          <Rise><Kicker>Photo of the year 📸</Kicker></Rise>
+          <div className="animate-wrapped-pop mx-auto mt-6 w-64 rotate-2 rounded-2xl bg-white p-3 pb-10 shadow-2xl sm:w-72" style={{ animationDelay: "400ms" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={p.url} alt={p.recipe} className="aspect-square w-full rounded-lg object-cover" />
+            <p className="mt-3 truncate text-center text-lg font-black text-zinc-800">{p.recipe}</p>
+          </div>
+          {p.rating != null && (
+            <Rise i={3}><p className="mt-6 text-xl font-bold">Rated ★ {p.rating} — looked as good as it tasted.</p></Rise>
+          )}
+        </>
+      ),
+    });
+  }
+
+  if (r.quote) {
+    slides.push({
+      id: "quote",
+      bg: "bg-gradient-to-br from-teal-400 via-cyan-500 to-blue-600",
+      blobs: ["bg-lime-200", "bg-indigo-700"],
+      body: (
+        <>
+          <Rise><Kicker>In your own words</Kicker></Rise>
+          <Rise i={1}>
+            <blockquote className="mt-6 text-3xl font-black leading-snug tracking-tight sm:text-4xl">
+              &ldquo;{r.quote.text}&rdquo;
+            </blockquote>
+          </Rise>
+          <Rise i={2}><p className="mt-6 text-lg font-semibold opacity-90">— on {r.quote.recipe}</p></Rise>
+        </>
+      ),
+    });
+  }
+
+  if (recap.available && (r.notesCount >= 3 || recap.text)) {
+    slides.push({
+      id: "recap",
+      bg: "bg-gradient-to-br from-violet-700 via-fuchsia-600 to-pink-500",
+      blobs: ["bg-cyan-300", "bg-yellow-300"],
+      card: recap.text ? "recap" : undefined,
+      body: (
+        <>
+          <Rise><Kicker>Your year, as told by your reviews</Kicker></Rise>
+          {recap.text ? (
+            <>
+              {/* Above the tap zones, and scrolls on its own if it runs long */}
+              <Rise i={1} className="relative z-20">
+                <p className="mt-6 max-h-[50dvh] overflow-y-auto whitespace-pre-line rounded-3xl bg-black/20 p-5 text-left text-lg font-semibold leading-relaxed shadow-xl">
+                  {recap.text}
+                </p>
+              </Rise>
+              <Rise i={2} className="relative z-20">
+                <button
+                  type="button"
+                  onClick={() => recap.generate(true)}
+                  disabled={recap.loading}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-4 py-1.5 text-sm font-bold shadow"
+                >
+                  <RefreshCw className={cn("h-4 w-4", recap.loading && "animate-spin")} />
+                  Rewrite it
+                </button>
+              </Rise>
+            </>
+          ) : (
+            <>
+              <Rise i={1}>
+                <p className="mt-6 text-xl font-medium opacity-90">
+                  You left {n(r.notesCount)} notes on your cooks this year. Want the AI to turn them into your story?
+                </p>
+              </Rise>
+              <Rise i={2} className="relative z-20">
+                <button
+                  type="button"
+                  onClick={() => recap.generate()}
+                  disabled={recap.loading}
+                  className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-lg font-black text-fuchsia-700 shadow-2xl transition-transform hover:scale-105 active:scale-95 disabled:opacity-80"
+                >
+                  {recap.loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                  {recap.loading ? "Writing…" : "Write our story"}
+                </button>
+              </Rise>
+            </>
+          )}
+          {recap.error && <p className="mt-3 text-sm font-semibold">{recap.error}</p>}
         </>
       ),
     });
@@ -434,11 +613,44 @@ async function shareCard(year: number, card: string, householdName: string) {
   URL.revokeObjectURL(url);
 }
 
-export function WrappedStory({ report }: { report: WrappedReport }) {
+export function WrappedStory({
+  report,
+  initialRecap,
+  aiAvailable,
+}: {
+  report: WrappedReport;
+  initialRecap: string | null;
+  aiAvailable: boolean;
+}) {
   const router = useRouter();
-  const slides = useMemo(() => buildSlides(report), [report]);
-  const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [recapText, setRecapText] = useState(initialRecap);
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [recapError, setRecapError] = useState<string | null>(null);
+  const generateRecap = useCallback(
+    async (regenerate = false) => {
+      setPaused(true);
+      setRecapLoading(true);
+      setRecapError(null);
+      const res = await generateWrappedRecap(report.year, regenerate);
+      if (res.recap) setRecapText(res.recap);
+      else setRecapError(res.error ?? "Couldn't write it this time.");
+      setRecapLoading(false);
+    },
+    [report.year]
+  );
+  const slides = useMemo(
+    () =>
+      buildSlides(report, {
+        text: recapText,
+        loading: recapLoading,
+        error: recapError,
+        available: aiAvailable,
+        generate: generateRecap,
+      }),
+    [report, recapText, recapLoading, recapError, aiAvailable, generateRecap]
+  );
+  const [index, setIndex] = useState(0);
   const [held, setHeld] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -509,7 +721,7 @@ export function WrappedStory({ report }: { report: WrappedReport }) {
   return (
     <div className={cn("fixed inset-0 z-50 overflow-hidden text-white transition-colors duration-700", slide.bg)}>
       {/* Drifting colour blobs */}
-      <div aria-hidden className="pointer-events-none absolute inset-0">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className={cn("animate-wrapped-blob absolute -left-24 top-10 h-80 w-80 rounded-full opacity-50 blur-3xl", slide.blobs[0])} />
         <div
           className={cn("animate-wrapped-blob absolute -bottom-24 -right-20 h-96 w-96 rounded-full opacity-40 blur-3xl", slide.blobs[1])}
@@ -578,7 +790,7 @@ export function WrappedStory({ report }: { report: WrappedReport }) {
           onPointerLeave={() => setHeld(false)}
           onPointerCancel={() => setHeld(false)}
         >
-          <div key={slide.id} className="relative z-0">{slide.body}</div>
+          <div key={slide.id} className="relative">{slide.body}</div>
           <button type="button" aria-label="Previous" onClick={() => go(-1)} className="absolute inset-y-0 left-0 z-10 w-1/3" />
           <button type="button" aria-label="Next" onClick={() => go(1)} className="absolute inset-y-0 right-0 z-10 w-1/3" />
         </div>

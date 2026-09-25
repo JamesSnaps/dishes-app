@@ -13,6 +13,7 @@ import {
   Serwist,
   StaleWhileRevalidate,
 } from "serwist";
+import { PAGE_CACHES } from "../lib/page-caches";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -139,9 +140,44 @@ const notifyOnChange = {
   },
 };
 
+/**
+ * Only a real page goes into the page caches.
+ *
+ * Without a `cacheWillUpdate` of our own, Serwist caches anything with status
+ * 200 *or 0* — the 0 is meant for cross-origin opaque responses. But a
+ * navigation fetched from the worker doesn't follow redirects: it comes back as
+ * an `opaqueredirect`, which is also status 0. So once the Authelia session
+ * expired, the proxy's 302 to the login portal was stored as the page, and every
+ * later visit replayed "go and sign in" from cache without asking the server.
+ * That included the visit straight after signing in: Authelia sent the browser
+ * back, the worker sent it straight back to Authelia, and the two bounced it
+ * between them until a background revalidation happened to win the race.
+ *
+ * A redirect or a 401 also means the copy already cached should stop being
+ * shown: the server has just said this visitor can't see it, or that it lives
+ * somewhere else now. Evict it, so the next visit goes to the network and
+ * follows the redirect instead of painting the stale copy again. Any other
+ * failure — a 502 while the app restarts, say — leaves the cached copy alone;
+ * riding that out is what this cache is for.
+ */
+function onlyRealPages(cacheName: string) {
+  return {
+    async cacheWillUpdate({ request, response }: { request: Request; response: Response }) {
+      if (response.status === 200 && response.type === "basic") return response;
+
+      if (response.type === "opaqueredirect" || response.status === 401) {
+        const cache = await caches.open(cacheName);
+        await cache.delete(request, { ignoreVary: true });
+      }
+      return null;
+    },
+  };
+}
+
 const pageCache = new StaleWhileRevalidate({
-  cacheName: "pages",
+  cacheName: PAGE_CACHES.html,
   plugins: [
+    onlyRealPages(PAGE_CACHES.html),
     notifyOnChange,
     new ExpirationPlugin({ maxEntries: 32, maxAgeSeconds: 24 * 60 * 60 }),
   ],
@@ -152,6 +188,17 @@ const pageCache = new StaleWhileRevalidate({
 // values and saving writes them back (e.g. wiping nutrition estimated since the
 // page was cached). They fall through to defaultCache's NetworkFirst instead.
 const FORM_PAGE = /\/edit\/?$/;
+
+// "/" is only ever a redirect to /home (`app/page.tsx`), and it is where the
+// installed app opens (manifest `start_url`). The page caches no longer keep
+// redirects — see onlyRealPages — so left to the network, launching with no
+// signal would land on the offline page. Answer it here instead: identical
+// online, and it works offline because /home itself is cached.
+serwist.registerCapture(
+  ({ request, url, sameOrigin }) =>
+    sameOrigin && request.mode === "navigate" && url.pathname === "/",
+  async ({ url }) => Response.redirect(new URL("/home", url).href, 307)
+);
 
 // NavigationRoute matches on the request being a navigation, which is what a
 // document load actually is — `request.destination === "document"` in a plain
@@ -169,8 +216,9 @@ serwist.registerCapture(
     !FORM_PAGE.test(pathname) &&
     request.headers.get("RSC") === "1",
   new StaleWhileRevalidate({
-    cacheName: "pages-rsc",
+    cacheName: PAGE_CACHES.rsc,
     plugins: [
+      onlyRealPages(PAGE_CACHES.rsc),
       notifyOnChange,
       new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 24 * 60 * 60 }),
     ],
@@ -213,8 +261,8 @@ serwist.addEventListeners();
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     Promise.all([
-      caches.delete("pages"),
-      caches.delete("pages-rsc"),
+      caches.delete(PAGE_CACHES.html),
+      caches.delete(PAGE_CACHES.rsc),
       caches.delete("pages-rsc-prefetch"),
       caches.delete("dishes-shopping-v1"),
     ])

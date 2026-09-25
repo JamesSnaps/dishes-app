@@ -64,12 +64,16 @@ export async function loadMealHistory(householdId: string) {
       .where(eq(mealPlans.householdId, householdId)),
     db
       .select({
+        id: cookHistory.id,
         recipeId: cookHistory.recipeId,
         cookedAt: cookHistory.cookedAt,
         cookedFor: cookHistory.cookedFor,
         rating: cookHistory.rating,
         actualDuration: cookHistory.actualDuration,
         photoUrl: cookHistory.photoUrl,
+        notes: cookHistory.notes,
+        occasion: cookHistory.occasion,
+        memberRatings: cookHistory.memberRatings,
         source: cookHistory.source,
       })
       .from(cookHistory)

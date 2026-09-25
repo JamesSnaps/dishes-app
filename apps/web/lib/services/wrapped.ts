@@ -46,7 +46,27 @@ export type WrappedReport = {
   highestRated: { title: string; rating: number } | null;
   firstMeal: { title: string; date: string } | null;
   topContributor: { name: string; count: number } | null;
-  people: { name: string; meals: number; topRecipe: string | null; topCuisine: string | null }[];
+  people: {
+    name: string;
+    meals: number;
+    /** Their favourite: best-rated by them if they've rated anything, else most eaten. */
+    topRecipe: string | null;
+    topRecipeBasis: "rated" | "eaten" | null;
+    topRecipeRating: number | null;
+    topCuisine: string | null;
+  }[];
+  /** The cook where two people's ratings were furthest apart (0–5 stars). */
+  disagreement: { recipe: string; high: { name: string; rating: number }; low: { name: string; rating: number } } | null;
+  /** Lowest and highest average rating given, when two or more people have rated. */
+  critics: { harshest: { name: string; avg: number }; easiest: { name: string; avg: number } } | null;
+  /** Up to 9 dish photos from the year, newest first. */
+  photos: { url: string; recipe: string }[];
+  /** The photo from the year's best-rated cook. */
+  photoOfYear: { url: string; recipe: string; rating: number | null } | null;
+  /** A short review note worth quoting, from a well-rated cook. */
+  quote: { text: string; recipe: string; date: string } | null;
+  /** Cooks with notes this year — what the AI recap has to work from. */
+  notesCount: number;
   personality: { title: string; blurb: string; emoji: string };
 };
 
@@ -196,19 +216,85 @@ export async function getWrappedReport(householdId: string, requestedYear?: numb
   const topContributorRow = top(contributorCounts, 1)[0];
   const contributorName = topContributorRow && memberRows.find((m) => m.id === topContributorRow.name)?.displayName;
 
+  // ── Per-person ratings ────────────────────────────────────────────────────
+  const titleOf = (id: string) => recipeById.get(id)?.title ?? "A recipe since deleted";
+  const stars = (r: number) => Math.round((r / 2) * 10) / 10;
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const ratedCooks = cooksInYear.filter((c) => c.memberRatings?.length);
+
+  // name → recipeId → ratings they gave
+  const given = new Map<string, Map<string, number[]>>();
+  for (const c of ratedCooks) {
+    for (const r of c.memberRatings!) {
+      const key = memberRows.find((m) => same(m.displayName, r.name))?.displayName ?? r.name;
+      const byRecipe = given.get(key) ?? new Map<string, number[]>();
+      byRecipe.set(c.recipeId, [...(byRecipe.get(c.recipeId) ?? []), r.rating]);
+      given.set(key, byRecipe);
+    }
+  }
+  const avgOf = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
   const people =
     memberRows.length > 1
       ? memberRows.map((p) => {
           const theirs = meals.filter((m) => ateIt(m, p.displayName));
+          const rated = [...(given.get(p.displayName) ?? [])]
+            .map(([id, rs]) => ({ id, avg: avgOf(rs), n: rs.length }))
+            .sort((a, b) => b.avg - a.avg || b.n - a.n)[0];
           const fav = top(tally(theirs, (m) => m.recipeId), 1)[0];
           return {
             name: p.displayName,
             meals: theirs.length,
-            topRecipe: fav ? (recipeById.get(fav.name)?.title ?? null) : null,
+            topRecipe: rated ? titleOf(rated.id) : fav ? titleOf(fav.name) : null,
+            topRecipeBasis: rated ? ("rated" as const) : fav ? ("eaten" as const) : null,
+            topRecipeRating: rated ? stars(rated.avg) : null,
             topCuisine: top(tally(theirs, cuisineOf), 1)[0]?.name ?? null,
           };
         })
       : [];
+
+  let disagreement: WrappedReport["disagreement"] = null;
+  let widest = 0;
+  for (const c of ratedCooks) {
+    const rs = c.memberRatings!;
+    if (rs.length < 2) continue;
+    const hi = rs.reduce((a, b) => (b.rating > a.rating ? b : a));
+    const lo = rs.reduce((a, b) => (b.rating < a.rating ? b : a));
+    // At least a star apart, or it's not much of a disagreement.
+    if (hi.rating - lo.rating >= 2 && hi.rating - lo.rating > widest) {
+      widest = hi.rating - lo.rating;
+      disagreement = {
+        recipe: titleOf(c.recipeId),
+        high: { name: hi.name, rating: stars(hi.rating) },
+        low: { name: lo.name, rating: stars(lo.rating) },
+      };
+    }
+  }
+
+  const averages = [...given]
+    .map(([name, byRecipe]) => ({ name, all: [...byRecipe.values()].flat() }))
+    .filter((p) => p.all.length >= 3)
+    .map((p) => ({ name: p.name, avg: stars(avgOf(p.all)) }))
+    .sort((a, b) => a.avg - b.avg);
+  const critics =
+    averages.length >= 2 && averages[0]!.avg < averages[averages.length - 1]!.avg
+      ? { harshest: averages[0]!, easiest: averages[averages.length - 1]! }
+      : null;
+
+  // ── Photos and words ──────────────────────────────────────────────────────
+  const withPhotos = cooksInYear.filter((c) => c.photoUrl).sort((a, b) => b.cookedAt.getTime() - a.cookedAt.getTime());
+  const photoList = withPhotos.slice(0, 9).map((c) => ({ url: c.photoUrl!, recipe: titleOf(c.recipeId) }));
+  const bestPhoto = [...withPhotos].sort((a, b) => Number(b.rating ?? -1) - Number(a.rating ?? -1))[0];
+  const photoOfYear = bestPhoto
+    ? { url: bestPhoto.photoUrl!, recipe: titleOf(bestPhoto.recipeId), rating: bestPhoto.rating != null ? stars(Number(bestPhoto.rating)) : null }
+    : null;
+
+  const withNotes = cooksInYear.filter((c) => c.notes?.trim());
+  const quotable = withNotes
+    .map((c) => ({ c, text: c.notes!.trim().replace(/\s+/g, " ") }))
+    .filter(({ text }) => text.length >= 15 && text.length <= 180)
+    .sort((a, b) => Number(b.c.rating ?? 0) - Number(a.c.rating ?? 0) || b.text.length - a.text.length)[0];
+  const quote = quotable ? { text: quotable.text, recipe: titleOf(quotable.c.recipeId), date: quotable.c.date } : null;
 
   const aiEaten = meals.filter((m) => recipeById.get(m.recipeId)?.isAiGenerated).length;
 
@@ -241,6 +327,12 @@ export async function getWrappedReport(householdId: string, requestedYear?: numb
     firstMeal: meals[0] ? { title: recipeById.get(meals[0].recipeId)?.title ?? "Something delicious", date: meals[0].date } : null,
     topContributor: contributorName ? { name: contributorName, count: topContributorRow!.count } : null,
     people,
+    disagreement,
+    critics,
+    photos: photoList,
+    photoOfYear,
+    quote,
+    notesCount: withNotes.length,
     personality: pickPersonality({
       meals: meals.length,
       distinct: distinct.size,

@@ -17,6 +17,8 @@ import type { ReactElement, ReactNode } from "react";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getWrappedReport, type WrappedReport } from "@/lib/services/wrapped";
+import { getCachedRecap } from "@/lib/services/wrapped-recap";
+import { keyFromUrl } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -94,7 +96,7 @@ function times(c: number) {
   return `${n(c)} ${c === 1 ? "time" : "times"}`;
 }
 
-function card(kind: string, r: WrappedReport): ReactElement {
+function card(kind: string, r: WrappedReport, photo: string | null, recap: string | null): ReactElement {
   const t = r.totals;
   const top = r.topRecipes[0];
   const ing = r.topIngredients[0];
@@ -146,6 +148,51 @@ function card(kind: string, r: WrappedReport): ReactElement {
           <div style={{ ...kicker, marginTop: 40 }}>{n(cuisine.count)} meals</div>
         </Frame>
       );
+    case "disagreement": {
+      const d = r.disagreement;
+      if (!d) break;
+      const box = (who: { name: string; rating: number }, bg: string, line: string) => (
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, background: bg, borderRadius: 48, padding: 48 }}>
+          <div style={{ display: "flex", fontSize: 150, fontWeight: 900 }}>{`${who.rating}/5`}</div>
+          <div style={{ display: "flex", fontSize: 56, fontWeight: 800 }}>{who.name}</div>
+          <div style={{ display: "flex", fontSize: 40, opacity: 0.8 }}>{line}</div>
+        </div>
+      );
+      return (
+        <Frame bg="linear-gradient(135deg, #ef4444, #f97316 50%, #facc15)" r={r}>
+          <div style={kicker}>Our biggest disagreement</div>
+          <div style={{ ...big, fontSize: 100, marginTop: 40 }}>{d.recipe}</div>
+          <div style={{ display: "flex", gap: 40, marginTop: 80 }}>
+            {box(d.high, "rgba(255,255,255,0.25)", "loved it")}
+            {box(d.low, "rgba(0,0,0,0.25)", "not so much")}
+          </div>
+        </Frame>
+      );
+    }
+    case "photo":
+      if (!r.photoOfYear || !photo) break;
+      return (
+        <Frame bg="linear-gradient(135deg, #fcd34d, #fb7185 50%, #c026d3)" r={r}>
+          <div style={kicker}>Our photo of the year</div>
+          <div style={{ display: "flex", flexDirection: "column", background: "white", borderRadius: 32, padding: 32, paddingBottom: 48, marginTop: 56, transform: "rotate(2deg)" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photo} width={824} height={824} style={{ borderRadius: 20, objectFit: "cover" }} alt="" />
+            <div style={{ display: "flex", justifyContent: "center", fontSize: 52, fontWeight: 900, color: "#27272a", marginTop: 28 }}>
+              {r.photoOfYear.recipe.length > 30 ? r.photoOfYear.recipe.slice(0, 29) + "…" : r.photoOfYear.recipe}
+            </div>
+          </div>
+        </Frame>
+      );
+    case "recap":
+      if (!recap) break;
+      return (
+        <Frame bg="linear-gradient(135deg, #6d28d9, #c026d3 50%, #ec4899)" r={r}>
+          <div style={kicker}>Our year, as told by our reviews</div>
+          <div style={{ display: "flex", fontSize: recap.length > 700 ? 40 : 48, fontWeight: 600, lineHeight: 1.45, marginTop: 56, background: "rgba(0,0,0,0.2)", borderRadius: 48, padding: 56 }}>
+            {recap}
+          </div>
+        </Frame>
+      );
     case "personality":
       return (
         <Frame bg="linear-gradient(135deg, #f43f5e, #c026d3 50%, #6d28d9)" r={r}>
@@ -192,13 +239,36 @@ function card(kind: string, r: WrappedReport): ReactElement {
   );
 }
 
+/**
+ * Inline the photo, fetched server-side: storage URLs can be internal (MinIO)
+ * and unreachable from satori's own fetch, and emoji aside, a data URL keeps
+ * the render self-contained. Only our own storage is fetched.
+ */
+async function photoDataUrl(url: string): Promise<string | null> {
+  if (!keyFromUrl(url)) return null;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const type = res.headers.get("content-type") ?? "image/jpeg";
+    return `data:${type};base64,${Buffer.from(await res.arrayBuffer()).toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
   const year = Number(req.nextUrl.searchParams.get("year")) || undefined;
   const kind = req.nextUrl.searchParams.get("card") ?? "summary";
   const report = await getWrappedReport(householdId, year);
-  return new ImageResponse(card(kind, report), {
+  const [photo, recap] = await Promise.all([
+    kind === "photo" && report.photoOfYear ? photoDataUrl(report.photoOfYear.url) : null,
+    kind === "recap"
+      ? getCachedRecap(householdId, report.year).then((t) => t?.replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").trim() ?? null)
+      : null,
+  ]);
+  return new ImageResponse(card(kind, report, photo, recap), {
     width: W,
     height: H,
     fonts: await loadFonts(),

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { cookHistory, recipes } from "@dishes/db/schema";
+import { cookHistory } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAutheliaUser } from "@/lib/auth";
@@ -10,103 +10,35 @@ import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import sharp from "sharp";
 import { refreshTasteProfile } from "./taste-profile";
+import * as cookService from "@/lib/services/cook-history";
 
-export type LogCookInput = {
-  rating?: number | null;
-  actualDuration?: number | null;
-  notes?: string | null;
-  occasion?: string | null;
-  cookedFor?: string[] | null;
-};
 
 export async function logCook(
   recipeId: string,
-  data: LogCookInput
+  data: cookService.LogCookInput
 ): Promise<{ id: string }> {
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
-
-  const [recipe] = await db
-    .select({ id: recipes.id })
-    .from(recipes)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
-    .limit(1);
-  if (!recipe) throw new Error("Recipe not found");
-
-  const [row] = await db
-    .insert(cookHistory)
-    .values({
-      householdId,
-      recipeId,
-      rating: data.rating != null ? String(data.rating) : null,
-      actualDuration: data.actualDuration ?? null,
-      notes: data.notes?.trim() || null,
-      occasion: data.occasion?.trim() || null,
-      cookedFor: data.cookedFor?.length ? data.cookedFor : null,
-    })
-    .returning({ id: cookHistory.id });
-
+  const ctx = await requireHousehold(user);
+  const { id } = await cookService.logCook(ctx, recipeId, data);
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
-  void refreshTasteProfile(householdId);
-  return row!;
+  return { id };
 }
 
-export async function rateCook(
-  cookId: string,
-  rating: number
-): Promise<void> {
+export async function rateCook(cookId: string, rating: number): Promise<void> {
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
-
-  const [row] = await db
-    .select({ recipeId: cookHistory.recipeId })
-    .from(cookHistory)
-    .where(
-      and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId))
-    )
-    .limit(1);
-
-  if (!row) throw new Error("Cook history record not found");
-
-  await db
-    .update(cookHistory)
-    .set({ rating: String(rating) })
-    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)));
-
-  revalidatePath(`/recipes/${row.recipeId}`);
-  revalidatePath("/recipes");
-  void refreshTasteProfile(householdId);
-}
-
-export async function rateRecipe(
-  recipeId: string,
-  rating: number,
-  notes?: string
-): Promise<void> {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
-
-  const [recipe] = await db
-    .select({ id: recipes.id })
-    .from(recipes)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
-    .limit(1);
-
-  if (!recipe) throw new Error("Recipe not found");
-
-  // A rating given without cooking — kept out of the cook count.
-  await db.insert(cookHistory).values({
-    householdId,
-    recipeId,
-    rating: String(rating),
-    notes: notes?.trim() || null,
-    source: "rating",
-  });
-
+  const ctx = await requireHousehold(user);
+  const { recipeId } = await cookService.rateCook(ctx, cookId, rating);
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
-  void refreshTasteProfile(householdId);
+}
+
+export async function rateRecipe(recipeId: string, rating: number, notes?: string): Promise<void> {
+  const user = await getAutheliaUser();
+  const ctx = await requireHousehold(user);
+  await cookService.rateRecipe(ctx, recipeId, rating, notes);
+  revalidatePath(`/recipes/${recipeId}`);
+  revalidatePath("/recipes");
 }
 
 /**
@@ -116,38 +48,16 @@ export async function rateRecipe(
  * showing no ratings, history, or photos at all. Don't reintroduce them.
  */
 
-export type UpdateCookEntryInput = {
-  rating?: number | null;
-  notes?: string | null;
-  occasion?: string | null;
-};
-
 export async function updateCookEntry(
   cookId: string,
-  data: UpdateCookEntryInput
+  data: cookService.UpdateCookEntryInput
 ): Promise<void> {
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
-
-  const [row] = await db
-    .select({ recipeId: cookHistory.recipeId })
-    .from(cookHistory)
-    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)))
-    .limit(1);
-  if (!row) throw new Error("Cook record not found");
-
-  await db
-    .update(cookHistory)
-    .set({
-      ...(data.rating !== undefined ? { rating: data.rating != null ? String(data.rating) : null } : {}),
-      ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
-      ...(data.occasion !== undefined ? { occasion: data.occasion?.trim() || null } : {}),
-    })
-    .where(and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, householdId)));
-
-  revalidatePath(`/recipes/${row.recipeId}`);
+  const ctx = await requireHousehold(user);
+  const { recipeId } = await cookService.updateCookEntry(ctx, cookId, data);
+  revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
-  void refreshTasteProfile(householdId);
+  revalidatePath("/memories");
 }
 
 // Remove a single cook-history entry — for duplicates or a mis-logged cook.

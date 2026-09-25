@@ -52,6 +52,13 @@ export class ApiClient {
     if (init.body && !headers.has("content-type")) {
       headers.set("content-type", "application/json");
     }
+    // Not just tidiness — this is how an expired session gets noticed. Authelia
+    // answers a request that accepts HTML (and fetch's default `*/*` counts)
+    // with a 302 to the login portal. That's another origin, so the browser
+    // refuses to follow it and `fetch` rejects exactly as if the network were
+    // down: the app would sit there "offline" and never offer a sign-in. Asking
+    // for JSON gets a 401 instead, which lands as SessionExpiredError below.
+    if (!headers.has("accept")) headers.set("accept", "application/json");
 
     const token = await this.getToken?.();
     if (token) headers.set("authorization", `Bearer ${token}`);
@@ -89,7 +96,8 @@ export class ApiClient {
 
     const contentType = res.headers.get("content-type") ?? "";
     if (!contentType.includes("application/json")) {
-      // An Authelia redirect to the login portal lands here as HTML.
+      // An expired Authelia session lands here as a 401 with an HTML body (see
+      // the Accept header above), or as the app's own plain-text 401.
       if (res.redirected || res.status === 200 || res.status === 401) {
         throw new SessionExpiredError();
       }

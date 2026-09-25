@@ -21,6 +21,7 @@ import {
   type SyncRecord,
 } from "@dishes/client";
 import { DexieSyncStore } from "@/lib/sync-store";
+import { PAGE_CACHES } from "@/lib/page-caches";
 import { toast } from "@/hooks/use-toast";
 
 /**
@@ -112,6 +113,39 @@ function reportFailedMutations(failures: FailedMutation[]) {
 /** Base path, not /api/v1: the browser goes through the Authelia-gated door. */
 const WEB_API_BASE = "/api/web";
 
+/** At most one sign-in reload in this window. */
+const SIGN_IN_RELOAD_COOLDOWN_MS = 30_000;
+
+/**
+ * Send the user to the Authelia portal to sign back in. Returns false when it
+ * declined to, because it already tried moments ago.
+ *
+ * A plain reload isn't enough: the service worker answers navigations from its
+ * page cache, so the reload would paint the same cached copy, sync would hit the
+ * same 401, and it would reload again — round and round without ever reaching
+ * the network, let alone the portal. Emptying the page caches first means the
+ * reload really goes to the server, which redirects it to sign in.
+ *
+ * The cooldown is the backstop if the reload still comes back to a rejected
+ * session: a page that stops syncing beats one that reloads forever.
+ */
+async function reloadToSignIn(): Promise<boolean> {
+  const last = Number(sessionStorage.getItem("signInReloadAt") ?? 0);
+  if (Date.now() - last < SIGN_IN_RELOAD_COOLDOWN_MS) return false;
+  sessionStorage.setItem("signInReloadAt", String(Date.now()));
+
+  if ("caches" in window) {
+    await Promise.all([
+      caches.delete(PAGE_CACHES.html),
+      caches.delete(PAGE_CACHES.rsc),
+    ]).catch(() => {
+      // Reload regardless — at worst this is the old behaviour.
+    });
+  }
+  window.location.reload();
+  return true;
+}
+
 export function SyncProvider({ children }: { children: ReactNode }) {
   const [version, setVersion] = useState(0);
   const [state, setState] = useState<SyncState>({
@@ -171,10 +205,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           }));
         })
         .catch(async (err) => {
-          // An expired Authelia session returns the login page as HTML. Reloading
-          // hands the user to the portal instead of leaving the app half-dead.
-          if (err instanceof SessionExpiredError) {
-            window.location.reload();
+          // An expired Authelia session answers with a 401 (the client asks for
+          // JSON so it gets one — see ApiClient). Hand the user to the portal
+          // instead of leaving the app half-dead and looking offline.
+          if (err instanceof SessionExpiredError && (await reloadToSignIn())) {
             return;
           }
           const pending = await engine.pendingCount();

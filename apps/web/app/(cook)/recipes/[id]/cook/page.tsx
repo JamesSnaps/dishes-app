@@ -62,6 +62,7 @@ export default async function CookPage({ params, searchParams }: Props) {
       ingredients={ingredients}
       steps={steps}
       householdMembers={members}
+      ownName={members.find((m) => m.id === memberId)?.displayName ?? null}
       avgDuration={avgDuration}
       storageAvailable={isStorageAvailable()}
       initialServings={initialServings}

@@ -10,13 +10,14 @@
  */
 
 import { db } from "@/lib/db";
-import { cookHistory, recipes } from "@dishes/db/schema";
+import { cookHistory, householdMembers, recipes, type MemberRating } from "@dishes/db/schema";
 import { eq, and, avg, count, desc, isNotNull } from "drizzle-orm";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import sharp from "sharp";
 import { refreshTasteProfile } from "@/app/actions/taste-profile";
 import type { HouseholdContext } from "@/lib/session";
+import { ownRating, sameName } from "@/lib/cook-ratings";
 
 export class CookEntryNotFoundError extends Error {
   constructor() {
@@ -56,6 +57,55 @@ async function assertEntryOwned(cookId: string, householdId: string): Promise<st
   return row.recipeId;
 }
 
+/** Drop blank names and unrated entries; one rating per person (last wins). */
+function cleanMemberRatings(list: MemberRating[] | null | undefined): MemberRating[] | null {
+  if (!list) return null;
+  const byName = new Map<string, MemberRating>();
+  for (const r of list) {
+    const name = r.name?.trim();
+    if (!name || r.rating == null) continue;
+    assertRating(r.rating);
+    byName.set(name.toLowerCase(), { name, rating: r.rating });
+  }
+  return byName.size ? [...byName.values()] : null;
+}
+
+/**
+ * Everyone's opinion of one cook, with the person saving it as one of the
+ * voices: `rating` is their own view (the big stars in the form), and it
+ * replaces any entry under their name in `memberRatings`.
+ *
+ * The entry's stored `rating` is then the household's view — the average of
+ * every voice — so the recipe's headline rating, list cards, the AI planner and
+ * the taste profile (which all average `rating`) weigh everyone, not just
+ * whoever logged the cook. Old entries with no voices keep their single rating.
+ */
+function combineVoices(
+  ownName: string | null,
+  own: number | null | undefined,
+  others: MemberRating[] | null
+): { rating: string | null; memberRatings: MemberRating[] | null } {
+  const voices = (others ?? []).filter((r) => !ownName || !sameName(r.name, ownName));
+  if (own != null) {
+    if (ownName) voices.unshift({ name: ownName, rating: own });
+    else if (!voices.length) return { rating: String(own), memberRatings: null };
+    else voices.unshift({ name: "Cook", rating: own });
+  }
+  if (!voices.length) return { rating: null, memberRatings: null };
+  const mean = voices.reduce((a, v) => a + v.rating, 0) / voices.length;
+  return { rating: String(Math.round(mean * 10) / 10), memberRatings: voices };
+}
+
+/** The saving member's display name — their rating is recorded under it. */
+async function memberName(ctx: HouseholdContext): Promise<string | null> {
+  const [m] = await db
+    .select({ displayName: householdMembers.displayName })
+    .from(householdMembers)
+    .where(and(eq(householdMembers.id, ctx.memberId), eq(householdMembers.householdId, ctx.householdId)))
+    .limit(1);
+  return m?.displayName ?? null;
+}
+
 async function assertRecipeOwned(recipeId: string, householdId: string): Promise<void> {
   const [recipe] = await db
     .select({ id: recipes.id })
@@ -74,12 +124,18 @@ export type LogCookInput = {
   notes?: string | null;
   occasion?: string | null;
   cookedFor?: string[] | null;
+  memberRatings?: MemberRating[] | null;
 };
 
+/** Everything the end-of-cook review can set, plus clearing the photo. */
 export type UpdateCookEntryInput = {
   rating?: number | null;
+  actualDuration?: number | null;
   notes?: string | null;
   occasion?: string | null;
+  cookedFor?: string[] | null;
+  memberRatings?: MemberRating[] | null;
+  removePhoto?: boolean;
 };
 
 export type CookStats = { cookCount: number; averageRating: number | null };
@@ -99,6 +155,7 @@ export type CookHistoryEntry = {
   notes: string | null;
   occasion: string | null;
   cookedFor: string[] | null;
+  memberRatings: MemberRating[] | null;
   photoUrl: string | null;
   /** 'cook' = a cook was logged; 'rating' = rated without cooking */
   source: string;
@@ -113,17 +170,19 @@ export async function logCook(
 ): Promise<{ id: string; recipeId: string }> {
   assertRating(data.rating);
   await assertRecipeOwned(recipeId, ctx.householdId);
+  const voices = combineVoices(await memberName(ctx), data.rating, cleanMemberRatings(data.memberRatings));
 
   const [row] = await db
     .insert(cookHistory)
     .values({
       householdId: ctx.householdId,
       recipeId,
-      rating: data.rating != null ? String(data.rating) : null,
+      rating: voices.rating,
       actualDuration: data.actualDuration ?? null,
       notes: data.notes?.trim() || null,
       occasion: data.occasion?.trim() || null,
       cookedFor: data.cookedFor?.length ? data.cookedFor : null,
+      memberRatings: voices.memberRatings,
     })
     .returning({ id: cookHistory.id });
 
@@ -138,10 +197,16 @@ export async function rateCook(
 ): Promise<{ recipeId: string }> {
   assertRating(rating);
   const recipeId = await assertEntryOwned(cookId, ctx.householdId);
+  const [existing] = await db
+    .select({ memberRatings: cookHistory.memberRatings })
+    .from(cookHistory)
+    .where(eq(cookHistory.id, cookId));
+  // Only the caller's own voice changes; everyone else's opinion stays.
+  const voices = combineVoices(await memberName(ctx), rating, existing?.memberRatings ?? null);
 
   await db
     .update(cookHistory)
-    .set({ rating: String(rating) })
+    .set(voices)
     .where(
       and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, ctx.householdId))
     );
@@ -168,7 +233,7 @@ export async function rateRecipe(
     .values({
       householdId: ctx.householdId,
       recipeId,
-      rating: String(rating),
+      ...combineVoices(await memberName(ctx), rating, null),
       notes: notes?.trim() || null,
       source: "rating",
     })
@@ -185,17 +250,41 @@ export async function updateCookEntry(
 ): Promise<{ recipeId: string }> {
   assertRating(data.rating);
   const recipeId = await assertEntryOwned(cookId, ctx.householdId);
+  // Ratings are rebuilt from the caller's own rating plus everyone else's.
+  // Either half may be omitted; the missing half comes from what's stored.
+  let voices: ReturnType<typeof combineVoices> | undefined;
+  if (data.rating !== undefined || data.memberRatings !== undefined) {
+    const [existing] = await db
+      .select({ rating: cookHistory.rating, memberRatings: cookHistory.memberRatings })
+      .from(cookHistory)
+      .where(eq(cookHistory.id, cookId));
+    const name = await memberName(ctx);
+    const stored = ownRating(
+      { rating: existing?.rating != null ? Number(existing.rating) : null, memberRatings: existing?.memberRatings ?? null },
+      name
+    );
+    voices = combineVoices(
+      name,
+      data.rating !== undefined ? data.rating : stored.own,
+      data.memberRatings !== undefined ? cleanMemberRatings(data.memberRatings) : stored.others
+    );
+  }
 
   await db
     .update(cookHistory)
     .set({
-      ...(data.rating !== undefined
-        ? { rating: data.rating != null ? String(data.rating) : null }
+      ...(voices ?? {}),
+      ...(data.actualDuration !== undefined
+        ? { actualDuration: data.actualDuration && data.actualDuration > 0 ? data.actualDuration : null }
         : {}),
       ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
       ...(data.occasion !== undefined
         ? { occasion: data.occasion?.trim() || null }
         : {}),
+      ...(data.cookedFor !== undefined
+        ? { cookedFor: data.cookedFor?.length ? data.cookedFor : null }
+        : {}),
+      ...(data.removePhoto ? { photoUrl: null } : {}),
     })
     .where(
       and(eq(cookHistory.id, cookId), eq(cookHistory.householdId, ctx.householdId))
@@ -327,6 +416,7 @@ export async function getRecipeCookHistory(
       notes: cookHistory.notes,
       occasion: cookHistory.occasion,
       cookedFor: cookHistory.cookedFor,
+      memberRatings: cookHistory.memberRatings,
       photoUrl: cookHistory.photoUrl,
       source: cookHistory.source,
     })

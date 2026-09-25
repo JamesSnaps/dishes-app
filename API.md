@@ -448,10 +448,16 @@ One API, two doors. No handler knows the difference — `requireSession()` alrea
 accepts either transport, and responses are identical apart from `transport` in
 `whoami`. Use `/api/web` from the PWA and `/api/v1` from native clients.
 
-One thing browser callers must handle: when an Authelia session expires, a
-request to `/api/web/*` gets a **302 to the login portal**, so `fetch` returns
-HTML rather than JSON. Treat a non-JSON response as "session expired" and
-reload, rather than trying to parse it.
+One thing browser callers must handle: an expired Authelia session. Send
+**`Accept: application/json`**. Authelia decides between a 401 and a redirect
+from that header, and fetch's default `*/*` counts as accepting HTML, so without
+it the request gets a **302 to the login portal**. The portal is another origin,
+so the browser won't follow the redirect and `fetch` rejects as if the network
+were down — indistinguishable from being offline. With the header, the request
+gets a **401 with an HTML body**. Treat a non-JSON 401 as "session expired" and
+send the user to sign in again, rather than trying to parse it. If a service
+worker caches pages, clear those caches first, or the reload is answered from
+cache and never reaches the portal.
 
 ## Error shape
 
@@ -760,7 +766,9 @@ One recipe's cook history plus its derived stats. Query: `recipeId` (required).
   "entries": [
     { "id": "…", "cookedAt": "2026-08-15T09:12:00.000Z", "rating": 8.5,
       "actualDuration": 42, "notes": null, "occasion": null,
-      "cookedFor": null, "photoUrl": null, "source": "cook" }
+      "cookedFor": ["Alice", "Bob"],
+      "memberRatings": [{ "name": "Alice", "rating": 10 }, { "name": "Bob", "rating": 6 }],
+      "photoUrl": null, "source": "cook" }
   ],
   "stats": { "cookCount": 1, "averageRating": 8.5 },
   "averageDuration": null
@@ -780,10 +788,18 @@ Log a cook. `201` with the new entry id.
 
 ```json
 { "recipeId": "uuid", "rating": 8.5, "actualDuration": 42,
-  "notes": "…", "occasion": "Anniversary", "cookedFor": ["Alice"] }
+  "notes": "…", "occasion": "Anniversary", "cookedFor": ["Alice"],
+  "memberRatings": [{ "name": "Alice", "rating": 9 }] }
 ```
 
 Only `recipeId` is required. Ratings are 0–10 with half-star precision.
+
+`memberRatings` is what other people who ate it thought, by display name
+(matching `cookedFor`). `rating` is the caller's own opinion: it's filed under
+the calling member's name in `memberRatings`, and the entry's stored `rating`
+becomes the average of everyone's — so the recipe's average, the AI planner and
+the taste profile weigh the whole household. Entries in `GET` return that
+average as `rating` and every voice (the caller's included) in `memberRatings`.
 
 ### `POST /api/v1/cook-history/rate`
 
@@ -795,7 +811,11 @@ Rate without logging a cook — recorded as a `rating` entry.
 
 ### `PATCH /api/v1/cook-history/{id}`
 
-Any of `rating`, `notes`, `occasion`. Empty body is `400`.
+Any of `rating`, `actualDuration`, `notes`, `occasion`, `cookedFor`,
+`memberRatings`, or `removePhoto: true` (clears the dish photo; upload a new one
+with the photo endpoint). Empty body is `400`. `rating` updates only the
+caller's own voice; `memberRatings` replaces everyone else's (`null` clears
+them). Either can be sent alone and the other is kept.
 
 ### `DELETE /api/v1/cook-history/{id}`
 

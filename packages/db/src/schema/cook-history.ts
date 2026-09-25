@@ -1,6 +1,7 @@
 import {
   decimal,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -10,6 +11,8 @@ import {
 import { relations } from "drizzle-orm";
 import { households } from "./households";
 import { recipes } from "./recipes";
+
+export type MemberRating = { name: string; rating: number };
 
 export const cookHistory = pgTable("cook_history", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -29,6 +32,9 @@ export const cookHistory = pgTable("cook_history", {
   // How this entry came to exist. 'cook' = an actual cook was logged;
   // 'rating' = the recipe was rated without cooking it. Only 'cook' rows count
   // towards the cook count and average duration; both count towards ratings.
+  // What each person who ate it thought, by display name (matching cookedFor).
+  // 0–10 like `rating`, which stays the cook's own overall rating.
+  memberRatings: jsonb("member_ratings").$type<MemberRating[]>(),
   source: varchar("source", { length: 20 }).notNull().default("cook"),
 });
 

@@ -16,6 +16,10 @@ import { revalidatePath } from "next/cache";
 import { getStyleSuffix } from "@/lib/image-styles";
 import { createLogger } from "@/lib/logger";
 import { FREQUENT_MIN_USES } from "@/lib/services/recipe-library";
+import { getWrappedReport } from "@/lib/services/wrapped";
+import { cacheRecap, getCachedRecap, recapSourceLines } from "@/lib/services/wrapped-recap";
+import { ratingsByPerson, sameName, type PersonRating } from "@/lib/cook-ratings";
+import type { MemberRating } from "@dishes/db/schema";
 import {
   buildSystemAddendum,
   createHeartHealthyRecipe,
@@ -1020,6 +1024,43 @@ export async function generateMealPlanConcepts(params: {
     // to the AI as a "do not repeat" list. Three weeks, not two: at two, a dish
     // cooked exactly a fortnight ago scored weeksAgo === 2 and slipped straight
     // back into the next plan.
+    // ── What the people eating this week think of each recipe ──────────────
+    // Per-person ratings from cook reviews, for the selected diners only. A
+    // recipe any of them rated 2★ or less (≤4 on the 0–10 scale) is dropped
+    // from the library outright; the rest carry those diners' ratings so the
+    // model can lean towards what they actually like.
+    const eaterNames = memberIds?.length
+      ? await db
+          .select({ displayName: householdMembers.displayName })
+          .from(householdMembers)
+          .where(and(eq(householdMembers.householdId, householdId), inArray(householdMembers.id, memberIds.slice(0, 20))))
+          .then((rows) => rows.map((r) => r.displayName))
+      : [];
+    const eaterRatings = new Map<string, PersonRating[]>();
+    if (eaterNames.length && libraryRowIds.length) {
+      const rated = await db
+        .select({ recipeId: cookHistory.recipeId, memberRatings: cookHistory.memberRatings })
+        .from(cookHistory)
+        .where(
+          and(
+            eq(cookHistory.householdId, householdId),
+            inArray(cookHistory.recipeId, libraryRowIds),
+            isNotNull(cookHistory.memberRatings)
+          )
+        );
+      const byRecipe = new Map<string, { memberRatings: MemberRating[] | null }[]>();
+      for (const row of rated) byRecipe.set(row.recipeId, [...(byRecipe.get(row.recipeId) ?? []), row]);
+      for (const [recipeId, entries] of byRecipe) {
+        const theirs = ratingsByPerson(entries).filter((p) => eaterNames.some((n) => sameName(n, p.name)));
+        if (theirs.length) eaterRatings.set(recipeId, theirs);
+      }
+    }
+    const DISLIKED_AT = 4; // 2★
+    const dislikedBy = (recipeId: string) => eaterRatings.get(recipeId)?.filter((p) => p.average <= DISLIKED_AT) ?? [];
+    const dislikedTitles = rawLibrary
+      .map((r) => ({ title: r.title, who: dislikedBy(r.id) }))
+      .filter((d) => d.who.length);
+
     const COOLDOWN_WEEKS = 3;
 
     /**
@@ -1035,6 +1076,7 @@ export async function generateMealPlanConcepts(params: {
         if (favouritesOnly && !r.isFavourite) return false;
         if (frequentsOnly && r.timesUsed < FREQUENT_MIN_USES) return false;
         if (ratedOnly && !r.avgRating) return false;
+        if (dislikedBy(r.id).length) return false;
         // Exclude library recipes over the per-meal calorie cap (recipes with
         // no calorie data are kept — we can't tell, so we don't hide them).
         if (maxCaloriesPerMeal && r.calories != null && r.calories > maxCaloriesPerMeal)
@@ -1171,7 +1213,7 @@ export async function generateMealPlanConcepts(params: {
     }
 
     const libraryContext = libraryRecipes.length > 0
-      ? `\n\nRECIPE LIBRARY — use "libraryIndex" to reference these (1-based). Each recipe can only appear once per plan. The list is in random order and every entry is an equally valid choice: do NOT prefer a recipe because it is highly rated or often cooked, and do NOT avoid one because it is unrated or never tried. Pick on fit for the slot alone. A "note:" is the household's own feedback from the last time they cooked it — treat it as authoritative and let it steer which slot the recipe suits, or whether to pick it at all.\n` +
+      ? `\n\nRECIPE LIBRARY — use "libraryIndex" to reference these (1-based). Each recipe can only appear once per plan. The list is in random order and every entry is an equally valid choice: do NOT prefer a recipe because it is highly rated or often cooked, and do NOT avoid one because it is unrated or never tried. Pick on fit for the slot alone. A "note:" is the household's own feedback from the last time they cooked it — treat it as authoritative and let it steer which slot the recipe suits, or whether to pick it at all.${eaterRatings.size ? ` The one exception to ignoring ratings: "eaters rated:" is what the specific people eating this week have said about that dish. Favour dishes they rated 4/5 or more, and pick a dish rated 3/5 or less by any of them only when nothing else fits.` : ""}\n` +
         libraryRecipes
           .map((r, i) => {
             const times = Number(r.timesPlanned);
@@ -1192,12 +1234,23 @@ export async function generateMealPlanConcepts(params: {
             const tags = tagList?.length ? `, tags: ${tagList.slice(0, 6).join("/")}` : "";
             const note = noteByRecipe.get(r.id);
             const noteText = note ? ` — note: "${note}"` : "";
-            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}${cals}${heart}${time}${tags}${meals}] — ${history}${noteText}`;
+            const eaters = eaterRatings.get(r.id);
+            const eaterText = eaters?.length
+              ? `, eaters rated: ${eaters.map((p) => `${p.name} ${Math.round(p.average * 5) / 10}/5`).join(", ")}`
+              : "";
+            return `#${i + 1} ${r.title} [${r.cuisine ?? "various"}, ${r.difficulty ?? "medium"}, ${rating}${eaterText}${cals}${heart}${time}${tags}${meals}] — ${history}${noteText}`;
           })
           .join("\n") +
         `\n\nFor each slot: set "libraryIndex" to the recipe's # to reuse it, or 0 to suggest a brand-new recipe. STRICT RULE: only reuse a library recipe in a slot whose meal type is listed in that recipe's "suits:" field. For recipes marked "suits: untagged" the meal type is unknown — only reuse one in a breakfast/snack/dessert slot if its title makes it unmistakably suitable; when in doubt use 0. If nothing in the library suits the slot, use 0 and suggest a fitting new recipe instead.
 
 VARIETY IS A PRIORITY. Spread your picks right across the list rather than clustering on the entries near the top or on one style of dish, and vary cuisine and main protein across the week. Treat the whole list as fair game.`
+      : "";
+
+    const dislikedBlock = dislikedTitles.length
+      ? `\n\nNOT FOR THESE DINERS — someone eating this week rated these 2/5 or lower, so don't suggest them or close variations: ${dislikedTitles
+          .slice(0, 30)
+          .map((d) => `${d.title} (${d.who.map((p) => `${p.name} ${Math.round(p.average * 5) / 10}/5`).join(", ")})`)
+          .join("; ")}.`
       : "";
 
     const recentlyUsedBlock = recentlyCookedTitles.length > 0
@@ -1284,6 +1337,7 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
     const fullAddendum =
       addendum +
       heartBlock +
+      dislikedBlock +
       recentlyUsedBlock +
       alreadyPlannedBlock +
       keptBlock +
@@ -1600,6 +1654,63 @@ export async function backfillRecipeMealTypes(): Promise<{
 
     revalidatePath("/recipes");
     return { total: pending.length, updated };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Wrapped recap ──────────────────────────────────────────────────────────────
+
+/**
+ * A short, playful recap of the household's year written from their own cook
+ * review notes, for Dishes Wrapped. Cached per household and year; pass
+ * `regenerate` to write a fresh one.
+ */
+export async function generateWrappedRecap(
+  year: number,
+  regenerate = false
+): Promise<{ recap?: string; error?: string }> {
+  try {
+    const user = await getAutheliaUser();
+    const { householdId } = await requireHousehold(user);
+
+    if (!regenerate) {
+      const cached = await getCachedRecap(householdId, year);
+      if (cached) return { recap: cached };
+    }
+
+    const [lines, report] = await Promise.all([recapSourceLines(householdId, year), getWrappedReport(householdId, year)]);
+    if (lines.length === 0) return { error: "No review notes this year to write from." };
+
+    const facts = [
+      `${report.totals.meals} meals, ${report.totals.distinctRecipes} different recipes, ${report.totals.newRecipes} new`,
+      report.topRecipes[0] && `top dish: ${report.topRecipes[0].title} (${report.topRecipes[0].count} times)`,
+      report.topIngredients[0] && `top ingredient: ${report.topIngredients[0].name}`,
+      report.topCuisines[0] && `favourite cuisine: ${report.topCuisines[0].name}`,
+      `cooking personality: ${report.personality.title}`,
+    ].filter(Boolean);
+
+    const { client, model } = await getOpenAiClient(householdId);
+    const completion = await client.chat.completions.create({
+      model,
+      ...maxTokensParam(model, 400),
+      messages: [
+        {
+          role: "system",
+          content:
+            "You write the closing card of a Spotify-Wrapped-style 'year in food' for a family. Warm, funny, a little cheeky, in British English. Address the family as 'you'. 90–130 words, plain text, no markdown, no headings, no lists, at most two emoji. Only mention things supported by the notes and facts given — never invent dishes, people or events. Call back to specific moments from their notes (a disaster, a triumph, a running joke, someone's strong opinion).",
+        },
+        {
+          role: "user",
+          content: `Household: ${report.householdName}\nYear: ${year}${report.inProgress ? " (still in progress)" : ""}\nFacts: ${facts.join("; ")}\n\nTheir cook review notes:\n${lines.join("\n")}`,
+        },
+      ],
+    });
+
+    const recap = completion.choices[0]?.message?.content?.trim();
+    if (!recap) return { error: "No recap returned." };
+    await cacheRecap(householdId, year, recap);
+    return { recap };
   } catch (err) {
     return { error: classifyError(err) };
   }
