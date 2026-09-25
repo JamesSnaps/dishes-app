@@ -1,19 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useTransition } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
   ShoppingCart,
-  UtensilsCrossed,
   Sparkles,
-  ShoppingBag,
-  Bell,
-  Users,
-  Clock,
   Plus,
+  Lightbulb,
 } from "lucide-react";
 import {
   DndContext,
@@ -39,7 +35,11 @@ import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { EntryCard } from "./entry-card";
-import { WeekNutritionCard } from "./week-nutrition-card";
+import { WeekNutritionPanel } from "./week-nutrition-card";
+import { summariseMeals } from "@/lib/meal-stats";
+import { suggestSwaps, type SwapSuggestion } from "@/lib/meal-swaps";
+
+const NUTRITION_OPEN_KEY = "dishes:meal-plan:nutrition-open";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "dessert", "snack"];
@@ -95,6 +95,8 @@ export type Recipe = {
   calories?: number | null;
   saturatedFatG?: string | null;
   fiberG?: string | null;
+  /** Which slots the recipe suits; empty/missing = unknown. Used by swap suggestions. */
+  mealTypes?: string[];
 };
 
 export type TopIngredient = {
@@ -366,82 +368,6 @@ function WeekCalendarPicker({
   );
 }
 
-// ─── Donut chart ──────────────────────────────────────────────────────────────
-
-function MealTypePieChart({ entries }: { entries: Entry[] }) {
-  const counts: Partial<Record<MealType, number>> = {};
-  for (const e of entries) counts[e.mealType] = (counts[e.mealType] ?? 0) + 1;
-
-  const types = Object.entries(counts) as [MealType, number][];
-  const total = entries.length;
-  if (total === 0) return null;
-
-  const SIZE = 140;
-  const cx = SIZE / 2;
-  const cy = SIZE / 2;
-  const r = 52;
-  const innerR = 32;
-  const strokeW = r - innerR;
-  const midR = innerR + strokeW / 2;
-
-  const MEAL_LABELS: Record<MealType, string> = {
-    breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
-    dessert: "Dessert", snack: "Snacks",
-  };
-
-  let cumAngle = -Math.PI / 2;
-  const slices = types.map(([type, count]) => {
-    const angle = (count / total) * 2 * Math.PI;
-    const start = cumAngle;
-    cumAngle += angle;
-    return { type, count, start, end: cumAngle };
-  });
-
-  function polarToXY(angle: number, radius: number) {
-    return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
-  }
-
-  function slicePath(start: number, end: number) {
-    const s1 = polarToXY(start, r);
-    const e1 = polarToXY(end, r);
-    const s2 = polarToXY(end, innerR);
-    const e2 = polarToXY(start, innerR);
-    const large = end - start > Math.PI ? 1 : 0;
-    return [
-      `M ${s1.x} ${s1.y}`, `A ${r} ${r} 0 ${large} 1 ${e1.x} ${e1.y}`,
-      `L ${s2.x} ${s2.y}`, `A ${innerR} ${innerR} 0 ${large} 0 ${e2.x} ${e2.y}`, "Z",
-    ].join(" ");
-  }
-
-  return (
-    <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-900/60 dark:to-slate-800/40 p-4 border border-slate-200/60 dark:border-slate-700/40">
-      <h3 className="font-semibold text-sm mb-4">Week Overview</h3>
-      <div className="flex flex-col items-center gap-4">
-        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="drop-shadow-sm">
-          {slices.length === 1 ? (
-            <circle cx={cx} cy={cy} r={midR} fill="none" stroke={MEAL_TYPE_COLOR[slices[0].type]} strokeWidth={strokeW} opacity={0.9} />
-          ) : (
-            slices.map(({ type, start, end }) => (
-              <path key={type} d={slicePath(start, end)} fill={MEAL_TYPE_COLOR[type]} opacity={0.9} />
-            ))
-          )}
-          <text x={cx} y={cy - 4} textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="700" className="fill-foreground">{total}</text>
-          <text x={cx} y={cy + 12} textAnchor="middle" dominantBaseline="middle" fontSize="9" className="fill-muted-foreground">meals</text>
-        </svg>
-        <div className="w-full flex flex-col gap-2">
-          {slices.map(({ type, count }) => (
-            <div key={type} className="flex items-center gap-2.5">
-              <span className="flex-shrink-0 h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: MEAL_TYPE_COLOR[type] }} />
-              <span className="text-sm text-muted-foreground flex-1">{MEAL_LABELS[type]}</span>
-              <span className="text-sm font-bold tabular-nums">{count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Droppable day chip ───────────────────────────────────────────────────────
 
 function DroppableDayChip({
@@ -452,6 +378,7 @@ function DroppableDayChip({
   isSelected,
   mealCount,
   isDragActive,
+  hasSuggestion,
   onClick,
 }: {
   dayIndex: number;
@@ -461,6 +388,7 @@ function DroppableDayChip({
   isSelected: boolean;
   mealCount: number;
   isDragActive: boolean;
+  hasSuggestion: boolean;
   onClick: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIndex}` });
@@ -471,7 +399,7 @@ function DroppableDayChip({
     <button
       ref={setNodeRef}
       onClick={onClick}
-      className={`flex flex-col items-center rounded-xl py-2.5 border-2 transition-all duration-150 ${
+      className={`relative flex flex-col items-center rounded-xl py-2.5 border-2 transition-all duration-150 ${
         isOver
           ? "border-orange-400 bg-orange-100 dark:bg-orange-950/50 scale-[1.06] shadow-lg"
           : isDragActive
@@ -507,6 +435,12 @@ function DroppableDayChip({
       >
         {date}
       </span>
+      {hasSuggestion && (
+        <span
+          className="absolute right-1 top-1 h-2 w-2 rounded-full bg-gradient-to-br from-violet-500 to-orange-500 ring-2 ring-background"
+          aria-label="Swap suggested"
+        />
+      )}
       {mealCount > 0 ? (
         <span
           className={`mt-1.5 text-[9px] font-bold tabular-nums leading-none h-3.5 min-w-[14px] rounded-full flex items-center justify-center px-1 ${
@@ -534,17 +468,21 @@ function DraggableMealEntry({
   entry,
   weekStartDate,
   mutations,
+  suggestion,
+  onShowSuggestion,
 }: {
   entry: Entry;
   weekStartDate: string;
   mutations?: MealPlanMutations;
+  suggestion?: SwapSuggestion;
+  onShowSuggestion: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: entry.id,
     data: { entry },
   });
 
-  return (
+  const card = (
     <EntryCard
       entry={entry}
       weekStartDate={weekStartDate}
@@ -554,6 +492,33 @@ function DraggableMealEntry({
       dragAttributes={attributes as unknown as Record<string, unknown>}
       isDragging={isDragging}
     />
+  );
+  if (!suggestion || isDragging) return card;
+
+  // EntryCard is an <li>, so the nudge is a sibling <li> rather than a wrapper.
+  return (
+    <>
+      {card}
+      <li className="!mt-1.5 list-none">
+      <button
+        type="button"
+        onClick={onShowSuggestion}
+        className="flex w-full items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-50 to-orange-50 px-3 py-1.5 text-left text-xs text-violet-900 transition-colors hover:from-violet-100 hover:to-orange-100 dark:from-violet-950/30 dark:to-orange-950/20 dark:text-violet-200"
+      >
+        <Lightbulb className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+        <span className="min-w-0 flex-1 truncate">
+          {suggestion.toRecipe ? (
+            <>
+              Try <span className="font-semibold">{suggestion.toRecipe.title}</span> instead — {suggestion.reason}
+            </>
+          ) : (
+            <>Swap suggested — {suggestion.reason}</>
+          )}
+        </span>
+        <span className="shrink-0 font-semibold text-orange-600 dark:text-orange-400">See →</span>
+      </button>
+      </li>
+    </>
   );
 }
 
@@ -739,11 +704,65 @@ export function WeekPlanner({
   const totalTime = localEntries.reduce(
     (sum, e) => sum + (e.recipe.prepTimeMinutes ?? 0) + (e.recipe.cookTimeMinutes ?? 0), 0
   );
-  const totalServings = localEntries.reduce((sum, e) => {
-    const s = parseInt(e.recipe.servings ?? "0", 10);
-    return sum + (isNaN(s) ? 0 : s);
-  }, 0);
-  const avgServings = totalMeals > 0 ? Math.round(totalServings / totalMeals) : 0;
+
+  // Nutrition summary and swap suggestions, recomputed as entries move.
+  const recipeById = useMemo(() => new Map(recipes.map((r) => [r.id, r])), [recipes]);
+  const nutritionSummary = useMemo(
+    () =>
+      summariseMeals(
+        localEntries.map((e) => {
+          const r = recipeById.get(e.recipe.id);
+          return {
+            recipeId: e.recipe.id,
+            calories: r?.calories ?? null,
+            saturatedFatG: r?.saturatedFatG ?? null,
+            fiberG: r?.fiberG ?? null,
+            ingredientNames: r?.ingredientNames ?? [],
+          };
+        })
+      ),
+    [localEntries, recipeById]
+  );
+  const suggestions = useMemo(
+    () =>
+      heartFocus
+        ? suggestSwaps(
+            localEntries.map((e) => ({
+              id: e.id,
+              dayOfWeek: e.dayOfWeek,
+              mealType: e.mealType,
+              recipeId: e.recipe.id,
+            })),
+            recipes,
+            nutritionSummary.proteins
+          )
+        : [],
+    [heartFocus, localEntries, recipes, nutritionSummary]
+  );
+  const suggestionByEntry = useMemo(
+    () => new Map(suggestions.map((sg) => [sg.entryId, sg])),
+    [suggestions]
+  );
+
+  // Collapsed by default; remembered per device.
+  const [nutritionOpen, setNutritionOpen] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(NUTRITION_OPEN_KEY) === "1") setNutritionOpen(true);
+    } catch {}
+  }, []);
+  function changeNutritionOpen(open: boolean) {
+    setNutritionOpen(open);
+    try {
+      localStorage.setItem(NUTRITION_OPEN_KEY, open ? "1" : "0");
+    } catch {}
+  }
+  function showSuggestions() {
+    changeNutritionOpen(true);
+    requestAnimationFrame(() =>
+      document.getElementById("week-nutrition")?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
+  }
 
   const selectedDayEntries = localEntries
     .filter((e) => e.dayOfWeek === selectedDay)
@@ -805,11 +824,6 @@ export function WeekPlanner({
 
   // Meals not yet pushed to the shopping list — generation only adds these
   const pendingShoppingCount = localEntries.filter((e) => !e.addedToShoppingListAt).length;
-  const shoppingButtonLabel = shoppingPending
-    ? "Adding to list…"
-    : pendingShoppingCount === 0
-      ? "All meals on list"
-      : "Generate shopping list";
 
   const weekTitle = isCurrentWeek ? "This Week" : formatWeekRange(weekStartDate);
 
@@ -887,7 +901,13 @@ export function WeekPlanner({
           </div>
 
           <p className="text-sm text-muted-foreground mb-5 pl-9">
-            {isCurrentWeek ? formatWeekRange(weekStartDate) : ""}
+            {[
+              isCurrentWeek ? formatWeekRange(weekStartDate) : null,
+              totalMeals > 0 ? `${totalMeals} meal${totalMeals === 1 ? "" : "s"}` : null,
+              totalTime > 0 ? `${formatTotalTime(totalTime)} cooking` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
 
           {/* ── Day strip — droppable chips ── */}
@@ -904,185 +924,104 @@ export function WeekPlanner({
                   isSelected={selectedDay === i}
                   mealCount={mealCount}
                   isDragActive={activeDragEntry !== null}
+                  hasSuggestion={suggestions.some((sg) => sg.dayOfWeek === i)}
                   onClick={() => setSelectedDay(i)}
                 />
               );
             })}
           </div>
 
-          {/* ── Stats bar ── */}
-          <div className="grid grid-cols-4 gap-2 mb-6">
-            <div className="rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 dark:from-violet-500/20 dark:to-violet-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
-              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-violet-500/15 dark:bg-violet-500/25 flex items-center justify-center">
-                <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-600 dark:text-violet-400" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-bold leading-none text-violet-700 dark:text-violet-300">{totalMeals || "—"}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Meals</p>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 dark:from-emerald-500/20 dark:to-emerald-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
-              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-emerald-500/15 dark:bg-emerald-500/25 flex items-center justify-center">
-                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{avgServings || "—"}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Avg serves</p>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 dark:from-orange-500/20 dark:to-orange-600/10 px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2">
-              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-orange-500/15 dark:bg-orange-500/25 flex items-center justify-center">
-                <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-bold leading-none text-orange-700 dark:text-orange-300">
-                  {totalTime > 0 ? formatTotalTime(totalTime) : "—"}
-                </p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Cook time</p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => router.push("/shopping")}
-              className="rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 dark:from-blue-500/20 dark:to-blue-600/10 hover:from-blue-500/20 hover:to-blue-600/10 dark:hover:from-blue-500/30 transition-all px-2 sm:px-3 py-3 sm:py-4 flex flex-col gap-2 text-left relative"
+          {/* ── Actions ── */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <Button
+              className="h-auto py-3 justify-center gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white shadow-md"
+              onClick={() => router.push("/ai-concierge?tab=plan")}
             >
-              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-500/15 dark:bg-blue-500/25 flex items-center justify-center">
-                <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-bold leading-none text-blue-700 dark:text-blue-300">{shoppingItemCount || "—"}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">To buy</p>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-blue-400 absolute right-2 top-1/2 -translate-y-1/2" />
-            </button>
+              <Sparkles className="h-4 w-4" />
+              Generate plan
+            </Button>
+
+            {totalMeals > 0 && planId && pendingShoppingCount > 0 ? (
+              <Button
+                className="h-auto py-3 justify-center gap-2 bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 border-0 text-white shadow-md"
+                onClick={handleGenerateShopping}
+                disabled={shoppingPending}
+              >
+                <ShoppingCart className="h-4 w-4" />
+                {shoppingPending
+                  ? "Adding…"
+                  : `Add ${pendingShoppingCount} meal${pendingShoppingCount === 1 ? "" : "s"} to list`}
+              </Button>
+            ) : (
+              <Button
+                className="h-auto py-3 justify-center gap-2 bg-blue-50 dark:bg-blue-950/40 bg-gradient-to-br from-blue-500/15 to-sky-500/10 hover:from-blue-500/25 hover:to-sky-500/20 border border-blue-300/60 dark:border-blue-800/60 text-blue-800 dark:text-blue-200 shadow-sm"
+                onClick={() => router.push("/shopping")}
+              >
+                <ShoppingCart className="h-4 w-4" />
+                {shoppingItemCount > 0 ? `${shoppingItemCount} to buy` : "Shopping list"}
+                <ChevronRight className="h-4 w-4 opacity-60" />
+              </Button>
+            )}
           </div>
 
-          {/* ── Main layout ── */}
-          <div className="lg:grid lg:grid-cols-[1fr_272px] lg:gap-8 lg:items-start">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <h2 className={`text-lg font-bold ${isToday ? "text-orange-500" : ""}`}>
-                  {selectedDayLabel}
-                </h2>
-                {isToday && (
-                  <span className="text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 px-2 py-0.5 rounded-full">
-                    Today
-                  </span>
+          <WeekNutritionPanel
+            summary={nutritionSummary}
+            heartFocus={heartFocus}
+            suggestions={suggestions}
+            topIngredients={topIngredients}
+            open={nutritionOpen}
+            onOpenChange={changeNutritionOpen}
+            weekStartDate={weekStartDate}
+            mutations={mutations}
+            onSelectDay={setSelectedDay}
+          />
+
+          {/* ── Selected day ── */}
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className={`text-lg font-bold ${isToday ? "text-orange-500" : ""}`}>
+                {selectedDayLabel}
+              </h2>
+              {isToday && (
+                <span className="text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 px-2 py-0.5 rounded-full">
+                  Today
+                </span>
+              )}
+            </div>
+
+            {selectedDayEntries.length > 0 ? (
+              <ul className="space-y-3 mb-4">
+                {selectedDayEntries.map((entry) => (
+                  <DraggableMealEntry
+                    key={entry.id}
+                    entry={entry}
+                    weekStartDate={weekStartDate}
+                    mutations={mutations}
+                    suggestion={suggestionByEntry.get(entry.id)}
+                    onShowSuggestion={showSuggestions}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <div className="rounded-xl border border-dashed bg-muted/20 py-10 flex flex-col items-center gap-2 mb-4 text-muted-foreground">
+                <span className="text-3xl">🍽</span>
+                <p className="text-sm">No meals planned for this day</p>
+                {recipes.length === 0 && (
+                  <p className="text-xs mt-1">Add some recipes first to start planning meals.</p>
                 )}
               </div>
+            )}
 
-              {selectedDayEntries.length > 0 ? (
-                <ul className="space-y-3 mb-4">
-                  {selectedDayEntries.map((entry) => (
-                    <DraggableMealEntry
-                      key={entry.id}
-                      entry={entry}
-                      weekStartDate={weekStartDate}
-                      mutations={mutations}
-                    />
-                  ))}
-                </ul>
-              ) : (
-                <div className="rounded-xl border border-dashed bg-muted/20 py-10 flex flex-col items-center gap-2 mb-4 text-muted-foreground">
-                  <span className="text-3xl">🍽</span>
-                  <p className="text-sm">No meals planned for this day</p>
-                  {recipes.length === 0 && (
-                    <p className="text-xs mt-1">Add some recipes first to start planning meals.</p>
-                  )}
-                </div>
-              )}
-
-              {recipes.length > 0 && (
-                <AddEntryDialog
-                  weekStartDate={weekStartDate}
-                  dayOfWeek={selectedDay}
-                  dayLabel={selectedDayLabel}
-                  recipes={recipes}
-                  onAdd={mutations?.addEntry}
-                />
-              )}
-            </div>
-
-            {/* Desktop sidebar */}
-            <div className="hidden lg:flex flex-col gap-4 sticky top-8">
-              <MealTypePieChart entries={localEntries} />
-
-              <WeekNutritionCard entries={localEntries} recipes={recipes} heartFocus={heartFocus} />
-
-              <div className="rounded-xl border bg-card p-4">
-                <h3 className="font-semibold text-sm mb-3">Tools &amp; Actions</h3>
-                <div className="space-y-2">
-                  <Button
-                    className="w-full justify-start gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
-                    onClick={() => router.push("/ai-concierge?tab=plan")}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    Generate Plan
-                  </Button>
-
-                  {totalMeals > 0 && planId ? (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={handleGenerateShopping}
-                      disabled={shoppingPending || pendingShoppingCount === 0}
-                    >
-                      <ShoppingCart className="mr-2 h-4 w-4" />
-                      {shoppingButtonLabel}
-                    </Button>
-                  ) : (
-                    <div className="flex items-start gap-2 text-sm text-muted-foreground pt-1">
-                      <UtensilsCrossed className="h-4 w-4 mt-0.5 shrink-0" />
-                      <p>Add meals to generate a shopping list.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {topIngredients.length > 0 && (
-                <div className="rounded-xl border bg-card p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="font-semibold text-sm">Top Ingredients</h3>
-                  </div>
-                  <div className="space-y-1.5">
-                    {topIngredients.map(({ name, count }) => (
-                      <div key={name} className="flex items-center justify-between gap-2">
-                        <span className="text-sm capitalize truncate">{name}</span>
-                        {count > 1 && (
-                          <span className="text-xs shrink-0 rounded-full bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5">
-                            ×{count}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            {recipes.length > 0 && (
+              <AddEntryDialog
+                weekStartDate={weekStartDate}
+                dayOfWeek={selectedDay}
+                dayLabel={selectedDayLabel}
+                recipes={recipes}
+                onAdd={mutations?.addEntry}
+              />
+            )}
           </div>
-
-          {/* Mobile: weekly nutrition */}
-          <div className="mt-6 lg:hidden">
-            <WeekNutritionCard entries={localEntries} recipes={recipes} heartFocus={heartFocus} />
-          </div>
-
-          {/* Mobile: generate shopping list */}
-          {totalMeals > 0 && planId && (
-            <div className="mt-6 lg:hidden">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleGenerateShopping}
-                disabled={shoppingPending || pendingShoppingCount === 0}
-              >
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                {shoppingButtonLabel}
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* Drag overlay — floating card shown while dragging */}

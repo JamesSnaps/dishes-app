@@ -103,6 +103,7 @@ export default async function MealPlanPage({
         calories: recipes.calories,
         saturatedFatG: recipes.saturatedFatG,
         fiberG: recipes.fiberG,
+        mealTypes: recipes.mealTypes,
       })
       .from(recipes)
       .where(eq(recipes.householdId, householdId))
@@ -171,6 +172,7 @@ export default async function MealPlanPage({
     tags: tagsByRecipe.get(r.id) ?? [],
     avgRating: ratingByRecipe.get(r.id) ?? null,
     ingredientNames: ingredientsByRecipe.get(r.id) ?? [],
+    mealTypes: r.mealTypes ?? [],
   }));
 
   // Compute top ingredients for the week

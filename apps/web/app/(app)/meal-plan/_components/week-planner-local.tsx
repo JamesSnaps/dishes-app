@@ -132,6 +132,7 @@ function toPickerRecipe(r: SyncRow, avgRating: number | null): Recipe {
     calories: num(r.calories),
     saturatedFatG: decimalStr(r.saturatedFatG),
     fiberG: decimalStr(r.fiberG),
+    mealTypes: strArray(r.mealTypes),
   };
 }
 

@@ -93,6 +93,8 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Meal planner "Heart-healthy week" quick-select (oily fish ×2, pulses ×3, red meat ≤1; filters high-sat-fat library recipes; new recipes go through the check pass)
 - [x] "Cholesterol-lowering" member dietary toggle — AI guidance when they're eating, pre-selects heart-healthy in concierge + planner
 - [x] Weekly nutrition card on the meal plan view (heart-healthy count, sat fat, fibre, protein targets)
+- [x] Meal plan layout: action row replaces stats bar, sidebar removed, nutrition becomes a collapsible full-width strip
+- [x] Nutrition swap suggestions (library matches + AI fallback that creates and swaps in a new recipe)
 - [x] Heart-healthy status badges in the AI meal plan preview
 - [x] Shopping list heart-healthy swap hints (only for households with a cholesterol-lowering member)
 

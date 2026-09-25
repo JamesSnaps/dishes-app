@@ -90,6 +90,30 @@ export async function removeMealEntry(entryId: string) {
   revalidatePath("/meal-plan");
 }
 
+/**
+ * Replace a planned meal with another recipe in the same slot — the "Swap"
+ * button on the planner's nutrition suggestions. Add first, then remove, so a
+ * failure leaves an extra meal rather than a missing one.
+ */
+export async function swapMealEntryRecipe(
+  entryId: string,
+  weekStartDate: string,
+  dayOfWeek: number,
+  mealType: MealType,
+  newRecipeId: string
+) {
+  const session = await requireSession();
+
+  await mealPlanService.addEntry(session, weekStartDate, newRecipeId, dayOfWeek, mealType);
+  try {
+    await mealPlanService.removeEntry(session, entryId);
+  } catch (err) {
+    ignoreMissingEntry(err);
+  }
+
+  revalidatePath("/meal-plan");
+}
+
 export async function updateMealEntryServings(
   entryId: string,
   servings: number | null
