@@ -1216,6 +1216,9 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
             mealType: mealPlanEntries.mealType,
             title: recipes.title,
             cuisine: recipes.cuisine,
+            calories: recipes.calories,
+            saturatedFatG: recipes.saturatedFatG,
+            fiberG: recipes.fiberG,
           })
           .from(mealPlanEntries)
           .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
@@ -1229,9 +1232,18 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
       : [];
 
     const alreadyPlannedBlock = alreadyPlanned.length > 0
-      ? `\n\nALREADY PLANNED THIS WEEK (do not repeat these dishes, and balance your suggestions against them so the week isn't dominated by one cuisine or protein): ` +
+      ? `\n\nALREADY PLANNED THIS WEEK — these meals are part of the same week as the ones you are planning, so treat the week as a whole: do not repeat these dishes, balance cuisine, main protein and vegetables against them, and count them towards any weekly targets below rather than planning your slots as a separate mini-week: ` +
         alreadyPlanned
-          .map((e) => `${DAY_NAMES[e.dayOfWeek]} ${e.mealType} — ${e.title}${e.cuisine ? ` (${e.cuisine})` : ""}`)
+          .map((e) => {
+            const facts = [
+              e.cuisine,
+              e.calories ? `${e.calories} kcal` : null,
+              e.saturatedFatG != null ? `sat fat ${e.saturatedFatG}g` : null,
+              e.fiberG != null ? `fibre ${e.fiberG}g` : null,
+              heartHealthy && isHeartHealthy(e) ? "heart-healthy ✓" : null,
+            ].filter(Boolean);
+            return `${DAY_NAMES[e.dayOfWeek]} ${e.mealType} — ${e.title}${facts.length ? ` (${facts.join(", ")})` : ""}`;
+          })
           .join("; ") +
         "."
       : "";
@@ -1267,7 +1279,7 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
       ? `\n\nCALORIE LIMIT: every meal must stay at or below roughly ${maxCaloriesPerMeal} kcal per serving. Library recipes shown with a kcal value already fit. For new suggestions (libraryIndex 0) and any library recipe without a kcal value, choose dishes whose typical per-serving calories are within this limit.`
       : "";
     const heartBlock = heartHealthy
-      ? `\n\nHEART-HEALTHY WEEK — this household is following a cholesterol-lowering diet. Across a full week of dinners: oily fish (salmon, mackerel, sardines, trout) at least twice; a meal built mainly on beans, lentils, chickpeas or tofu at least three times; red meat at most once, and no processed meat (bacon, sausages, ham, salami). Scale these down in proportion when planning fewer slots. Breakfasts should lean on oats, wholegrains, fruit, nuts and low-fat yoghurt rather than fry-ups, pastries or butter. Library recipes marked "heart-healthy ✓" already meet the targets; only reuse one marked "heart-healthy: unknown" if it is plainly a lean, vegetable- or pulse-led dish. For new suggestions (libraryIndex 0): ${HEART_HEALTHY_GUIDANCE}`
+      ? `\n\nHEART-HEALTHY WEEK — this household is following a cholesterol-lowering diet. Across a full week of dinners: oily fish (salmon, mackerel, sardines, trout) at least twice; a meal built mainly on beans, lentils, chickpeas or tofu at least three times; red meat at most once, and no processed meat (bacon, sausages, ham, salami). These are targets for the WHOLE week: meals listed under "ALREADY PLANNED THIS WEEK" or "ALSO IN THIS PLAN" count towards them, so work out what those meals already contribute and use your slots to make up the shortfall (e.g. if red meat is already in the week, plan none; if oily fish hasn't appeared yet, include it). Only when the week is otherwise empty and you are planning just a few slots, scale the targets down in proportion. Breakfasts should lean on oats, wholegrains, fruit, nuts and low-fat yoghurt rather than fry-ups, pastries or butter. Library recipes marked "heart-healthy ✓" already meet the targets; only reuse one marked "heart-healthy: unknown" if it is plainly a lean, vegetable- or pulse-led dish. For new suggestions (libraryIndex 0): ${HEART_HEALTHY_GUIDANCE}`
       : "";
     const fullAddendum =
       addendum +
