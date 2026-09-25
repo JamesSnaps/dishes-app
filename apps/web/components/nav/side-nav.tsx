@@ -15,6 +15,7 @@ import {
   Home,
   Images,
   BarChart3,
+  Gift,
   Library,
   LogOut,
   Moon,
@@ -70,6 +71,7 @@ const PERSONAL_NAV: NavItem[] = [
   { href: "/collections", label: "Collections", icon: FolderOpen },
   { href: "/memories", label: "Memories", icon: Images },
   { href: "/stats", label: "Stats", icon: BarChart3 },
+  { href: "/wrapped", label: "Wrapped", icon: Gift },
   { href: "/notes", label: "My Notes", icon: FileText },
   { href: "/shared", label: "Shared with me", icon: Library },
 ];

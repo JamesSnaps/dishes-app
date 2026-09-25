@@ -88,6 +88,9 @@ export default async function HomePage() {
   const user = await getAutheliaUser();
   const firstName = user.displayName.split(" ")[0];
   const { householdId, memberId } = await requireHousehold(user);
+  const now = new Date();
+  const wrappedSeason = now.getMonth() === 11 || now.getMonth() === 0;
+  const wrappedYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
   const weekStartDate = getMondayOfToday();
   const todayDayIndex = getTodayDayIndex();
@@ -335,6 +338,21 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* Wrapped — pushed to the front in December and January */}
+      {wrappedSeason && (
+        <Link
+          href={`/wrapped?year=${wrappedYear}`}
+          className="relative block overflow-hidden rounded-2xl bg-gradient-to-br from-fuchsia-600 via-rose-500 to-orange-400 p-5 text-white shadow-lg transition-transform hover:scale-[1.01]"
+        >
+          <span aria-hidden className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-yellow-300/40 blur-2xl" />
+          <span className="relative block text-xs font-bold uppercase tracking-[0.2em] text-white/85">Dishes Wrapped</span>
+          <span className="relative mt-1 block text-2xl font-black">Your {wrappedYear} in food is here ✨</span>
+          <span className="relative mt-3 inline-block rounded-full bg-white px-4 py-1.5 text-sm font-bold text-rose-600 shadow">
+            Play it →
+          </span>
+        </Link>
+      )}
+
       {/* Stats — the only way in on mobile, where the side nav is hidden */}
       <Link
         href="/stats"
@@ -342,7 +360,7 @@ export default async function HomePage() {
       >
         <span>
           <span className="block text-base font-semibold">What we&rsquo;ve been eating</span>
-          <span className="block text-sm text-white/85">Stats, heart health and who ate what</span>
+          <span className="block text-sm text-white/85">Stats, heart health, who ate what and your Wrapped</span>
         </span>
         <span className="shrink-0 rounded-full bg-white/20 px-3 py-1 text-sm font-medium">See stats →</span>
       </Link>

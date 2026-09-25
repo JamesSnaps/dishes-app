@@ -4,6 +4,12 @@ import withSerwistInit from "@serwist/next";
 const config: NextConfig = {
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
 
+  // Wrapped share cards read their fonts from disk; make sure they ship in the
+  // standalone build.
+  outputFileTracingIncludes: {
+    "/api/wrapped/card": ["./assets/fonts/**"],
+  },
+
   experimental: {
     // Allow large .crumb zip uploads (Crouton exports can be several hundred MB)
     middlewareClientMaxBodySize: 1024 * 1024 * 1024, // 1 GB

@@ -132,7 +132,15 @@ export default async function StatsPage({
         ) : (
           <span />
         )}
-        <PrintButton />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/wrapped"
+            className="rounded-full bg-gradient-to-r from-fuchsia-600 via-rose-500 to-orange-400 px-4 py-1.5 text-sm font-bold text-white shadow-md transition-transform hover:scale-105"
+          >
+            Your {new Date().getFullYear()} Wrapped ✨
+          </Link>
+          <PrintButton />
+        </div>
       </div>
 
       {totals.meals === 0 ? (

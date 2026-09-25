@@ -99,6 +99,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 ## Stats
 - [x] Stats page (`/stats`): totals, heart health by week/month, protein mix vs targets, most eaten, cuisines, per person, "worth a look"
 - [x] Stats: per-person view and "Download PDF" (print-to-PDF snapshot)
+- [x] Dishes Wrapped (`/wrapped`): year-in-food story slides with shareable PNG cards
 - [ ] Record who ate planned meals (not just logged cooks), so per-person stats don't have to assume everyone
 
 ## AI — Photo Recipe Import
