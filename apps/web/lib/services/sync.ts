@@ -605,7 +605,12 @@ export async function pruneSyncLog(
     return { changesDeleted: 0, operationsDeleted: 0, households: 0 };
   }
 
-  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  // A string, not a Date: both statements below are raw `sql`, which skips
+  // drizzle's column mapping, and drizzle's postgres-js driver disables the
+  // driver's own timestamp serialisation. A Date parameter therefore reached the
+  // wire untouched and threw, so every prune failed (silently — see
+  // maybePruneSyncLog) and the log was never trimmed.
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   // One statement per concern, in a transaction: the watermark and the deletion
   // it describes must not be able to disagree.
@@ -624,7 +629,7 @@ export async function pruneSyncLog(
         DELETE FROM sync_changes c
         USING newest n
         WHERE c.household_id = n.household_id
-          AND c.changed_at < ${cutoff}
+          AND c.changed_at < ${cutoff}::timestamptz
           AND c.seq < n.keep_seq
         RETURNING c.household_id, c.seq
       )
@@ -659,7 +664,7 @@ export async function pruneSyncLog(
     }
 
     const ops = await tx.execute(
-      sql`DELETE FROM sync_operations WHERE applied_at < ${cutoff}`
+      sql`DELETE FROM sync_operations WHERE applied_at < ${cutoff}::timestamptz`
     );
 
     return {
