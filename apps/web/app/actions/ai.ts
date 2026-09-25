@@ -864,8 +864,13 @@ export async function generateMealPlanConcepts(params: {
   /** Monday of the week being planned (YYYY-MM-DD), for seasonality and to
    *  avoid clashing with meals already slotted into that week. */
   weekStartDate?: string;
+  /** Redoing part of a draft: the suggestions the user is keeping, so the new
+   *  ones balance against them rather than being planned in isolation. */
+  keptSlots?: { dayOfWeek: number; mealType: string; title: string; cuisine?: string }[];
+  /** Redoing part of a draft: the suggestions being replaced, never to be offered again. */
+  replacingTitles?: string[];
 }): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
-  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, favouritesOnly, frequentsOnly, ratedOnly, memberIds, maxCaloriesPerMeal, heartHealthy, weekStartDate } = params;
+  const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, favouritesOnly, frequentsOnly, ratedOnly, memberIds, maxCaloriesPerMeal, heartHealthy, weekStartDate, keptSlots, replacingTitles } = params;
   if (!requestedSlots.length)
     return { error: "Please select at least one slot to plan." };
 
@@ -1231,6 +1236,19 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
         "."
       : "";
 
+    // Partial redo: the rest of the draft stays, so plan around it.
+    const keptBlock = keptSlots?.length
+      ? `\n\nALSO IN THIS PLAN (already chosen — do not repeat these dishes, and balance cuisine, protein and effort against them so the whole week still hangs together): ` +
+        keptSlots
+          .slice(0, 40)
+          .map((k) => `${DAY_NAMES[k.dayOfWeek] ?? ""} ${k.mealType} — ${k.title.slice(0, 120)}${k.cuisine ? ` (${k.cuisine.slice(0, 40)})` : ""}`)
+          .join("; ") +
+        "."
+      : "";
+    const replacingBlock = replacingTitles?.length
+      ? `\n\nREJECTED — the family turned these down for this plan, so suggest something clearly different and never these: ${replacingTitles.slice(0, 20).map((t) => t.slice(0, 120)).join(", ")}.`
+      : "";
+
     // Seasonality: plan around what's actually good in the month being planned.
     const seasonBlock = (() => {
       const target = weekStartDate ? new Date(weekStartDate + "T00:00:00") : new Date();
@@ -1256,6 +1274,8 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
       heartBlock +
       recentlyUsedBlock +
       alreadyPlannedBlock +
+      keptBlock +
+      replacingBlock +
       seasonBlock +
       calorieBlock +
       (filterHints ? `\n\n${filterHints}` : "") +

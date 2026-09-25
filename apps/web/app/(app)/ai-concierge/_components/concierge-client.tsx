@@ -784,6 +784,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const [weekOffset, setWeekOffset] = useState(0);
   const [generatedSlots, setGeneratedSlots] = useState<MealPlanSlot[] | null>(null);
   const [rejectedSlots, setRejectedSlots] = useState<Set<number>>(new Set());
+  const [redoingSlots, setRedoingSlots] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, startGenTransition] = useTransition();
   const [isAdding, startAddTransition] = useTransition();
@@ -836,6 +837,65 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
     });
   }
 
+  function buildGenerateParams() {
+    return {
+      weekStartDate: getMondayOf(weekOffset),
+      preferences: buildFullPreferences(),
+      cuisineFilter: cuisineFilter || undefined,
+      tagFilter: tagFilter || undefined,
+      unusedOnly: unusedOnly || undefined,
+      favouritesOnly: favouritesOnly || undefined,
+      frequentsOnly: frequentsOnly || undefined,
+      ratedOnly: ratedOnly || undefined,
+      memberIds: selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : undefined,
+      maxCaloriesPerMeal: (() => {
+        const n = parseInt(maxCaloriesPerMeal, 10);
+        return Number.isFinite(n) && n > 0 ? n : undefined;
+      })(),
+      heartHealthy: heartHealthy || undefined,
+    };
+  }
+
+  /**
+   * Redo just some meals in the draft. Everything else stays put and goes to
+   * the AI as context, so the replacements balance against the rest of the week.
+   */
+  function handleRedoSlots(indices: number[]) {
+    if (!generatedSlots || !indices.length) return;
+    const current = generatedSlots;
+    const redo = new Set(indices);
+    setError(null);
+    setRedoingSlots(redo);
+    startGenTransition(async () => {
+      const result = await generateMealPlanConcepts({
+        ...buildGenerateParams(),
+        slots: indices.map((i) => ({ dayOfWeek: current[i]!.dayOfWeek, mealType: current[i]!.mealType })),
+        keptSlots: current
+          .filter((_, i) => !redo.has(i) && !rejectedSlots.has(i))
+          .map((s) => ({ dayOfWeek: s.dayOfWeek, mealType: s.mealType, title: s.title, cuisine: s.cuisine })),
+        replacingTitles: indices.map((i) => current[i]!.title),
+      });
+      setRedoingSlots(new Set());
+      if (result.error) { setError(result.error); return; }
+      // Match replacements back to their slot by day + meal type; fall back to
+      // order if the model shuffled the day or meal type.
+      const pool = [...result.slots!];
+      const next = [...current];
+      for (const i of indices) {
+        const orig = current[i]!;
+        const matchIdx = pool.findIndex((s) => s.dayOfWeek === orig.dayOfWeek && s.mealType === orig.mealType);
+        const pick = matchIdx >= 0 ? pool.splice(matchIdx, 1)[0] : pool.shift();
+        if (pick) next[i] = { ...pick, dayOfWeek: orig.dayOfWeek, mealType: orig.mealType };
+      }
+      setGeneratedSlots(next);
+      setRejectedSlots((prev) => {
+        const n = new Set(prev);
+        for (const i of indices) n.delete(i);
+        return n;
+      });
+    });
+  }
+
   function handleGenerate() {
     setError(null);
     setGeneratedSlots(null);
@@ -846,23 +906,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
       return { dayOfWeek: parseInt(key.slice(0, colon), 10), mealType: key.slice(colon + 1) };
     });
     startGenTransition(async () => {
-      const result = await generateMealPlanConcepts({
-        slots,
-        weekStartDate: getMondayOf(weekOffset),
-        preferences: buildFullPreferences(),
-        cuisineFilter: cuisineFilter || undefined,
-        tagFilter: tagFilter || undefined,
-        unusedOnly: unusedOnly || undefined,
-        favouritesOnly: favouritesOnly || undefined,
-        frequentsOnly: frequentsOnly || undefined,
-        ratedOnly: ratedOnly || undefined,
-        memberIds: selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : undefined,
-        maxCaloriesPerMeal: (() => {
-          const n = parseInt(maxCaloriesPerMeal, 10);
-          return Number.isFinite(n) && n > 0 ? n : undefined;
-        })(),
-        heartHealthy: heartHealthy || undefined,
-      });
+      const result = await generateMealPlanConcepts({ ...buildGenerateParams(), slots });
       if (result.error) { setError(result.error); return; }
       setGeneratedSlots(result.slots!);
     });
@@ -1190,13 +1234,26 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
               <h3 className="font-semibold text-sm">Your meal plan for {weekLabel}</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {rejectedSlots.size === 0
-                  ? `${generatedSlots.length} meals — tap any to remove`
+                  ? `${generatedSlots.length} meals — tap to remove, or swap one`
                   : `${includedCount} of ${generatedSlots.length} selected`}
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleGenerate} disabled={isGenerating || isAdding} className="gap-1.5 text-muted-foreground">
-              <RefreshCw className="h-3.5 w-3.5" />Redo
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {rejectedSlots.size > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => handleRedoSlots(Array.from(rejectedSlots).sort((a, b) => a - b))}
+                  disabled={isGenerating || isAdding}
+                  className="gap-1.5 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", redoingSlots.size > 0 && "animate-spin")} />
+                  Redo {rejectedSlots.size} unticked
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating || isAdding} className="gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />Redo all
+              </Button>
+            </div>
           </div>
 
           <div className="divide-y">
@@ -1211,14 +1268,15 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                   <div className="space-y-2">
                     {daySlots.map(({ slot, globalIdx }) => {
                       const rejected = rejectedSlots.has(globalIdx);
+                      const redoing = redoingSlots.has(globalIdx);
                       return (
+                        <div key={globalIdx} className={cn("flex items-start gap-1", redoing && "animate-pulse")}>
                         <button
-                          key={globalIdx}
                           type="button"
                           onClick={() => toggleRejection(globalIdx)}
-                          disabled={isAdding}
+                          disabled={isAdding || redoing}
                           className={cn(
-                            "w-full flex items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-all",
+                            "flex-1 min-w-0 flex items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-all",
                             rejected
                               ? "opacity-40 bg-muted/30 line-through-children"
                               : "hover:bg-muted/40"
@@ -1266,6 +1324,17 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                             )}
                           </div>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRedoSlots([globalIdx])}
+                          disabled={isGenerating || isAdding}
+                          aria-label={`Swap ${slot.title} for something else`}
+                          title="Swap for something else"
+                          className="mt-1.5 shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-violet-100 text-violet-700 shadow-sm hover:bg-violet-200 disabled:opacity-50 dark:bg-violet-950/60 dark:text-violet-300 dark:hover:bg-violet-900"
+                        >
+                          <RefreshCw className={cn("h-3.5 w-3.5", redoing && "animate-spin")} />
+                        </button>
+                        </div>
                       );
                     })}
                   </div>
