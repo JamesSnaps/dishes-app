@@ -485,6 +485,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         servingsUnit={recipe.servingsUnit}
         notes={recipe.notes}
         sourceUrl={recipe.sourceUrl}
+        isAiGenerated={recipe.isAiGenerated}
         ingredients={ingredients}
         steps={steps}
         tags={tags}

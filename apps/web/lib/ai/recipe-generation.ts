@@ -66,6 +66,8 @@ export type GeneratedRecipe = {
   }>;
   notes: string | null;
   nutrition?: RecipeNutrition | null;
+  /** Web pages the recipe was grounded on, when web grounding is enabled. */
+  references?: Array<{ title: string; url: string }>;
 };
 
 export const generatedRecipeSchema = z.object({

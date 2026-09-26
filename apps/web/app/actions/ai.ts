@@ -37,6 +37,7 @@ import {
 // compiler before the types are erased — which broke every dev build. Callers
 // import them from `@/lib/ai/recipe-generation` directly.
 import type { ConceptCard, GeneratedRecipe, RecipeNutrition } from "@/lib/ai/recipe-generation";
+import { groundRecipeConcept, groundingPromptSuffix, type RecipeGrounding } from "@/lib/ai/web-grounding";
 
 const log = createLogger("ai");
 
@@ -57,6 +58,7 @@ type AiConfig = {
   defaultPrompt: string | null;
   kitchenEquipment: string | null;
   measurementSystem: string;
+  webGrounding: boolean;
 };
 
 async function getOpenAiClient(householdId: string): Promise<AiConfig> {
@@ -68,6 +70,7 @@ async function getOpenAiClient(householdId: string): Promise<AiConfig> {
       defaultPrompt: aiConfigurations.defaultPrompt,
       kitchenEquipment: aiConfigurations.kitchenEquipment,
       measurementSystem: aiConfigurations.measurementSystem,
+      webGrounding: aiConfigurations.webGrounding,
     })
     .from(aiConfigurations)
     .where(eq(aiConfigurations.householdId, householdId))
@@ -87,6 +90,7 @@ async function getOpenAiClient(householdId: string): Promise<AiConfig> {
     defaultPrompt: config.defaultPrompt,
     kitchenEquipment: config.kitchenEquipment,
     measurementSystem: config.measurementSystem,
+    webGrounding: config.webGrounding,
   };
 }
 
@@ -746,7 +750,7 @@ export async function generateFullRecipe(
   try {
     const user = await getAutheliaUser();
     const { householdId } = await requireHousehold(user);
-    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints, tasteAddendum] = await Promise.all([
+    const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem, webGrounding }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),
       buildMemberConstraints(memberIds ?? [], householdId),
       buildTasteProfileAddendum(householdId),
@@ -754,11 +758,24 @@ export async function generateFullRecipe(
 
     const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment) + tasteAddendum + memberConstraints;
 
+    let grounding: RecipeGrounding | null = null;
+    if (webGrounding) {
+      try {
+        grounding = await groundRecipeConcept(client, model, concept);
+      } catch (err) {
+        log.warn(`web grounding failed for "${concept.title}", generating without it`, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     const messages: OpenAI.ChatCompletionMessageParam[] = [
       { role: "system", content: fullRecipeSystemPrompt(addendum) },
       {
         role: "user",
-        content: fullRecipeUserPrompt(concept, mealType, targetCalories, options?.heartHealthy),
+        content:
+          fullRecipeUserPrompt(concept, mealType, targetCalories, options?.heartHealthy) +
+          (grounding ? groundingPromptSuffix(grounding) : ""),
       },
     ];
 
@@ -766,6 +783,7 @@ export async function generateFullRecipe(
       ? (await createHeartHealthyRecipe(client, model, messages)).recipe
       : await createStructuredRecipe(client, model, messages);
 
+    if (grounding) recipe.references = grounding.references;
     return { recipe };
   } catch (err) {
     return { error: classifyError(err) };

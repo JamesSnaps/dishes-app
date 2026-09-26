@@ -16,6 +16,7 @@ type Props = {
     defaultPrompt: string | null;
     kitchenEquipment: string | null;
     measurementSystem: string;
+    webGrounding: boolean;
     hasKey: boolean;
     keyHint: string;
   } | null;
@@ -151,6 +152,23 @@ export function AiConfigForm({ config, isAdmin }: Props) {
           <option value="imperial">Imperial (cups, oz, lbs, tbsp)</option>
         </select>
       </div>
+
+      {/* Web grounding */}
+      <label className="flex items-start gap-3 rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-3 shadow-sm cursor-pointer">
+        <input
+          type="checkbox"
+          name="webGrounding"
+          defaultChecked={config?.webGrounding ?? false}
+          disabled={isPending}
+          className="mt-0.5 h-4 w-4 accent-primary"
+        />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium">Check recipes against the web</span>
+          <span className="text-xs text-muted-foreground">
+            Before writing a full recipe, the AI looks up a few published versions of the dish to keep proportions, temperatures and times realistic, and credits them on the recipe. Slower (a few extra seconds) and adds a small web search cost per recipe.
+          </span>
+        </span>
+      </label>
 
       {/* Default prompt */}
       <div className="flex flex-col gap-1.5">

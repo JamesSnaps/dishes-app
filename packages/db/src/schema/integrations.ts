@@ -1,4 +1,5 @@
 import {
+  boolean,
   decimal,
   json,
   pgEnum,
@@ -27,6 +28,8 @@ export const aiConfigurations = pgTable("ai_configurations", {
   kitchenEquipment: text("kitchen_equipment"),
   measurementSystem: varchar("measurement_system", { length: 20 }).notNull().default("metric"),
   imageStyle: varchar("image_style", { length: 50 }).notNull().default("studio"),
+  // Look up real published recipes via web search before writing a full recipe.
+  webGrounding: boolean("web_grounding").notNull().default(false),
   monthlyLimitUsd: decimal("monthly_limit_usd", {
     precision: 8,
     scale: 2,

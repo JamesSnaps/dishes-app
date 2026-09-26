@@ -37,6 +37,7 @@ interface RecipeTabsProps {
   servingsUnit: string | null;
   notes: string | null;
   sourceUrl: string | null;
+  isAiGenerated?: boolean;
   ingredients: Ingredient[];
   steps: Step[];
   tags: { id: string; tag: string }[];
@@ -82,6 +83,7 @@ export function RecipeTabs({
   servingsUnit,
   notes,
   sourceUrl,
+  isAiGenerated,
   ingredients,
   steps,
   tags,
@@ -190,7 +192,7 @@ export function RecipeTabs({
                 className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ExternalLink className="h-4 w-4" />
-                Original source
+                {isAiGenerated ? `Inspired by ${hostOf(sourceUrl)}` : "Original source"}
               </a>
             )}
 
@@ -367,4 +369,12 @@ export function RecipeTabs({
       </div>
     </div>
   );
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "the web";
+  }
 }

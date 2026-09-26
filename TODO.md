@@ -161,6 +161,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 
 ## Sharing & Onboarding
 - [x] "Add to my Dishes" — `/import/<token>` deep-copies a shared recipe (ingredients, steps, tags, nutrition, image) into the viewer's own household, with `imported_from_recipe_id` / `imported_from_name` attribution, duplicate detection, and a CTA on the public share page (v0.81.0)
+- [x] Web-grounded recipe generation — optional household toggle (`ai_configurations.web_grounding`); full-recipe generation first runs an OpenAI web search for published versions of the dish and credits them on the recipe (v1.10.0)
 - [x] Welcome wizard — first-run tour (features → optional OpenAI key → PWA install), tracked per member via `household_members.onboarding_completed_at`, replayable from Settings (v0.81.0)
 - [x] Shared libraries — household-to-household grants with a scope model (all / collections / tags, plus exclude-tags), one-time invitation codes, read-only browsing, and single or multi-select import into a "From <household>" collection (v0.82.0)
 - [x] Scope drift guard — `pnpm --filter @dishes/web check:share-scope` asserts that what browse shows is exactly what import authorises, across every scope permutation (v0.82.0)
