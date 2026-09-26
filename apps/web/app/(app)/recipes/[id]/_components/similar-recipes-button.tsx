@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea } from "@dishes/ui";
+import { withReferences } from "@/lib/ai/references";
 import { generateSimilarConcepts, generateFullRecipe } from "@/app/actions/ai";
 import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
@@ -35,7 +36,8 @@ function recipeToSessionDefaults(r: GeneratedRecipe) {
     title: r.title, description: r.description, cuisine: r.cuisine,
     difficulty: r.difficulty, prepTimeMinutes: r.prepTimeMinutes,
     cookTimeMinutes: r.cookTimeMinutes, servings: r.servings,
-    servingsUnit: r.servingsUnit, tags: r.tags, notes: r.notes,
+    servingsUnit: r.servingsUnit, tags: r.tags,
+    ...withReferences(r.notes, r.references),
     ingredients: r.ingredients, steps: r.steps,
   };
 }

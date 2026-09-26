@@ -13,8 +13,7 @@
 
 import OpenAI from "openai";
 import type { ConceptCard } from "./recipe-generation";
-
-export type RecipeReference = { title: string; url: string };
+import type { RecipeReference } from "./references";
 
 export type RecipeGrounding = {
   /** Plain-text notes on the reference recipes, for the generation prompt. */
@@ -86,7 +85,3 @@ export function groundingPromptSuffix(grounding: RecipeGrounding): string {
   return `\n\nReference notes from real published recipes (use these to keep proportions, temperatures and times realistic; write your own recipe and wording, don't copy):\n${grounding.summary}`;
 }
 
-/** Attribution block appended to a grounded recipe's notes. */
-export function referencesNote(references: RecipeReference[]): string {
-  return `Inspired by:\n${references.map((r) => `• ${r.title} — ${r.url}`).join("\n")}`;
-}

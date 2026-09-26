@@ -24,7 +24,7 @@ import { eq, and, inArray, or, ilike, isNotNull, sql, desc, asc } from "drizzle-
 import { MEAL_TYPES } from "@dishes/shared";
 import type { HouseholdContext } from "@/lib/session";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
-import { referencesNote } from "@/lib/ai/web-grounding";
+import { withReferences } from "@/lib/ai/references";
 import {
   HEART_HEALTHY_MAX_SATURATED_FAT_G,
   HEART_HEALTHY_MIN_FIBER_G,
@@ -140,10 +140,7 @@ export function generatedToWriteInput(
       servingsUnit: recipe.servingsUnit || "servings",
       difficulty: recipe.difficulty || null,
       mealTypes: sanitizeMealTypes(recipe.mealTypes),
-      sourceUrl: recipe.references?.[0]?.url ?? null,
-      notes: recipe.references?.length
-        ? [recipe.notes, referencesNote(recipe.references)].filter(Boolean).join("\n\n")
-        : recipe.notes,
+      ...withReferences(recipe.notes, recipe.references),
       imageUrl: null,
       thumbnailUrl: null,
       ...buildNutrition(recipe.nutrition, "ai"),

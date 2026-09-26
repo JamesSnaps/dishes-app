@@ -762,6 +762,11 @@ export async function generateFullRecipe(
     if (webGrounding) {
       try {
         grounding = await groundRecipeConcept(client, model, concept);
+        log.info(
+          grounding
+            ? `web grounding for "${concept.title}": ${grounding.references.map((r) => r.url).join(", ")}`
+            : `web grounding for "${concept.title}" returned no cited sources`
+        );
       } catch (err) {
         log.warn(`web grounding failed for "${concept.title}", generating without it`, {
           error: err instanceof Error ? err.message : String(err),

@@ -19,6 +19,7 @@ import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe } from
 import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { saveGeneratedRecipe } from "@/app/actions/recipes";
 import type { RecipeFormDefaults } from "./recipe-form";
+import { withReferences } from "@/lib/ai/references";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ export function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
     servingsUnit: r.servingsUnit,
     mealTypes: r.mealTypes,
     tags: r.tags,
-    notes: r.notes,
+    ...withReferences(r.notes, r.references),
     ingredients: r.ingredients,
     steps: r.steps,
     calories: r.nutrition?.calories ?? null,
