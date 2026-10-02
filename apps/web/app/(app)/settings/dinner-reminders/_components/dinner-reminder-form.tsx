@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, Loader2 } from "lucide-react";
+import { BellRing, Loader2, LocateFixed } from "lucide-react";
 import { Button, Input } from "@dishes/ui";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -18,6 +18,51 @@ const LEAD_OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60];
  */
 const TIME_INPUT =
   "appearance-none min-w-0 max-w-full text-left [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.25rem]";
+
+interface ZoneGroup {
+  region: string;
+  zones: { id: string; label: string }[];
+}
+
+/** "GMT+1" for a zone right now, or "" if the browser can't say. */
+function zoneOffset(id: string): string {
+  try {
+    const part = new Intl.DateTimeFormat("en-GB", { timeZone: id, timeZoneName: "shortOffset" })
+      .formatToParts(new Date())
+      .find((p) => p.type === "timeZoneName");
+    return part?.value ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** "Europe/London" → "London (GMT+1)". */
+function zoneLabel(id: string): string {
+  const city = id.split("/").slice(1).join(" / ").replace(/_/g, " ") || id;
+  const offset = zoneOffset(id);
+  return offset ? `${city} (${offset})` : city;
+}
+
+/** Zones grouped by region ("Europe", "America", …), cities A–Z. */
+function buildZoneGroups(): ZoneGroup[] {
+  let ids: string[];
+  try {
+    ids = Intl.supportedValuesOf("timeZone");
+  } catch {
+    return [];
+  }
+  const groups = new Map<string, ZoneGroup["zones"]>();
+  for (const id of ids) {
+    const region = id.includes("/") ? id.split("/")[0]! : "Other";
+    groups.set(region, [...(groups.get(region) ?? []), { id, label: zoneLabel(id) }]);
+  }
+  return [...groups]
+    .map(([region, zones]) => ({
+      region,
+      zones: zones.sort((a, b) => a.label.localeCompare(b.label)),
+    }))
+    .sort((a, b) => a.region.localeCompare(b.region));
+}
 
 interface Props {
   settings: {
@@ -41,13 +86,17 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
   const [leadMinutes, setLeadMinutes] = useState(settings.leadMinutes);
   const [timezone, setTimezone] = useState(settings.timezone);
 
-  const timezones = useMemo(() => {
+  // Built after mount: the zone list and ICU names can differ between the
+  // server's Node and the phone's browser, which would break hydration.
+  const [zoneGroups, setZoneGroups] = useState<ZoneGroup[]>([]);
+  const [deviceZone, setDeviceZone] = useState<string | null>(null);
+  useEffect(() => {
+    setZoneGroups(buildZoneGroups());
     try {
-      return Intl.supportedValuesOf("timeZone");
-    } catch {
-      return [];
-    }
+      setDeviceZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    } catch {}
   }, []);
+  const listed = zoneGroups.some((g) => g.zones.some((z) => z.id === timezone));
 
   function toggle() {
     const next = !enabled;
@@ -225,19 +274,34 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
           <label htmlFor="tz" className="text-sm font-medium">
             Timezone
           </label>
-          <Input
+          <select
             id="tz"
-            list="dinner-tz-list"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
             disabled={!isAdmin || saving}
-            required
-          />
-          <datalist id="dinner-tz-list">
-            {timezones.map((tz) => (
-              <option key={tz} value={tz} />
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            {!listed && <option value={timezone}>{zoneLabel(timezone)}</option>}
+            {zoneGroups.map((g) => (
+              <optgroup key={g.region} label={g.region}>
+                {g.zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
-          </datalist>
+          </select>
+          {isAdmin && deviceZone && deviceZone !== timezone && (
+            <button
+              type="button"
+              onClick={() => setTimezone(deviceZone)}
+              className="flex items-center gap-1.5 text-xs font-medium text-orange-600 dark:text-orange-400 hover:underline"
+            >
+              <LocateFixed className="h-3.5 w-3.5" />
+              Use this device&apos;s timezone ({zoneLabel(deviceZone)})
+            </button>
+          )}
         </div>
 
         {isAdmin && (
