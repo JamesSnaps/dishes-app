@@ -1082,14 +1082,20 @@ export async function generateMealPlanConcepts(params: {
     }
     const DISLIKED_AT = 4; // 2★
     const dislikedBy = (recipeId: string) => eaterRatings.get(recipeId)?.filter((p) => p.average <= DISLIKED_AT) ?? [];
+    // The household's overall rating counts too: a recipe the household rated
+    // 2★ or less is out, whoever is eating — ratings logged without per-person
+    // voices would otherwise never reach the per-diner check above.
+    const householdDisliked = (r: { avgRating: string | null }) =>
+      r.avgRating != null && parseFloat(r.avgRating) <= DISLIKED_AT;
     const dislikedTitles = rawLibrary
-      .map((r) => ({ title: r.title, who: dislikedBy(r.id) }))
-      .filter((d) => d.who.length);
+      .map((r) => ({ title: r.title, who: dislikedBy(r.id), household: householdDisliked(r) ? r.avgRating : null }))
+      .filter((d) => d.who.length || d.household);
 
     const COOLDOWN_WEEKS = 3;
 
     /**
-     * Apply the filters at a given cooldown. Returns the eligible recipes and
+     * Apply the filters at a given cooldown. Disliked recipes stay out even
+     * when the cooldown is relaxed. Returns the eligible recipes and
      * the titles held back by recency, which the prompt lists as "do not
      * suggest these".
      */
@@ -1101,7 +1107,7 @@ export async function generateMealPlanConcepts(params: {
         if (favouritesOnly && !r.isFavourite) return false;
         if (frequentsOnly && r.timesUsed < FREQUENT_MIN_USES) return false;
         if (ratedOnly && !r.avgRating) return false;
-        if (dislikedBy(r.id).length) return false;
+        if (dislikedBy(r.id).length || householdDisliked(r)) return false;
         // Exclude library recipes over the per-meal calorie cap (recipes with
         // no calorie data are kept — we can't tell, so we don't hide them).
         if (maxCaloriesPerMeal && r.calories != null && r.calories > maxCaloriesPerMeal)
@@ -1272,9 +1278,13 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
       : "";
 
     const dislikedBlock = dislikedTitles.length
-      ? `\n\nNOT FOR THESE DINERS — someone eating this week rated these 2/5 or lower, so don't suggest them or close variations: ${dislikedTitles
+      ? `\n\nDISLIKED — rated 2/5 or lower by the household or by someone eating this week, so don't suggest them or close variations: ${dislikedTitles
           .slice(0, 30)
-          .map((d) => `${d.title} (${d.who.map((p) => `${p.name} ${Math.round(p.average * 5) / 10}/5`).join(", ")})`)
+          .map((d) => {
+            const votes = d.who.map((p) => `${p.name} ${Math.round(p.average * 5) / 10}/5`);
+            if (d.household) votes.unshift(`household ${Math.round(parseFloat(d.household) * 5) / 10}/5`);
+            return `${d.title} (${votes.join(", ")})`;
+          })
           .join("; ")}.`
       : "";
 

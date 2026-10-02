@@ -62,6 +62,9 @@ export type SwapSuggestion = {
 // Main meals only — swapping a snack for a salmon traybake helps nobody.
 const SWAPPABLE_MEAL_TYPES = new Set(["lunch", "dinner"]);
 const LIMIT_KINDS: ProteinKind[] = ["redMeat", "processedMeat"];
+// 0–5 stars. Rated this low, it's not a fix for the week — the household
+// already said no. Matches the AI meal planner's cut-off.
+const DISLIKED_AT = 2;
 
 export function gapReason(gap: SwapGap): string {
   const label = PROTEIN_LABELS[gap.kind].toLowerCase();
@@ -91,7 +94,7 @@ function fitsSlot(recipe: SwapRecipe, mealType: string): boolean {
 
 /**
  * Library recipes that would fix `gap` in a `mealType` slot, best first:
- * has what's needed, adds no red or processed meat, then heart-healthy,
+ * has what's needed, adds no red or processed meat, isn't rated 2★ or less, then heart-healthy,
  * favourite, rating, and same cuisine as the meal it replaces.
  */
 function rankReplacements(
@@ -108,6 +111,7 @@ function rankReplacements(
     if (excluded.has(recipe.id) || !fitsSlot(recipe, mealType)) continue;
     const kinds = proteinsById.get(recipe.id)!;
     if (LIMIT_KINDS.some((k) => kinds.has(k))) continue;
+    if (recipe.avgRating != null && recipe.avgRating <= DISLIKED_AT) continue;
     if (gap.direction === "add" && !kinds.has(gap.kind)) continue;
     // A main needs a main: unless the recipe is tagged for this slot, it must
     // have a protein — otherwise "no red meat" matches the cookie recipe.
