@@ -29,7 +29,7 @@ const CHAT_MODELS = [
   { value: "gpt-4.1", label: "GPT-4.1" },
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },
   { value: "gpt-4o", label: "GPT-4o" },
-  { value: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
+  { value: "gpt-6-luna", label: "GPT-6 Luna" },
 ];
 
 const IMAGE_MODELS = [

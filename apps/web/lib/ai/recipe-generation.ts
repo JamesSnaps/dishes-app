@@ -200,12 +200,12 @@ export function fullRecipeUserPrompt(
 
 // --- The call ---------------------------------------------------------------
 
-// gpt-4.1-x, gpt-5.x, and o-series models use max_completion_tokens; everything else uses max_tokens
+// gpt-5.x and gpt-6.x models use max_completion_tokens; everything else uses max_tokens
 export function maxTokensParam(
   model: string,
   tokens: number
 ): { max_tokens?: number; max_completion_tokens?: number } {
-  return /^gpt-5/i.test(model)
+  return /^gpt-[56]/i.test(model)
     ? { max_completion_tokens: tokens }
     : { max_tokens: tokens };
 }
