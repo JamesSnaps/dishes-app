@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/report-client-error";
+import { reloadIfStaleBuild } from "@/components/chunk-reload-guard";
 
 interface Props {
   error: Error & { digest?: string };
@@ -10,6 +11,8 @@ interface Props {
 
 export default function GlobalError({ error, reset }: Props) {
   useEffect(() => {
+    // An old build after a deploy — reload into the new one instead of erroring.
+    if (reloadIfStaleBuild(`${error.name}: ${error.message}`)) return;
     console.error(error);
     reportClientError(error, "global-error", { digest: error.digest });
   }, [error]);
