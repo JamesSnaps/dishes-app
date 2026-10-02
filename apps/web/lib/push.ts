@@ -2,13 +2,19 @@ import webpush from "web-push";
 import { db } from "@/lib/db";
 import { getRedis } from "@/lib/redis";
 import { pushSubscriptions, type PushSubscription } from "@dishes/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 export interface PushPayload {
   title: string;
   body?: string;
   url?: string;
   icon?: string;
+  /** Replaces an earlier notification with the same tag instead of stacking. */
+  tag?: string;
+  /** Notification buttons. The service worker handles each `action` id. */
+  actions?: { action: string; title: string }[];
+  /** Extra data the service worker needs to handle an action. */
+  data?: Record<string, unknown>;
 }
 
 function initVapid() {
@@ -110,6 +116,31 @@ export async function sendPushToHousehold(
     : subs;
 
   await deliverToSubscriptions(targets, payload);
+}
+
+/**
+ * Send to specific household members' devices (by Authelia username), e.g.
+ * only the people who opted in to dinner reminders.
+ */
+export async function sendPushToUsers(
+  householdId: string,
+  autheliaUsers: string[],
+  payload: PushPayload
+): Promise<DeliveryResult> {
+  if (autheliaUsers.length === 0) return { sent: 0, failed: 0, stale: 0 };
+  initVapid();
+
+  const targets = await db
+    .select()
+    .from(pushSubscriptions)
+    .where(
+      and(
+        eq(pushSubscriptions.householdId, householdId),
+        inArray(pushSubscriptions.autheliaUser, autheliaUsers)
+      )
+    );
+
+  return deliverToSubscriptions(targets, payload);
 }
 
 /** Outcome of a single-device send — drives the test-notification response. */

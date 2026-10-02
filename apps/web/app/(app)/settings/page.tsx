@@ -43,6 +43,16 @@ export default async function SettingsPage() {
         <div className="rounded-lg border bg-card p-4">
           <PushNotificationManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null} />
         </div>
+        <Link
+          href="/settings/dinner-reminders"
+          className="mt-2 flex items-center justify-between rounded-lg border border-orange-300/60 dark:border-orange-900/60 bg-gradient-to-r from-orange-500/10 to-rose-500/10 px-4 py-3 hover:from-orange-500/20 hover:to-rose-500/20 transition-colors"
+        >
+          <div>
+            <p className="font-medium">Dinner reminders</p>
+            <p className="text-sm text-muted-foreground">Get told when to start cooking, and set dinner times</p>
+          </div>
+          <span className="text-muted-foreground">›</span>
+        </Link>
       </section>
 
       {/* Household */}

@@ -273,28 +273,74 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("push", (e) => {
   const data = e.data?.json() ?? {};
-  e.waitUntil(
-    self.registration.showNotification(data.title ?? "Dishes", {
-      body: data.body ?? "",
+  // `actions` isn't in TypeScript's NotificationOptions (support varies — iOS
+  // ignores it), so build the options loosely.
+  const options: NotificationOptions & { actions?: { action: string; title: string }[] } = {
+    body: data.body ?? "",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: { ...(data.data ?? {}), url: data.url ?? "/" },
+  };
+  if (data.tag) options.tag = data.tag;
+  if (Array.isArray(data.actions)) options.actions = data.actions;
+  e.waitUntil(self.registration.showNotification(data.title ?? "Dishes", options));
+});
+
+function openOrFocus(url: string) {
+  return self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((windowClients) => {
+      const existing = windowClients.find((c) => c.url === url && "focus" in c);
+      if (existing) return existing.focus();
+      return self.clients.openWindow(url);
+    });
+}
+
+/**
+ * "Push back 30 min" on a dinner reminder. Moves tonight's dinner without
+ * opening the app; the server re-arms the reminder for the new time. Uses the
+ * page's Authelia session cookie — if that has expired the request comes back
+ * 401 (JSON Accept stops Authelia answering with a login redirect), and we fall
+ * back to opening the planner.
+ */
+async function snoozeDinner(date: string) {
+  try {
+    const res = await fetch("/api/dinner-reminders/snooze", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ date }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = (await res.json()) as { dinnerTime: string; remindAt: string | null };
+    await self.registration.showNotification(`Dinner moved to ${result.dinnerTime}`, {
+      body: result.remindAt
+        ? `We'll remind you again at ${result.remindAt}.`
+        : "Tonight's dinner time has been updated.",
       icon: "/icon-192.png",
       badge: "/icon-192.png",
-      data: { url: data.url ?? "/" },
-    })
-  );
-});
+      tag: `dinner-${date}`,
+      data: { url: "/meal-plan" },
+    });
+  } catch {
+    await self.registration.showNotification("Couldn't push dinner back", {
+      body: "Tap to change tonight's dinner time in the planner.",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: `dinner-${date}`,
+      data: { url: "/meal-plan" },
+    });
+  }
+}
 
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  const url = e.notification.data?.url ?? "/";
-  e.waitUntil(
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((windowClients) => {
-        const existing = windowClients.find((c) => c.url === url && "focus" in c);
-        if (existing) return existing.focus();
-        return self.clients.openWindow(url);
-      })
-  );
+  const data = e.notification.data ?? {};
+  if (e.action === "snooze" && typeof data.snoozeDate === "string") {
+    e.waitUntil(snoozeDinner(data.snoozeDate));
+    return;
+  }
+  e.waitUntil(openOrFocus(data.url ?? "/"));
 });
 
 // Background Sync — flush any shopping mutations queued while offline.

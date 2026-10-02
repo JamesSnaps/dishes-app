@@ -34,6 +34,7 @@ import { notifyShoppingChanged } from "@/components/providers/shopping-count-con
 import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
+import { DinnerTimeChip, useWeekDinnerSchedule } from "./dinner-time-chip";
 import { EntryCard } from "./entry-card";
 import { WeekNutritionPanel } from "./week-nutrition-card";
 import { summariseMeals } from "@/lib/meal-stats";
@@ -771,6 +772,13 @@ export function WeekPlanner({
   const selectedDayLabel = formatDayHeading(weekStartDate, selectedDay);
   const isToday = isCurrentWeek && todayDayIndex === selectedDay;
 
+  const dinnerEntries = localEntries.filter((e) => e.mealType === "dinner");
+  const { schedule: dinnerSchedule, updateDay: updateDinnerDay } = useWeekDinnerSchedule(
+    weekStartDate,
+    dinnerEntries.map((e) => e.recipe.id)
+  );
+  const selectedDinnerDay = dinnerSchedule?.days[selectedDay];
+
   // Report what actually reached the list. A week whose ingredients are all
   // covered by the pantry used to look identical to a successful generation.
   function reportShoppingResult(result: ShoppingAddResult) {
@@ -986,6 +994,23 @@ export function WeekPlanner({
                 <span className="text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 px-2 py-0.5 rounded-full">
                   Today
                 </span>
+              )}
+              {selectedDinnerDay && dinnerSchedule && (
+                <DinnerTimeChip
+                  date={addDays(weekStartDate, selectedDay)}
+                  dayLabel={selectedDayLabel}
+                  day={selectedDinnerDay}
+                  dishes={dinnerEntries
+                    .filter((e) => e.dayOfWeek === selectedDay)
+                    .map((e) => ({
+                      recipeId: e.recipe.id,
+                      title: e.recipe.title,
+                      prepTimeMinutes: e.recipe.prepTimeMinutes,
+                      cookTimeMinutes: e.recipe.cookTimeMinutes,
+                    }))}
+                  estimates={dinnerSchedule.estimates}
+                  onChange={updateDinnerDay}
+                />
               )}
             </div>
 

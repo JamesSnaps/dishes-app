@@ -17,3 +17,4 @@ export * from "./recipe-assist-threads";
 export * from "./sync";
 export * from "./library-shares";
 export * from "./client-errors";
+export * from "./dinner-reminders";
