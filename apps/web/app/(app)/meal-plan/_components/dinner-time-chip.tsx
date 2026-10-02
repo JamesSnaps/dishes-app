@@ -20,6 +20,13 @@ import {
 } from "@/app/actions/dinner-reminders";
 import type { DayDinnerSetting, WeekDinnerSchedule } from "@/lib/dinner-reminders/schedule";
 
+/**
+ * iOS Safari renders time inputs natively: it ignores the width (overflowing
+ * narrow cards), centres the value and balloons the height when empty.
+ */
+const TIME_INPUT =
+  "appearance-none min-w-0 max-w-full text-left [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.25rem]";
+
 export interface DinnerDish {
   recipeId: string;
   title: string;
@@ -199,7 +206,7 @@ export function DinnerTimeChip({
                 onChange={(e) => setTime(e.target.value)}
                 required
                 disabled={pending}
-                className="flex-1"
+                className={`flex-1 ${TIME_INPUT}`}
               />
               <Button
                 type="submit"

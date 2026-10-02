@@ -12,6 +12,12 @@ import {
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const LEAD_OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60];
+/**
+ * iOS Safari renders time inputs natively: it ignores the width (overflowing
+ * narrow cards), centres the value and balloons the height when empty.
+ */
+const TIME_INPUT =
+  "appearance-none min-w-0 max-w-full text-left [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.25rem]";
 
 interface Props {
   settings: {
@@ -138,6 +144,7 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
               onChange={(e) => setDinnerTime(e.target.value)}
               disabled={!isAdmin || saving}
               required
+              className={TIME_INPUT}
             />
           </div>
           <div className="space-y-1.5">
@@ -167,7 +174,14 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
               const value = dayTimes[String(i)] ?? "";
               return (
                 <div key={name} className="flex items-center gap-2">
-                  <span className="w-24 text-sm text-muted-foreground">{name}</span>
+                  <span className="w-24 flex-shrink-0 text-sm leading-tight">
+                    <span className={value ? "font-medium" : "text-muted-foreground"}>{name}</span>
+                    {!value && (
+                      <span className="block text-xs text-muted-foreground">
+                        Usual{dinnerTime ? ` (${dinnerTime})` : ""}
+                      </span>
+                    )}
+                  </span>
                   <Input
                     type="time"
                     value={value}
@@ -181,7 +195,7 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
                       })
                     }
                     disabled={!isAdmin || saving}
-                    className="flex-1"
+                    className={`flex-1 ${TIME_INPUT}`}
                   />
                   {value && isAdmin && (
                     <button
