@@ -21,7 +21,7 @@ interface ImportResult {
   errors: string[];
 }
 
-export function CrumbImportModal() {
+export function CrumbImportModal({ trigger }: { trigger?: React.ReactNode } = {}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -123,10 +123,12 @@ export function CrumbImportModal() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="gap-1.5">
-          <Package className="h-4 w-4" />
-          Import .crumb
-        </Button>
+        {trigger ?? (
+          <Button type="button" variant="outline" size="sm" className="gap-1.5">
+            <Package className="h-4 w-4" />
+            Import .crumb
+          </Button>
+        )}
       </DialogTrigger>
 
       <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[90vh] overflow-y-auto">

@@ -32,15 +32,28 @@ import {
   Target,
   CheckCircle2,
   HeartPulse,
+  ExternalLink,
+  Trash2,
+  Undo2,
+  UtensilsCrossed,
 } from "lucide-react";
-import { Button, Textarea, cn } from "@dishes/ui";
+import {
+  Button,
+  Textarea,
+  cn,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@dishes/ui";
 import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe, generateMealPlanConcepts, type MealPlanSlot } from "@/app/actions/ai";
 import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
 import type { StyleBreakdown, LibraryStyle } from "@/lib/services/recipe-library";
 import { StarRating } from "@/app/(app)/recipes/[id]/_components/star-rating";
 import { useSync } from "@/components/providers/sync-provider";
-import { saveGeneratedRecipe } from "@/app/actions/recipes";
+import { saveGeneratedRecipe, getRecipePreview, type RecipePreview } from "@/app/actions/recipes";
 import { recipeToDefaults } from "@/app/(app)/recipes/_components/ai-concierge";
 import type { RecipeFormDefaults } from "../../recipes/_components/recipe-form";
 
@@ -474,6 +487,219 @@ type BatchItem = {
   error?: string;
 };
 
+// ── Plan draft: slot badges + preview dialog ───────────────────────────────────
+
+function SlotBadges({ slot }: { slot: MealPlanSlot }) {
+  return (
+    <>
+      <span className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] capitalize", difficultyClass(slot.difficulty))}>
+        {slot.difficulty}
+      </span>
+      <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] capitalize text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400">
+        {slot.mealType}
+      </span>
+      {slot.recipeId ? (
+        <span className="inline-flex items-center gap-0.5 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400">
+          <BookOpen className="h-2.5 w-2.5" />
+          From your library
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400">
+          <Sparkles className="h-2.5 w-2.5" />
+          New recipe
+        </span>
+      )}
+      <HeartStatusBadge status={slot.heartStatus} />
+      {slot.recipeId && slot.avgRating != null && (
+        <span
+          title="Your household's average rating"
+          className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+        >
+          <StarRating value={slot.avgRating} readonly size="sm" />
+          {slot.avgRating / 2}/5
+        </span>
+      )}
+    </>
+  );
+}
+
+function formatMinutes(mins: number): string {
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h} hr ${m} min` : `${h} hr`;
+}
+
+/**
+ * A closer look at one suggestion in the draft, with the swap/remove controls
+ * right there. Library picks load their real ingredients so you can judge the
+ * dish; new recipes only exist as a concept until the plan is added.
+ */
+function PlanSlotPreviewDialog({
+  slot,
+  rejected,
+  redoing,
+  disabled,
+  previewCache,
+  onPreviewLoaded,
+  onOpenChange,
+  onToggleRejected,
+  onSwap,
+}: {
+  slot: MealPlanSlot | null;
+  rejected: boolean;
+  redoing: boolean;
+  disabled: boolean;
+  previewCache: Map<string, RecipePreview>;
+  onPreviewLoaded: (preview: RecipePreview) => void;
+  onOpenChange: (open: boolean) => void;
+  onToggleRejected: () => void;
+  onSwap: () => void;
+}) {
+  const recipeId = slot?.recipeId ?? null;
+  const preview = recipeId ? previewCache.get(recipeId) ?? null : null;
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoadError(null);
+    if (!recipeId || previewCache.has(recipeId)) return;
+    let cancelled = false;
+    getRecipePreview(recipeId)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.recipe) onPreviewLoaded(res.recipe);
+        else setLoadError(res.error ?? "Couldn't load this recipe.");
+      })
+      .catch(() => { if (!cancelled) setLoadError("Couldn't load this recipe."); });
+    return () => { cancelled = true; };
+    // previewCache/onPreviewLoaded change identity on every load; recipeId is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipeId]);
+
+  const totalMins = (preview?.prepTimeMinutes ?? 0) + (preview?.cookTimeMinutes ?? 0);
+
+  return (
+    <Dialog open={slot !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+        {slot && (
+          <div className={cn("min-w-0", redoing && "animate-pulse")}>
+            {/* Hero */}
+            {preview?.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview.imageUrl} alt={slot.title} className="h-44 w-full object-cover" />
+            ) : (
+              <div className="h-28 w-full bg-gradient-to-br from-violet-100 via-orange-50 to-amber-100 flex items-center justify-center text-5xl dark:from-violet-950/70 dark:via-orange-950/40 dark:to-amber-950/40">
+                {cuisineEmoji(slot.cuisine)}
+              </div>
+            )}
+
+            <div className="p-5 space-y-4">
+              <DialogHeader className="text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {DAY_FULL[slot.dayOfWeek]} · <span className="capitalize">{slot.mealType}</span>
+                </p>
+                <DialogTitle className={cn("leading-snug pr-6", rejected && "line-through text-muted-foreground")}>
+                  {slot.title}
+                </DialogTitle>
+                <DialogDescription className="sr-only">Preview of this meal plan suggestion</DialogDescription>
+              </DialogHeader>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <SlotBadges slot={slot} />
+              </div>
+
+              <p className="text-sm text-foreground/80">{slot.description}</p>
+
+              {recipeId ? (
+                preview ? (
+                  <div className="space-y-3">
+                    {(totalMins > 0 || preview.servings || preview.calories) && (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {totalMins > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-1 font-medium text-orange-800 dark:bg-orange-950/60 dark:text-orange-300">
+                            <Clock className="h-3 w-3" />{formatMinutes(totalMins)}
+                          </span>
+                        )}
+                        {preview.servings && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 font-medium text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                            <Users className="h-3 w-3" />Serves {Number(preview.servings)}
+                          </span>
+                        )}
+                        {preview.calories != null && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 font-medium text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+                            <Flame className="h-3 w-3" />{preview.calories} kcal
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {preview.ingredients.length > 0 && (
+                      <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-lime-50 p-3 dark:from-emerald-950/40 dark:to-lime-950/20">
+                        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                          <UtensilsCrossed className="h-3.5 w-3.5" />
+                          {preview.ingredients.length} ingredient{preview.ingredients.length === 1 ? "" : "s"}
+                          {preview.stepCount > 0 && ` · ${preview.stepCount} step${preview.stepCount === 1 ? "" : "s"}`}
+                        </p>
+                        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-foreground/80">
+                          {preview.ingredients.map((ing, i) => (
+                            <li key={i} className="truncate">• {ing}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <a
+                      href={`/recipes/${recipeId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />Open full recipe in a new tab
+                    </a>
+                  </div>
+                ) : loadError ? (
+                  <p className="text-xs text-destructive">{loadError}</p>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />Loading recipe…
+                  </div>
+                )
+              ) : (
+                <div className="rounded-xl bg-gradient-to-br from-violet-50 to-fuchsia-50 p-3 text-xs text-violet-800 dark:from-violet-950/40 dark:to-fuchsia-950/20 dark:text-violet-300">
+                  <Sparkles className="mr-1 inline h-3.5 w-3.5" />
+                  A brand-new dish — the full recipe is written when you add the plan.
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onToggleRejected}
+                  disabled={disabled || redoing}
+                  className={cn(
+                    "flex-1 gap-1.5",
+                    !rejected && "border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-900 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                  )}
+                >
+                  {rejected ? <><Undo2 className="h-4 w-4" />Keep in plan</> : <><Trash2 className="h-4 w-4" />Remove from plan</>}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={onSwap}
+                  disabled={disabled || redoing}
+                  className="flex-1 gap-1.5 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                >
+                  <RefreshCw className={cn("h-4 w-4", redoing && "animate-spin")} />
+                  {redoing ? "Finding another…" : "Swap for something else"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Plan My Week tab ───────────────────────────────────────────────────────────
 
 type PlanMyWeekProps = {
@@ -786,6 +1012,10 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const [generatedSlots, setGeneratedSlots] = useState<MealPlanSlot[] | null>(null);
   const [rejectedSlots, setRejectedSlots] = useState<Set<number>>(new Set());
   const [redoingSlots, setRedoingSlots] = useState<Set<number>>(new Set());
+  // Index into generatedSlots of the meal open in the preview modal. Swapping
+  // replaces the slot in place, so the modal shows the new option straight away.
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
+  const [previewCache, setPreviewCache] = useState<Map<string, RecipePreview>>(() => new Map());
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, startGenTransition] = useTransition();
   const [isAdding, startAddTransition] = useTransition();
@@ -901,6 +1131,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
     setError(null);
     setGeneratedSlots(null);
     setRejectedSlots(new Set());
+    setPreviewIdx(null);
     setAdded(false);
     const slots = Array.from(selectedSlots).map((key) => {
       const colon = key.indexOf(":");
@@ -1230,12 +1461,23 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
       {/* Generated plan preview */}
       {generatedSlots && (
         <div className="rounded-xl border bg-card overflow-hidden">
+          <PlanSlotPreviewDialog
+            slot={previewIdx !== null ? generatedSlots[previewIdx] ?? null : null}
+            rejected={previewIdx !== null && rejectedSlots.has(previewIdx)}
+            redoing={previewIdx !== null && redoingSlots.has(previewIdx)}
+            disabled={isGenerating || isAdding}
+            previewCache={previewCache}
+            onPreviewLoaded={(p) => setPreviewCache((prev) => new Map(prev).set(p.id, p))}
+            onOpenChange={(open) => { if (!open) setPreviewIdx(null); }}
+            onToggleRejected={() => { if (previewIdx !== null) toggleRejection(previewIdx); }}
+            onSwap={() => { if (previewIdx !== null) handleRedoSlots([previewIdx]); }}
+          />
           <div className="bg-gradient-to-r from-violet-50 to-orange-50 border-b px-5 py-3 flex items-center justify-between dark:from-violet-950/60 dark:to-orange-950/40">
             <div>
               <h3 className="font-semibold text-sm">Your meal plan for {weekLabel}</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {rejectedSlots.size === 0
-                  ? `${generatedSlots.length} meals — tap to remove, or swap one`
+                  ? `${generatedSlots.length} meals — tap one to preview or swap it`
                   : `${includedCount} of ${generatedSlots.length} selected`}
               </p>
             </div>
@@ -1271,79 +1513,65 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                       const rejected = rejectedSlots.has(globalIdx);
                       const redoing = redoingSlots.has(globalIdx);
                       return (
-                        <div key={globalIdx} className={cn("flex items-start gap-1", redoing && "animate-pulse")}>
-                        <button
-                          type="button"
-                          onClick={() => toggleRejection(globalIdx)}
-                          disabled={isAdding || redoing}
+                        <div
+                          key={globalIdx}
                           className={cn(
-                            "flex-1 min-w-0 flex items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-all",
-                            rejected
-                              ? "opacity-40 bg-muted/30 line-through-children"
-                              : "hover:bg-muted/40"
+                            "flex items-start gap-2 rounded-xl px-2 py-1.5 transition-all",
+                            rejected ? "opacity-40 bg-muted/30" : "hover:bg-muted/40",
+                            redoing && "animate-pulse"
                           )}
                         >
-                          {/* Toggle indicator */}
-                          <span
-                            className={cn(
-                              "mt-0.5 flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all",
-                              rejected
-                                ? "border-muted-foreground/30 bg-transparent"
-                                : "border-emerald-400 bg-emerald-500"
-                            )}
+                          {/* Keep / remove toggle */}
+                          <button
+                            type="button"
+                            onClick={() => toggleRejection(globalIdx)}
+                            disabled={isAdding || redoing}
+                            aria-label={rejected ? `Keep ${slot.title}` : `Remove ${slot.title}`}
+                            aria-pressed={!rejected}
+                            className="mt-1 flex-shrink-0 p-1 -m-1"
                           >
-                            {!rejected && <Check className="h-3 w-3 text-white" />}
-                          </span>
-
-                          <span className="text-lg shrink-0 leading-none mt-0.5">{cuisineEmoji(slot.cuisine)}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className={cn("text-sm font-medium truncate", rejected && "line-through text-muted-foreground")}>
-                                {slot.title}
-                              </p>
-                              <span className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] capitalize", difficultyClass(slot.difficulty))}>
-                                {slot.difficulty}
-                              </span>
-                              <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] capitalize text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400">
-                                {slot.mealType}
-                              </span>
-                              {slot.recipeId ? (
-                                <span className="inline-flex items-center gap-0.5 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400">
-                                  <BookOpen className="h-2.5 w-2.5" />
-                                  From your library
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400">
-                                  <Sparkles className="h-2.5 w-2.5" />
-                                  New recipe
-                                </span>
+                            <span
+                              className={cn(
+                                "h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all",
+                                rejected
+                                  ? "border-muted-foreground/30 bg-transparent"
+                                  : "border-emerald-400 bg-emerald-500"
                               )}
-                              <HeartStatusBadge status={slot.heartStatus} />
-                              {slot.recipeId && slot.avgRating != null && (
-                                <span
-                                  title="Your household's average rating"
-                                  className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
-                                >
-                                  <StarRating value={slot.avgRating} readonly size="sm" />
-                                  {slot.avgRating / 2}/5
-                                </span>
+                            >
+                              {!rejected && <Check className="h-3 w-3 text-white" />}
+                            </span>
+                          </button>
+
+                          {/* Tap for the preview modal */}
+                          <button
+                            type="button"
+                            onClick={() => setPreviewIdx(globalIdx)}
+                            disabled={isAdding}
+                            className="flex-1 min-w-0 flex items-start gap-3 py-1 text-left"
+                          >
+                            <span className="text-lg shrink-0 leading-none mt-0.5">{cuisineEmoji(slot.cuisine)}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className={cn("text-sm font-medium truncate", rejected && "line-through text-muted-foreground")}>
+                                  {slot.title}
+                                </p>
+                                <SlotBadges slot={slot} />
+                              </div>
+                              {!rejected && (
+                                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{slot.description}</p>
                               )}
                             </div>
-                            {!rejected && (
-                              <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{slot.description}</p>
-                            )}
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRedoSlots([globalIdx])}
-                          disabled={isGenerating || isAdding}
-                          aria-label={`Swap ${slot.title} for something else`}
-                          title="Swap for something else"
-                          className="mt-1.5 shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-violet-100 text-violet-700 shadow-sm hover:bg-violet-200 disabled:opacity-50 dark:bg-violet-950/60 dark:text-violet-300 dark:hover:bg-violet-900"
-                        >
-                          <RefreshCw className={cn("h-3.5 w-3.5", redoing && "animate-spin")} />
-                        </button>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRedoSlots([globalIdx])}
+                            disabled={isGenerating || isAdding}
+                            aria-label={`Swap ${slot.title} for something else`}
+                            title="Swap for something else"
+                            className="mt-0.5 shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-violet-100 text-violet-700 shadow-sm hover:bg-violet-200 disabled:opacity-50 dark:bg-violet-950/60 dark:text-violet-300 dark:hover:bg-violet-900"
+                          >
+                            <RefreshCw className={cn("h-3.5 w-3.5", redoing && "animate-spin")} />
+                          </button>
                         </div>
                       );
                     })}

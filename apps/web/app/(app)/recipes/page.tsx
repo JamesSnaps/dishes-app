@@ -13,7 +13,6 @@ import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
 import { RecipeFilters } from "./_components/recipe-filters";
 import { RecipesLocalGrid } from "./_components/recipes-local-grid";
-import { CrumbImportModal } from "./_components/crumb-import-modal";
 
 export const metadata = { title: "Recipes" };
 
@@ -171,7 +170,6 @@ export default async function RecipesPage({ searchParams }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CrumbImportModal />
           <Button asChild size="sm">
             <Link href="/recipes/new">
               <Plus className="mr-1 h-4 w-4" />

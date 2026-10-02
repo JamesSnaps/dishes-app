@@ -14,6 +14,7 @@ import { BackfillSaturatedFatButton } from "./_components/backfill-saturated-fat
 import { PushNotificationManager } from "@/components/push-notification-manager";
 import { AssistHistorySection } from "./_components/assist-history-section";
 import { ReplayTourButton } from "./_components/replay-tour-button";
+import { CrumbImportModal } from "../recipes/_components/crumb-import-modal";
 import { getAssistHistoryStats } from "@/app/actions/assist-history";
 
 export const metadata = { title: "Settings" };
@@ -77,7 +78,7 @@ export default async function SettingsPage() {
       </section>
 
       {/* Quick links */}
-      <section>
+      <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Configuration
         </h2>
@@ -124,6 +125,26 @@ export default async function SettingsPage() {
           </Link>
           <ReplayTourButton />
         </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Import
+        </h2>
+        <CrumbImportModal
+          trigger={
+            <button
+              type="button"
+              className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-left hover:bg-accent transition-colors"
+            >
+              <div>
+                <p className="font-medium">Import from Crouton</p>
+                <p className="text-sm text-muted-foreground">Bring in recipes from a .crumb export</p>
+              </div>
+              <span className="text-muted-foreground">›</span>
+            </button>
+          }
+        />
       </section>
 
       {isAdmin && (

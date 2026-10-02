@@ -193,6 +193,43 @@ export async function applyTweakToRecipe(
   }
 }
 
+export type RecipePreview = {
+  id: string;
+  imageUrl: string | null;
+  prepTimeMinutes: number | null;
+  cookTimeMinutes: number | null;
+  servings: string | null;
+  calories: number | null;
+  ingredients: string[];
+  stepCount: number;
+};
+
+/** Slim read for previewing a library pick (e.g. in the AI meal plan draft). */
+export async function getRecipePreview(
+  recipeId: string
+): Promise<{ recipe?: RecipePreview; error?: string }> {
+  try {
+    const session = await requireSession();
+    const r = await recipeService.getRecipe(session, recipeId);
+    return {
+      recipe: {
+        id: r.id,
+        imageUrl: r.thumbnailUrl ?? r.imageUrl,
+        prepTimeMinutes: r.prepTimeMinutes,
+        cookTimeMinutes: r.cookTimeMinutes,
+        servings: r.servings,
+        calories: r.calories,
+        ingredients: r.ingredients.map((i) =>
+          [i.amount, i.unit, i.ingredientName].filter(Boolean).join(" ")
+        ),
+        stepCount: r.steps.length,
+      },
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load recipe." };
+  }
+}
+
 export async function bulkAddTags(recipeIds: string[], tags: string[]): Promise<void> {
   const session = await requireSession();
   await recipeService.bulkAddTags(session, recipeIds, tags);

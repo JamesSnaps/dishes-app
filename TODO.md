@@ -96,6 +96,8 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Meal plan layout: action row replaces stats bar, sidebar removed, nutrition becomes a collapsible full-width strip
 - [x] Nutrition swap suggestions (library matches + AI fallback that creates and swaps in a new recipe)
 - [x] Heart-healthy status badges in the AI meal plan preview
+- [x] AI meal plan preview modal (tap a meal for details, swap or remove it) (v1.11.0)
+- [x] Crouton `.crumb` import moved from the recipes header to Settings → Import (v1.11.0)
 - [x] Shopping list heart-healthy swap hints (only for households with a cholesterol-lowering member)
 
 ## Stats
