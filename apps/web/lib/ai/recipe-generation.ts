@@ -200,13 +200,20 @@ export function fullRecipeUserPrompt(
 
 // --- The call ---------------------------------------------------------------
 
-// gpt-5.x and gpt-6.x models use max_completion_tokens; everything else uses max_tokens
+// Reasoning models spend hidden reasoning tokens out of the same
+// max_completion_tokens budget as the visible answer. Without headroom a
+// 1,200-token concept call can be used up entirely by reasoning and come back
+// empty. It's a ceiling, not a charge — only tokens actually used are billed.
+const REASONING_HEADROOM = 8000;
+
+// gpt-5.x and gpt-6.x models are reasoning models and use max_completion_tokens;
+// everything else uses max_tokens. `tokens` is the budget for the answer itself.
 export function maxTokensParam(
   model: string,
   tokens: number
 ): { max_tokens?: number; max_completion_tokens?: number } {
   return /^gpt-[56]/i.test(model)
-    ? { max_completion_tokens: tokens }
+    ? { max_completion_tokens: tokens + REASONING_HEADROOM }
     : { max_tokens: tokens };
 }
 

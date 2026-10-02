@@ -107,7 +107,7 @@ function classifyError(err: unknown): string {
     msg.includes("Unterminated string in JSON") ||
     msg.includes("recipe response was cut off")
   )
-    return "The AI response was cut off before the recipe finished. Please try again.";
+    return "The AI response was cut off before it finished. Please try again.";
   return `AI error: ${msg}`;
 }
 
