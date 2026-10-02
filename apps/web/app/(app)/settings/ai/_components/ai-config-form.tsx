@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { Button } from "@dishes/ui";
 import { Input } from "@dishes/ui";
 import { Textarea } from "@dishes/ui";
@@ -44,12 +44,20 @@ export function AiConfigForm({ config, isAdmin }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  function handleSubmit(formData: FormData) {
+  // onSubmit rather than <form action>: React resets an action form after it
+  // completes, and selects reset to the option chosen at mount (the old saved
+  // value), so a freshly saved model appeared to revert.
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     setError(null);
     setSaved(false);
     startTransition(async () => {
       try {
         await saveAiConfig(formData);
+        const apiKey = form.elements.namedItem("apiKey");
+        if (apiKey instanceof HTMLInputElement) apiKey.value = "";
         setSaved(true);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to save AI config");
@@ -66,7 +74,7 @@ export function AiConfigForm({ config, isAdmin }: Props) {
   }
 
   return (
-    <form action={handleSubmit} className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {/* API Key */}
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium">OpenAI API key</label>
