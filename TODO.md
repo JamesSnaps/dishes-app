@@ -132,6 +132,9 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] `POST /api/integrations/meal-plan/generate` — trigger AI generation
 - [x] Token management UI (`/settings/integrations`) — create/revoke tokens with scopes
 - [x] Redis rate limiting middleware for integration routes (100 req/min per token, gracefully skipped if Redis unavailable)
+- [x] `GET /api/integrations/recipes/{id}` — full recipe (ingredients, steps, nutrition) for AI assistants (v1.13.0)
+- [x] `GET /api/integrations/openapi.json` — public OpenAPI 3.1 spec generated from `lib/integrations-catalog.ts` (v1.13.0)
+- [x] API reference page at Settings → Integrations — per-endpoint docs with example bodies/responses, curl for your domain, Try-it console, AI-assistant setup guide (v1.13.0)
 
 ## Pantry
 - [x] `pantry_staples` table — household-scoped list of always-available ingredients

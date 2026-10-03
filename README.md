@@ -41,7 +41,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Stale-paint repaint budget** — the service worker tells an open page when a cached copy it just painted turned out to be out of date, and the page repaints itself. That repaint is now capped at two per route visit, no closer than five seconds apart, with a matching cooldown in the worker. Without the cap a page whose server render is not byte-identical on consecutive requests (a relative timestamp is enough) repainted in a loop, and on iOS Safari killed the tab outright with "Application error: a client-side exception has occurred" once it passed 100 `history.replaceState()` calls in 10 seconds
 - **Crash diagnostics** — when a device hits a client-side error, the browser posts the real message, stack, route and app version to the server, where it is written both to `docker logs dishes` (`grep -A 12 "client exception"`) and to **Settings → Crash reports** (admin only), so "Application error: a client-side exception has occurred" can be diagnosed from the phone that hit it rather than over SSH. Reports that can't be delivered — the device was offline, or the page was torn down mid-send — are held locally and sent when the app next opens online. A report from an app version older than the server's is flagged as a stale bundle (a PWA left open across a deploy) rather than a bug in the screen it crashed on
 - **Clean sign-in after an expired session** — when the Authelia session runs out, the app notices on its next sync, goes to the sign-in page once, and comes straight back afterwards. The service worker only caches real pages, never the proxy's redirect to the login portal, and throws away its cached copy of a page as soon as the server answers with a redirect or a 401. Previously it could store that redirect as the page and replay it after you signed in, bouncing the browser between Dishes and Authelia until it cleared itself; and an expired session looked to the app exactly like being offline, because Authelia's redirect to another domain surfaced as a network error
-- **Integrations API** — JSON API with bearer token auth for n8n, Home Assistant, dashboards, and other automation tools
+- **Integrations API** — JSON API with bearer token auth for n8n, Home Assistant, dashboards, and AI assistants (Grok, ChatGPT, Claude). Today's meals, the week plan, full recipes (ingredients + steps), the shopping list, and AI plan generation. **Settings → Integrations** is a full API reference: create/revoke scoped tokens, expandable docs with example requests and responses, copy-ready `curl` commands for your domain, a Try-it console that runs requests live, and a public OpenAPI spec (`/api/integrations/openapi.json`) an AI assistant can import directly
 - **Client API** — a separate `/api/v1` JSON API for Dishes' own clients, authenticated as a specific household member rather than as an anonymous household token. Recipes, the full shopping list, and the meal planner (week view, assigning and moving meals, per-meal and whole-week shopping generation) are covered today; it is the groundwork for a native iOS app and for offline writes beyond the shopping list
 - **Delta sync** — `/api/v1/sync` gives a client everything that changed since its last cursor, and accepts a batch of queued offline mutations back. Backed by a database-trigger change log, so every write is captured — including deletes, and anything done outside the app — and the cursor is a sequence number rather than a timestamp, so there is no clock skew to reason about. This is the foundation for local-first reads on both the PWA and a native app
 - **PWA & offline** — installable on mobile; a service worker (Serwist) precaches the app shell and caches pages as you visit them, so the app launches and switches between sections even on poor or no signal instead of hanging. The shopping list works fully offline — changes queue locally and sync automatically when you reconnect. Unconfirmed local changes always win over a server refresh, so ticking items off in a shop and switching between apps can't revert them. Shopping and meal plan refresh on resume (reopening the app re-fetches when online), and the shopping cache also refreshes via Periodic Background Sync where the browser supports it (Chrome/Android & desktop; iOS has no PWA background execution). A global offline indicator shows when you lose signal, opening an unvisited route offline lands on a friendly offline page instead of hanging, and the app auto-recovers from stale-chunk errors after a redeploy. Home-screen shortcuts jump straight to Shopping, Meal Plan, or the AI concierge, and recipe photos are cached for ~30 days so recipes stay readable (with images) offline
@@ -306,11 +306,13 @@ The app exposes a JSON API for external tools. Full documentation: [API.md](API.
 
 > Dishes has two APIs. `/api/integrations` (below) is for external automation and authenticates with household-scoped tokens. `/api/v1` is the **client API** used by Dishes' own clients — it resolves a specific household member, via Authelia proxy headers in the browser or an OIDC access token from a native app, and is the foundation for the planned native iOS app. See [API.md](API.md), [Authelia OIDC](#authelia-oidc-for-native-clients) and [TODO_MOBILE.md](TODO_MOBILE.md).
 
-Tokens are created at **Settings → Integrations** (admin only). Each token carries granular scopes and is rate-limited at 100 requests/minute via Redis.
+Tokens are created at **Settings → Integrations** (admin only). Each token carries granular scopes and is rate-limited at 100 requests/minute via Redis. The same page documents every endpoint with examples and has a Try-it console.
+
+**AI assistants (Grok etc.):** create a `read:meal_plan`-only token, import `https://dishes.yourdomain.com/api/integrations/openapi.json` as a custom action/tool (no token needed to fetch the spec), and set auth to Bearer with the token. The existing Authelia bypass for `^/api/integrations([/?].*)?$` already covers both the spec and the new recipe endpoint.
 
 | Scope | Description |
 |---|---|
-| `read:meal_plan` | Read meal plan and recipe data |
+| `read:meal_plan` | Read meal plan and full recipes |
 | `write:meal_plan` | Create meal plan entries, trigger AI generation |
 | `read:shopping_list` | Read the active shopping list |
 | `write:shopping_list` | Add items to the active shopping list |
@@ -320,6 +322,9 @@ Tokens are created at **Settings → Integrations** (admin only). Each token car
 ```bash
 # Today's meals
 curl -H "Authorization: Bearer <token>" https://dishes.yourdomain.com/api/integrations/today
+
+# Full recipe (ingredients + steps) for a recipe.id from the call above
+curl -H "Authorization: Bearer <token>" https://dishes.yourdomain.com/api/integrations/recipes/<recipe-id>
 
 # Add a shopping list item
 curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \

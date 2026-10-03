@@ -179,13 +179,17 @@ Key endpoints:
 ```
 GET  /api/integrations/today
 GET  /api/integrations/meal-plan/week
+GET  /api/integrations/recipes/{id}
 GET  /api/integrations/shopping-list
 POST /api/integrations/shopping-list/items
 POST /api/integrations/shopping-list/quick-add
 POST /api/integrations/meal-plan/generate
+GET  /api/integrations/openapi.json   (public, no token)
 ```
 
 `API.md` is the authoritative reference for these — keep it in step with the routes
-under `apps/web/app/api/integrations/`.
+under `apps/web/app/api/integrations/`. The Settings → Integrations page and the
+OpenAPI spec are generated from `apps/web/lib/integrations-catalog.ts`, so update
+that catalog too when an endpoint changes.
 
 Tokens are household-scoped with granular scopes (`read:meal_plan`, `write:shopping_list`, etc.). Rate-limited via Redis. Admin/adult only to create tokens.

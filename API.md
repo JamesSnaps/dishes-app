@@ -23,6 +23,14 @@ Authorization: Bearer <token>
 
 Tokens carry granular scopes. Each endpoint documents the required scope. Requests with a missing or invalid token receive `401`; requests with a valid token that lacks the required scope receive `403`.
 
+## OpenAPI spec
+
+`GET /api/integrations/openapi.json` returns an OpenAPI 3.1 description of every endpoint below — parameters, request schemas, example responses, and an `operationId` per endpoint (`getToday`, `getWeekMealPlan`, `getRecipe`, `getShoppingList`, `addShoppingItems`, `quickAddShoppingItem`, `generateMealPlan`). It needs **no token**, so AI assistants (Grok, ChatGPT custom actions, Claude) and n8n can import it before auth is configured; it contains no household data. `servers[0].url` is taken from the request's `X-Forwarded-Host`/`X-Forwarded-Proto`.
+
+The spec and the **Settings → Integrations** reference page are both generated from `apps/web/lib/integrations-catalog.ts` — update that file alongside this one when an endpoint changes.
+
+For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's for dinner and how do I make it?": `getToday` → `getRecipe` with the meal's `recipe.id`.
+
 ## Rate limiting
 
 100 requests per minute per token (fixed window). Exceeding the limit returns `429` with a `Retry-After` header (seconds until the window resets). Rate limiting is enforced via Redis and is a no-op if Redis is unavailable.
@@ -31,7 +39,7 @@ Tokens carry granular scopes. Each endpoint documents the required scope. Reques
 
 | Scope | Description |
 |---|---|
-| `read:meal_plan` | Read meal plan entries and recipes |
+| `read:meal_plan` | Read meal plan entries and full recipes |
 | `write:meal_plan` | Create meal plan entries and trigger AI generation |
 | `read:shopping_list` | Read the active shopping list |
 | `write:shopping_list` | Add items to the active shopping list |
@@ -129,6 +137,72 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
 `dayOfWeek` values: `0` = Monday … `6` = Sunday.  
 `planStatus`: `"draft"` | `"active"` | `"archived"`.  
 `entries` is empty `[]` if no plan exists for the week.
+
+---
+
+### `GET /api/integrations/recipes/{id}`
+
+Returns one recipe from the household library with ingredients, numbered steps and per-serving nutrition. Use it to follow up a `recipe.id` from `/today` or `/meal-plan/week`, which only carry a summary.
+
+**Scope:** `read:meal_plan`
+
+**Path params**
+
+| Param | Type | Description |
+|---|---|---|
+| `id` | uuid | Recipe id |
+
+**Response `200`**
+
+```json
+{
+  "recipe": {
+    "id": "uuid",
+    "title": "Chicken Tikka Masala",
+    "description": "A creamy, mildly spiced curry.",
+    "cuisine": "Indian",
+    "difficulty": "medium",
+    "servings": "4",
+    "servingsUnit": "servings",
+    "prepTimeMinutes": 20,
+    "cookTimeMinutes": 35,
+    "calories": 650,
+    "mealTypes": ["dinner"],
+    "tags": ["curry", "family"],
+    "notes": null,
+    "sourceUrl": null,
+    "nutrition": {
+      "calories": 650, "proteinG": 42, "carbsG": 38, "fatG": 34,
+      "saturatedFatG": 12, "fiberG": 5, "sugarG": 9, "sodiumMg": 980
+    },
+    "ingredients": [
+      {
+        "id": "uuid",
+        "ingredientName": "chicken thighs",
+        "amount": "600",
+        "unit": "g",
+        "preparation": "diced",
+        "isOptional": false,
+        "groupLabel": null
+      }
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "instruction": "Marinate the chicken in yoghurt and spices for 20 minutes.",
+        "durationMinutes": 20,
+        "timerLabel": "Marinate",
+        "groupLabel": null,
+        "ingredientIds": ["uuid"]
+      }
+    ]
+  }
+}
+```
+
+`nutrition` is `null` when the recipe has no nutrition data; individual macros may also be `null`. `steps[].ingredientIds` reference `ingredients[].id`. Amounts are strings so fractions survive.
+
+**Error `404`** — no recipe with that id in the token's household (malformed ids also return `404`).
 
 ---
 

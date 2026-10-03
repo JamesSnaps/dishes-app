@@ -427,7 +427,7 @@ export async function listRecipes(
 }
 
 /** Full recipe with ingredients, steps and tags. Throws if not owned. */
-export async function getRecipe(ctx: HouseholdContext, recipeId: string) {
+export async function getRecipe(ctx: Pick<HouseholdContext, "householdId">, recipeId: string) {
   const [recipe] = await db
     .select()
     .from(recipes)
