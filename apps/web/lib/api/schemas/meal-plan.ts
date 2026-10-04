@@ -29,11 +29,17 @@ export const addEntrySchema = z.object({
 export const updateEntrySchema = z
   .object({
     dayOfWeek: z.number().int().min(0).max(6),
+    /** Moves the entry into another week; only meaningful with `dayOfWeek`. */
+    weekStartDate: weekStartSchema,
     mealType: mealTypeSchema,
     servings: z.number().positive().nullable(),
   })
   .partial()
-  .refine((v) => Object.keys(v).length > 0, "No fields to update");
+  .refine((v) => Object.keys(v).length > 0, "No fields to update")
+  .refine(
+    (v) => v.weekStartDate === undefined || v.dayOfWeek !== undefined,
+    "weekStartDate requires dayOfWeek"
+  );
 
 export const generateWeekShoppingSchema = z.object({
   mealPlanId: z.string().uuid(),

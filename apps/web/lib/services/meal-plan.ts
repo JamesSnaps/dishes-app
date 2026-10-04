@@ -66,6 +66,19 @@ export function assertDayOfWeek(day: number): void {
   }
 }
 
+/** `YYYY-MM-DD` naming a Monday — the only dates a plan's week can start on. */
+export function assertWeekStart(weekStartDate: string): void {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(weekStartDate)
+    ? new Date(weekStartDate + "T00:00:00Z")
+    : null;
+  if (!d || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== weekStartDate) {
+    throw new MealPlanValidationError("weekStartDate must be a valid YYYY-MM-DD date");
+  }
+  if (d.getUTCDay() !== 1) {
+    throw new MealPlanValidationError("weekStartDate must be a Monday");
+  }
+}
+
 export function assertMealType(mealType: string): asserts mealType is MealType {
   if (!(MEAL_TYPES as readonly string[]).includes(mealType)) {
     throw new MealPlanValidationError("Invalid meal type");
@@ -282,17 +295,27 @@ export async function addEntry(
   return entry!.id;
 }
 
+/**
+ * Move an entry to another day. With `weekStartDate` it can land in a different
+ * week too (Sunday → next Monday): the entry is re-parented onto that week's
+ * plan, which is created if the week has never been planned.
+ */
 export async function moveEntry(
   ctx: HouseholdContext,
   entryId: string,
-  newDayOfWeek: number
+  newDayOfWeek: number,
+  weekStartDate?: string
 ): Promise<void> {
   assertDayOfWeek(newDayOfWeek);
+  if (weekStartDate !== undefined) assertWeekStart(weekStartDate);
   await assertEntryOwned(entryId, ctx.householdId);
+
+  const mealPlanId =
+    weekStartDate !== undefined ? (await getOrCreatePlan(ctx, weekStartDate)).id : undefined;
 
   await db
     .update(mealPlanEntries)
-    .set({ dayOfWeek: newDayOfWeek })
+    .set({ dayOfWeek: newDayOfWeek, ...(mealPlanId ? { mealPlanId } : {}) })
     .where(eq(mealPlanEntries.id, entryId));
 }
 

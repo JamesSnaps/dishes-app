@@ -405,8 +405,43 @@ export function WeekPlannerLocal({
           .catch(() => {});
       },
 
-      moveEntry: (entryId, dayOfWeek) =>
-        update(entryId, { dayOfWeek }, { id: entryId, dayOfWeek }),
+      /**
+       * A move into another week re-parents the entry onto that week's plan.
+       * When the store has no plan for it yet, a `temporary` one stands in —
+       * same reasoning as `addEntry` — so the meal shows up straight away if
+       * the user follows it there; the pull after the push replaces both the
+       * stand-in plan and the entry's pointer to it with the server's rows.
+       */
+      moveEntry: (entryId, dayOfWeek, weekStartDate) => {
+        if (weekStartDate === undefined) {
+          update(entryId, { dayOfWeek }, { id: entryId, dayOfWeek });
+          return;
+        }
+
+        const existingPlan = plans.find((p) => str(p.weekStartDate) === weekStartDate);
+        const planId = existingPlan ? existingPlan.id : crypto.randomUUID();
+        const row = planEntries.find((e) => e.id === entryId);
+
+        const writes: OptimisticChange[] = [];
+        if (!existingPlan) {
+          writes.push({
+            collection: "mealPlans",
+            temporary: true,
+            record: { id: planId, weekStartDate, status: "draft" },
+          });
+        }
+        if (row) {
+          writes.push({
+            collection: "mealPlanEntries",
+            record: { ...row, mealPlanId: planId, dayOfWeek },
+          });
+        }
+
+        engine
+          .mutate("meal_plan_entry.update", { entryId, dayOfWeek, weekStartDate }, writes)
+          .then(() => syncNow?.())
+          .catch(() => {});
+      },
 
       changeEntryType: (entryId, mealType) =>
         update(entryId, { mealType }, { id: entryId, mealType }),

@@ -117,7 +117,8 @@ export type MealPlanMutations = {
     dayOfWeek: number,
     mealType: MealType
   ) => void;
-  moveEntry: (entryId: string, dayOfWeek: number) => void;
+  /** `weekStartDate` moves the entry into that week; omit it to stay in this one. */
+  moveEntry: (entryId: string, dayOfWeek: number, weekStartDate?: string) => void;
   changeEntryType: (entryId: string, mealType: MealType) => void;
   updateEntryServings: (entryId: string, servings: number | null) => void;
   deleteEntry: (entryId: string) => void;
@@ -211,6 +212,22 @@ function formatTotalTime(minutes: number): string {
 // Module-level: persists across client-side navigations so the incoming page
 // knows which direction to animate from.
 let pendingEnterDirection: "from-left" | "from-right" | null = null;
+
+// Same idea for the day: after following a meal into another week ("View" on
+// the moved toast), open that week on the day it landed rather than Monday.
+let pendingSelectDay: number | null = null;
+
+function takePendingSelectDay(): number | null {
+  const day = pendingSelectDay;
+  pendingSelectDay = null;
+  return day;
+}
+
+function formatShortDate(weekStart: string, dayIndex: number): string {
+  const d = new Date(weekStart + "T00:00:00");
+  d.setDate(d.getDate() + dayIndex);
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
 
 // ─── Week Calendar Picker ─────────────────────────────────────────────────────
 
@@ -463,18 +480,66 @@ function DroppableDayChip({
   );
 }
 
+// ─── Droppable week arrow ─────────────────────────────────────────────────────
+
+/**
+ * The prev/next week chevrons double as drop targets while a meal is being
+ * dragged: dropping on "next" lands it on the following Monday, on "prev" on
+ * the previous Sunday — the days either side of this week's edges. The target
+ * date is spelled out during the drag so it's never a guess.
+ */
+function DroppableWeekArrow({
+  direction,
+  targetLabel,
+  isDragActive,
+  onClick,
+}: {
+  direction: "prev" | "next";
+  targetLabel: string;
+  isDragActive: boolean;
+  onClick: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `week-${direction}` });
+  const Icon = direction === "prev" ? ChevronLeft : ChevronRight;
+
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={onClick}
+      className={`flex-shrink-0 flex items-center gap-0.5 rounded-lg transition-all duration-150 ${
+        isOver
+          ? "p-1.5 border-2 border-orange-400 bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 scale-[1.06] shadow-lg"
+          : isDragActive
+            ? "p-1.5 border-2 border-dashed border-orange-300/70 bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400"
+            : "p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground"
+      }`}
+      aria-label={direction === "prev" ? "Previous week" : "Next week"}
+    >
+      {direction === "next" && isDragActive && (
+        <span className="text-xs font-semibold whitespace-nowrap pl-1">{targetLabel}</span>
+      )}
+      <Icon className="h-5 w-5" />
+      {direction === "prev" && isDragActive && (
+        <span className="text-xs font-semibold whitespace-nowrap pr-1">{targetLabel}</span>
+      )}
+    </button>
+  );
+}
+
 // ─── Draggable meal entry ─────────────────────────────────────────────────────
 
 function DraggableMealEntry({
   entry,
   weekStartDate,
   mutations,
+  onMove,
   suggestion,
   onShowSuggestion,
 }: {
   entry: Entry;
   weekStartDate: string;
   mutations?: MealPlanMutations;
+  onMove: (entryId: string, dayOfWeek: number, weekStartDate?: string) => void;
   suggestion?: SwapSuggestion;
   onShowSuggestion: () => void;
 }) {
@@ -488,6 +553,7 @@ function DraggableMealEntry({
       entry={entry}
       weekStartDate={weekStartDate}
       mutations={mutations}
+      onMove={onMove}
       dragNodeRef={setNodeRef}
       dragListeners={listeners as Record<string, unknown>}
       dragAttributes={attributes as unknown as Record<string, unknown>}
@@ -560,8 +626,8 @@ export function WeekPlanner({
   }, [sync]);
   const [, startMoveTransition] = useTransition();
 
-  const [selectedDay, setSelectedDay] = useState<number>(() =>
-    isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0
+  const [selectedDay, setSelectedDay] = useState<number>(
+    () => takePendingSelectDay() ?? (isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0)
   );
 
   // Local entries for optimistic drag updates
@@ -573,7 +639,9 @@ export function WeekPlanner({
   }, [entries]);
 
   useEffect(() => {
-    setSelectedDay(isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0);
+    setSelectedDay(
+      takePendingSelectDay() ?? (isCurrentWeek && todayDayIndex >= 0 ? todayDayIndex : 0)
+    );
   }, [weekStartDate, isCurrentWeek, todayDayIndex]);
 
   useEffect(() => {
@@ -681,24 +749,66 @@ export function WeekPlanner({
     setActiveDragEntry(entry ?? null);
   }
 
+  /**
+   * Every move goes through here — drag-and-drop and the card's "Move to…"
+   * menu alike — so the optimistic update and the cross-week toast are the
+   * same whichever way the user did it. `targetWeek` other than this one moves
+   * the meal out of view, so the toast offers to follow it there.
+   */
+  function moveEntry(entryId: string, newDay: number, targetWeek?: string) {
+    const entry = localEntries.find((e) => e.id === entryId);
+    if (!entry) return;
+
+    const crossWeek = targetWeek !== undefined && targetWeek !== weekStartDate;
+    if (!crossWeek && entry.dayOfWeek === newDay) return;
+
+    setLocalEntries((prev) =>
+      crossWeek
+        ? prev.filter((e) => e.id !== entryId)
+        : prev.map((e) => (e.id === entryId ? { ...e, dayOfWeek: newDay } : e))
+    );
+
+    const week = crossWeek ? targetWeek : undefined;
+    if (mutations) mutations.moveEntry(entryId, newDay, week);
+    else startMoveTransition(() => moveMealEntry(entryId, newDay, week));
+
+    if (crossWeek) {
+      toast({
+        title: `Moved to ${formatShortDate(targetWeek, newDay)}`,
+        description: entry.recipe.title,
+        action: (
+          <ToastAction
+            altText="Go to that week"
+            onClick={() => {
+              pendingSelectDay = newDay;
+              navigate(targetWeek, targetWeek > weekStartDate ? "next" : "prev");
+            }}
+          >
+            View
+          </ToastAction>
+        ),
+      });
+    }
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     setActiveDragEntry(null);
     const { active, over } = event;
     if (!over) return;
 
     const entryId = active.id as string;
-    const newDay = parseInt((over.id as string).replace("day-", ""), 10);
+    const overId = over.id as string;
+
+    if (overId === "week-next") return moveEntry(entryId, 0, nextWeek);
+    if (overId === "week-prev") return moveEntry(entryId, 6, prevWeek);
+
+    const newDay = parseInt(overId.replace("day-", ""), 10);
     const entry = localEntries.find((e) => e.id === entryId);
     if (!entry || entry.dayOfWeek === newDay) return;
 
-    // Optimistic update + switch to the new day
-    setLocalEntries((prev) =>
-      prev.map((e) => (e.id === entryId ? { ...e, dayOfWeek: newDay } : e))
-    );
+    // Follow the meal to its new day
     setSelectedDay(newDay);
-
-    if (mutations) mutations.moveEntry(entryId, newDay);
-    else startMoveTransition(() => moveMealEntry(entryId, newDay));
+    moveEntry(entryId, newDay);
   }
 
   const totalMeals = localEntries.length;
@@ -851,13 +961,12 @@ export function WeekPlanner({
         <div ref={contentRef}>
           {/* ── Header row ── */}
           <div className="flex items-center gap-1 mb-1">
-            <button
+            <DroppableWeekArrow
+              direction="prev"
+              targetLabel={formatDayChip(prevWeek, 6).short + " " + formatDayChip(prevWeek, 6).date}
+              isDragActive={activeDragEntry !== null}
               onClick={() => navigate(prevWeek, "prev")}
-              className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-              aria-label="Previous week"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
+            />
 
             <div className="relative flex-1 min-w-0">
               <button
@@ -881,13 +990,12 @@ export function WeekPlanner({
               )}
             </div>
 
-            <button
+            <DroppableWeekArrow
+              direction="next"
+              targetLabel={formatDayChip(nextWeek, 0).short + " " + formatDayChip(nextWeek, 0).date}
+              isDragActive={activeDragEntry !== null}
               onClick={() => navigate(nextWeek, "next")}
-              className="flex-shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-              aria-label="Next week"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
+            />
 
             {recipes.length > 0 && (
               <AddEntryDialog
@@ -1022,6 +1130,7 @@ export function WeekPlanner({
                     entry={entry}
                     weekStartDate={weekStartDate}
                     mutations={mutations}
+                    onMove={moveEntry}
                     suggestion={suggestionByEntry.get(entry.id)}
                     onShowSuggestion={showSuggestions}
                   />

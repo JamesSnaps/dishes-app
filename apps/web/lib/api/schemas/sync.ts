@@ -77,10 +77,18 @@ export const mutationSchema = z.discriminatedUnion("type", [
       .object({
         entryId: z.string().uuid(),
         dayOfWeek: z.number().int().min(0).max(6).optional(),
+        weekStartDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
         mealType: z.enum(MEAL_TYPES).optional(),
         servings: z.number().positive().nullable().optional(),
       })
-      .refine((v) => Object.keys(v).length > 1, "No fields to update"),
+      .refine((v) => Object.keys(v).length > 1, "No fields to update")
+      .refine(
+        (v) => v.weekStartDate === undefined || v.dayOfWeek !== undefined,
+        "weekStartDate requires dayOfWeek"
+      ),
   }),
   z.object({
     opId,

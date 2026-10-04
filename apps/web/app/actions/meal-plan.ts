@@ -51,11 +51,16 @@ export async function addMealEntry(
   revalidatePath("/meal-plan");
 }
 
-export async function moveMealEntry(entryId: string, newDayOfWeek: number) {
+/** `weekStartDate` moves the entry into another week; omit it to stay put. */
+export async function moveMealEntry(
+  entryId: string,
+  newDayOfWeek: number,
+  weekStartDate?: string
+) {
   const session = await requireSession();
 
   try {
-    await mealPlanService.moveEntry(session, entryId, newDayOfWeek);
+    await mealPlanService.moveEntry(session, entryId, newDayOfWeek, weekStartDate);
   } catch (err) {
     ignoreMissingEntry(err);
     return;

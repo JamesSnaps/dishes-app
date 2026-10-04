@@ -791,6 +791,14 @@ fields optional, at least one required.
 
 `servings` may be `null` to fall back to the recipe's own base servings.
 
+To move an entry into another week, send `weekStartDate` (the target week's
+Monday, `YYYY-MM-DD`) together with `dayOfWeek`; the target week's plan is
+created if it doesn't exist. `weekStartDate` without `dayOfWeek` is a `400`.
+
+```json
+{ "weekStartDate": "2026-09-14", "dayOfWeek": 0 }
+```
+
 ### `DELETE /api/v1/meal-plan/entries/{id}`
 
 `204` on success.
@@ -1000,7 +1008,7 @@ Supported `type` values:
 | `shopping_item.delete` | `itemId` |
 | `shopping_list.clear_checked` | `listId` |
 | `meal_plan_entry.add` | `weekStartDate`, `recipeId`, `dayOfWeek`, `mealType` |
-| `meal_plan_entry.update` | `entryId` + any of `dayOfWeek`, `mealType`, `servings` |
+| `meal_plan_entry.update` | `entryId` + any of `dayOfWeek`, `mealType`, `servings`; `weekStartDate` (with `dayOfWeek`) moves it to another week |
 | `meal_plan_entry.delete` | `entryId` |
 
 Recipe edits are deliberately absent: they are rare offline and much larger to

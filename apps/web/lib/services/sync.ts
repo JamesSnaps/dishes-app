@@ -390,7 +390,14 @@ export type SyncMutation =
   | {
       opId: string;
       type: "meal_plan_entry.update";
-      payload: { entryId: string; dayOfWeek?: number; mealType?: string; servings?: number | null };
+      payload: {
+        entryId: string;
+        dayOfWeek?: number;
+        /** Moves the entry into another week; only sent with `dayOfWeek`. */
+        weekStartDate?: string;
+        mealType?: string;
+        servings?: number | null;
+      };
     }
   | { opId: string; type: "meal_plan_entry.delete"; payload: { entryId: string } };
 
@@ -446,8 +453,10 @@ async function applyMutation(
       return { id };
     }
     case "meal_plan_entry.update": {
-      const { entryId, dayOfWeek, mealType, servings } = mutation.payload;
-      if (dayOfWeek !== undefined) await mealPlanService.moveEntry(ctx, entryId, dayOfWeek);
+      const { entryId, dayOfWeek, weekStartDate, mealType, servings } = mutation.payload;
+      if (dayOfWeek !== undefined) {
+        await mealPlanService.moveEntry(ctx, entryId, dayOfWeek, weekStartDate);
+      }
       if (mealType !== undefined) await mealPlanService.changeEntryType(ctx, entryId, mealType);
       if (servings !== undefined) {
         await mealPlanService.updateEntryServings(ctx, entryId, servings);

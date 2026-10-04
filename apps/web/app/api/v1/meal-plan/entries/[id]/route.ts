@@ -12,7 +12,8 @@ import {
 type RouteContext = { params: Promise<{ id: string }> };
 
 /**
- * Moves an entry between days, changes its meal slot, or sets its servings.
+ * Moves an entry between days (and weeks, with `weekStartDate`), changes its
+ * meal slot, or sets its servings.
  * Each field maps to a distinct service call; they are applied in a fixed order
  * so a body combining all three behaves predictably.
  */
@@ -22,7 +23,9 @@ export const PATCH = withApiErrors(async (req: NextRequest, ctx: RouteContext) =
 
   const body = updateEntrySchema.parse(await req.json());
 
-  if (body.dayOfWeek !== undefined) await moveEntry(session, id, body.dayOfWeek);
+  if (body.dayOfWeek !== undefined) {
+    await moveEntry(session, id, body.dayOfWeek, body.weekStartDate);
+  }
   if (body.mealType !== undefined) await changeEntryType(session, id, body.mealType);
   if (body.servings !== undefined) {
     await updateEntryServings(session, id, body.servings);

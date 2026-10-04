@@ -75,6 +75,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Remove/swap recipe in a slot
 - [x] Generate shopping list from current week's meal plan
 - [x] Navigate between weeks
+- [x] Move a meal into another week — "Move to… → Next/Previous week" in the entry menu, and drop onto the week arrows while dragging (next Monday / previous Sunday) (v1.14.0)
 - [x] Dinner reminders — opt-in push saying when to start cooking tonight's dinner, timed from the household's real cook-mode durations (median of recent cooks, else recipe time × household pace factor); household + per-weekday dinner times in Settings → Dinner reminders, one-off per-date time / "no reminder" on the planner day header, "Push back 30 min" notification button; in-process scheduler started from `instrumentation.ts`, Redis-deduped (v1.12.0)
 - [ ] Move the dinner reminder loop into the worker container when Phase 2's worker lands
 

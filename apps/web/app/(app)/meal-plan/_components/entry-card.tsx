@@ -17,6 +17,8 @@ import {
   GripVertical,
   ShoppingCart,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Button,
@@ -38,7 +40,6 @@ import {
 } from "@dishes/ui";
 import {
   removeMealEntry,
-  moveMealEntry,
   changeMealEntryType,
   addMealEntryToShoppingList,
   updateMealEntryServings,
@@ -97,6 +98,20 @@ function getDayLabel(weekStartDate: string, dayIndex: number): string {
   return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
 }
 
+function shiftWeek(weekStartDate: string, weeks: number): string {
+  const d = new Date(weekStartDate + "T00:00:00");
+  d.setDate(d.getDate() + weeks * 7);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function getDateLabel(weekStartDate: string, dayIndex: number): string {
+  const d = new Date(weekStartDate + "T00:00:00");
+  d.setDate(d.getDate() + dayIndex);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 interface Props {
   entry: {
     id: string;
@@ -121,13 +136,18 @@ interface Props {
    * undefined and keeps the server actions.
    */
   mutations?: MealPlanMutations;
+  /**
+   * Moves go through the planner, which owns the optimistic update and the
+   * "moved to another week" toast. `weekStartDate` targets another week.
+   */
+  onMove: (entryId: string, dayOfWeek: number, weekStartDate?: string) => void;
   dragNodeRef?: (node: HTMLLIElement | null) => void;
   dragListeners?: Record<string, unknown>;
   dragAttributes?: Record<string, unknown>;
   isDragging?: boolean;
 }
 
-export function EntryCard({ entry, weekStartDate, mutations, dragNodeRef, dragListeners, dragAttributes, isDragging }: Props) {
+export function EntryCard({ entry, weekStartDate, mutations, onMove, dragNodeRef, dragListeners, dragAttributes, isDragging }: Props) {
   const router = useRouter();
   const sync = useSync();
   const [pending, startTransition] = useTransition();
@@ -152,9 +172,8 @@ export function EntryCard({ entry, weekStartDate, mutations, dragNodeRef, dragLi
     else startTransition(() => removeMealEntry(entry.id));
   }
 
-  function handleMove(newDay: number) {
-    if (mutations) mutations.moveEntry(entry.id, newDay);
-    else startTransition(() => moveMealEntry(entry.id, newDay));
+  function handleMove(newDay: number, targetWeek?: string) {
+    onMove(entry.id, newDay, targetWeek);
   }
 
   function handleChangeType(newType: MealType) {
@@ -385,6 +404,40 @@ export function EntryCard({ entry, weekStartDate, mutations, dragNodeRef, dragLi
                       )}
                     </DropdownMenuItem>
                   ))}
+
+                  <DropdownMenuSeparator />
+
+                  {([
+                    ["Next week", 1],
+                    ["Previous week", -1],
+                  ] as const).map(([label, offset]) => {
+                    const target = shiftWeek(weekStartDate, offset);
+                    return (
+                      <DropdownMenuSub key={label}>
+                        <DropdownMenuSubTrigger>
+                          {offset > 0 ? (
+                            <ChevronRight className="h-4 w-4 mr-2 text-muted-foreground" />
+                          ) : (
+                            <ChevronLeft className="h-4 w-4 mr-2 text-muted-foreground" />
+                          )}
+                          {label}
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          {DAY_NAMES.map((name, i) => (
+                            <DropdownMenuItem key={i} onClick={() => handleMove(i, target)}>
+                              <span className="w-5 text-[10px] font-semibold text-muted-foreground uppercase mr-2">
+                                {getDayLabel(target, i).split(" ")[0]}
+                              </span>
+                              {name}
+                              <span className="ml-auto pl-4 text-xs text-muted-foreground">
+                                {getDateLabel(target, i)}
+                              </span>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    );
+                  })}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
 
