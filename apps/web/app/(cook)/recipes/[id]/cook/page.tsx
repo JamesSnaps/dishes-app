@@ -10,6 +10,9 @@ import { getCookAssistThreads } from "@/app/actions/cook-assist-threads";
 import { isStorageAvailable } from "@/lib/storage";
 import { getActiveListItemNames } from "@/lib/services/shopping";
 import { getGroupForCooking } from "@/lib/services/meal-plan";
+import { getMealSchedule } from "@/lib/services/meal-timeline";
+import { getReminderSettings } from "@/lib/dinner-reminders/schedule";
+import { zonedEpoch } from "@/lib/dinner-reminders/time";
 
 export const metadata = { title: "Cooking Mode" };
 
@@ -31,6 +34,28 @@ export default async function CookPage({ params, searchParams }: Props) {
         .then((m) => (m.dishes.some((d) => d.recipeId === id) ? m : null))
         .catch(() => null)
     : null;
+  // Its schedule as real clock times, so cooking mode can say what's next.
+  const schedule = meal
+    ? await Promise.all([
+        getMealSchedule({ householdId, memberId }, meal.groupId),
+        getReminderSettings(householdId),
+      ])
+        .then(([s, settings]) => {
+          if (!s.serveAt) return undefined;
+          const serveAt = zonedEpoch(s.date, s.serveAt, settings.timezone);
+          return {
+            serveAt,
+            cues: s.timeline.cues.map((c) => ({
+              id: c.id,
+              at: serveAt + c.offsetMinutes * 60_000,
+              recipeId: c.recipeId,
+              stepIndex: c.stepIndex,
+              text: c.text,
+            })),
+          };
+        })
+        .catch(() => undefined)
+    : undefined;
   const initialServings = servingsParam
     ? parseFloat(servingsParam)
     : meal?.dishes.find((d) => d.recipeId === id)?.servings;
@@ -79,7 +104,7 @@ export default async function CookPage({ params, searchParams }: Props) {
       initialServings={initialServings}
       initialAssistThreads={assistThreads}
       onShoppingList={onShoppingList}
-      meal={meal ?? undefined}
+      meal={meal ? { ...meal, schedule } : undefined}
     />
   );
 }

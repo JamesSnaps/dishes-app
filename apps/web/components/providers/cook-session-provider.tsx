@@ -59,6 +59,19 @@ export interface CookMeal {
   title: string;
   /** Recipe ids in display order (main first). */
   order: string[];
+  /** When everything should be ready, epoch ms — set when the meal has a schedule. */
+  serveAt?: number;
+  /** The cooking schedule as clock times (epoch ms), earliest first. */
+  cues?: CookCue[];
+}
+
+/** One schedule cue: start a dish's step (or a coordinating note) at `at`. */
+export interface CookCue {
+  id: string;
+  at: number;
+  recipeId: string | null;
+  stepIndex: number | null;
+  text: string;
 }
 
 export interface CookSession {
@@ -219,8 +232,8 @@ function newSession(init: CookSessionInit, startedAt: number): CookSession {
 
 /**
  * Add cooks to the list. One already running is resumed in place — step and
- * timers kept — though it picks up a meal tag if it was started on its own
- * and is now being cooked as part of a meal. New ones go first, newest first,
+ * timers kept — though it takes the meal's tag (and current schedule) when
+ * the meal is started, including if it was first started on its own. New ones go first, newest first,
  * so the switcher and mini bar lead with the latest cook.
  */
 function mergeStarts(prev: CookSession[], inits: CookSessionInit[]): CookSession[] {
@@ -228,7 +241,8 @@ function mergeStarts(prev: CookSession[], inits: CookSessionInit[]): CookSession
   const byId = new Map(inits.map((i) => [i.recipeId, i]));
   const existing = prev.map((s) => {
     const init = byId.get(s.recipeId);
-    return init?.meal && s.meal?.groupId !== init.meal.groupId ? { ...s, meal: init.meal } : s;
+    // Re-tag on every meal start: the meal's schedule may have been replanned.
+    return init?.meal ? { ...s, meal: init.meal } : s;
   });
   const fresh = inits
     .filter((i) => !prev.some((s) => s.recipeId === i.recipeId))

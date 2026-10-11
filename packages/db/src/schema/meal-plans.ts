@@ -3,6 +3,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   decimal,
   pgEnum,
   pgTable,
@@ -146,6 +147,18 @@ export const mealPlanGroups = pgTable(
     sourceMealId: uuid("source_meal_id").references(() => meals.id, {
       onDelete: "set null",
     }),
+    /**
+     * "HH:MM" everything should be ready by. Null = the day's dinner time for
+     * a dinner, otherwise unset (no schedule until one is chosen).
+     */
+    serveAt: varchar("serve_at", { length: 5 }),
+    /**
+     * An AI-planned cooking schedule (see apps/web/lib/meal-timeline.ts), kept
+     * so it's worked out once. Cues are minutes before serving, so changing
+     * the serve time just shifts it. Null = use the simple schedule computed
+     * from step durations on the fly.
+     */
+    timeline: jsonb("timeline"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("meal_plan_groups_plan_idx").on(t.mealPlanId)]

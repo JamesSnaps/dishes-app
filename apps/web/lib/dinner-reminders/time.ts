@@ -87,3 +87,18 @@ export function dayOfWeekOf(date: string): number {
 export function weekStartOf(date: string): string {
   return addDaysToDate(date, -dayOfWeekOf(date));
 }
+
+/**
+ * The instant a wall-clock time happens in a timezone: "2026-10-11", "16:00",
+ * "Europe/London" → epoch ms for 16:00 BST that day. Works by measuring the
+ * zone's offset at a first guess and correcting by it, which is exact except
+ * inside the hour a DST change skips or repeats.
+ */
+export function zonedEpoch(date: string, time: string, timeZone: string): number {
+  const [y, mo, d] = date.split("-").map(Number);
+  const guess = Date.UTC(y!, mo! - 1, d!, 0, timeToMinutes(time));
+  const seen = localNow(timeZone, new Date(guess));
+  const [sy, smo, sd] = seen.date.split("-").map(Number);
+  const seenAsUtc = Date.UTC(sy!, smo! - 1, sd!, 0, seen.minutes);
+  return guess - (seenAsUtc - guess);
+}

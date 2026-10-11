@@ -5,7 +5,9 @@ import { getRedis } from "@/lib/redis";
 import { sendPushToUsers, type PushPayload } from "@/lib/push";
 import { describeEstimate } from "./estimate";
 import { getDinnerPlan, getReminderSettings, type DinnerPlan } from "./schedule";
-import { localNow, minutesToTime, timeToMinutes } from "./time";
+import { localNow, minutesToTime, timeToMinutes, weekStartOf } from "./time";
+import { schedulesForDate, type MealSchedule } from "@/lib/services/meal-timeline";
+import type { TimelineCue } from "@/lib/meal-timeline";
 
 /**
  * In-process dinner reminder loop. Every minute it works out, for each
@@ -82,12 +84,103 @@ export function buildReminderPayload(plan: DinnerPlan, nowMinutes: number): Push
   };
 }
 
+/** A cue is still worth sending this long after its time (a missed tick, a restart). */
+const CUE_WINDOW_MINUTES = 10;
+
+/**
+ * Pushes for a scheduled meal: a heads-up before the first step, then each
+ * cue as its time comes — "15:05 · Potatoes in — oven up to 200°C". Cues due
+ * in the same minute go out as one notification. Each is claimed once per
+ * date and serve time, so moving the serve time re-arms the lot.
+ */
+async function remindMealCues(
+  schedule: MealSchedule,
+  users: string[],
+  householdId: string,
+  nowMinutes: number,
+  leadMinutes: number
+): Promise<void> {
+  if (!schedule.serveAt) return;
+  const serveMin = timeToMinutes(schedule.serveAt);
+  const dishTitle = new Map(schedule.dishes.map((d) => [d.recipeId, d.title]));
+  const minuteOf = (cue: TimelineCue) => serveMin + cue.offsetMinutes;
+  const keyBase = `mealcue:${schedule.groupId}:${schedule.date}:${schedule.serveAt}`;
+  const cookUrl = (recipeId: string | null) => {
+    const id = recipeId ?? schedule.dishes[0]?.recipeId;
+    return id ? `/recipes/${id}/cook?meal=${schedule.groupId}` : "/meal-plan";
+  };
+  const line = (cue: TimelineCue) =>
+    cue.recipeId ? `${dishTitle.get(cue.recipeId) ?? "Dish"}: ${cue.text}` : cue.text;
+
+  const first = schedule.timeline.cues.find((c) => c.id !== "serve");
+  if (first) {
+    const firstMin = minuteOf(first);
+    const headsUp = firstMin - leadMinutes;
+    if (
+      firstMin > 0 &&
+      nowMinutes >= headsUp &&
+      nowMinutes < firstMin &&
+      (await claim(`${keyBase}:lead`))
+    ) {
+      await sendPushToUsers(householdId, users, {
+        title: `${schedule.title}: first step at ${minutesToTime(firstMin)}`,
+        body: `${line(first)}. Everything ready by ${schedule.serveAt}.`,
+        url: cookUrl(first.recipeId),
+        tag: `mealcue-${schedule.groupId}-lead`,
+      });
+    }
+  }
+
+  const due: TimelineCue[] = [];
+  for (const cue of schedule.timeline.cues) {
+    const at = minuteOf(cue);
+    if (at < 0 || nowMinutes < at || nowMinutes >= at + CUE_WINDOW_MINUTES) continue;
+    if (await claim(`${keyBase}:${cue.id}`)) due.push(cue);
+  }
+  if (!due.length) return;
+
+  const at = minutesToTime(minuteOf(due[0]!));
+  const serving = due.some((c) => c.id === "serve");
+  const result = await sendPushToUsers(householdId, users, {
+    title: serving ? `${schedule.title} — time to serve` : `${at} · ${line(due[0]!)}`,
+    body: serving
+      ? "Everything should be ready now."
+      : due.length > 1
+      ? due.slice(1).map(line).join(" · ")
+      : `${schedule.title} — ready by ${schedule.serveAt}`,
+    url: cookUrl(due.find((c) => c.recipeId)?.recipeId ?? null),
+    tag: `mealcue-${schedule.groupId}-${due[0]!.id}`,
+  });
+  console.info(
+    `[dinner-reminders] meal=${schedule.groupId} cues=${due.map((c) => c.id).join(",")} ` +
+      `sent=${result.sent} failed=${result.failed}`
+  );
+}
+
 async function remindHousehold(householdId: string, users: string[]): Promise<void> {
   const settings = await getReminderSettings(householdId);
   const now = localNow(settings.timezone);
   const plan = await getDinnerPlan(householdId, now.date, settings);
 
-  if (!plan.dinner.reminderEnabled || plan.notifyAt === null) return;
+  // The day's "no reminder" switch silences everything for it, schedules too.
+  if (!plan.dinner.reminderEnabled) return;
+
+  const schedules = await schedulesForDate(
+    householdId,
+    now.date,
+    weekStartOf(now.date),
+    now.dayOfWeek
+  );
+  for (const schedule of schedules) {
+    await remindMealCues(schedule, users, householdId, now.minutes, settings.leadMinutes);
+  }
+
+  // A scheduled meal covering all of tonight's dinner has its own, better
+  // cues; the single "start cooking" reminder would only repeat the first.
+  const scheduled = new Set(schedules.flatMap((s) => s.dishes.map((d) => d.recipeId)));
+  if (plan.dishes.length && plan.dishes.every((d) => scheduled.has(d.recipeId))) return;
+
+  if (plan.notifyAt === null) return;
   // Due from the reminder time until dinner itself. After dinner, a late
   // reminder (say the container was down) would just be noise.
   if (now.minutes < plan.notifyAt || now.minutes >= timeToMinutes(plan.dinner.time)) return;

@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition } fr
 import { saveCookAssistThread, deleteCookAssistThread } from "@/app/actions/cook-assist-threads";
 import { MarkdownContent } from "@/components/markdown-content";
 import { CookSwitcher } from "@/components/cook-switcher";
-import { MealDishTabs, MealTimersPanel } from "./meal-cook-bar";
+import { MealDishTabs, MealTimelinePanel, MealTimersPanel } from "./meal-cook-bar";
 import type { MealCookDish } from "@/lib/services/meal-plan";
+import type { CookCue } from "@/components/providers/cook-session-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -63,7 +64,13 @@ interface Props {
    * Set when cooking a planned meal: every dish's cook starts with this one,
    * and cooking mode shows them as tabs with their timers pooled.
    */
-  meal?: { groupId: string; title: string; dishes: MealCookDish[] };
+  meal?: {
+    groupId: string;
+    title: string;
+    dishes: MealCookDish[];
+    /** The meal's schedule as clock times, when it has a serve time. */
+    schedule?: { serveAt: number; cues: CookCue[] };
+  };
 }
 
 /** Steps with a duration become the cook's timers. */
@@ -1004,7 +1011,13 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   useIsomorphicLayoutEffect(() => {
     if (!hydrated || steps.length === 0 || isComplete) return;
     const mealTag = meal
-      ? { groupId: meal.groupId, title: meal.title, order: meal.dishes.map((d) => d.recipeId) }
+      ? {
+          groupId: meal.groupId,
+          title: meal.title,
+          order: meal.dishes.map((d) => d.recipeId),
+          serveAt: meal.schedule?.serveAt,
+          cues: meal.schedule?.cues,
+        }
       : undefined;
     const own = {
       recipeId: recipe.id,
@@ -1665,6 +1678,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           {/* Active timers panel */}
           <ActiveTimersPanel {...timerProps} />
           {mealGroupId && <MealTimersPanel groupId={mealGroupId} currentRecipeId={recipe.id} />}
+          {mealGroupId && <MealTimelinePanel groupId={mealGroupId} />}
 
           {/* Up Next */}
           {!isLast && steps[stepIndex + 1] && (

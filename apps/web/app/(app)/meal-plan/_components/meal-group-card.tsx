@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlarmClock,
   BookmarkPlus,
   CalendarDays,
   Check,
@@ -48,6 +49,7 @@ import { notifyShoppingChanged } from "@/components/providers/shopping-count-con
 import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
+import { MealScheduleDialog } from "./meal-schedule-dialog";
 import { MEAL_BG, MEAL_COLOR, MEAL_ICON, MEAL_LABELS } from "./entry-card";
 import type { PlanWriter } from "./plan-writer";
 import type { SavedMeal } from "@/lib/services/meals";
@@ -141,6 +143,7 @@ export function MealGroupCard({
   const [servingsInput, setServingsInput] = useState("");
   const [picker, setPicker] = useState<Picker | null>(null);
   const [addRole, setAddRole] = useState<MealRole>("side");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const dishes = sortByRole(entries);
   const total = groupTotalMinutes(entries);
@@ -356,6 +359,10 @@ export function MealGroupCard({
               <DropdownMenuItem onClick={() => addToShopping()}>
                 <ShoppingCart className="h-4 w-4 mr-2" />
                 {allOnList ? "Add meal to shopping list again" : "Add meal to shopping list"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
+                <AlarmClock className="h-4 w-4 mr-2" />
+                Cooking schedule…
               </DropdownMenuItem>
               <DropdownMenuItem onClick={openServings}>
                 <Users className="h-4 w-4 mr-2" />
@@ -578,6 +585,17 @@ export function MealGroupCard({
               Cook this meal
             </button>
           )}
+          {dishes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setScheduleOpen(true)}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-orange-300/70 dark:border-orange-800/60 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm font-semibold text-orange-700 dark:text-orange-300 shadow-sm hover:bg-white dark:hover:bg-black/30 transition-colors"
+              aria-label="Cooking schedule"
+            >
+              <AlarmClock className="h-4 w-4" />
+              <span className="hidden sm:inline">Timing</span>
+            </button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -626,6 +644,8 @@ export function MealGroupCard({
           ),
         }}
       />
+
+      <MealScheduleDialog groupId={group.id} open={scheduleOpen} onOpenChange={setScheduleOpen} />
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent className="sm:max-w-sm">

@@ -1,15 +1,38 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChefHat, Pause, Play, RotateCcw, Timer, UtensilsCrossed } from "lucide-react";
+import { AlarmClock, ChefHat, Pause, Play, RotateCcw, Timer, UtensilsCrossed } from "lucide-react";
 import { Button } from "@dishes/ui";
 import {
   formatTimer,
   mostUrgentTimer,
   useCookSession,
+  type CookCue,
   type CookSession,
 } from "@/components/providers/cook-session-provider";
+
+/** The clock, refreshed every half minute — enough for schedule cues. */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    const onVisible = () => document.visibilityState === "visible" && setNow(Date.now());
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+  return now;
+}
+
+function clockOf(epoch: number): string {
+  return new Date(epoch).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** A cue counts as "now" for a few minutes after its time, then it's past. */
+const CUE_NOW_MS = 5 * 60_000;
 
 /**
  * The cooks belonging to one planned meal, in the meal's dish order (main
@@ -27,9 +50,10 @@ function useMealSessions(groupId: string): CookSession[] {
 /** Bring another dish of the meal to the front — no minimising, one tap. */
 function useSwitchDish() {
   const router = useRouter();
-  const { activateSession } = useCookSession();
-  return (recipeId: string) => {
+  const { activateSession, setStepIndex } = useCookSession();
+  return (recipeId: string, stepIndex?: number | null) => {
     activateSession(recipeId);
+    if (stepIndex != null) setStepIndex(stepIndex, recipeId);
     router.push(`/recipes/${recipeId}/cook`);
   };
 }
@@ -51,9 +75,15 @@ export function MealDishTabs({
   const { timersFor } = useCookSession();
   const dishes = useMealSessions(groupId);
   const switchTo = useSwitchDish();
+  const now = useNow();
 
   if (dishes.length < 2) return null;
-  const title = dishes[0]?.meal?.title;
+  const meal = dishes[0]?.meal;
+  const title = meal?.title;
+  const upcoming = (meal?.cues ?? []).filter((c) => c.at + CUE_NOW_MS > now);
+  const nextFor = (recipeId: string) => upcoming.find((c) => c.recipeId === recipeId);
+  const nextUp = upcoming.find((c) => c.id !== "serve") ?? upcoming[0];
+  const dishTitle = new Map(dishes.map((d) => [d.recipeId, d.recipeTitle]));
 
   return (
     <div className="border-t bg-gradient-to-r from-orange-50 via-amber-50/70 to-rose-50 dark:from-orange-950/30 dark:via-amber-950/10 dark:to-rose-950/20">
@@ -112,6 +142,11 @@ export function MealDishTabs({
                         {urgent[1].done ? "Done!" : formatTimer(urgent[1].remaining)}
                       </span>
                     </>
+                  ) : nextFor(dish.recipeId) ? (
+                    <>
+                      <AlarmClock className="h-3 w-3" />
+                      <span className="tabular-nums">Next {clockOf(nextFor(dish.recipeId)!.at)}</span>
+                    </>
                   ) : (
                     <>
                       Step {dish.stepIndex + 1}/{dish.stepCount}
@@ -129,6 +164,88 @@ export function MealDishTabs({
           );
         })}
       </div>
+      {nextUp && (
+        <button
+          type="button"
+          onClick={() => nextUp.recipeId && switchTo(nextUp.recipeId, nextUp.stepIndex)}
+          className="flex w-full items-center gap-2 border-t border-orange-200/60 dark:border-orange-900/40 px-3 py-1.5 text-left text-xs"
+        >
+          <AlarmClock className="h-3.5 w-3.5 shrink-0 text-orange-600 dark:text-orange-400" />
+          <span
+            className={`shrink-0 font-mono font-semibold tabular-nums ${
+              nextUp.at <= now ? "text-rose-600 dark:text-rose-400" : ""
+            }`}
+          >
+            {nextUp.at <= now ? "Now" : clockOf(nextUp.at)}
+          </span>
+          <span className="min-w-0 truncate text-muted-foreground">
+            {nextUp.recipeId && (
+              <span className="font-semibold text-foreground">{dishTitle.get(nextUp.recipeId)}: </span>
+            )}
+            {nextUp.text}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Meal timeline ────────────────────────────────────────────────────────────
+
+/**
+ * The meal's whole schedule against the clock: done cues faded, the current
+ * one highlighted, the rest to come. Tapping a step jumps to that dish at that
+ * step.
+ */
+export function MealTimelinePanel({ groupId }: { groupId: string }) {
+  const dishes = useMealSessions(groupId);
+  const switchTo = useSwitchDish();
+  const now = useNow();
+  const meal = dishes[0]?.meal;
+  const cues: CookCue[] = meal?.cues ?? [];
+  if (!cues.length) return null;
+
+  const dishTitle = new Map(dishes.map((d) => [d.recipeId, d.recipeTitle]));
+  const currentId = [...cues].reverse().find((c) => c.at <= now && c.at + CUE_NOW_MS > now)?.id;
+
+  return (
+    <div className="shrink-0 px-6 py-5 border-t">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+        <AlarmClock className="h-3.5 w-3.5" />
+        Schedule{meal?.serveAt ? ` · ready ${clockOf(meal.serveAt)}` : ""}
+      </p>
+      <ol className="space-y-1">
+        {cues.map((cue) => {
+          const past = cue.at + CUE_NOW_MS <= now;
+          const current = cue.id === currentId;
+          return (
+            <li key={cue.id}>
+              <button
+                type="button"
+                disabled={!cue.recipeId}
+                onClick={() => cue.recipeId && switchTo(cue.recipeId, cue.stepIndex)}
+                className={`flex w-full items-start gap-2 rounded-lg px-2 py-1 text-left text-xs transition-colors ${
+                  current
+                    ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
+                    : past
+                    ? "opacity-45"
+                    : "hover:bg-muted/60"
+                }`}
+              >
+                <span className="w-10 shrink-0 font-mono font-semibold tabular-nums">{clockOf(cue.at)}</span>
+                <span className="min-w-0">
+                  {cue.recipeId && (
+                    <span className={`font-semibold ${current ? "" : "text-foreground"}`}>
+                      {dishTitle.get(cue.recipeId) ?? "Dish"}:{" "}
+                    </span>
+                  )}
+                  <span className={current ? "" : "text-muted-foreground"}>{cue.text}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

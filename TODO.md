@@ -84,7 +84,8 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Saved meal options — dishes become slots with several recipe options (pick one / pick several), a chooser when adding that remembers last time's picks, one-tap swap chips on the planned meal (`meal_slots`, `meal_slot_options` replace `meal_components`) (v1.16.0)
 - [x] Step 2 — meal cooking mode: "Cook this meal" starts every dish together, a tab per dish in cooking mode, and a whole-meal timers panel (v1.17.0)
 - [ ] Timer-end push notifications — register each running timer's end time server-side so a push arrives with the phone locked or the app closed
-- [ ] Step 3 — "serve at" timeline: AI-orchestrated schedule back from a serve time (steps referenced by id), oven-temperature clash warnings, push cues; optional `passive` / `oven_temp_c` step fields
+- [x] Step 3 — meal cooking schedule: ready-by time per meal (default: day's dinner time), simple back-to-back schedule with oven-clash warnings, "Plan with AI" (stored, invalidated when dishes change), a push per cue plus heads-up, next-cue times and timeline in cooking mode (v1.18.0)
+- [ ] Optional step fields "hands-off" and oven temperature (editor, import and AI generation) to sharpen the simple schedule — the AI currently infers both from step text
 - [ ] Saved meals in the native app (browse + add); groups already sync
 - [ ] AI meal planner proposing combined meals
 
