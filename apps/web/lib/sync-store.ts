@@ -28,6 +28,7 @@ class DishesSyncDB extends Dexie {
   shoppingItems!: Table<SyncRecord, string>;
   mealPlans!: Table<SyncRecord, string>;
   mealPlanEntries!: Table<SyncRecord, string>;
+  mealPlanGroups!: Table<SyncRecord, string>;
   cookHistory!: Table<SyncRecord, string>;
   meta!: Table<{ key: string; value: string }, string>;
   queue!: Table<QueuedMutation, string>;
@@ -44,6 +45,20 @@ class DishesSyncDB extends Dexie {
       meta: "key",
       queue: "opId, queuedAt",
     });
+
+    // v2 adds planned meal groups. A store upgraded in place already holds a
+    // cursor past every group created so far, so it would never receive them:
+    // drop the cached data and the cursor (never the queue) and let the next
+    // pull take a full snapshot.
+    this.version(2)
+      .stores({ mealPlanGroups: "id, mealPlanId" })
+      .upgrade(async (tx) => {
+        for (const collection of SYNC_COLLECTIONS) {
+          if (collection === "mealPlanGroups") continue;
+          await tx.table(collection).clear();
+        }
+        await tx.table("meta").delete(CURSOR_KEY);
+      });
   }
 
   table_(collection: SyncCollection): Table<SyncRecord, string> {

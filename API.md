@@ -73,6 +73,11 @@ Returns today's meal plan entries across all meal types.
       "mealType": "dinner",
       "servings": "4",
       "notes": null,
+      "mealGroup": {
+        "id": "uuid",
+        "title": "Sunday roast",
+        "role": "main"
+      },
       "recipe": {
         "id": "uuid",
         "title": "Chicken Tikka Masala",
@@ -87,6 +92,8 @@ Returns today's meal plan entries across all meal types.
 ```
 
 `recipe.calories` is the per-serving calorie estimate, or `null` if the recipe has no nutrition data. `meals` is empty `[]` if no plan exists for the current week or no entries fall on today.
+
+`mealGroup` is set when the dish is part of a combined meal (a roast with its sides, say): every dish in that meal carries the same `id` and `title`, and `role` is one of `"main"`, `"side"`, `"sauce"`, `"other"`. It is `null` for a dish planned on its own. To show "tonight: Sunday roast" rather than four separate dishes, group `meals` by `mealGroup.id`.
 
 ---
 
@@ -121,6 +128,7 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
       "mealType": "dinner",
       "servings": "4",
       "notes": null,
+      "mealGroup": null,
       "recipe": {
         "id": "uuid",
         "title": "Pasta Carbonara",
@@ -136,7 +144,8 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
 
 `dayOfWeek` values: `0` = Monday … `6` = Sunday.  
 `planStatus`: `"draft"` | `"active"` | `"archived"`.  
-`entries` is empty `[]` if no plan exists for the week.
+`entries` is empty `[]` if no plan exists for the week.  
+`mealGroup`: `{ id, title, role }` for a dish in a combined meal, otherwise `null` — see `/today`.
 
 ---
 

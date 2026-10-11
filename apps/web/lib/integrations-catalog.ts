@@ -76,7 +76,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     scope: "read:meal_plan",
     summary: "Today's meals",
     description:
-      "Every meal planned for today, across all meal types. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method.",
+      "Every meal planned for today, across all meal types. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own.",
     response: {
       status: 200,
       description: "Today's meals. `meals` is empty when nothing is planned.",
@@ -88,7 +88,20 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             mealType: "dinner",
             servings: "4",
             notes: null,
+            mealGroup: null,
             recipe: RECIPE_SUMMARY_EXAMPLE,
+          },
+          {
+            id: "e4da3b7f-bbce-4d34-9e7a-0b1c2d3e4f50",
+            mealType: "dinner",
+            servings: "4",
+            notes: null,
+            mealGroup: {
+              id: "1679091c-5a88-4faf-afb5-e6087eb1b2dc",
+              title: "Sunday roast",
+              role: "main",
+            },
+            recipe: { ...RECIPE_SUMMARY_EXAMPLE, title: "Roast Chicken", cuisine: "British" },
           },
         ],
       },
@@ -101,7 +114,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     scope: "read:meal_plan",
     summary: "Week meal plan",
     description:
-      "All meal plan entries for one week. dayOfWeek runs 0 = Monday to 6 = Sunday. planStatus is draft, active or archived.",
+      "All meal plan entries for one week. dayOfWeek runs 0 = Monday to 6 = Sunday. planStatus is draft, active or archived. Entries in a combined meal share a mealGroup { id, title, role } (null otherwise), as in getToday.",
     params: [
       {
         name: "week",
@@ -124,6 +137,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             mealType: "dinner",
             servings: "4",
             notes: null,
+            mealGroup: null,
             recipe: { ...RECIPE_SUMMARY_EXAMPLE, title: "Pasta Carbonara", cuisine: "Italian" },
           },
         ],

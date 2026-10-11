@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MEAL_TYPES } from "@dishes/shared";
+import { MEAL_ROLES, MEAL_TYPES } from "@dishes/shared";
 
 /** Wire formats for /api/v1/sync. */
 
@@ -10,6 +10,10 @@ export const pullQuerySchema = z.object({
 });
 
 const opId = z.string().uuid();
+const weekStartDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const dayOfWeek = z.number().int().min(0).max(6);
+const mealRole = z.enum(MEAL_ROLES);
+const groupTitle = z.string().trim().min(1).max(200);
 
 /**
  * Discriminated on `type` so each mutation validates its own payload shape and
@@ -64,10 +68,13 @@ export const mutationSchema = z.discriminatedUnion("type", [
     opId,
     type: z.literal("meal_plan_entry.add"),
     payload: z.object({
-      weekStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      weekStartDate,
       recipeId: z.string().uuid(),
-      dayOfWeek: z.number().int().min(0).max(6),
+      dayOfWeek,
       mealType: z.enum(MEAL_TYPES),
+      /** Add as part of this planned meal; the meal's slot wins. */
+      groupId: z.string().uuid().optional(),
+      mealRole: mealRole.optional(),
     }),
   }),
   z.object({
@@ -76,9 +83,14 @@ export const mutationSchema = z.discriminatedUnion("type", [
     payload: z
       .object({
         entryId: z.string().uuid(),
-        dayOfWeek: z.number().int().min(0).max(6).optional(),
+        dayOfWeek: dayOfWeek.optional(),
         mealType: z.enum(MEAL_TYPES).optional(),
         servings: z.number().positive().nullable().optional(),
+        /** Swap the recipe in place, keeping slot, meal and role. */
+        recipeId: z.string().uuid().optional(),
+        /** Join a planned meal, or null to take the entry out of its meal. */
+        groupId: z.string().uuid().nullable().optional(),
+        mealRole: mealRole.optional(),
       })
       .refine((v) => Object.keys(v).length > 1, "No fields to update"),
   }),
@@ -86,6 +98,53 @@ export const mutationSchema = z.discriminatedUnion("type", [
     opId,
     type: z.literal("meal_plan_entry.delete"),
     payload: z.object({ entryId: z.string().uuid() }),
+  }),
+  z.object({
+    opId,
+    type: z.literal("meal_plan_group.add"),
+    payload: z
+      .object({
+        weekStartDate,
+        title: groupTitle,
+        dayOfWeek,
+        mealType: z.enum(MEAL_TYPES),
+        sourceMealId: z.string().uuid().nullable().optional(),
+        servings: z.number().positive().nullable().optional(),
+        components: z
+          .array(z.object({ recipeId: z.string().uuid(), role: mealRole }))
+          .max(20)
+          .optional(),
+        entries: z
+          .array(z.object({ entryId: z.string().uuid(), role: mealRole }))
+          .max(20)
+          .optional(),
+      })
+      .refine(
+        (v) => (v.components?.length ?? 0) + (v.entries?.length ?? 0) > 0,
+        "A meal needs at least one recipe"
+      ),
+  }),
+  z.object({
+    opId,
+    type: z.literal("meal_plan_group.update"),
+    payload: z
+      .object({
+        groupId: z.string().uuid(),
+        title: groupTitle.optional(),
+        dayOfWeek: dayOfWeek.optional(),
+        mealType: z.enum(MEAL_TYPES).optional(),
+        servings: z.number().positive().nullable().optional(),
+      })
+      .refine((v) => Object.keys(v).length > 1, "No fields to update"),
+  }),
+  z.object({
+    opId,
+    type: z.literal("meal_plan_group.delete"),
+    payload: z.object({
+      groupId: z.string().uuid(),
+      /** Ungroup: keep the recipes on the plan as separate meals. */
+      keepRecipes: z.boolean().optional(),
+    }),
   }),
 ]);
 

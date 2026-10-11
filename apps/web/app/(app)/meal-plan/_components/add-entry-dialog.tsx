@@ -10,7 +10,12 @@ import {
   X,
   ChefHat,
   Clock,
+  UtensilsCrossed,
+  Settings2,
 } from "lucide-react";
+import Link from "next/link";
+import { MEAL_ROLE_LABELS } from "@dishes/shared";
+import type { SavedMeal } from "@/lib/services/meals";
 import {
   Button,
   Dialog,
@@ -65,6 +70,23 @@ interface Props {
   dayLabel: string;
   recipes: Recipe[];
   trigger?: React.ReactNode;
+  /** Saved meals offered on a Meals tab. Omit (or empty) to hide the tab. */
+  savedMeals?: SavedMeal[];
+  /** Put a saved meal on the plan. Required for the Meals tab to show. */
+  onAddSavedMeal?: (meal: SavedMeal, mealType: MealType) => void;
+  /**
+   * Picker mode: choosing a recipe calls `onPick` instead of adding it to the
+   * plan — used to add a dish to a combined meal or swap one. Hides the meal
+   * type and Meals tab; `preferredIds` are listed first.
+   */
+  pick?: {
+    title: string;
+    onPick: (recipeId: string) => void;
+    preferredIds?: string[];
+  };
+  /** Controlled open state, for picker mode where there is no trigger. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /**
    * How the entry is written. Defaults to the `addMealEntry` server action;
    * `WeekPlannerLocal` supplies a version that queues `meal_plan_entry.add` on
@@ -111,8 +133,27 @@ function FilterLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, trigger, onAdd }: Props) {
-  const [open, setOpen] = useState(false);
+export function AddEntryDialog({
+  weekStartDate,
+  dayOfWeek,
+  dayLabel,
+  recipes,
+  trigger,
+  onAdd,
+  savedMeals = [],
+  onAddSavedMeal,
+  pick,
+  open: openProp,
+  onOpenChange,
+}: Props) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setOpenState(next);
+    onOpenChange?.(next);
+  };
+  const showMealsTab = !pick && !!onAddSavedMeal;
+  const [tab, setTab] = useState<"recipes" | "meals">("recipes");
   const [mealType, setMealType] = useState<MealType>("dinner");
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -158,8 +199,25 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
       list = list.filter((r) => r.avgRating !== null && r.avgRating >= minRating);
     if (favouritesOnly)
       list = list.filter((r) => r.isFavourite);
+    // Picker mode: likely candidates (recipes used in the same role before)
+    // first, keeping alphabetical order within each half.
+    const preferred = pick?.preferredIds;
+    if (preferred?.length) {
+      const rank = new Set(preferred);
+      list = [...list].sort((a, b) => Number(rank.has(b.id)) - Number(rank.has(a.id)));
+    }
     return list;
-  }, [recipes, deferredSearch, selectedCuisines, selectedTags, selectedDifficulty, minRating, favouritesOnly]);
+  }, [recipes, deferredSearch, selectedCuisines, selectedTags, selectedDifficulty, minRating, favouritesOnly, pick?.preferredIds]);
+
+  const filteredMeals = useMemo(() => {
+    if (!deferredSearch) return savedMeals;
+    const q = deferredSearch.toLowerCase();
+    return savedMeals.filter(
+      (m) =>
+        m.title.toLowerCase().includes(q) ||
+        m.components.some((c) => c.recipe.title.toLowerCase().includes(q))
+    );
+  }, [savedMeals, deferredSearch]);
 
   const activeFilterCount =
     selectedTags.length +
@@ -179,10 +237,22 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
   function reset() {
     setOpen(false);
     setSearch("");
+    setTab("recipes");
     clearAllFilters();
   }
 
+  function handleSelectMeal(meal: SavedMeal) {
+    onAddSavedMeal?.(meal, mealType);
+    reset();
+  }
+
   function handleSelect(recipeId: string) {
+    if (pick) {
+      pick.onPick(recipeId);
+      reset();
+      return;
+    }
+
     if (onAdd) {
       // Queued locally and applied optimistically — no await, and no reason to
       // keep the dialog open waiting for a server that may not be reachable.
@@ -395,8 +465,76 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
     </div>
   );
 
+  // ── Saved meal cards ───────────────────────────────────────────────────────
+  const mealsGrid = (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      {filteredMeals.map((meal) => {
+        const thumbs = meal.components
+          .map((c) => c.recipe.thumbnailUrl ?? c.recipe.imageUrl)
+          .filter((u): u is string => !!u)
+          .slice(0, 4);
+        return (
+          <button
+            key={meal.id}
+            onClick={() => handleSelectMeal(meal)}
+            className="group flex gap-3 rounded-xl border border-orange-200/70 dark:border-orange-900/50 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 dark:from-orange-950/30 dark:via-amber-950/20 dark:to-rose-950/20 p-3 text-left shadow-sm transition-all hover:shadow-md hover:border-orange-300 active:scale-[0.99]"
+          >
+            <div className="grid grid-cols-2 gap-0.5 h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-orange-100 dark:bg-orange-950/40">
+              {thumbs.length ? (
+                thumbs.map((src, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={i}
+                    src={src}
+                    alt=""
+                    className={`h-full w-full object-cover ${thumbs.length === 1 ? "col-span-2 row-span-2" : ""}`}
+                  />
+                ))
+              ) : (
+                <div className="col-span-2 row-span-2 flex items-center justify-center">
+                  <UtensilsCrossed className="h-6 w-6 text-orange-400" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-sm leading-snug line-clamp-1">{meal.title}</p>
+              <ul className="mt-1 space-y-0.5">
+                {meal.components.slice(0, 4).map((c) => (
+                  <li key={c.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span className="shrink-0 rounded-full bg-white/70 dark:bg-black/20 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">
+                      {MEAL_ROLE_LABELS[c.role]}
+                    </span>
+                    <span className="truncate">{c.recipe.title}</span>
+                  </li>
+                ))}
+                {meal.components.length > 4 && (
+                  <li className="text-[11px] text-muted-foreground">+{meal.components.length - 4} more</li>
+                )}
+              </ul>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const mealsEmpty = (
+    <div className="py-12 flex flex-col items-center gap-2 text-center text-muted-foreground">
+      <UtensilsCrossed className="h-8 w-8 opacity-30" />
+      <p className="text-sm">
+        {savedMeals.length === 0 ? "No saved meals yet." : "No saved meals match your search."}
+      </p>
+      {savedMeals.length === 0 && (
+        <p className="text-xs max-w-xs">
+          Combine dishes on the plan and choose “Save as a meal”, or build one from the Meals page.
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {(trigger !== undefined || openProp === undefined) && (
       <DialogTrigger asChild>
         {trigger ?? (
           <Button className="w-full gap-2 bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white border-0 shadow-sm">
@@ -405,11 +543,40 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
           </Button>
         )}
       </DialogTrigger>
+      )}
 
       <DialogContent className="max-h-[92vh] flex flex-col gap-0 p-0 sm:max-w-4xl overflow-hidden">
         {/* ── Header ── */}
         <DialogHeader className="px-5 pt-5 pb-3 border-b shrink-0">
-          <DialogTitle className="text-base">Add meal — {dayLabel}</DialogTitle>
+          <DialogTitle className="text-base">{pick ? pick.title : `Add meal — ${dayLabel}`}</DialogTitle>
+          {showMealsTab && (
+            <div className="flex items-center gap-2 pt-2">
+              <div className="inline-flex rounded-lg bg-muted p-0.5">
+                {(["recipes", "meals"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTab(t)}
+                    className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                      tab === t
+                        ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t === "recipes" ? "Recipes" : `Saved meals${savedMeals.length ? ` (${savedMeals.length})` : ""}`}
+                  </button>
+                ))}
+              </div>
+              {tab === "meals" && (
+                <Link
+                  href="/meals"
+                  className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  Manage
+                </Link>
+              )}
+            </div>
+          )}
         </DialogHeader>
 
         {/* ── Body: mobile=stacked, desktop=two-column ── */}
@@ -419,7 +586,7 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
           <div className="shrink-0 sm:w-56 sm:border-r sm:flex sm:flex-col sm:overflow-hidden">
 
             {/* Meal type — horizontal pills on mobile, vertical list on desktop */}
-            <div className="px-4 pt-3 pb-3 border-b shrink-0">
+            <div className={`px-4 pt-3 pb-3 border-b shrink-0 ${pick ? "hidden" : ""}`}>
               <p className="hidden sm:block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                 Meal type
               </p>
@@ -461,7 +628,7 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
               </div>
               <button
                 onClick={() => setFiltersOpen((v) => !v)}
-                className={`flex items-center gap-1.5 px-3 h-9 w-full justify-center rounded-md border text-sm font-medium transition-all ${
+                className={`${tab === "meals" ? "hidden" : "flex"} items-center gap-1.5 px-3 h-9 w-full justify-center rounded-md border text-sm font-medium transition-all ${
                   filtersOpen || activeFilterCount > 0
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-background hover:bg-muted text-muted-foreground"
@@ -480,7 +647,7 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
             {/* Filter panel:
                 - Mobile: shown only when filtersOpen
                 - Desktop: always shown, scrollable within sidebar */}
-            <div className={`px-4 py-4 sm:flex-1 sm:overflow-y-auto ${filtersOpen ? "block" : "hidden sm:block"}`}>
+            <div className={`px-4 py-4 sm:flex-1 sm:overflow-y-auto ${tab === "meals" ? "hidden" : filtersOpen ? "block" : "hidden sm:block"}`}>
               {filterPanelContent}
             </div>
           </div>
@@ -513,15 +680,19 @@ export function AddEntryDialog({ weekStartDate, dayOfWeek, dayLabel, recipes, tr
             {/* Recipe count */}
             <div className="px-4 py-2 shrink-0">
               <p className="text-xs text-muted-foreground">
-                {filtered.length === recipes.length
-                  ? `${recipes.length} recipes`
-                  : `${filtered.length} of ${recipes.length} recipes`}
+                {tab === "meals"
+                  ? `${filteredMeals.length} saved meal${filteredMeals.length === 1 ? "" : "s"}`
+                  : filtered.length === recipes.length
+                    ? `${recipes.length} recipes`
+                    : `${filtered.length} of ${recipes.length} recipes`}
               </p>
             </div>
 
             {/* Scrollable recipe grid */}
             <div className="flex-1 overflow-y-auto px-4 pb-4">
-              {filtered.length === 0 ? (
+              {tab === "meals" ? (
+                filteredMeals.length === 0 ? mealsEmpty : mealsGrid
+              ) : filtered.length === 0 ? (
                 <div className="py-12 flex flex-col items-center gap-2 text-muted-foreground">
                   <ChefHat className="h-8 w-8 opacity-30" />
                   <p className="text-sm">No recipes match your filters.</p>

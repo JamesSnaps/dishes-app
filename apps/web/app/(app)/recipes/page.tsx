@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { Plus } from "lucide-react";
+import { Plus, UtensilsCrossed } from "lucide-react";
 import { FolderOpen } from "lucide-react";
 import { db } from "@/lib/db";
 import { recipes, recipeTags, recipeIngredients, collections, recipeCollections } from "@dishes/db/schema";
@@ -170,6 +170,16 @@ export default async function RecipesPage({ searchParams }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            asChild
+            size="sm"
+            className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-sm"
+          >
+            <Link href="/meals">
+              <UtensilsCrossed className="mr-1 h-4 w-4" />
+              Saved meals
+            </Link>
+          </Button>
           <Button asChild size="sm">
             <Link href="/recipes/new">
               <Plus className="mr-1 h-4 w-4" />
