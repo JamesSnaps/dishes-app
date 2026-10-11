@@ -14,7 +14,7 @@ import {
   Settings2,
 } from "lucide-react";
 import Link from "next/link";
-import { MEAL_ROLE_LABELS } from "@dishes/shared";
+import { slotName } from "@/lib/saved-meals";
 import type { SavedMeal } from "@/lib/services/meals";
 import {
   Button,
@@ -215,7 +215,7 @@ export function AddEntryDialog({
     return savedMeals.filter(
       (m) =>
         m.title.toLowerCase().includes(q) ||
-        m.components.some((c) => c.recipe.title.toLowerCase().includes(q))
+        m.slots.some((slot) => slot.options.some((o) => o.recipe.title.toLowerCase().includes(q)))
     );
   }, [savedMeals, deferredSearch]);
 
@@ -469,8 +469,9 @@ export function AddEntryDialog({
   const mealsGrid = (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
       {filteredMeals.map((meal) => {
-        const thumbs = meal.components
-          .map((c) => c.recipe.thumbnailUrl ?? c.recipe.imageUrl)
+        const thumbs = meal.slots
+          .map((slot) => slot.options[0]!.recipe)
+          .map((r) => r.thumbnailUrl ?? r.imageUrl)
           .filter((u): u is string => !!u)
           .slice(0, 4);
         return (
@@ -499,16 +500,18 @@ export function AddEntryDialog({
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-sm leading-snug line-clamp-1">{meal.title}</p>
               <ul className="mt-1 space-y-0.5">
-                {meal.components.slice(0, 4).map((c) => (
-                  <li key={c.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                {meal.slots.slice(0, 4).map((slot) => (
+                  <li key={slot.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <span className="shrink-0 rounded-full bg-white/70 dark:bg-black/20 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">
-                      {MEAL_ROLE_LABELS[c.role]}
+                      {slotName(slot)}
                     </span>
-                    <span className="truncate">{c.recipe.title}</span>
+                    <span className="truncate">
+                      {slot.options.map((o) => o.recipe.title).join(slot.allowMultiple ? ", " : " / ")}
+                    </span>
                   </li>
                 ))}
-                {meal.components.length > 4 && (
-                  <li className="text-[11px] text-muted-foreground">+{meal.components.length - 4} more</li>
+                {meal.slots.length > 4 && (
+                  <li className="text-[11px] text-muted-foreground">+{meal.slots.length - 4} more</li>
                 )}
               </ul>
             </div>

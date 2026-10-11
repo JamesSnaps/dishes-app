@@ -15,6 +15,8 @@ import {
   mealPlanEntries,
   mealPlanGroups,
   meals,
+  mealSlots,
+  mealSlotOptions,
   recipes,
   recipeIngredients,
   shoppingListItems,
@@ -568,6 +570,11 @@ export type AddGroupInput = {
   components?: GroupComponentInput[];
   /** Entries already on the plan to pull into the meal (same week). */
   entries?: { entryId: string; role: MealRole }[];
+  /**
+   * With `sourceMealId`: remember the dishes chosen as that saved meal's
+   * defaults, so next time it is added the same choices start ticked.
+   */
+  rememberChoices?: boolean;
 };
 
 /**
@@ -661,8 +668,52 @@ export async function addGroup(ctx: HouseholdContext, input: AddGroupInput): Pro
       }
     }
 
+    if (input.sourceMealId && input.rememberChoices) {
+      await rememberSlotChoices(
+        input.sourceMealId,
+        components.map((c) => c.recipeId)
+      );
+    }
+
     return group!.id;
   });
+}
+
+/**
+ * Make the chosen recipes a saved meal's pre-selected options. A slot where
+ * something was chosen takes exactly that choice; a single-choice slot where
+ * nothing was chosen keeps its old default (it can't be empty); a pick-several
+ * slot where nothing was chosen starts empty next time too.
+ *
+ * The caller has already checked the meal belongs to the household.
+ */
+export async function rememberSlotChoices(mealId: string, recipeIds: string[]): Promise<void> {
+  const chosen = new Set(recipeIds);
+  const slots = await db
+    .select({ id: mealSlots.id, allowMultiple: mealSlots.allowMultiple })
+    .from(mealSlots)
+    .where(eq(mealSlots.mealId, mealId));
+  if (!slots.length) return;
+
+  const options = await db
+    .select({ id: mealSlotOptions.id, slotId: mealSlotOptions.slotId, recipeId: mealSlotOptions.recipeId })
+    .from(mealSlotOptions)
+    .where(inArray(mealSlotOptions.slotId, slots.map((s) => s.id)));
+
+  for (const slot of slots) {
+    const own = options.filter((o) => o.slotId === slot.id);
+    const picked = own.filter((o) => chosen.has(o.recipeId));
+    if (!picked.length && !slot.allowMultiple) continue;
+    // One pick only for a single-choice slot, even if two of its options are
+    // on the plan (the first wins, matching how the chooser would show it).
+    const keep = new Set((slot.allowMultiple ? picked : picked.slice(0, 1)).map((o) => o.id));
+    for (const o of own) {
+      await db
+        .update(mealSlotOptions)
+        .set({ isDefault: keep.has(o.id) })
+        .where(eq(mealSlotOptions.id, o.id));
+    }
+  }
 }
 
 export type UpdateGroupInput = {

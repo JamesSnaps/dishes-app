@@ -50,6 +50,8 @@ import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { MEAL_BG, MEAL_COLOR, MEAL_ICON, MEAL_LABELS } from "./entry-card";
 import type { PlanWriter } from "./plan-writer";
+import type { SavedMeal } from "@/lib/services/meals";
+import { slotName, withArticle } from "@/lib/saved-meals";
 import type { Entry, PlannedGroup, Recipe } from "./week-planner";
 
 type MealType = Entry["mealType"];
@@ -104,8 +106,8 @@ interface Props {
   writer: PlanWriter;
   /** Likely recipes for a role, for ordering the add/swap picker. */
   preferredFor: (role: MealRole) => string[];
-  /** Whether the saved meal this came from still exists. */
-  hasSourceMeal: boolean;
+  /** The saved meal this came from, if it still exists — its options become swap chips. */
+  sourceMeal?: SavedMeal;
   dragNodeRef?: (node: HTMLLIElement | null) => void;
   dragListeners?: Record<string, unknown>;
   dragAttributes?: Record<string, unknown>;
@@ -121,7 +123,7 @@ export function MealGroupCard({
   recipes,
   writer,
   preferredFor,
-  hasSourceMeal,
+  sourceMeal,
   dragNodeRef,
   dragListeners,
   dragAttributes,
@@ -145,6 +147,34 @@ export function MealGroupCard({
   const servings = servingsOf(entries);
   const allOnList = entries.length > 0 && entries.every((e) => e.addedToShoppingListAt != null);
   const mealType = group.mealType as MealType;
+  const hasSourceMeal = !!sourceMeal;
+  // Only slots with a real choice get chips; a one-option slot has nothing to swap.
+  const choiceSlots = sourceMeal?.slots.filter((s) => s.options.length > 1) ?? [];
+
+  /**
+   * One tap on an option chip. Single-choice slot: swap the dish filling it
+   * (or add one if it's been removed). Pick-several slot: toggle that dish.
+   */
+  function toggleOption(slot: SavedMeal["slots"][number], recipeId: string) {
+    const inSlot = entries.filter((e) => slot.options.some((o) => o.recipe.id === e.recipe.id));
+    const existing = inSlot.find((e) => e.recipe.id === recipeId);
+
+    if (slot.allowMultiple) {
+      if (existing) writer.deleteEntry(existing.id);
+      else addToMeal(recipeId, slot.role);
+      return;
+    }
+    if (existing) return;
+    if (inSlot[0]) writer.replaceEntryRecipe(inSlot[0].id, recipeId);
+    else addToMeal(recipeId, slot.role);
+  }
+
+  function addToMeal(recipeId: string, role: MealRole) {
+    writer.addEntry(weekStartDate, recipeId, group.dayOfWeek, mealType, {
+      groupId: group.id,
+      mealRole: role,
+    });
+  }
 
   /** Server actions stamp rows server-side; pull so the local store sees it. */
   function refreshFromServer() {
@@ -237,10 +267,7 @@ export function MealGroupCard({
     if (picker.kind === "swap") {
       writer.replaceEntryRecipe(picker.entry.id, recipeId);
     } else {
-      writer.addEntry(weekStartDate, recipeId, group.dayOfWeek, mealType, {
-        groupId: group.id,
-        mealRole: picker.role,
-      });
+      addToMeal(recipeId, picker.role);
     }
     setPicker(null);
   }
@@ -406,6 +433,40 @@ export function MealGroupCard({
           </DropdownMenu>
         </div>
 
+        {/* Quick swaps from the saved meal's options */}
+        {choiceSlots.length > 0 && (
+          <div className="mx-2 mb-2 space-y-1.5 rounded-xl bg-white/50 dark:bg-black/15 px-2.5 py-2">
+            {choiceSlots.map((slot) => (
+              <div key={slot.id} className="flex items-start gap-2">
+                <span className="mt-1 w-12 shrink-0 text-[10px] font-bold uppercase tracking-wide text-muted-foreground line-clamp-1">
+                  {slotName(slot)}
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {slot.options.map((o) => {
+                    const on = entries.some((e) => e.recipe.id === o.recipe.id);
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        disabled={pending}
+                        aria-pressed={on}
+                        onClick={() => toggleOption(slot, o.recipe.id)}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
+                          on
+                            ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
+                            : "border border-orange-200 dark:border-orange-900/60 bg-white dark:bg-black/30 text-muted-foreground hover:text-foreground hover:border-orange-400"
+                        }`}
+                      >
+                        {o.recipe.title}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Dishes */}
         <ul className="mx-2 mb-2 rounded-xl bg-white/70 dark:bg-black/20 divide-y divide-orange-100 dark:divide-orange-950/60 shadow-sm">
           {dishes.map((entry) => {
@@ -519,7 +580,7 @@ export function MealGroupCard({
                   <span className={`mr-2 rounded-full px-1.5 text-[9px] font-bold uppercase ${ROLE_CHIP[r]}`}>
                     {MEAL_ROLE_LABELS[r]}
                   </span>
-                  Add a {MEAL_ROLE_LABELS[r].toLowerCase()}
+                  Add {withArticle(MEAL_ROLE_LABELS[r].toLowerCase())}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -538,7 +599,7 @@ export function MealGroupCard({
           title:
             picker?.kind === "swap"
               ? `Swap ${picker.entry.recipe.title}`
-              : `Add a ${MEAL_ROLE_LABELS[addRole].toLowerCase()} to ${group.title}`,
+              : `Add ${withArticle(MEAL_ROLE_LABELS[addRole].toLowerCase())} to ${group.title}`,
           onPick: handlePick,
           preferredIds: preferredFor(
             picker?.kind === "swap" ? (picker.entry.mealRole ?? "side") : addRole

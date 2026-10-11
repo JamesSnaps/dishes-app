@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   index,
   integer,
@@ -81,21 +82,43 @@ export const meals = pgTable(
   (t) => [index("meals_household_id_idx").on(t.householdId)]
 );
 
-export const mealComponents = pgTable(
-  "meal_components",
+// A slot is one place in the meal — "the meat", "the veg". It holds one or
+// more recipe options: a single-choice slot is filled by exactly one of them
+// (chicken | pork | beef), a pick-several slot by any number (broccoli,
+// carrots, peas). Which options start ticked is remembered from the last time
+// the meal went on the plan.
+export const mealSlots = pgTable(
+  "meal_slots",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     mealId: uuid("meal_id")
       .notNull()
       .references(() => meals.id, { onDelete: "cascade" }),
+    // One of MEAL_ROLES (@dishes/shared), validated in app code.
+    role: varchar("role", { length: 20 }).notNull().default("side"),
+    /** Optional name for the slot ("Veg", "Meat"); the role labels it otherwise. */
+    label: varchar("label", { length: 100 }),
+    position: integer("position").notNull().default(0),
+    allowMultiple: boolean("allow_multiple").notNull().default(false),
+  },
+  (t) => [index("meal_slots_meal_id_idx").on(t.mealId)]
+);
+
+export const mealSlotOptions = pgTable(
+  "meal_slot_options",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slotId: uuid("slot_id")
+      .notNull()
+      .references(() => mealSlots.id, { onDelete: "cascade" }),
     recipeId: uuid("recipe_id")
       .notNull()
       .references(() => recipes.id, { onDelete: "cascade" }),
-    // One of MEAL_ROLES (@dishes/shared), validated in app code.
-    role: varchar("role", { length: 20 }).notNull().default("side"),
     position: integer("position").notNull().default(0),
+    /** Pre-selected when the meal is next added — last time's choice. */
+    isDefault: boolean("is_default").notNull().default(false),
   },
-  (t) => [index("meal_components_meal_id_idx").on(t.mealId)]
+  (t) => [index("meal_slot_options_slot_id_idx").on(t.slotId)]
 );
 
 // ─── Planned meal groups ─────────────────────────────────────────────────────
@@ -168,16 +191,24 @@ export const mealsRelations = relations(meals, ({ one, many }) => ({
     fields: [meals.householdId],
     references: [households.id],
   }),
-  components: many(mealComponents),
+  slots: many(mealSlots),
 }));
 
-export const mealComponentsRelations = relations(mealComponents, ({ one }) => ({
+export const mealSlotsRelations = relations(mealSlots, ({ one, many }) => ({
   meal: one(meals, {
-    fields: [mealComponents.mealId],
+    fields: [mealSlots.mealId],
     references: [meals.id],
   }),
+  options: many(mealSlotOptions),
+}));
+
+export const mealSlotOptionsRelations = relations(mealSlotOptions, ({ one }) => ({
+  slot: one(mealSlots, {
+    fields: [mealSlotOptions.slotId],
+    references: [mealSlots.id],
+  }),
   recipe: one(recipes, {
-    fields: [mealComponents.recipeId],
+    fields: [mealSlotOptions.recipeId],
     references: [recipes.id],
   }),
 }));

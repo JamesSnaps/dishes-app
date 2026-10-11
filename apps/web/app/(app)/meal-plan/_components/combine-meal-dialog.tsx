@@ -97,7 +97,7 @@ export function CombineMealDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto py-1">
+        <div className="space-y-4 overflow-y-auto -mx-2 px-2 py-1">
           <div>
             <label className="text-xs font-semibold text-muted-foreground" htmlFor="combine-title">
               Meal name

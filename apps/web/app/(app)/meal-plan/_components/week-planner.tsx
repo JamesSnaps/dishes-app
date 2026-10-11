@@ -44,6 +44,8 @@ import { DinnerTimeChip, useWeekDinnerSchedule } from "./dinner-time-chip";
 import { EntryCard } from "./entry-card";
 import { MealGroupCard, groupTotalMinutes } from "./meal-group-card";
 import { CombineMealDialog } from "./combine-meal-dialog";
+import { BuildMealDialog } from "./build-meal-dialog";
+import { defaultSelection, needsChoices, selectionToComponents } from "@/lib/saved-meals";
 import { usePlanWriter } from "./plan-writer";
 import { WeekNutritionPanel } from "./week-nutrition-card";
 import { summariseMeals } from "@/lib/meal-stats";
@@ -747,6 +749,11 @@ export function WeekPlanner({
   } | null>(null);
   const writer = usePlanWriter(mutations);
   const [combineFrom, setCombineFrom] = useState<Entry | null>(null);
+  const [building, setBuilding] = useState<{
+    meal: SavedMeal;
+    mealType: MealType;
+    dayOfWeek: number;
+  } | null>(null);
 
   useEffect(() => {
     setLocalEntries(entries);
@@ -1039,7 +1046,10 @@ export function WeekPlanner({
     .sort((a, b) => MEAL_TYPE_ORDER.indexOf(a.mealType) - MEAL_TYPE_ORDER.indexOf(b.mealType));
   const selectedDayGroups = selectedDayItems.flatMap((i) => (i.kind === "group" ? [i.group] : []));
   const selectedDayLoose = selectedDayItems.flatMap((i) => (i.kind === "entry" ? [i.entry] : []));
-  const savedMealIds = useMemo(() => new Set(savedMeals.map((m) => m.id)), [savedMeals]);
+  const savedMealById = useMemo(
+    () => new Map(savedMeals.map((m) => [m.id, m])),
+    [savedMeals]
+  );
 
   /**
    * Recipes likely to fill a role, to list first in the add/swap picker: ones
@@ -1050,7 +1060,9 @@ export function WeekPlanner({
     (role: MealRole): string[] => {
       const ids = new Set<string>();
       for (const m of savedMeals) {
-        for (const c of m.components) if (c.role === role) ids.add(c.recipe.id);
+        for (const slot of m.slots) {
+          if (slot.role === role) for (const o of slot.options) ids.add(o.recipe.id);
+        }
       }
       for (const e of localEntries) if (e.mealRole === role) ids.add(e.recipe.id);
       const tagWords = role === "other" ? ["extra", "extras"] : [role, `${role}s`];
@@ -1062,14 +1074,26 @@ export function WeekPlanner({
     [savedMeals, localEntries, recipes]
   );
 
+  /** A meal with choices to make opens the chooser; one without goes straight on. */
   function handleAddSavedMeal(meal: SavedMeal, mealType: MealType) {
+    if (needsChoices(meal)) setBuilding({ meal, mealType, dayOfWeek: selectedDay });
+    else addSavedMeal(meal, mealType, selectedDay, defaultSelection(meal));
+  }
+
+  function addSavedMeal(
+    meal: SavedMeal,
+    mealType: MealType,
+    dayOfWeek: number,
+    selection: Record<string, string[]>
+  ) {
     writer.addGroup({
       weekStartDate,
       title: meal.title,
-      dayOfWeek: selectedDay,
+      dayOfWeek,
       mealType,
       sourceMealId: meal.id,
-      components: meal.components.map((c) => ({ recipeId: c.recipe.id, role: c.role })),
+      components: selectionToComponents(meal, selection),
+      rememberChoices: true,
     });
   }
 
@@ -1335,8 +1359,10 @@ export function WeekPlanner({
                       recipes={recipes}
                       writer={writer}
                       preferredFor={preferredFor}
-                      hasSourceMeal={
-                        !!item.group.sourceMealId && savedMealIds.has(item.group.sourceMealId)
+                      sourceMeal={
+                        item.group.sourceMealId
+                          ? savedMealById.get(item.group.sourceMealId)
+                          : undefined
                       }
                     />
                   ) : (
@@ -1378,6 +1404,18 @@ export function WeekPlanner({
             )}
           </div>
         </div>
+
+        <BuildMealDialog
+          meal={building?.meal ?? null}
+          dayLabel={building ? formatDayHeading(weekStartDate, building.dayOfWeek) : ""}
+          onOpenChange={(o) => !o && setBuilding(null)}
+          onConfirm={(selection) => {
+            if (building) {
+              addSavedMeal(building.meal, building.mealType, building.dayOfWeek, selection);
+            }
+            setBuilding(null);
+          }}
+        />
 
         {combineFrom && (
           <CombineMealDialog

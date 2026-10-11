@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import type { OptimisticChange } from "@dishes/client";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import { isMealRole } from "@dishes/shared";
+import { normaliseSavedMeals } from "@/lib/saved-meals";
 import {
   WeekPlanner,
   type Entry,
@@ -621,6 +622,7 @@ export function WeekPlannerLocal({
   }, []);
 
   const data = local ?? initial;
+  const savedMeals = useMemo(() => normaliseSavedMeals(initial.savedMeals), [initial.savedMeals]);
 
   return (
     <WeekPlanner
@@ -631,7 +633,7 @@ export function WeekPlannerLocal({
       entries={data.entries}
       groups={data.groups}
       recipes={data.recipes}
-      savedMeals={initial.savedMeals}
+      savedMeals={savedMeals}
       topIngredients={data.topIngredients}
       shoppingItemCount={data.shoppingItemCount}
       heartFocus={heartFocus}

@@ -123,6 +123,8 @@ export const mutationSchema = z.discriminatedUnion("type", [
           .array(z.object({ entryId: z.string().uuid(), role: mealRole }))
           .max(20)
           .optional(),
+        /** Remember the chosen dishes as the saved meal's defaults. */
+        rememberChoices: z.boolean().optional(),
       })
       .refine(
         (v) => (v.components?.length ?? 0) + (v.entries?.length ?? 0) > 0,

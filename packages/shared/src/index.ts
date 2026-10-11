@@ -17,7 +17,7 @@ export const MEAL_TYPES = [
 export type MealPlanStatus = "draft" | "active" | "archived";
 
 // The part a recipe plays in a combined meal (a roast's meat, its potatoes,
-// its gravy). Stored as varchar on meal_components and meal_plan_entries and
+// its gravy). Stored as varchar on meal_slots and meal_plan_entries and
 // validated in app code against this list. Order here is display order.
 export const MEAL_ROLES = ["main", "side", "sauce", "other"] as const;
 export type MealRole = (typeof MEAL_ROLES)[number];
