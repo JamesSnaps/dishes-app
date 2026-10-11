@@ -49,8 +49,21 @@ export interface TimerState {
   preview: string;
 }
 
+/**
+ * The planned meal a cook belongs to — a roast's chicken, potatoes and gravy
+ * are separate cooks sharing one of these, which is what lets cooking mode
+ * show them as tabs and pool their timers.
+ */
+export interface CookMeal {
+  groupId: string;
+  title: string;
+  /** Recipe ids in display order (main first). */
+  order: string[];
+}
+
 export interface CookSession {
   recipeId: string;
+  meal?: CookMeal;
   recipeTitle: string;
   recipeImageUrl: string | null;
   stepCount: number;
@@ -68,6 +81,7 @@ export interface CookSession {
 
 export interface CookSessionInit {
   recipeId: string;
+  meal?: CookMeal;
   recipeTitle: string;
   recipeImageUrl: string | null;
   stepCount: number;
@@ -103,6 +117,11 @@ interface CookSessionValue {
   alerts: CookAlert[];
   /** Starts a session, or resumes the existing one when it's for the same recipe. */
   startSession: (init: CookSessionInit) => void;
+  /**
+   * Start several cooks at once — every dish of a planned meal — bringing
+   * `activeRecipeId` to the front. Dishes already cooking are resumed, not reset.
+   */
+  startSessions: (inits: CookSessionInit[], activeRecipeId: string) => void;
   /** Ends the given cook, or the active one when no id is passed. */
   endSession: (recipeId?: string) => void;
   /** Brings a cook to the foreground without touching the rest. */
@@ -110,8 +129,9 @@ interface CookSessionValue {
   setStepIndex: (index: number, recipeId?: string) => void;
   setServings: (servings: number) => void;
   toggleIngredient: (ingredientId: string) => void;
-  toggleTimer: (stepIndex: number) => void;
-  resetTimer: (stepIndex: number) => void;
+  /** Start/pause a timer; `recipeId` reaches another cook's timer (a meal's other dishes). */
+  toggleTimer: (stepIndex: number, recipeId?: string) => void;
+  resetTimer: (stepIndex: number, recipeId?: string) => void;
   dismissAlert: (stepIndex: number, recipeId?: string) => void;
 }
 
@@ -165,6 +185,55 @@ function readStored(): StoredState {
   } catch {
     return empty;
   }
+}
+
+/** A fresh session for a cook that isn't running yet. */
+function newSession(init: CookSessionInit, startedAt: number): CookSession {
+  const timers: Record<string, StoredTimer> = {};
+  for (const t of init.timers) {
+    timers[t.stepIndex] = {
+      stepNumber: t.stepNumber,
+      totalSeconds: t.totalSeconds,
+      label: t.label,
+      preview: t.preview,
+      endsAt: null,
+      pausedRemaining: t.totalSeconds,
+      done: false,
+    };
+  }
+  return {
+    recipeId: init.recipeId,
+    meal: init.meal,
+    recipeTitle: init.recipeTitle,
+    recipeImageUrl: init.recipeImageUrl,
+    stepCount: init.stepCount,
+    stepIndex: 0,
+    servings: init.servings,
+    checkedIngredientIds: [],
+    startedAt,
+    updatedAt: startedAt,
+    timers,
+    finishedAlerts: [],
+  };
+}
+
+/**
+ * Add cooks to the list. One already running is resumed in place — step and
+ * timers kept — though it picks up a meal tag if it was started on its own
+ * and is now being cooked as part of a meal. New ones go first, newest first,
+ * so the switcher and mini bar lead with the latest cook.
+ */
+function mergeStarts(prev: CookSession[], inits: CookSessionInit[]): CookSession[] {
+  const startedAt = Date.now();
+  const byId = new Map(inits.map((i) => [i.recipeId, i]));
+  const existing = prev.map((s) => {
+    const init = byId.get(s.recipeId);
+    return init?.meal && s.meal?.groupId !== init.meal.groupId ? { ...s, meal: init.meal } : s;
+  });
+  const fresh = inits
+    .filter((i) => !prev.some((s) => s.recipeId === i.recipeId))
+    .map((i) => newSession(i, startedAt));
+  return [...fresh, ...existing];
 }
 
 export function CookSessionProvider({ children }: { children: ReactNode }) {
@@ -291,41 +360,13 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
 
   const startSession = useCallback((init: CookSessionInit) => {
     setActiveRecipeId(init.recipeId);
-    setSessions((prev) => {
-      // Already cooking this one — resume in place, keeping step and timers.
-      if (prev.some((s) => s.recipeId === init.recipeId)) return prev;
+    setSessions((prev) => mergeStarts(prev, [init]));
+  }, []);
 
-      const timers: Record<string, StoredTimer> = {};
-      for (const t of init.timers) {
-        timers[t.stepIndex] = {
-          stepNumber: t.stepNumber,
-          totalSeconds: t.totalSeconds,
-          label: t.label,
-          preview: t.preview,
-          endsAt: null,
-          pausedRemaining: t.totalSeconds,
-          done: false,
-        };
-      }
-      const startedAt = Date.now();
-      // Newest first, so the switcher and mini bar lead with the latest cook.
-      return [
-        {
-          recipeId: init.recipeId,
-          recipeTitle: init.recipeTitle,
-          recipeImageUrl: init.recipeImageUrl,
-          stepCount: init.stepCount,
-          stepIndex: 0,
-          servings: init.servings,
-          checkedIngredientIds: [],
-          startedAt,
-          updatedAt: startedAt,
-          timers,
-          finishedAlerts: [],
-        },
-        ...prev,
-      ];
-    });
+  const startSessions = useCallback((inits: CookSessionInit[], activeId: string) => {
+    if (!inits.length) return;
+    setActiveRecipeId(activeId);
+    setSessions((prev) => mergeStarts(prev, inits));
   }, []);
 
   const endSession = useCallback(
@@ -368,12 +409,12 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
   );
 
   const toggleTimer = useCallback(
-    (stepIndex: number) => {
+    (stepIndex: number, recipeId?: string) => {
       // Starting/pausing is a user gesture — Safari's chance to unlock audio.
       unlockAudio();
       const at = Date.now();
       setNow(at);
-      update((prev) => {
+      updateFor(recipeId ?? activeRecipeId, (prev) => {
         const timer = prev.timers[stepIndex];
         if (!timer || timer.done) return prev;
         const next: StoredTimer =
@@ -383,13 +424,13 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
         return { ...prev, timers: { ...prev.timers, [stepIndex]: next } };
       });
     },
-    [update]
+    [updateFor, activeRecipeId]
   );
 
   const resetTimer = useCallback(
-    (stepIndex: number) => {
+    (stepIndex: number, recipeId?: string) => {
       unlockAudio();
-      update((prev) => {
+      updateFor(recipeId ?? activeRecipeId, (prev) => {
         const timer = prev.timers[stepIndex];
         if (!timer) return prev;
         return {
@@ -407,7 +448,7 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
         };
       });
     },
-    [update]
+    [updateFor, activeRecipeId]
   );
 
   const dismissAlert = useCallback(
@@ -474,6 +515,7 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
       timersFor,
       alerts,
       startSession,
+      startSessions,
       endSession,
       activateSession,
       setStepIndex,
@@ -491,6 +533,7 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
       timersFor,
       alerts,
       startSession,
+      startSessions,
       endSession,
       activateSession,
       setStepIndex,

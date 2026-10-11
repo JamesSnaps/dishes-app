@@ -20,12 +20,21 @@ import {
 // Fast switch between cooks in progress. Dinner and dessert at the same time
 // used to mean minimise → navigate → resume for every swap; this jumps straight
 // across, keeping both sessions and their timers running.
-export function CookSwitcher({ currentRecipeId }: { currentRecipeId: string }) {
+export function CookSwitcher({
+  currentRecipeId,
+  mealGroupId,
+}: {
+  currentRecipeId: string;
+  /** Cooking a planned meal: its dishes have their own tabs, so only cooks outside it need this. */
+  mealGroupId?: string | null;
+}) {
   const router = useRouter();
   const { sessions, timersFor, activateSession } = useCookSession();
 
-  // Nothing to switch between — stay out of the way.
+  // Nothing to switch between — stay out of the way. Likewise when every cook
+  // is a dish of the meal on screen: the meal's tabs already switch between them.
   if (sessions.length < 2) return null;
+  if (mealGroupId && sessions.every((s) => s.meal?.groupId === mealGroupId)) return null;
 
   function switchTo(recipeId: string) {
     if (recipeId === currentRecipeId) return;

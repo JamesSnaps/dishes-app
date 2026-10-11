@@ -262,6 +262,15 @@ export function MealGroupCard({
     setServingsOpen(false);
   }
 
+  /**
+   * Every dish's cook starts together, opening on the main; the others are a
+   * tab away in cooking mode, timers and all.
+   */
+  function cookMeal() {
+    const first = dishes[0];
+    if (first) router.push(`/recipes/${first.recipe.id}/cook?meal=${group.id}`);
+  }
+
   function handlePick(recipeId: string) {
     if (!picker) return;
     if (picker.kind === "swap") {
@@ -556,13 +565,24 @@ export function MealGroupCard({
           })}
         </ul>
 
-        {/* Add a dish */}
-        <div className="px-2 pb-2">
+        {/* Cook the whole meal / add a dish */}
+        <div className="px-2 pb-2 flex gap-2">
+          {dishes.length > 0 && (
+            <button
+              type="button"
+              onClick={cookMeal}
+              disabled={pending}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 py-2 text-sm font-semibold text-white shadow-md transition-colors"
+            >
+              <ChefHat className="h-4 w-4" />
+              Cook this meal
+            </button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 disabled={pending}
-                className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-orange-300/70 dark:border-orange-800/60 bg-white/60 dark:bg-black/20 py-2 text-sm font-semibold text-orange-700 dark:text-orange-300 shadow-sm hover:bg-white dark:hover:bg-black/30 transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-orange-300/70 dark:border-orange-800/60 bg-white/60 dark:bg-black/20 py-2 text-sm font-semibold text-orange-700 dark:text-orange-300 shadow-sm hover:bg-white dark:hover:bg-black/30 transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 Add a dish

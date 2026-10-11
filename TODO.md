@@ -82,7 +82,8 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 ## Combined Meals (e.g. Sunday roast)
 - [x] Step 1 — planned meal groups (`meal_plan_groups`, `group_id`/`meal_role` on entries) and saved meals (`meals`, `meal_components`); group card on the planner with swap/add/role/servings/move/split/remove, whole-meal shopping add, "Make into a meal…", Saved meals tab in the picker, save/update saved meal, `/meals` page; groups synced offline; `mealGroup` on integrations `today`/`week` (v1.15.0)
 - [x] Saved meal options — dishes become slots with several recipe options (pick one / pick several), a chooser when adding that remembers last time's picks, one-tap swap chips on the planned meal (`meal_slots`, `meal_slot_options` replace `meal_components`) (v1.16.0)
-- [ ] Step 2 — meal cooking mode: one cook session across every dish in a group, with a combined timers panel and a tab per dish
+- [x] Step 2 — meal cooking mode: "Cook this meal" starts every dish together, a tab per dish in cooking mode, and a whole-meal timers panel (v1.17.0)
+- [ ] Timer-end push notifications — register each running timer's end time server-side so a push arrives with the phone locked or the app closed
 - [ ] Step 3 — "serve at" timeline: AI-orchestrated schedule back from a serve time (steps referenced by id), oven-temperature clash warnings, push cues; optional `passive` / `oven_temp_c` step fields
 - [ ] Saved meals in the native app (browse + add); groups already sync
 - [ ] AI meal planner proposing combined meals

@@ -19,6 +19,7 @@ import {
   mealSlotOptions,
   recipes,
   recipeIngredients,
+  recipeSteps,
   shoppingListItems,
   shoppingListItemRecipes,
   householdMembers,
@@ -812,6 +813,79 @@ export async function getGroupComponents(
     .map((r) => ({ recipeId: r.recipeId, role: isMealRole(r.role) ? r.role : ("side" as const) }))
     .sort((a, b) => MEAL_ROLES.indexOf(a.role) - MEAL_ROLES.indexOf(b.role));
   return { group, components };
+}
+
+/** One dish of a planned meal, with what cooking mode needs to start it. */
+export type MealCookDish = {
+  recipeId: string;
+  title: string;
+  imageUrl: string | null;
+  role: MealRole;
+  /** The plan's headcount for this dish, else the recipe's own. */
+  servings: number;
+  steps: {
+    instruction: string;
+    durationMinutes: number | null;
+    timerLabel: string | null;
+  }[];
+};
+
+/**
+ * A planned meal ready for cooking mode: its dishes main-first, each with its
+ * steps so every dish's cook (and timers) can start together. Dishes with no
+ * steps are left out — there is nothing to cook through.
+ */
+export async function getGroupForCooking(
+  ctx: HouseholdContext,
+  groupId: string
+): Promise<{ groupId: string; title: string; dishes: MealCookDish[] }> {
+  const group = await assertGroupOwned(groupId, ctx.householdId);
+
+  const rows = await db
+    .select({
+      recipeId: recipes.id,
+      title: recipes.title,
+      imageUrl: recipes.imageUrl,
+      recipeServings: recipes.servings,
+      entryServings: mealPlanEntries.servings,
+      role: mealPlanEntries.mealRole,
+    })
+    .from(mealPlanEntries)
+    .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
+    .where(and(eq(mealPlanEntries.groupId, groupId), eq(recipes.householdId, ctx.householdId)));
+
+  const stepRows = rows.length
+    ? await db
+        .select({
+          recipeId: recipeSteps.recipeId,
+          instruction: recipeSteps.instruction,
+          durationMinutes: recipeSteps.durationMinutes,
+          timerLabel: recipeSteps.timerLabel,
+        })
+        .from(recipeSteps)
+        .where(inArray(recipeSteps.recipeId, rows.map((r) => r.recipeId)))
+        .orderBy(asc(recipeSteps.position))
+    : [];
+
+  const dishes = rows
+    .map((r) => ({
+      recipeId: r.recipeId,
+      title: r.title,
+      imageUrl: r.imageUrl,
+      role: isMealRole(r.role) ? r.role : ("side" as const),
+      servings: parseFloat(r.entryServings ?? r.recipeServings ?? "") || 4,
+      steps: stepRows
+        .filter((st) => st.recipeId === r.recipeId)
+        .map(({ instruction, durationMinutes, timerLabel }) => ({
+          instruction,
+          durationMinutes,
+          timerLabel,
+        })),
+    }))
+    .filter((d) => d.steps.length > 0)
+    .sort((a, b) => MEAL_ROLES.indexOf(a.role) - MEAL_ROLES.indexOf(b.role));
+
+  return { groupId: group.id, title: group.title, dishes };
 }
 
 // --- AI-generated plans -----------------------------------------------------

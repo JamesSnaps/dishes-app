@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition } fr
 import { saveCookAssistThread, deleteCookAssistThread } from "@/app/actions/cook-assist-threads";
 import { MarkdownContent } from "@/components/markdown-content";
 import { CookSwitcher } from "@/components/cook-switcher";
+import { MealDishTabs, MealTimersPanel } from "./meal-cook-bar";
+import type { MealCookDish } from "@/lib/services/meal-plan";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -57,6 +59,28 @@ interface Props {
   initialAssistThreads?: Array<{ id: string; stepNumber: number; messages: Array<{ role: "user" | "assistant"; content: string }> }>;
   /** Lowercased names already on the active shopping list and not ticked off. */
   onShoppingList?: string[];
+  /**
+   * Set when cooking a planned meal: every dish's cook starts with this one,
+   * and cooking mode shows them as tabs with their timers pooled.
+   */
+  meal?: { groupId: string; title: string; dishes: MealCookDish[] };
+}
+
+/** Steps with a duration become the cook's timers. */
+function timersFromSteps(
+  steps: { instruction: string; durationMinutes: number | null; timerLabel: string | null }[]
+) {
+  return steps.flatMap((step, i) =>
+    step.durationMinutes
+      ? [{
+          stepIndex: i,
+          stepNumber: i + 1,
+          totalSeconds: step.durationMinutes * 60,
+          label: step.timerLabel ?? null,
+          preview: step.instruction,
+        }]
+      : []
+  );
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -868,7 +892,7 @@ function ScalingControl({ originalServings, servingsUnit, currentServings, onCha
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CookingMode({ recipe, ingredients, steps, householdMembers = [], ownName = null, avgDuration, storageAvailable, initialServings, initialAssistThreads, onShoppingList = [] }: Props) {
+export function CookingMode({ recipe, ingredients, steps, householdMembers = [], ownName = null, avgDuration, storageAvailable, initialServings, initialAssistThreads, onShoppingList = [], meal }: Props) {
   const router = useRouter();
   const [isComplete, setIsComplete] = useState(false);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
@@ -882,6 +906,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     hydrated,
     timersFor,
     startSession,
+    startSessions,
     endSession,
     setStepIndex,
     setServings,
@@ -972,27 +997,55 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   // resumes in place; a different one → replaces it. Saving the post-cook
   // review revalidates the recipe while this route is still mounted, so never
   // let that refresh recreate the session after the user has pressed Done.
+  //
+  // Opened for a planned meal: the meal's other dishes start alongside, each
+  // with its own servings and timers, tagged so they show as one meal.
+  const mealStarted = useRef(false);
   useIsomorphicLayoutEffect(() => {
     if (!hydrated || steps.length === 0 || isComplete) return;
-    startSession({
+    const mealTag = meal
+      ? { groupId: meal.groupId, title: meal.title, order: meal.dishes.map((d) => d.recipeId) }
+      : undefined;
+    const own = {
       recipeId: recipe.id,
+      meal: mealTag,
       recipeTitle: recipe.title,
       recipeImageUrl: recipe.imageUrl ?? null,
       stepCount: steps.length,
       servings: defaultServings,
-      timers: steps.flatMap((step, i) =>
-        step.durationMinutes
-          ? [{
-              stepIndex: i,
-              stepNumber: i + 1,
-              totalSeconds: step.durationMinutes * 60,
-              label: step.timerLabel ?? null,
-              preview: step.instruction,
-            }]
-          : []
-      ),
-    });
-  }, [hydrated, recipe.id, steps, defaultServings, recipe.title, recipe.imageUrl, startSession, isComplete]);
+      timers: timersFromSteps(steps),
+    };
+    if (!meal || mealStarted.current) {
+      startSession(own);
+      return;
+    }
+    // Once per visit, and the `meal` param dropped from the URL afterwards: a
+    // refresh or revalidation must not restart a dish already finished. From
+    // here the sessions' own meal tag carries the meal.
+    mealStarted.current = true;
+    window.history.replaceState(window.history.state, "", `/recipes/${recipe.id}/cook`);
+    startSessions(
+      [
+        own,
+        ...meal.dishes
+          .filter((d) => d.recipeId !== recipe.id)
+          .map((d) => ({
+            recipeId: d.recipeId,
+            meal: mealTag,
+            recipeTitle: d.title,
+            recipeImageUrl: d.imageUrl,
+            stepCount: d.steps.length,
+            servings: d.servings,
+            timers: timersFromSteps(d.steps),
+          })),
+      ],
+      recipe.id
+    );
+  }, [hydrated, recipe.id, steps, defaultServings, recipe.title, recipe.imageUrl, startSession, startSessions, meal, isComplete]);
+
+  // Which meal this cook belongs to: from the URL on first open, from the
+  // session after switching dishes (tabs navigate without the meal param).
+  const mealGroupId = meal?.groupId ?? active?.meal?.groupId ?? null;
 
   const [stepHistory, setStepHistory] = useState<Map<number, Array<{ id?: string; messages: Message[] }>>>(() => {
     const map = new Map<number, Array<{ id?: string; messages: Message[] }>>();
@@ -1182,7 +1235,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            <CookSwitcher currentRecipeId={recipe.id} />
+            <CookSwitcher currentRecipeId={recipe.id} mealGroupId={mealGroupId} />
             <span className="text-sm font-semibold tabular-nums">
               {stepIndex + 1} / {steps.length}
             </span>
@@ -1198,6 +1251,8 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
             </Button>
           </div>
         </div>
+
+        {mealGroupId && <MealDishTabs groupId={mealGroupId} currentRecipeId={recipe.id} />}
 
         {/* Progress bar */}
         <div className="h-1 bg-border">
@@ -1609,6 +1664,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
 
           {/* Active timers panel */}
           <ActiveTimersPanel {...timerProps} />
+          {mealGroupId && <MealTimersPanel groupId={mealGroupId} currentRecipeId={recipe.id} />}
 
           {/* Up Next */}
           {!isLast && steps[stepIndex + 1] && (

@@ -9,20 +9,31 @@ import { getAverageDuration } from "@/lib/services/cook-history";
 import { getCookAssistThreads } from "@/app/actions/cook-assist-threads";
 import { isStorageAvailable } from "@/lib/storage";
 import { getActiveListItemNames } from "@/lib/services/shopping";
+import { getGroupForCooking } from "@/lib/services/meal-plan";
 
 export const metadata = { title: "Cooking Mode" };
 
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ servings?: string }>;
+  searchParams: Promise<{ servings?: string; meal?: string }>;
 }
 
 export default async function CookPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { servings: servingsParam } = await searchParams;
-  const initialServings = servingsParam ? parseFloat(servingsParam) : undefined;
+  const { servings: servingsParam, meal: mealParam } = await searchParams;
   const user = await getAutheliaUser();
   const { householdId, memberId } = await requireHousehold(user);
+
+  // Cooking a planned meal: every dish starts together. A meal that has gone
+  // (or doesn't contain this recipe) just means cooking this one on its own.
+  const meal = mealParam
+    ? await getGroupForCooking({ householdId, memberId }, mealParam)
+        .then((m) => (m.dishes.some((d) => d.recipeId === id) ? m : null))
+        .catch(() => null)
+    : null;
+  const initialServings = servingsParam
+    ? parseFloat(servingsParam)
+    : meal?.dishes.find((d) => d.recipeId === id)?.servings;
 
   const [recipe, ingredients, steps, members, avgDuration, assistThreads, onShoppingList] =
     await Promise.all([
@@ -68,6 +79,7 @@ export default async function CookPage({ params, searchParams }: Props) {
       initialServings={initialServings}
       initialAssistThreads={assistThreads}
       onShoppingList={onShoppingList}
+      meal={meal ?? undefined}
     />
   );
 }
