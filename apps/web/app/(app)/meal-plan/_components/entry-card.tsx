@@ -19,6 +19,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  UtensilsCrossed,
+  ListPlus,
 } from "lucide-react";
 import {
   Button,
@@ -52,7 +54,7 @@ import { useToast } from "@/hooks/use-toast";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
-const MEAL_LABELS: Record<MealType, string> = {
+export const MEAL_LABELS: Record<MealType, string> = {
   breakfast: "Breakfast",
   lunch: "Lunch",
   dinner: "Dinner",
@@ -60,7 +62,7 @@ const MEAL_LABELS: Record<MealType, string> = {
   snack: "Snack",
 };
 
-const MEAL_ICON: Record<MealType, React.ReactNode> = {
+export const MEAL_ICON: Record<MealType, React.ReactNode> = {
   breakfast: <Sunrise className="h-3.5 w-3.5" />,
   lunch: <Sun className="h-3.5 w-3.5" />,
   dinner: <Moon className="h-3.5 w-3.5" />,
@@ -68,7 +70,7 @@ const MEAL_ICON: Record<MealType, React.ReactNode> = {
   snack: <Cookie className="h-3.5 w-3.5" />,
 };
 
-const MEAL_COLOR: Record<MealType, string> = {
+export const MEAL_COLOR: Record<MealType, string> = {
   breakfast: "text-amber-500",
   lunch: "text-violet-500",
   dinner: "text-indigo-500",
@@ -76,7 +78,7 @@ const MEAL_COLOR: Record<MealType, string> = {
   snack: "text-muted-foreground",
 };
 
-const MEAL_BG: Record<MealType, string> = {
+export const MEAL_BG: Record<MealType, string> = {
   breakfast: "bg-amber-50 dark:bg-amber-950/20",
   lunch: "bg-violet-50 dark:bg-violet-950/20",
   dinner: "bg-indigo-50 dark:bg-indigo-950/20",
@@ -145,9 +147,26 @@ interface Props {
   dragListeners?: Record<string, unknown>;
   dragAttributes?: Record<string, unknown>;
   isDragging?: boolean;
+  /** Start a combined meal from this dish. */
+  onMakeMeal?: () => void;
+  /** Combined meals on the same day this dish could join. */
+  joinableGroups?: { id: string; title: string }[];
+  onJoinGroup?: (groupId: string) => void;
 }
 
-export function EntryCard({ entry, weekStartDate, mutations, onMove, dragNodeRef, dragListeners, dragAttributes, isDragging }: Props) {
+export function EntryCard({
+  entry,
+  weekStartDate,
+  mutations,
+  onMove,
+  dragNodeRef,
+  dragListeners,
+  dragAttributes,
+  isDragging,
+  onMakeMeal,
+  joinableGroups = [],
+  onJoinGroup,
+}: Props) {
   const router = useRouter();
   const sync = useSync();
   const [pending, startTransition] = useTransition();
@@ -381,6 +400,21 @@ export function EntryCard({ entry, weekStartDate, mutations, onMove, dragNodeRef
                 <Users className="h-4 w-4 mr-2" />
                 Change servings{isOverridden && ` (${effectiveServings})`}
               </DropdownMenuItem>
+
+              {onMakeMeal && (
+                <DropdownMenuItem onClick={onMakeMeal}>
+                  <UtensilsCrossed className="h-4 w-4 mr-2" />
+                  Make into a meal…
+                </DropdownMenuItem>
+              )}
+
+              {onJoinGroup &&
+                joinableGroups.map((g) => (
+                  <DropdownMenuItem key={g.id} onClick={() => onJoinGroup(g.id)}>
+                    <ListPlus className="h-4 w-4 mr-2" />
+                    <span className="truncate">Add to {g.title}</span>
+                  </DropdownMenuItem>
+                ))}
 
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>

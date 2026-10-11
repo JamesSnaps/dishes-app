@@ -29,13 +29,22 @@ import {
   generateShoppingFromWeek,
   moveMealEntry,
 } from "@/app/actions/meal-plan";
-import type { ShoppingAddResult } from "@/lib/services/meal-plan";
+import type {
+  AddGroupInput,
+  ShoppingAddResult,
+  UpdateGroupInput,
+} from "@/lib/services/meal-plan";
+import type { SavedMeal } from "@/lib/services/meals";
+import type { MealRole } from "@dishes/shared";
 import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
 import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { DinnerTimeChip, useWeekDinnerSchedule } from "./dinner-time-chip";
 import { EntryCard } from "./entry-card";
+import { MealGroupCard, groupTotalMinutes } from "./meal-group-card";
+import { CombineMealDialog } from "./combine-meal-dialog";
+import { usePlanWriter } from "./plan-writer";
 import { WeekNutritionPanel } from "./week-nutrition-card";
 import { summariseMeals } from "@/lib/meal-stats";
 import { suggestSwaps, type SwapSuggestion } from "@/lib/meal-swaps";
@@ -67,6 +76,9 @@ export type Entry = {
   mealType: MealType;
   entryServings: string | null;
   addedToShoppingListAt: Date | null;
+  /** The combined meal this recipe is part of, if any. */
+  groupId: string | null;
+  mealRole: MealRole | null;
   recipe: {
     id: string;
     title: string;
@@ -100,6 +112,15 @@ export type Recipe = {
   mealTypes?: string[];
 };
 
+/** A combined meal on the plan — several entries cooked and served together. */
+export type PlannedGroup = {
+  id: string;
+  title: string;
+  dayOfWeek: number;
+  mealType: MealType;
+  sourceMealId: string | null;
+};
+
 export type TopIngredient = {
   name: string;
   count: number;
@@ -115,20 +136,29 @@ export type MealPlanMutations = {
     weekStartDate: string,
     recipeId: string,
     dayOfWeek: number,
-    mealType: MealType
+    mealType: MealType,
+    opts?: { groupId?: string; mealRole?: MealRole }
   ) => void;
   /** `weekStartDate` moves the entry into that week; omit it to stay in this one. */
   moveEntry: (entryId: string, dayOfWeek: number, weekStartDate?: string) => void;
   changeEntryType: (entryId: string, mealType: MealType) => void;
   updateEntryServings: (entryId: string, servings: number | null) => void;
   deleteEntry: (entryId: string) => void;
+  replaceEntryRecipe: (entryId: string, recipeId: string) => void;
+  setEntryGroup: (entryId: string, groupId: string | null, mealRole?: MealRole) => void;
+  addGroup: (input: AddGroupInput) => void;
+  updateGroup: (groupId: string, input: UpdateGroupInput) => void;
+  deleteGroup: (groupId: string, keepRecipes: boolean) => void;
 };
 
 export interface WeekPlannerProps {
   weekStartDate: string;
   planId: string | null;
   entries: Entry[];
+  groups: PlannedGroup[];
   recipes: Recipe[];
+  /** The household's saved meals, for the picker's Meals tab. */
+  savedMeals: SavedMeal[];
   isCurrentWeek: boolean;
   todayDayIndex: number;
   topIngredients: TopIngredient[];
@@ -535,6 +565,9 @@ function DraggableMealEntry({
   onMove,
   suggestion,
   onShowSuggestion,
+  onMakeMeal,
+  joinableGroups,
+  onJoinGroup,
 }: {
   entry: Entry;
   weekStartDate: string;
@@ -542,6 +575,9 @@ function DraggableMealEntry({
   onMove: (entryId: string, dayOfWeek: number, weekStartDate?: string) => void;
   suggestion?: SwapSuggestion;
   onShowSuggestion: () => void;
+  onMakeMeal?: () => void;
+  joinableGroups?: { id: string; title: string }[];
+  onJoinGroup?: (groupId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: entry.id,
@@ -558,6 +594,9 @@ function DraggableMealEntry({
       dragListeners={listeners as Record<string, unknown>}
       dragAttributes={attributes as unknown as Record<string, unknown>}
       isDragging={isDragging}
+      onMakeMeal={onMakeMeal}
+      joinableGroups={joinableGroups}
+      onJoinGroup={onJoinGroup}
     />
   );
   if (!suggestion || isDragging) return card;
@@ -589,13 +628,81 @@ function DraggableMealEntry({
   );
 }
 
+// ─── Draggable combined meal ──────────────────────────────────────────────────
+
+function DraggableMealGroup(
+  props: Omit<
+    React.ComponentProps<typeof MealGroupCard>,
+    "dragNodeRef" | "dragListeners" | "dragAttributes" | "isDragging"
+  >
+) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `group:${props.group.id}`,
+  });
+  return (
+    <MealGroupCard
+      {...props}
+      dragNodeRef={setNodeRef}
+      dragListeners={listeners as Record<string, unknown>}
+      dragAttributes={attributes as unknown as Record<string, unknown>}
+      isDragging={isDragging}
+    />
+  );
+}
+
+/** What the selected day shows: a separate dish, or a combined meal of several. */
+type DayItem =
+  | { kind: "entry"; entry: Entry; mealType: MealType }
+  | { kind: "group"; group: PlannedGroup; entries: Entry[]; mealType: MealType };
+
+/**
+ * Entries whose group is present and in the same slot render inside it;
+ * anything else (group not synced yet, or the slots have drifted apart) falls
+ * back to a separate card, so a dish is never hidden.
+ */
+function groupEntries(entries: Entry[], groups: PlannedGroup[]) {
+  const byId = new Map(groups.map((g) => [g.id, g]));
+  const members = new Map<string, Entry[]>();
+  const loose: Entry[] = [];
+
+  for (const e of entries) {
+    const g = e.groupId ? byId.get(e.groupId) : undefined;
+    if (g && g.dayOfWeek === e.dayOfWeek && g.mealType === e.mealType) {
+      const list = members.get(g.id) ?? [];
+      list.push(e);
+      members.set(g.id, list);
+    } else {
+      loose.push(e);
+    }
+  }
+
+  const items: DayItem[] = [
+    ...loose.map((entry) => ({ kind: "entry" as const, entry, mealType: entry.mealType })),
+    ...groups
+      .filter((g) => members.has(g.id))
+      .map((group) => ({
+        kind: "group" as const,
+        group,
+        entries: members.get(group.id)!,
+        mealType: group.mealType,
+      })),
+  ];
+  return items;
+}
+
+function itemDay(item: DayItem): number {
+  return item.kind === "entry" ? item.entry.dayOfWeek : item.group.dayOfWeek;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function WeekPlanner({
   weekStartDate,
   planId,
   entries,
+  groups,
   recipes,
+  savedMeals,
   isCurrentWeek,
   todayDayIndex,
   topIngredients,
@@ -632,11 +739,22 @@ export function WeekPlanner({
 
   // Local entries for optimistic drag updates
   const [localEntries, setLocalEntries] = useState<Entry[]>(entries);
+  const [localGroups, setLocalGroups] = useState<PlannedGroup[]>(groups);
   const [activeDragEntry, setActiveDragEntry] = useState<Entry | null>(null);
+  const [activeDragGroup, setActiveDragGroup] = useState<{
+    group: PlannedGroup;
+    count: number;
+  } | null>(null);
+  const writer = usePlanWriter(mutations);
+  const [combineFrom, setCombineFrom] = useState<Entry | null>(null);
 
   useEffect(() => {
     setLocalEntries(entries);
   }, [entries]);
+
+  useEffect(() => {
+    setLocalGroups(groups);
+  }, [groups]);
 
   useEffect(() => {
     setSelectedDay(
@@ -722,7 +840,7 @@ export function WeekPlanner({
   }
   function handleTouchEnd(e: React.TouchEvent) {
     // Don't navigate while a drag is in progress
-    if (activeDragEntry) return;
+    if (activeDragEntry || activeDragGroup) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
@@ -745,7 +863,17 @@ export function WeekPlanner({
   );
 
   function handleDragStart(event: DragStartEvent) {
-    const entry = localEntries.find((e) => e.id === event.active.id);
+    const id = String(event.active.id);
+    if (id.startsWith("group:")) {
+      const group = localGroups.find((g) => `group:${g.id}` === id);
+      setActiveDragGroup(
+        group
+          ? { group, count: localEntries.filter((e) => e.groupId === group.id).length }
+          : null
+      );
+      return;
+    }
+    const entry = localEntries.find((e) => e.id === id);
     setActiveDragEntry(entry ?? null);
   }
 
@@ -765,7 +893,10 @@ export function WeekPlanner({
     setLocalEntries((prev) =>
       crossWeek
         ? prev.filter((e) => e.id !== entryId)
-        : prev.map((e) => (e.id === entryId ? { ...e, dayOfWeek: newDay } : e))
+        : // A dish moved out of its combined meal leaves it (the server does the same).
+          prev.map((e) =>
+            e.id === entryId ? { ...e, dayOfWeek: newDay, groupId: null, mealRole: null } : e
+          )
     );
 
     const week = crossWeek ? targetWeek : undefined;
@@ -793,11 +924,31 @@ export function WeekPlanner({
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveDragEntry(null);
+    setActiveDragGroup(null);
     const { active, over } = event;
     if (!over) return;
 
     const entryId = active.id as string;
     const overId = over.id as string;
+
+    // A whole combined meal: the group and every dish in it move together.
+    // Within the week only — the week-edge drop targets take single dishes.
+    if (entryId.startsWith("group:")) {
+      if (!overId.startsWith("day-")) return;
+      const newDay = parseInt(overId.replace("day-", ""), 10);
+      const groupId = entryId.slice("group:".length);
+      const group = localGroups.find((g) => g.id === groupId);
+      if (!group || group.dayOfWeek === newDay) return;
+      setLocalGroups((prev) =>
+        prev.map((g) => (g.id === groupId ? { ...g, dayOfWeek: newDay } : g))
+      );
+      setLocalEntries((prev) =>
+        prev.map((e) => (e.groupId === groupId ? { ...e, dayOfWeek: newDay } : e))
+      );
+      setSelectedDay(newDay);
+      writer.updateGroup(groupId, { dayOfWeek: newDay });
+      return;
+    }
 
     if (overId === "week-next") return moveEntry(entryId, 0, nextWeek);
     if (overId === "week-prev") return moveEntry(entryId, 6, prevWeek);
@@ -811,9 +962,17 @@ export function WeekPlanner({
     moveEntry(entryId, newDay);
   }
 
-  const totalMeals = localEntries.length;
-  const totalTime = localEntries.reduce(
-    (sum, e) => sum + (e.recipe.prepTimeMinutes ?? 0) + (e.recipe.cookTimeMinutes ?? 0), 0
+  // A combined meal counts as one meal, and its time is its longest dish —
+  // the dishes cook alongside each other.
+  const dayItems = useMemo(() => groupEntries(localEntries, localGroups), [localEntries, localGroups]);
+  const totalMeals = dayItems.length;
+  const totalTime = dayItems.reduce(
+    (sum, item) =>
+      sum +
+      (item.kind === "group"
+        ? groupTotalMinutes(item.entries)
+        : (item.entry.recipe.prepTimeMinutes ?? 0) + (item.entry.recipe.cookTimeMinutes ?? 0)),
+    0
   );
 
   // Nutrition summary and swap suggestions, recomputed as entries move.
@@ -875,9 +1034,44 @@ export function WeekPlanner({
     );
   }
 
-  const selectedDayEntries = localEntries
-    .filter((e) => e.dayOfWeek === selectedDay)
+  const selectedDayItems = dayItems
+    .filter((item) => itemDay(item) === selectedDay)
     .sort((a, b) => MEAL_TYPE_ORDER.indexOf(a.mealType) - MEAL_TYPE_ORDER.indexOf(b.mealType));
+  const selectedDayGroups = selectedDayItems.flatMap((i) => (i.kind === "group" ? [i.group] : []));
+  const selectedDayLoose = selectedDayItems.flatMap((i) => (i.kind === "entry" ? [i.entry] : []));
+  const savedMealIds = useMemo(() => new Set(savedMeals.map((m) => m.id)), [savedMeals]);
+
+  /**
+   * Recipes likely to fill a role, to list first in the add/swap picker: ones
+   * already used in that role in a saved meal or on the plan, plus recipes
+   * tagged with the role ("side", "sauce"…).
+   */
+  const preferredFor = useCallback(
+    (role: MealRole): string[] => {
+      const ids = new Set<string>();
+      for (const m of savedMeals) {
+        for (const c of m.components) if (c.role === role) ids.add(c.recipe.id);
+      }
+      for (const e of localEntries) if (e.mealRole === role) ids.add(e.recipe.id);
+      const tagWords = role === "other" ? ["extra", "extras"] : [role, `${role}s`];
+      for (const r of recipes) {
+        if (r.tags.some((t) => tagWords.includes(t.toLowerCase()))) ids.add(r.id);
+      }
+      return [...ids];
+    },
+    [savedMeals, localEntries, recipes]
+  );
+
+  function handleAddSavedMeal(meal: SavedMeal, mealType: MealType) {
+    writer.addGroup({
+      weekStartDate,
+      title: meal.title,
+      dayOfWeek: selectedDay,
+      mealType,
+      sourceMealId: meal.id,
+      components: meal.components.map((c) => ({ recipeId: c.recipe.id, role: c.role })),
+    });
+  }
 
   const selectedDayLabel = formatDayHeading(weekStartDate, selectedDay);
   const isToday = isCurrentWeek && todayDayIndex === selectedDay;
@@ -940,8 +1134,13 @@ export function WeekPlanner({
     });
   }
 
-  // Meals not yet pushed to the shopping list — generation only adds these
-  const pendingShoppingCount = localEntries.filter((e) => !e.addedToShoppingListAt).length;
+  // Meals not yet pushed to the shopping list — generation only adds these. A
+  // combined meal counts once, while any of its dishes is still to add.
+  const pendingShoppingCount = dayItems.filter((item) =>
+    item.kind === "group"
+      ? item.entries.some((e) => !e.addedToShoppingListAt)
+      : !item.entry.addedToShoppingListAt
+  ).length;
 
   const weekTitle = isCurrentWeek ? "This Week" : formatWeekRange(weekStartDate);
 
@@ -1004,6 +1203,8 @@ export function WeekPlanner({
                 dayLabel={selectedDayLabel}
                 recipes={recipes}
                 onAdd={mutations?.addEntry}
+                savedMeals={savedMeals}
+                onAddSavedMeal={handleAddSavedMeal}
                 trigger={
                   <button
                     className="flex-shrink-0 h-9 w-9 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md transition-colors ml-1"
@@ -1029,7 +1230,7 @@ export function WeekPlanner({
           {/* ── Day strip — droppable chips ── */}
           <div className="grid grid-cols-7 gap-1.5 mb-5">
             {Array.from({ length: 7 }, (_, i) => {
-              const mealCount = localEntries.filter((e) => e.dayOfWeek === i).length;
+              const mealCount = dayItems.filter((item) => itemDay(item) === i).length;
               return (
                 <DroppableDayChip
                   key={`${weekStartDate}-${i}`}
@@ -1039,7 +1240,7 @@ export function WeekPlanner({
                   todayDayIndex={todayDayIndex}
                   isSelected={selectedDay === i}
                   mealCount={mealCount}
-                  isDragActive={activeDragEntry !== null}
+                  isDragActive={activeDragEntry !== null || activeDragGroup !== null}
                   hasSuggestion={suggestions.some((sg) => sg.dayOfWeek === i)}
                   onClick={() => setSelectedDay(i)}
                 />
@@ -1122,19 +1323,37 @@ export function WeekPlanner({
               )}
             </div>
 
-            {selectedDayEntries.length > 0 ? (
+            {selectedDayItems.length > 0 ? (
               <ul className="space-y-3 mb-4">
-                {selectedDayEntries.map((entry) => (
-                  <DraggableMealEntry
-                    key={entry.id}
-                    entry={entry}
-                    weekStartDate={weekStartDate}
-                    mutations={mutations}
-                    onMove={moveEntry}
-                    suggestion={suggestionByEntry.get(entry.id)}
-                    onShowSuggestion={showSuggestions}
-                  />
-                ))}
+                {selectedDayItems.map((item) =>
+                  item.kind === "group" ? (
+                    <DraggableMealGroup
+                      key={item.group.id}
+                      group={item.group}
+                      entries={item.entries}
+                      weekStartDate={weekStartDate}
+                      recipes={recipes}
+                      writer={writer}
+                      preferredFor={preferredFor}
+                      hasSourceMeal={
+                        !!item.group.sourceMealId && savedMealIds.has(item.group.sourceMealId)
+                      }
+                    />
+                  ) : (
+                    <DraggableMealEntry
+                      key={item.entry.id}
+                      entry={item.entry}
+                      weekStartDate={weekStartDate}
+                      mutations={mutations}
+                      onMove={moveEntry}
+                      suggestion={suggestionByEntry.get(item.entry.id)}
+                      onShowSuggestion={showSuggestions}
+                      onMakeMeal={() => setCombineFrom(item.entry)}
+                      joinableGroups={selectedDayGroups}
+                      onJoinGroup={(groupId) => writer.setEntryGroup(item.entry.id, groupId, "side")}
+                    />
+                  )
+                )}
               </ul>
             ) : (
               <div className="rounded-xl border border-dashed bg-muted/20 py-10 flex flex-col items-center gap-2 mb-4 text-muted-foreground">
@@ -1153,14 +1372,42 @@ export function WeekPlanner({
                 dayLabel={selectedDayLabel}
                 recipes={recipes}
                 onAdd={mutations?.addEntry}
+                savedMeals={savedMeals}
+                onAddSavedMeal={handleAddSavedMeal}
               />
             )}
           </div>
         </div>
 
+        {combineFrom && (
+          <CombineMealDialog
+            open
+            onOpenChange={(o) => !o && setCombineFrom(null)}
+            anchor={combineFrom}
+            candidates={selectedDayLoose.filter((e) => e.id !== combineFrom.id)}
+            weekStartDate={weekStartDate}
+            writer={writer}
+          />
+        )}
+
         {/* Drag overlay — floating card shown while dragging */}
         <DragOverlay dropAnimation={null}>
-          {activeDragEntry ? (
+          {activeDragGroup ? (
+            <div className="rounded-xl border-2 border-orange-400 bg-gradient-to-br from-orange-50 to-rose-50 dark:from-orange-950/60 dark:to-rose-950/40 shadow-2xl px-4 py-3 flex items-center gap-3 w-72 cursor-grabbing rotate-1">
+              <span
+                className="flex-shrink-0 h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: MEAL_TYPE_COLOR[activeDragGroup.group.mealType] }}
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  {OVERLAY_MEAL_LABEL[activeDragGroup.group.mealType]} · {activeDragGroup.count} dishes
+                </p>
+                <p className="font-bold text-sm leading-snug line-clamp-1">
+                  {activeDragGroup.group.title}
+                </p>
+              </div>
+            </div>
+          ) : activeDragEntry ? (
             <div className="rounded-xl border-2 border-orange-400 bg-card shadow-2xl px-4 py-3 flex items-center gap-3 w-72 cursor-grabbing rotate-1">
               <span
                 className="flex-shrink-0 h-2.5 w-2.5 rounded-full"

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withIntegrationAuth } from "@/lib/integration-auth";
 import { db } from "@/lib/db";
-import { mealPlans, mealPlanEntries, recipes } from "@dishes/db/schema";
+import { mealPlans, mealPlanEntries, mealPlanGroups, recipes } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
+import { withMealGroup } from "@/lib/integration-meal-groups";
 
 // Returns all meal plan entries for the current ISO week.
 // Optional ?week=YYYY-MM-DD query param to fetch a specific week (Monday date).
@@ -42,6 +43,9 @@ export const GET = withIntegrationAuth(
         mealType: mealPlanEntries.mealType,
         servings: mealPlanEntries.servings,
         notes: mealPlanEntries.notes,
+        groupId: mealPlanGroups.id,
+        groupTitle: mealPlanGroups.title,
+        mealRole: mealPlanEntries.mealRole,
         recipe: {
           id: recipes.id,
           title: recipes.title,
@@ -53,8 +57,9 @@ export const GET = withIntegrationAuth(
       })
       .from(mealPlanEntries)
       .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
+      .leftJoin(mealPlanGroups, eq(mealPlanEntries.groupId, mealPlanGroups.id))
       .where(eq(mealPlanEntries.mealPlanId, plan.id));
 
-    return NextResponse.json({ weekStartDate, planStatus: plan.status, entries });
+    return NextResponse.json({ weekStartDate, planStatus: plan.status, entries: entries.map(withMealGroup) });
   }
 );

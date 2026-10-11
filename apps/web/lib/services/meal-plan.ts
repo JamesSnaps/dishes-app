@@ -9,9 +9,12 @@
  */
 
 import { db } from "@/lib/db";
+import { runInTransaction } from "@dishes/db";
 import {
   mealPlans,
   mealPlanEntries,
+  mealPlanGroups,
+  meals,
   recipes,
   recipeIngredients,
   shoppingListItems,
@@ -19,7 +22,7 @@ import {
   householdMembers,
 } from "@dishes/db/schema";
 import { eq, and, asc, inArray, isNull, sql } from "drizzle-orm";
-import { MEAL_TYPES, type MealType } from "@dishes/shared";
+import { MEAL_ROLES, MEAL_TYPES, isMealRole, type MealRole, type MealType } from "@dishes/shared";
 import { notifyHousehold } from "@/lib/push";
 import {
   getPantryExclusions,
@@ -46,6 +49,13 @@ export class MealPlanEntryNotFoundError extends Error {
   constructor() {
     super("Meal plan entry not found");
     this.name = "MealPlanEntryNotFoundError";
+  }
+}
+
+export class MealPlanGroupNotFoundError extends Error {
+  constructor() {
+    super("Meal not found");
+    this.name = "MealPlanGroupNotFoundError";
   }
 }
 
@@ -83,6 +93,25 @@ export function assertMealType(mealType: string): asserts mealType is MealType {
   if (!(MEAL_TYPES as readonly string[]).includes(mealType)) {
     throw new MealPlanValidationError("Invalid meal type");
   }
+}
+
+export function assertMealRole(role: string): asserts role is MealRole {
+  if (!isMealRole(role)) {
+    throw new MealPlanValidationError("Invalid meal role");
+  }
+}
+
+function assertServings(servings: number | null | undefined): void {
+  if (servings !== undefined && servings !== null && (servings <= 0 || !isFinite(servings))) {
+    throw new MealPlanValidationError("servings must be a positive number or null");
+  }
+}
+
+function assertGroupTitle(title: string): string {
+  const trimmed = title.trim();
+  if (!trimmed) throw new MealPlanValidationError("A meal needs a name");
+  if (trimmed.length > 200) throw new MealPlanValidationError("Meal name is too long");
+  return trimmed;
 }
 
 // --- Servings from who's eating --------------------------------------------
@@ -156,7 +185,13 @@ async function getOrCreatePlan(ctx: HouseholdContext, weekStartDate: string) {
 /** Single query verifying the entry exists and belongs to this household. */
 async function assertEntryOwned(entryId: string, householdId: string) {
   const [entry] = await db
-    .select({ id: mealPlanEntries.id })
+    .select({
+      id: mealPlanEntries.id,
+      mealPlanId: mealPlanEntries.mealPlanId,
+      groupId: mealPlanEntries.groupId,
+      dayOfWeek: mealPlanEntries.dayOfWeek,
+      mealType: mealPlanEntries.mealType,
+    })
     .from(mealPlanEntries)
     .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
     .where(
@@ -166,6 +201,55 @@ async function assertEntryOwned(entryId: string, householdId: string) {
 
   if (!entry) throw new MealPlanEntryNotFoundError();
   return entry;
+}
+
+/** A planned meal group, verified through its plan's household. */
+async function assertGroupOwned(groupId: string, householdId: string) {
+  const [group] = await db
+    .select({
+      id: mealPlanGroups.id,
+      mealPlanId: mealPlanGroups.mealPlanId,
+      title: mealPlanGroups.title,
+      dayOfWeek: mealPlanGroups.dayOfWeek,
+      mealType: mealPlanGroups.mealType,
+      sourceMealId: mealPlanGroups.sourceMealId,
+    })
+    .from(mealPlanGroups)
+    .innerJoin(mealPlans, eq(mealPlanGroups.mealPlanId, mealPlans.id))
+    .where(and(eq(mealPlanGroups.id, groupId), eq(mealPlans.householdId, householdId)))
+    .limit(1);
+
+  if (!group) throw new MealPlanGroupNotFoundError();
+  return group;
+}
+
+/**
+ * A group with no recipes left is meaningless — drop it. Called after anything
+ * that takes an entry out of a group (removal, detach, moving it elsewhere).
+ */
+async function deleteGroupIfEmpty(groupId: string | null): Promise<void> {
+  if (!groupId) return;
+  const [remaining] = await db
+    .select({ id: mealPlanEntries.id })
+    .from(mealPlanEntries)
+    .where(eq(mealPlanEntries.groupId, groupId))
+    .limit(1);
+  if (!remaining) {
+    await db.delete(mealPlanGroups).where(eq(mealPlanGroups.id, groupId));
+  }
+}
+
+/** Every recipe id given must belong to this household. */
+async function assertRecipesOwned(householdId: string, recipeIds: string[]): Promise<void> {
+  const unique = [...new Set(recipeIds)];
+  if (!unique.length) return;
+  const rows = await db
+    .select({ id: recipes.id })
+    .from(recipes)
+    .where(and(eq(recipes.householdId, householdId), inArray(recipes.id, unique)));
+  if (rows.length !== unique.length) {
+    throw new MealPlanValidationError("Recipe not found");
+  }
 }
 
 async function assertPlanOwned(mealPlanId: string, householdId: string) {
@@ -202,7 +286,19 @@ export async function getWeek(ctx: HouseholdContext, weekStartDate: string) {
     )
     .limit(1);
 
-  if (!plan) return { plan: null, entries: [] };
+  if (!plan) return { plan: null, entries: [], groups: [] };
+
+  const groups = await db
+    .select({
+      id: mealPlanGroups.id,
+      title: mealPlanGroups.title,
+      dayOfWeek: mealPlanGroups.dayOfWeek,
+      mealType: mealPlanGroups.mealType,
+      sourceMealId: mealPlanGroups.sourceMealId,
+    })
+    .from(mealPlanGroups)
+    .where(eq(mealPlanGroups.mealPlanId, plan.id))
+    .orderBy(asc(mealPlanGroups.dayOfWeek), asc(mealPlanGroups.createdAt));
 
   const entries = await db
     .select({
@@ -212,6 +308,8 @@ export async function getWeek(ctx: HouseholdContext, weekStartDate: string) {
       servings: mealPlanEntries.servings,
       notes: mealPlanEntries.notes,
       addedToShoppingListAt: mealPlanEntries.addedToShoppingListAt,
+      groupId: mealPlanEntries.groupId,
+      mealRole: mealPlanEntries.mealRole,
       recipe: {
         id: recipes.id,
         title: recipes.title,
@@ -229,7 +327,7 @@ export async function getWeek(ctx: HouseholdContext, weekStartDate: string) {
     .where(eq(mealPlanEntries.mealPlanId, plan.id))
     .orderBy(asc(mealPlanEntries.dayOfWeek));
 
-  return { plan, entries };
+  return { plan, entries, groups };
 }
 
 /** Flat day/meal/title triples — what the AI concierge needs to avoid clashes. */
@@ -256,39 +354,50 @@ export async function getWeekMealSlots(
 
 // --- Entry writes -----------------------------------------------------------
 
+export type AddEntryOptions = {
+  /** Add the recipe to this planned meal; its slot wins over dayOfWeek/mealType. */
+  groupId?: string | null;
+  mealRole?: MealRole | null;
+};
+
 export async function addEntry(
   ctx: HouseholdContext,
   weekStartDate: string,
   recipeId: string,
   dayOfWeek: number,
   mealType: MealType,
-  servings?: number | null
+  servings?: number | null,
+  opts: AddEntryOptions = {}
 ): Promise<string> {
   assertDayOfWeek(dayOfWeek);
   assertMealType(mealType);
+  assertServings(servings);
+  if (opts.mealRole) assertMealRole(opts.mealRole);
 
-  if (servings !== undefined && servings !== null && (servings <= 0 || !isFinite(servings))) {
-    throw new MealPlanValidationError("servings must be a positive number or null");
-  }
-
-  const [recipe] = await db
-    .select({ id: recipes.id })
-    .from(recipes)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, ctx.householdId)))
-    .limit(1);
-
-  if (!recipe) throw new MealPlanValidationError("Recipe not found");
+  await assertRecipesOwned(ctx.householdId, [recipeId]);
 
   const plan = await getOrCreatePlan(ctx, weekStartDate);
+
+  // A group's recipes always share its slot, whatever the caller passed.
+  let slot = { dayOfWeek, mealType };
+  if (opts.groupId) {
+    const group = await assertGroupOwned(opts.groupId, ctx.householdId);
+    if (group.mealPlanId !== plan.id) {
+      throw new MealPlanValidationError("That meal is in a different week");
+    }
+    slot = { dayOfWeek: group.dayOfWeek, mealType: group.mealType };
+  }
 
   const [entry] = await db
     .insert(mealPlanEntries)
     .values({
       mealPlanId: plan.id,
       recipeId,
-      dayOfWeek,
-      mealType,
+      dayOfWeek: slot.dayOfWeek,
+      mealType: slot.mealType,
       servings: servings != null ? String(servings) : null,
+      groupId: opts.groupId ?? null,
+      mealRole: opts.groupId ? (opts.mealRole ?? "side") : null,
     })
     .returning({ id: mealPlanEntries.id });
 
@@ -299,6 +408,10 @@ export async function addEntry(
  * Move an entry to another day. With `weekStartDate` it can land in a different
  * week too (Sunday → next Monday): the entry is re-parented onto that week's
  * plan, which is created if the week has never been planned.
+ *
+ * Moving one recipe of a combined meal to another day or week takes it out of
+ * the meal — the group's slot is the meal's, and a recipe somewhere else is no
+ * longer part of it. Moving the whole meal is `updateGroup`.
  */
 export async function moveEntry(
   ctx: HouseholdContext,
@@ -308,15 +421,25 @@ export async function moveEntry(
 ): Promise<void> {
   assertDayOfWeek(newDayOfWeek);
   if (weekStartDate !== undefined) assertWeekStart(weekStartDate);
-  await assertEntryOwned(entryId, ctx.householdId);
+  const entry = await assertEntryOwned(entryId, ctx.householdId);
 
-  const mealPlanId =
-    weekStartDate !== undefined ? (await getOrCreatePlan(ctx, weekStartDate)).id : undefined;
+  await runInTransaction(async () => {
+    const mealPlanId =
+      weekStartDate !== undefined ? (await getOrCreatePlan(ctx, weekStartDate)).id : undefined;
+    const changesPlan = mealPlanId !== undefined && mealPlanId !== entry.mealPlanId;
+    const leavesGroup =
+      entry.groupId !== null && (entry.dayOfWeek !== newDayOfWeek || changesPlan);
 
-  await db
-    .update(mealPlanEntries)
-    .set({ dayOfWeek: newDayOfWeek, ...(mealPlanId ? { mealPlanId } : {}) })
-    .where(eq(mealPlanEntries.id, entryId));
+    await db
+      .update(mealPlanEntries)
+      .set({
+        dayOfWeek: newDayOfWeek,
+        ...(mealPlanId ? { mealPlanId } : {}),
+        ...(leavesGroup ? { groupId: null, mealRole: null } : {}),
+      })
+      .where(eq(mealPlanEntries.id, entryId));
+    if (leavesGroup) await deleteGroupIfEmpty(entry.groupId);
+  });
 }
 
 export async function changeEntryType(
@@ -325,21 +448,32 @@ export async function changeEntryType(
   newMealType: string
 ): Promise<void> {
   assertMealType(newMealType);
-  await assertEntryOwned(entryId, ctx.householdId);
+  const entry = await assertEntryOwned(entryId, ctx.householdId);
+  const leavesGroup = entry.groupId !== null && entry.mealType !== newMealType;
 
-  await db
-    .update(mealPlanEntries)
-    .set({ mealType: newMealType })
-    .where(eq(mealPlanEntries.id, entryId));
+  await runInTransaction(async () => {
+    await db
+      .update(mealPlanEntries)
+      .set(
+        leavesGroup
+          ? { mealType: newMealType, groupId: null, mealRole: null }
+          : { mealType: newMealType }
+      )
+      .where(eq(mealPlanEntries.id, entryId));
+    if (leavesGroup) await deleteGroupIfEmpty(entry.groupId);
+  });
 }
 
 export async function removeEntry(
   ctx: HouseholdContext,
   entryId: string
 ): Promise<void> {
-  await assertEntryOwned(entryId, ctx.householdId);
+  const entry = await assertEntryOwned(entryId, ctx.householdId);
 
-  await db.delete(mealPlanEntries).where(eq(mealPlanEntries.id, entryId));
+  await runInTransaction(async () => {
+    await db.delete(mealPlanEntries).where(eq(mealPlanEntries.id, entryId));
+    await deleteGroupIfEmpty(entry.groupId);
+  });
 }
 
 export async function updateEntryServings(
@@ -347,9 +481,7 @@ export async function updateEntryServings(
   entryId: string,
   servings: number | null
 ): Promise<void> {
-  if (servings !== null && (servings <= 0 || !isFinite(servings))) {
-    throw new MealPlanValidationError("servings must be a positive number or null");
-  }
+  assertServings(servings);
 
   await assertEntryOwned(entryId, ctx.householdId);
 
@@ -357,6 +489,278 @@ export async function updateEntryServings(
     .update(mealPlanEntries)
     .set({ servings: servings !== null ? String(servings) : null })
     .where(eq(mealPlanEntries.id, entryId));
+}
+
+/**
+ * Swap the recipe on an entry in place — same slot, same meal and role, same
+ * headcount. The new recipe has not been shopped for, so the flag is cleared.
+ */
+export async function replaceEntryRecipe(
+  ctx: HouseholdContext,
+  entryId: string,
+  recipeId: string
+): Promise<void> {
+  await assertEntryOwned(entryId, ctx.householdId);
+  await assertRecipesOwned(ctx.householdId, [recipeId]);
+
+  await db
+    .update(mealPlanEntries)
+    .set({ recipeId, addedToShoppingListAt: null })
+    .where(eq(mealPlanEntries.id, entryId));
+}
+
+/**
+ * Put an entry into a planned meal (taking that meal's slot), change its role
+ * within one, or take it out (`groupId: null`).
+ */
+export async function setEntryGroup(
+  ctx: HouseholdContext,
+  entryId: string,
+  groupId: string | null,
+  mealRole?: MealRole | null
+): Promise<void> {
+  if (mealRole) assertMealRole(mealRole);
+  const entry = await assertEntryOwned(entryId, ctx.householdId);
+
+  await runInTransaction(async () => {
+    if (groupId === null) {
+      await db
+        .update(mealPlanEntries)
+        .set({ groupId: null, mealRole: null })
+        .where(eq(mealPlanEntries.id, entryId));
+      await deleteGroupIfEmpty(entry.groupId);
+      return;
+    }
+
+    const group = await assertGroupOwned(groupId, ctx.householdId);
+    if (group.mealPlanId !== entry.mealPlanId) {
+      throw new MealPlanValidationError("That meal is in a different week");
+    }
+
+    await db
+      .update(mealPlanEntries)
+      .set({
+        groupId,
+        mealRole: mealRole ?? (entry.groupId === groupId ? undefined : "side"),
+        dayOfWeek: group.dayOfWeek,
+        mealType: group.mealType,
+      })
+      .where(eq(mealPlanEntries.id, entryId));
+
+    if (entry.groupId !== groupId) await deleteGroupIfEmpty(entry.groupId);
+  });
+}
+
+// --- Planned meal groups ----------------------------------------------------
+
+export type GroupComponentInput = { recipeId: string; role: MealRole };
+
+export type AddGroupInput = {
+  weekStartDate: string;
+  title: string;
+  dayOfWeek: number;
+  mealType: MealType;
+  /** The saved meal this came from, if any. Must belong to the household. */
+  sourceMealId?: string | null;
+  /** Applied to every new entry; null = each recipe's own base servings. */
+  servings?: number | null;
+  /** New recipes to add as part of the meal. */
+  components?: GroupComponentInput[];
+  /** Entries already on the plan to pull into the meal (same week). */
+  entries?: { entryId: string; role: MealRole }[];
+};
+
+/**
+ * Create a combined meal on the plan: the group row, any new entries for its
+ * components, and any existing entries pulled in — atomically, so a failure
+ * never leaves half a meal behind.
+ */
+export async function addGroup(ctx: HouseholdContext, input: AddGroupInput): Promise<string> {
+  assertDayOfWeek(input.dayOfWeek);
+  assertMealType(input.mealType);
+  assertServings(input.servings);
+  const title = assertGroupTitle(input.title);
+
+  const components = input.components ?? [];
+  const pulledIn = new Map((input.entries ?? []).map((e) => [e.entryId, e.role]));
+  const entryIds = [...pulledIn.keys()];
+  for (const c of components) assertMealRole(c.role);
+  for (const role of pulledIn.values()) assertMealRole(role);
+  if (!components.length && !entryIds.length) {
+    throw new MealPlanValidationError("A meal needs at least one recipe");
+  }
+
+  await assertRecipesOwned(ctx.householdId, components.map((c) => c.recipeId));
+
+  if (input.sourceMealId) {
+    const [meal] = await db
+      .select({ id: meals.id })
+      .from(meals)
+      .where(and(eq(meals.id, input.sourceMealId), eq(meals.householdId, ctx.householdId)))
+      .limit(1);
+    if (!meal) throw new MealPlanValidationError("Saved meal not found");
+  }
+
+  return runInTransaction(async () => {
+    const plan = await getOrCreatePlan(ctx, input.weekStartDate);
+
+    const existing = entryIds.length
+      ? await db
+          .select({ id: mealPlanEntries.id, groupId: mealPlanEntries.groupId })
+          .from(mealPlanEntries)
+          .where(
+            and(
+              eq(mealPlanEntries.mealPlanId, plan.id),
+              inArray(mealPlanEntries.id, entryIds)
+            )
+          )
+      : [];
+    if (existing.length !== entryIds.length) {
+      throw new MealPlanValidationError("Meal plan entry not found");
+    }
+
+    const [group] = await db
+      .insert(mealPlanGroups)
+      .values({
+        mealPlanId: plan.id,
+        title,
+        dayOfWeek: input.dayOfWeek,
+        mealType: input.mealType,
+        sourceMealId: input.sourceMealId ?? null,
+      })
+      .returning({ id: mealPlanGroups.id });
+
+    if (components.length) {
+      await db.insert(mealPlanEntries).values(
+        components.map((c) => ({
+          mealPlanId: plan.id,
+          recipeId: c.recipeId,
+          dayOfWeek: input.dayOfWeek,
+          mealType: input.mealType,
+          servings: input.servings != null ? String(input.servings) : null,
+          groupId: group!.id,
+          mealRole: c.role,
+        }))
+      );
+    }
+
+    if (existing.length) {
+      for (const [entryId, role] of pulledIn) {
+        await db
+          .update(mealPlanEntries)
+          .set({
+            groupId: group!.id,
+            mealRole: role,
+            dayOfWeek: input.dayOfWeek,
+            mealType: input.mealType,
+          })
+          .where(eq(mealPlanEntries.id, entryId));
+      }
+      for (const oldGroupId of new Set(existing.map((e) => e.groupId))) {
+        await deleteGroupIfEmpty(oldGroupId);
+      }
+    }
+
+    return group!.id;
+  });
+}
+
+export type UpdateGroupInput = {
+  title?: string;
+  dayOfWeek?: number;
+  mealType?: MealType;
+  /** Set on every recipe in the meal. */
+  servings?: number | null;
+};
+
+/** Rename, move, re-slot or re-serve a whole meal; its entries follow. */
+export async function updateGroup(
+  ctx: HouseholdContext,
+  groupId: string,
+  input: UpdateGroupInput
+): Promise<void> {
+  if (input.dayOfWeek !== undefined) assertDayOfWeek(input.dayOfWeek);
+  if (input.mealType !== undefined) assertMealType(input.mealType);
+  assertServings(input.servings);
+  const title = input.title !== undefined ? assertGroupTitle(input.title) : undefined;
+
+  await assertGroupOwned(groupId, ctx.householdId);
+
+  await runInTransaction(async () => {
+    const groupSet = {
+      ...(title !== undefined && { title }),
+      ...(input.dayOfWeek !== undefined && { dayOfWeek: input.dayOfWeek }),
+      ...(input.mealType !== undefined && { mealType: input.mealType }),
+    };
+    if (Object.keys(groupSet).length) {
+      await db.update(mealPlanGroups).set(groupSet).where(eq(mealPlanGroups.id, groupId));
+    }
+
+    const entrySet = {
+      ...(input.dayOfWeek !== undefined && { dayOfWeek: input.dayOfWeek }),
+      ...(input.mealType !== undefined && { mealType: input.mealType }),
+      ...(input.servings !== undefined && {
+        servings: input.servings !== null ? String(input.servings) : null,
+      }),
+    };
+    if (Object.keys(entrySet).length) {
+      await db.update(mealPlanEntries).set(entrySet).where(eq(mealPlanEntries.groupId, groupId));
+    }
+  });
+}
+
+/**
+ * Remove a meal from the plan. `keepRecipes` ungroups instead — the recipes
+ * stay on the plan as separate meals and only the grouping goes.
+ */
+export async function removeGroup(
+  ctx: HouseholdContext,
+  groupId: string,
+  opts: { keepRecipes?: boolean } = {}
+): Promise<void> {
+  await assertGroupOwned(groupId, ctx.householdId);
+
+  await runInTransaction(async () => {
+    if (opts.keepRecipes) {
+      await db
+        .update(mealPlanEntries)
+        .set({ groupId: null, mealRole: null })
+        .where(eq(mealPlanEntries.groupId, groupId));
+    }
+    // Entries still pointing here cascade with it.
+    await db.delete(mealPlanGroups).where(eq(mealPlanGroups.id, groupId));
+  });
+}
+
+/** Link (or unlink) a planned meal to the saved meal it is a copy of. */
+export async function setGroupSourceMeal(
+  ctx: HouseholdContext,
+  groupId: string,
+  sourceMealId: string | null
+): Promise<void> {
+  await assertGroupOwned(groupId, ctx.householdId);
+  await db
+    .update(mealPlanGroups)
+    .set({ sourceMealId })
+    .where(eq(mealPlanGroups.id, groupId));
+}
+
+/** The recipes in a planned meal, for saving it as a reusable meal. */
+export async function getGroupComponents(
+  ctx: HouseholdContext,
+  groupId: string
+): Promise<{ group: Awaited<ReturnType<typeof assertGroupOwned>>; components: GroupComponentInput[] }> {
+  const group = await assertGroupOwned(groupId, ctx.householdId);
+  const rows = await db
+    .select({ recipeId: mealPlanEntries.recipeId, role: mealPlanEntries.mealRole })
+    .from(mealPlanEntries)
+    .where(eq(mealPlanEntries.groupId, groupId))
+    .orderBy(asc(mealPlanEntries.id));
+  // Saved in display order — main first — so a saved meal reads the same way.
+  const components = rows
+    .map((r) => ({ recipeId: r.recipeId, role: isMealRole(r.role) ? r.role : ("side" as const) }))
+    .sort((a, b) => MEAL_ROLES.indexOf(a.role) - MEAL_ROLES.indexOf(b.role));
+  return { group, components };
 }
 
 // --- AI-generated plans -----------------------------------------------------
@@ -680,38 +1084,14 @@ export async function addEntryToShoppingList(
   return result;
 }
 
-export async function generateShoppingFromWeek(
-  ctx: PushContext,
-  mealPlanId: string,
-  opts?: { forceInclude?: string[] }
-): Promise<ShoppingAddResult> {
-  const empty: ShoppingAddResult = { added: 0, merged: 0, skipped: [] };
-
-  await assertPlanOwned(mealPlanId, ctx.householdId);
-
-  const forceInclude = toForceIncludeSet(opts?.forceInclude);
-
-  // Only entries not yet added — re-generating must not duplicate meals that
-  // are already on the list (their per-entry "Add again" covers deliberate
-  // re-adds). An override pass ignores the flag: the first pass just set it,
-  // and the skipped ingredients still need to come from the same entries.
-  const entries = await db
-    .select({
-      recipeId: mealPlanEntries.recipeId,
-      servings: mealPlanEntries.servings,
-    })
-    .from(mealPlanEntries)
-    .where(
-      forceInclude
-        ? eq(mealPlanEntries.mealPlanId, mealPlanId)
-        : and(
-            eq(mealPlanEntries.mealPlanId, mealPlanId),
-            isNull(mealPlanEntries.addedToShoppingListAt)
-          )
-    );
-
-  if (!entries.length) return empty;
-
+/**
+ * Scaled ingredient totals across a set of planned entries, keyed on name +
+ * unit so "200g flour" from two recipes becomes one 400g line.
+ */
+async function aggregateIngredients(
+  ctx: HouseholdContext,
+  entries: { recipeId: string; servings: string | null }[]
+): Promise<PendingIngredient[]> {
   const recipeIds = [...new Set(entries.map((e) => e.recipeId))];
 
   const recipeBaseServings = await db
@@ -748,8 +1128,6 @@ export async function generateShoppingFromWeek(
     ingredientsByRecipe.set(ing.recipeId, list);
   }
 
-  // Accumulate scaled ingredient totals across every entry in the week, keyed
-  // on name + unit so "200g flour" from two recipes becomes one 400g line.
   const totals = new Map<string, PendingIngredient>();
 
   for (const entry of entries) {
@@ -792,10 +1170,47 @@ export async function generateShoppingFromWeek(
     }
   }
 
+  return [...totals.values()];
+}
+
+export async function generateShoppingFromWeek(
+  ctx: PushContext,
+  mealPlanId: string,
+  opts?: { forceInclude?: string[] }
+): Promise<ShoppingAddResult> {
+  const empty: ShoppingAddResult = { added: 0, merged: 0, skipped: [] };
+
+  await assertPlanOwned(mealPlanId, ctx.householdId);
+
+  const forceInclude = toForceIncludeSet(opts?.forceInclude);
+
+  // Only entries not yet added — re-generating must not duplicate meals that
+  // are already on the list (their per-entry "Add again" covers deliberate
+  // re-adds). An override pass ignores the flag: the first pass just set it,
+  // and the skipped ingredients still need to come from the same entries.
+  const entries = await db
+    .select({
+      recipeId: mealPlanEntries.recipeId,
+      servings: mealPlanEntries.servings,
+    })
+    .from(mealPlanEntries)
+    .where(
+      forceInclude
+        ? eq(mealPlanEntries.mealPlanId, mealPlanId)
+        : and(
+            eq(mealPlanEntries.mealPlanId, mealPlanId),
+            isNull(mealPlanEntries.addedToShoppingListAt)
+          )
+    );
+
+  if (!entries.length) return empty;
+
+  const totals = await aggregateIngredients(ctx, entries);
+
   const exclusions = await getPantryExclusions(ctx.householdId);
   const { result } = await applyToShoppingList(
     ctx,
-    [...totals.values()],
+    totals,
     exclusions,
     forceInclude
   );
@@ -822,6 +1237,46 @@ export async function generateShoppingFromWeek(
       },
       { excludeAutheliaUser: ctx.user.username }
     );
+  }
+
+  return result;
+}
+
+/**
+ * Every recipe in one planned meal onto the shopping list, consolidated the
+ * same way a whole week is. Re-adding is deliberate here (the menu says "again"),
+ * so unlike the week it does not skip entries already flagged.
+ */
+export async function addGroupToShoppingList(
+  ctx: ActorContext,
+  groupId: string,
+  opts?: { forceInclude?: string[] }
+): Promise<ShoppingAddResult> {
+  const empty: ShoppingAddResult = { added: 0, merged: 0, skipped: [] };
+
+  await assertGroupOwned(groupId, ctx.householdId);
+
+  const entries = await db
+    .select({ recipeId: mealPlanEntries.recipeId, servings: mealPlanEntries.servings })
+    .from(mealPlanEntries)
+    .where(eq(mealPlanEntries.groupId, groupId));
+
+  if (!entries.length) return empty;
+
+  const pending = await aggregateIngredients(ctx, entries);
+  const exclusions = await getPantryExclusions(ctx.householdId);
+  const { result } = await applyToShoppingList(
+    ctx,
+    pending,
+    exclusions,
+    toForceIncludeSet(opts?.forceInclude)
+  );
+
+  if (result.added + result.merged > 0) {
+    await db
+      .update(mealPlanEntries)
+      .set({ addedToShoppingListAt: new Date() })
+      .where(eq(mealPlanEntries.groupId, groupId));
   }
 
   return result;

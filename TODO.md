@@ -79,6 +79,13 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Dinner reminders — opt-in push saying when to start cooking tonight's dinner, timed from the household's real cook-mode durations (median of recent cooks, else recipe time × household pace factor); household + per-weekday dinner times in Settings → Dinner reminders, one-off per-date time / "no reminder" on the planner day header, "Push back 30 min" notification button; in-process scheduler started from `instrumentation.ts`, Redis-deduped (v1.12.0)
 - [ ] Move the dinner reminder loop into the worker container when Phase 2's worker lands
 
+## Combined Meals (e.g. Sunday roast)
+- [x] Step 1 — planned meal groups (`meal_plan_groups`, `group_id`/`meal_role` on entries) and saved meals (`meals`, `meal_components`); group card on the planner with swap/add/role/servings/move/split/remove, whole-meal shopping add, "Make into a meal…", Saved meals tab in the picker, save/update saved meal, `/meals` page; groups synced offline; `mealGroup` on integrations `today`/`week` (v1.15.0)
+- [ ] Step 2 — meal cooking mode: one cook session across every dish in a group, with a combined timers panel and a tab per dish
+- [ ] Step 3 — "serve at" timeline: AI-orchestrated schedule back from a serve time (steps referenced by id), oven-temperature clash warnings, push cues; optional `passive` / `oven_temp_c` step fields
+- [ ] Saved meals in the native app (browse + add); groups already sync
+- [ ] AI meal planner proposing combined meals
+
 ## AI — Recipe Generation (Concierge Flow)
 - [x] AI config settings page (`/settings/ai`) — store encrypted API key per household
 - [x] Concierge step 1: user describes preferences → AI returns 5 concept cards

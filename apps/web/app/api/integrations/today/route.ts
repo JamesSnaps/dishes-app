@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withIntegrationAuth } from "@/lib/integration-auth";
 import { db } from "@/lib/db";
-import { mealPlans, mealPlanEntries, recipes } from "@dishes/db/schema";
+import { mealPlans, mealPlanEntries, mealPlanGroups, recipes } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
+import { withMealGroup } from "@/lib/integration-meal-groups";
 
 // Returns today's meal plan entries for the household's active plan.
 export const GET = withIntegrationAuth(
@@ -37,6 +38,9 @@ export const GET = withIntegrationAuth(
         mealType: mealPlanEntries.mealType,
         servings: mealPlanEntries.servings,
         notes: mealPlanEntries.notes,
+        groupId: mealPlanGroups.id,
+        groupTitle: mealPlanGroups.title,
+        mealRole: mealPlanEntries.mealRole,
         recipe: {
           id: recipes.id,
           title: recipes.title,
@@ -48,6 +52,7 @@ export const GET = withIntegrationAuth(
       })
       .from(mealPlanEntries)
       .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
+      .leftJoin(mealPlanGroups, eq(mealPlanEntries.groupId, mealPlanGroups.id))
       .where(
         and(
           eq(mealPlanEntries.mealPlanId, plan.id),
@@ -57,7 +62,7 @@ export const GET = withIntegrationAuth(
 
     return NextResponse.json({
       date: today.toISOString().split("T")[0],
-      meals: entries,
+      meals: entries.map(withMealGroup),
     });
   }
 );

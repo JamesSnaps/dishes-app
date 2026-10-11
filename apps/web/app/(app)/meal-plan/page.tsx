@@ -1,7 +1,9 @@
 import { db } from "@/lib/db";
-import { mealPlans, mealPlanEntries, recipes, recipeTags, recipeIngredients, cookHistory, shoppingLists, shoppingListItems } from "@dishes/db/schema";
+import { mealPlans, mealPlanEntries, mealPlanGroups, recipes, recipeTags, recipeIngredients, cookHistory, shoppingLists, shoppingListItems } from "@dishes/db/schema";
 import { householdHasCholesterolDiet } from "@/lib/services/heart-focus";
-import { eq, and, inArray, count, avg } from "drizzle-orm";
+import { eq, and, asc, inArray, count, avg } from "drizzle-orm";
+import { isMealRole } from "@dishes/shared";
+import { listMeals } from "@/lib/services/meals";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { WeekPlannerLocal } from "./_components/week-planner-local";
@@ -31,7 +33,7 @@ export default async function MealPlanPage({
   searchParams: Promise<{ week?: string }>;
 }) {
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const { householdId, memberId } = await requireHousehold(user);
 
   const { week } = await searchParams;
   const weekStartDate = getMondayOf(week);
@@ -49,7 +51,7 @@ export default async function MealPlanPage({
     )
     .limit(1);
 
-  const [allEntries, allRecipesRaw, heartFocus] = await Promise.all([
+  const [allEntriesRaw, allRecipesRaw, heartFocus, groups, savedMeals] = await Promise.all([
     plan
       ? db
           .select({
@@ -58,6 +60,8 @@ export default async function MealPlanPage({
             mealType: mealPlanEntries.mealType,
             entryServings: mealPlanEntries.servings,
             addedToShoppingListAt: mealPlanEntries.addedToShoppingListAt,
+            groupId: mealPlanEntries.groupId,
+            mealRole: mealPlanEntries.mealRole,
             recipe: {
               id: recipes.id,
               title: recipes.title,
@@ -78,6 +82,8 @@ export default async function MealPlanPage({
             mealType: "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
             entryServings: string | null;
             addedToShoppingListAt: Date | null;
+            groupId: string | null;
+            mealRole: string | null;
             recipe: {
               id: string;
               title: string;
@@ -109,7 +115,26 @@ export default async function MealPlanPage({
       .where(eq(recipes.householdId, householdId))
       .orderBy(recipes.title),
     householdHasCholesterolDiet(householdId),
+    plan
+      ? db
+          .select({
+            id: mealPlanGroups.id,
+            title: mealPlanGroups.title,
+            dayOfWeek: mealPlanGroups.dayOfWeek,
+            mealType: mealPlanGroups.mealType,
+            sourceMealId: mealPlanGroups.sourceMealId,
+          })
+          .from(mealPlanGroups)
+          .where(eq(mealPlanGroups.mealPlanId, plan.id))
+          .orderBy(asc(mealPlanGroups.createdAt))
+      : Promise.resolve([]),
+    listMeals({ householdId, memberId }),
   ]);
+
+  const allEntries = allEntriesRaw.map((e) => ({
+    ...e,
+    mealRole: isMealRole(e.mealRole) ? e.mealRole : null,
+  }));
 
   // Fetch tags and avg ratings for picker
   const allRecipeIds = allRecipesRaw.map((r) => r.id);
@@ -221,7 +246,9 @@ export default async function MealPlanPage({
         initial={{
           planId: plan?.id ?? null,
           entries: allEntries,
+          groups,
           recipes: allRecipes,
+          savedMeals,
           topIngredients,
           shoppingItemCount: Number(shoppingItemCount),
         }}

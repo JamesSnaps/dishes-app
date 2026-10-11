@@ -25,10 +25,12 @@ import {
   shoppingListItems,
   mealPlans,
   mealPlanEntries,
+  mealPlanGroups,
   cookHistory,
 } from "@dishes/db/schema";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { HouseholdContext, ActorContext } from "@/lib/session";
+import type { MealRole, MealType } from "@dishes/shared";
 import * as shoppingService from "@/lib/services/shopping";
 import * as mealPlanService from "@/lib/services/meal-plan";
 import { getRecipe, RecipeNotFoundError } from "@/lib/services/recipes";
@@ -48,6 +50,7 @@ export const SYNC_ENTITIES = [
   "shopping_item",
   "meal_plan",
   "meal_plan_entry",
+  "meal_plan_group",
   "cook_history",
 ] as const;
 
@@ -60,6 +63,7 @@ const RESPONSE_KEY: Record<SyncEntity, string> = {
   shopping_item: "shoppingItems",
   meal_plan: "mealPlans",
   meal_plan_entry: "mealPlanEntries",
+  meal_plan_group: "mealPlanGroups",
   cook_history: "cookHistory",
 };
 
@@ -212,6 +216,19 @@ async function loadEntities(
         )
         .then((rows) => rows.map((r) => r.entry));
 
+    case "meal_plan_group":
+      return db
+        .select({ group: mealPlanGroups })
+        .from(mealPlanGroups)
+        .innerJoin(mealPlans, eq(mealPlanGroups.mealPlanId, mealPlans.id))
+        .where(
+          and(
+            eq(mealPlans.householdId, ctx.householdId),
+            inArray(mealPlanGroups.id, ids)
+          )
+        )
+        .then((rows) => rows.map((r) => r.group));
+
     case "cook_history":
       return db
         .select()
@@ -236,7 +253,7 @@ function emptyGrouping<T>(): Record<string, T[]> {
 async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
   const seq = await currentSeq(ctx.householdId);
 
-  const [recipeIds, listRows, itemRows, planRows, entryRows, cookRows] =
+  const [recipeIds, listRows, itemRows, planRows, entryRows, groupRows, cookRows] =
     await Promise.all([
       db
         .select({ id: recipes.id })
@@ -256,6 +273,12 @@ async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
         .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
         .where(eq(mealPlans.householdId, ctx.householdId))
         .then((rows) => rows.map((r) => r.entry)),
+      db
+        .select({ group: mealPlanGroups })
+        .from(mealPlanGroups)
+        .innerJoin(mealPlans, eq(mealPlanGroups.mealPlanId, mealPlans.id))
+        .where(eq(mealPlans.householdId, ctx.householdId))
+        .then((rows) => rows.map((r) => r.group)),
       db.select().from(cookHistory).where(eq(cookHistory.householdId, ctx.householdId)),
     ]);
 
@@ -269,6 +292,7 @@ async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
   changes[RESPONSE_KEY.shopping_item] = itemRows;
   changes[RESPONSE_KEY.meal_plan] = planRows;
   changes[RESPONSE_KEY.meal_plan_entry] = entryRows;
+  changes[RESPONSE_KEY.meal_plan_group] = groupRows;
   changes[RESPONSE_KEY.cook_history] = cookRows;
 
   return {
@@ -385,6 +409,8 @@ export type SyncMutation =
         recipeId: string;
         dayOfWeek: number;
         mealType: string;
+        groupId?: string;
+        mealRole?: MealRole;
       };
     }
   | {
@@ -397,9 +423,29 @@ export type SyncMutation =
         weekStartDate?: string;
         mealType?: string;
         servings?: number | null;
+        /** Swap the recipe in place, keeping slot, meal and role. */
+        recipeId?: string;
+        /** Join this planned meal (taking its slot), or null to leave one. */
+        groupId?: string | null;
+        mealRole?: MealRole;
       };
     }
-  | { opId: string; type: "meal_plan_entry.delete"; payload: { entryId: string } };
+  | { opId: string; type: "meal_plan_entry.delete"; payload: { entryId: string } }
+  | {
+      opId: string;
+      type: "meal_plan_group.add";
+      payload: mealPlanService.AddGroupInput & { mealType: MealType };
+    }
+  | {
+      opId: string;
+      type: "meal_plan_group.update";
+      payload: { groupId: string } & mealPlanService.UpdateGroupInput;
+    }
+  | {
+      opId: string;
+      type: "meal_plan_group.delete";
+      payload: { groupId: string; keepRecipes?: boolean };
+    };
 
 export type SyncMutationResult = {
   opId: string;
@@ -441,19 +487,43 @@ async function applyMutation(
       return { id: mutation.payload.listId };
     }
     case "meal_plan_entry.add": {
-      const { weekStartDate, recipeId, dayOfWeek, mealType } = mutation.payload;
+      const { weekStartDate, recipeId, dayOfWeek, mealType, groupId, mealRole } =
+        mutation.payload;
       mealPlanService.assertMealType(mealType);
       const id = await mealPlanService.addEntry(
         ctx,
         weekStartDate,
         recipeId,
         dayOfWeek,
-        mealType
+        mealType,
+        undefined,
+        { groupId, mealRole }
       );
       return { id };
     }
     case "meal_plan_entry.update": {
-      const { entryId, dayOfWeek, weekStartDate, mealType, servings } = mutation.payload;
+      const {
+        entryId,
+        dayOfWeek,
+        weekStartDate,
+        mealType,
+        servings,
+        recipeId,
+        groupId,
+        mealRole,
+      } = mutation.payload;
+      if (recipeId !== undefined) {
+        await mealPlanService.replaceEntryRecipe(ctx, entryId, recipeId);
+      }
+      // Group first: joining a meal sets the slot, and a move applied after
+      // that must be judged against the new group, not the old one.
+      if (groupId !== undefined || mealRole !== undefined) {
+        const target =
+          groupId !== undefined
+            ? groupId
+            : await currentGroupOf(ctx, entryId);
+        await mealPlanService.setEntryGroup(ctx, entryId, target, mealRole);
+      }
       if (dayOfWeek !== undefined) {
         await mealPlanService.moveEntry(ctx, entryId, dayOfWeek, weekStartDate);
       }
@@ -467,7 +537,32 @@ async function applyMutation(
       await mealPlanService.removeEntry(ctx, mutation.payload.entryId);
       return { id: mutation.payload.entryId };
     }
+    case "meal_plan_group.add": {
+      const id = await mealPlanService.addGroup(ctx, mutation.payload);
+      return { id };
+    }
+    case "meal_plan_group.update": {
+      const { groupId, ...fields } = mutation.payload;
+      await mealPlanService.updateGroup(ctx, groupId, fields);
+      return { id: groupId };
+    }
+    case "meal_plan_group.delete": {
+      const { groupId, keepRecipes } = mutation.payload;
+      await mealPlanService.removeGroup(ctx, groupId, { keepRecipes });
+      return { id: groupId };
+    }
   }
+}
+
+/** A role change with no group given applies within the entry's current one. */
+async function currentGroupOf(ctx: HouseholdContext, entryId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ groupId: mealPlanEntries.groupId })
+    .from(mealPlanEntries)
+    .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
+    .where(and(eq(mealPlanEntries.id, entryId), eq(mealPlans.householdId, ctx.householdId)))
+    .limit(1);
+  return row?.groupId ?? null;
 }
 
 export type SyncPushResult = {

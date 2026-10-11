@@ -1,5 +1,6 @@
 import {
   date,
+  index,
   integer,
   decimal,
   pgEnum,
@@ -50,6 +51,83 @@ export const mealPlans = pgTable(
   (t) => [unique("meal_plans_household_week_unique").on(t.householdId, t.weekStartDate)]
 );
 
+// ─── Saved meals ─────────────────────────────────────────────────────────────
+//
+// A saved meal is a reusable combination of recipes — "Sunday Roast" as roast
+// chicken + roast potatoes + cabbage + gravy. Adding one to the plan copies its
+// components into a meal_plan_group, so swapping the meat for one week never
+// edits the saved meal. Lives in this file because groups reference it and it
+// references the meal_type enum; split across files that is an import cycle.
+
+export const meals = pgTable(
+  "meals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    createdById: uuid("created_by_id").references(() => householdMembers.id, {
+      onDelete: "set null",
+    }),
+    title: varchar("title", { length: 200 }).notNull(),
+    notes: text("notes"),
+    defaultMealType: mealTypeEnum("default_meal_type").notNull().default("dinner"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("meals_household_id_idx").on(t.householdId)]
+);
+
+export const mealComponents = pgTable(
+  "meal_components",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    mealId: uuid("meal_id")
+      .notNull()
+      .references(() => meals.id, { onDelete: "cascade" }),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    // One of MEAL_ROLES (@dishes/shared), validated in app code.
+    role: varchar("role", { length: 20 }).notNull().default("side"),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [index("meal_components_meal_id_idx").on(t.mealId)]
+);
+
+// ─── Planned meal groups ─────────────────────────────────────────────────────
+//
+// One combined meal on the plan: the recipes in it are ordinary entries that
+// point here. The group owns its slot (day + meal type); entries keep their own
+// copies of both because the shopping list, dinner reminders, the integrations
+// API and the native app all read them from entries. The meal-plan service is
+// the only writer and keeps the two in step — moving a group moves its
+// entries, and moving a single entry elsewhere detaches it.
+//
+// This is also where per-meal cooking state (serve time, the orchestrated
+// timeline) will live, which is why it is a table and not a tag on entries.
+
+export const mealPlanGroups = pgTable(
+  "meal_plan_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    mealPlanId: uuid("meal_plan_id")
+      .notNull()
+      .references(() => mealPlans.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    dayOfWeek: integer("day_of_week").notNull(), // 0=Mon … 6=Sun
+    mealType: mealTypeEnum("meal_type").notNull().default("dinner"),
+    sourceMealId: uuid("source_meal_id").references(() => meals.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("meal_plan_groups_plan_idx").on(t.mealPlanId)]
+);
+
 export const mealPlanEntries = pgTable("meal_plan_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
   mealPlanId: uuid("meal_plan_id")
@@ -63,6 +141,11 @@ export const mealPlanEntries = pgTable("meal_plan_entries", {
   servings: decimal("servings", { precision: 5, scale: 2 }),
   notes: varchar("notes", { length: 500 }),
   addedToShoppingListAt: timestamp("added_to_shopping_list_at"),
+  // Removing a group removes its recipes; detaching one just clears this.
+  groupId: uuid("group_id").references(() => mealPlanGroups.id, {
+    onDelete: "cascade",
+  }),
+  mealRole: varchar("meal_role", { length: 20 }), // MEAL_ROLES, only when grouped
 });
 
 // ─── Relations ───────────────────────────────────────────────────────────────
@@ -77,6 +160,38 @@ export const mealPlansRelations = relations(mealPlans, ({ one, many }) => ({
     references: [householdMembers.id],
   }),
   entries: many(mealPlanEntries),
+  groups: many(mealPlanGroups),
+}));
+
+export const mealsRelations = relations(meals, ({ one, many }) => ({
+  household: one(households, {
+    fields: [meals.householdId],
+    references: [households.id],
+  }),
+  components: many(mealComponents),
+}));
+
+export const mealComponentsRelations = relations(mealComponents, ({ one }) => ({
+  meal: one(meals, {
+    fields: [mealComponents.mealId],
+    references: [meals.id],
+  }),
+  recipe: one(recipes, {
+    fields: [mealComponents.recipeId],
+    references: [recipes.id],
+  }),
+}));
+
+export const mealPlanGroupsRelations = relations(mealPlanGroups, ({ one, many }) => ({
+  mealPlan: one(mealPlans, {
+    fields: [mealPlanGroups.mealPlanId],
+    references: [mealPlans.id],
+  }),
+  sourceMeal: one(meals, {
+    fields: [mealPlanGroups.sourceMealId],
+    references: [meals.id],
+  }),
+  entries: many(mealPlanEntries),
 }));
 
 export const mealPlanEntriesRelations = relations(
@@ -89,6 +204,10 @@ export const mealPlanEntriesRelations = relations(
     recipe: one(recipes, {
       fields: [mealPlanEntries.recipeId],
       references: [recipes.id],
+    }),
+    group: one(mealPlanGroups, {
+      fields: [mealPlanEntries.groupId],
+      references: [mealPlanGroups.id],
     }),
   })
 );

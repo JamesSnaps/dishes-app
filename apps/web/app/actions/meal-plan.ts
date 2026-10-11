@@ -5,13 +5,16 @@ import { requireSession, type Session } from "@/lib/session";
 import * as mealPlanService from "@/lib/services/meal-plan";
 import {
   MealPlanEntryNotFoundError,
+  MealPlanGroupNotFoundError,
   MealPlanNotFoundError,
   MealPlanValidationError,
+  type AddGroupInput,
+  type UpdateGroupInput,
 } from "@/lib/services/meal-plan";
 import { generateFullRecipe } from "./ai";
 import type { MealPlanSlot } from "./ai";
 import * as recipeService from "@/lib/services/recipes";
-import type { MealType } from "@dishes/shared";
+import type { MealRole, MealType } from "@dishes/shared";
 
 /**
  * Web transport for meal-plan writes. Domain logic lives in
@@ -30,7 +33,8 @@ import type { MealType } from "@dishes/shared";
 function ignoreMissingEntry(err: unknown): void {
   if (
     err instanceof MealPlanEntryNotFoundError ||
-    err instanceof MealPlanNotFoundError
+    err instanceof MealPlanNotFoundError ||
+    err instanceof MealPlanGroupNotFoundError
   ) {
     return;
   }
@@ -42,13 +46,105 @@ export async function addMealEntry(
   recipeId: string,
   dayOfWeek: number,
   mealType: MealType,
-  servings?: number | null
+  servings?: number | null,
+  opts?: { groupId?: string; mealRole?: MealRole }
 ) {
   const session = await requireSession();
 
-  await mealPlanService.addEntry(session, weekStartDate, recipeId, dayOfWeek, mealType, servings);
+  await mealPlanService.addEntry(
+    session,
+    weekStartDate,
+    recipeId,
+    dayOfWeek,
+    mealType,
+    servings,
+    opts
+  );
 
   revalidatePath("/meal-plan");
+}
+
+/** Swap the recipe on an entry in place, keeping its meal, role and servings. */
+export async function replaceMealEntryRecipe(entryId: string, recipeId: string) {
+  const session = await requireSession();
+
+  try {
+    await mealPlanService.replaceEntryRecipe(session, entryId, recipeId);
+  } catch (err) {
+    ignoreMissingEntry(err);
+    return;
+  }
+
+  revalidatePath("/meal-plan");
+}
+
+/** Join a planned meal, change role within it, or leave it (`groupId: null`). */
+export async function setMealEntryGroup(
+  entryId: string,
+  groupId: string | null,
+  mealRole?: MealRole
+) {
+  const session = await requireSession();
+
+  try {
+    await mealPlanService.setEntryGroup(session, entryId, groupId, mealRole);
+  } catch (err) {
+    ignoreMissingEntry(err);
+    return;
+  }
+
+  revalidatePath("/meal-plan");
+}
+
+// --- Planned meal groups ----------------------------------------------------
+
+export async function addMealGroup(input: AddGroupInput) {
+  const session = await requireSession();
+
+  const id = await mealPlanService.addGroup(session, input);
+
+  revalidatePath("/meal-plan");
+  return id;
+}
+
+export async function updateMealGroup(groupId: string, input: UpdateGroupInput) {
+  const session = await requireSession();
+
+  try {
+    await mealPlanService.updateGroup(session, groupId, input);
+  } catch (err) {
+    ignoreMissingEntry(err);
+    return;
+  }
+
+  revalidatePath("/meal-plan");
+}
+
+export async function removeMealGroup(groupId: string, opts?: { keepRecipes?: boolean }) {
+  const session = await requireSession();
+
+  try {
+    await mealPlanService.removeGroup(session, groupId, opts);
+  } catch (err) {
+    ignoreMissingEntry(err);
+    return;
+  }
+
+  revalidatePath("/meal-plan");
+}
+
+export async function addMealGroupToShoppingList(
+  groupId: string,
+  opts?: { forceInclude?: string[] }
+) {
+  const session = await requireSession();
+
+  const result = await mealPlanService.addGroupToShoppingList(session, groupId, opts);
+
+  revalidatePath("/shopping");
+  revalidatePath("/meal-plan");
+
+  return result;
 }
 
 /** `weekStartDate` moves the entry into another week; omit it to stay put. */
@@ -97,26 +193,18 @@ export async function removeMealEntry(entryId: string) {
 
 /**
  * Replace a planned meal with another recipe in the same slot — the "Swap"
- * button on the planner's nutrition suggestions. Add first, then remove, so a
- * failure leaves an extra meal rather than a missing one.
+ * button on the planner's nutrition suggestions. Swapped in place, so a recipe
+ * that is part of a combined meal stays in it with its role and servings.
+ * The slot arguments are kept for existing callers; the entry's own slot wins.
  */
 export async function swapMealEntryRecipe(
   entryId: string,
-  weekStartDate: string,
-  dayOfWeek: number,
-  mealType: MealType,
+  _weekStartDate: string,
+  _dayOfWeek: number,
+  _mealType: MealType,
   newRecipeId: string
 ) {
-  const session = await requireSession();
-
-  await mealPlanService.addEntry(session, weekStartDate, newRecipeId, dayOfWeek, mealType);
-  try {
-    await mealPlanService.removeEntry(session, entryId);
-  } catch (err) {
-    ignoreMissingEntry(err);
-  }
-
-  revalidatePath("/meal-plan");
+  await replaceMealEntryRecipe(entryId, newRecipeId);
 }
 
 export async function updateMealEntryServings(

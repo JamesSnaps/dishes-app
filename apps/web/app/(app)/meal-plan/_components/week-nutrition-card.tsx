@@ -289,8 +289,8 @@ function SuggestionRow({
 
   function swapTo(recipe: SwapRecipe) {
     if (mutations) {
-      mutations.addEntry(weekStartDate, recipe.id, s.dayOfWeek, mealType);
-      mutations.deleteEntry(s.entryId);
+      // In place, so a recipe inside a combined meal keeps its place in it.
+      mutations.replaceEntryRecipe(s.entryId, recipe.id);
     } else {
       startTransition(() =>
         swapMealEntryRecipe(s.entryId, weekStartDate, s.dayOfWeek, mealType, recipe.id)

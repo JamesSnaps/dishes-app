@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import type { OptimisticChange } from "@dishes/client";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
+import { isMealRole } from "@dishes/shared";
 import {
   WeekPlanner,
   type Entry,
   type MealPlanMutations,
+  type PlannedGroup,
   type Recipe,
   type TopIngredient,
   type WeekPlannerProps,
@@ -136,6 +138,16 @@ function toPickerRecipe(r: SyncRow, avgRating: number | null): Recipe {
   };
 }
 
+function toGroup(g: SyncRow): PlannedGroup {
+  return {
+    id: g.id,
+    title: str(g.title) ?? "",
+    dayOfWeek: num(g.dayOfWeek) ?? 0,
+    mealType: mealType(g.mealType),
+    sourceMealId: str(g.sourceMealId),
+  };
+}
+
 function toEntry(e: SyncRow, recipe: SyncRow): Entry {
   return {
     id: e.id,
@@ -143,6 +155,8 @@ function toEntry(e: SyncRow, recipe: SyncRow): Entry {
     mealType: mealType(e.mealType),
     entryServings: decimalStr(e.servings),
     addedToShoppingListAt: date(e.addedToShoppingListAt),
+    groupId: str(e.groupId),
+    mealRole: isMealRole(e.mealRole) ? e.mealRole : null,
     recipe: {
       id: recipe.id,
       title: str(recipe.title) ?? "",
@@ -212,8 +226,10 @@ type Props = Pick<
 > & {
   initial: Pick<
     WeekPlannerProps,
-    "planId" | "entries" | "recipes" | "topIngredients" | "shoppingItemCount"
-  >;
+    "planId" | "entries" | "groups" | "recipes" | "topIngredients" | "shoppingItemCount"
+  > &
+    // Saved meals aren't synced: they come from the server render either way.
+    Pick<WeekPlannerProps, "savedMeals">;
 };
 
 export function WeekPlannerLocal({
@@ -231,6 +247,8 @@ export function WeekPlannerLocal({
   const { data: plans, loading: plansLoading } = useSyncedCollection<SyncRow>("mealPlans");
   const { data: planEntries, loading: entriesLoading } =
     useSyncedCollection<SyncRow>("mealPlanEntries");
+  const { data: planGroups, loading: groupsLoading } =
+    useSyncedCollection<SyncRow>("mealPlanGroups");
   const { data: lists, loading: listsLoading } = useSyncedCollection<SyncRow>("shoppingLists");
   const { data: items, loading: itemsLoading } = useSyncedCollection<SyncRow>("shoppingItems");
 
@@ -239,7 +257,13 @@ export function WeekPlannerLocal({
   // component a mix of loaded recipes and a still-empty entry list — a week
   // that renders empty, or short, for a frame or two before filling in.
   const storeLoading =
-    loading || cooksLoading || plansLoading || entriesLoading || listsLoading || itemsLoading;
+    loading ||
+    cooksLoading ||
+    plansLoading ||
+    entriesLoading ||
+    groupsLoading ||
+    listsLoading ||
+    itemsLoading;
 
   const useLocal = Boolean(sync?.engine) && !storeLoading && syncedRecipes.length > 0;
 
@@ -290,15 +314,20 @@ export function WeekPlannerLocal({
         })
       : [];
 
+    const groups = plan
+      ? planGroups.filter((g) => g.mealPlanId === plan.id).map(toGroup)
+      : [];
+
     return {
       missingRecipes,
       planId: plan ? plan.id : null,
       entries,
+      groups,
       recipes,
       topIngredients: topIngredientsFrom(entries, byId),
       shoppingItemCount: shoppingCountFrom(lists, items),
     };
-  }, [useLocal, syncedRecipes, cooks, plans, planEntries, lists, items, week]);
+  }, [useLocal, syncedRecipes, cooks, plans, planEntries, planGroups, lists, items, week]);
 
   /**
    * Entry edits, pushed through the sync engine rather than the server actions.
@@ -344,17 +373,39 @@ export function WeekPlannerLocal({
   const mutations = useMemo<MealPlanMutations | undefined>(() => {
     if (!engine || !local) return undefined;
 
-    const update = (entryId: string, payload: Record<string, unknown>, patch: SyncRow) => {
-      const row = planEntries.find((e) => e.id === entryId);
+    const send = (type: string, payload: Record<string, unknown>, writes: OptimisticChange[]) => {
       engine
-        .mutate(
-          "meal_plan_entry.update",
-          { entryId, ...payload },
-          row ? [{ collection: "mealPlanEntries", record: { ...row, ...patch } }] : []
-        )
+        .mutate(type, payload, writes)
         .then(() => syncNow?.())
         .catch(() => {});
-      return;
+    };
+
+    const update = (entryId: string, payload: Record<string, unknown>, patch: SyncRow) => {
+      const row = planEntries.find((e) => e.id === entryId);
+      send(
+        "meal_plan_entry.update",
+        { entryId, ...payload },
+        row ? [{ collection: "mealPlanEntries", record: { ...row, ...patch } }] : []
+      );
+    };
+
+    /** Patch every entry in a group the same way — moving or re-serving a meal. */
+    const patchGroupEntries = (groupId: string, patch: Record<string, unknown>): OptimisticChange[] =>
+      planEntries
+        .filter((e) => e.groupId === groupId)
+        .map((e) => ({ collection: "mealPlanEntries" as const, record: { ...e, ...patch } }));
+
+    /** The plan row for a week, creating a temporary one when it has none yet. */
+    const planFor = (weekStartDate: string, writes: OptimisticChange[]): string => {
+      const existingPlan = plans.find((p) => str(p.weekStartDate) === weekStartDate);
+      if (existingPlan) return existingPlan.id;
+      const planId = crypto.randomUUID();
+      writes.push({
+        collection: "mealPlans",
+        temporary: true,
+        record: { id: planId, weekStartDate, status: "draft" },
+      });
+      return planId;
     };
 
     return {
@@ -365,21 +416,12 @@ export function WeekPlannerLocal({
        * point the server's real rows have arrived in the same cycle's pull.
        * Without that marking the meal would appear twice, permanently.
        */
-      addEntry: (weekStartDate, recipeId, dayOfWeek, mealType) => {
-        const existingPlan = plans.find(
-          (p) => str(p.weekStartDate) === weekStartDate
-        );
-        const planId = existingPlan ? existingPlan.id : crypto.randomUUID();
-
+      addEntry: (weekStartDate, recipeId, dayOfWeek, mealType, opts) => {
         const writes: OptimisticChange[] = [];
+        const planId = planFor(weekStartDate, writes);
 
-        if (!existingPlan) {
-          writes.push({
-            collection: "mealPlans",
-            temporary: true,
-            record: { id: planId, weekStartDate, status: "draft" },
-          });
-        }
+        // Joining a meal takes its slot, as the server will.
+        const group = opts?.groupId ? planGroups.find((g) => g.id === opts.groupId) : undefined;
 
         writes.push({
           collection: "mealPlanEntries",
@@ -388,21 +430,27 @@ export function WeekPlannerLocal({
             id: crypto.randomUUID(),
             mealPlanId: planId,
             recipeId,
-            dayOfWeek,
-            mealType,
+            dayOfWeek: group ? group.dayOfWeek : dayOfWeek,
+            mealType: group ? group.mealType : mealType,
             servings: null,
             addedToShoppingListAt: null,
+            groupId: opts?.groupId ?? null,
+            mealRole: opts?.groupId ? (opts.mealRole ?? "side") : null,
           },
         });
 
-        engine
-          .mutate(
-            "meal_plan_entry.add",
-            { weekStartDate, recipeId, dayOfWeek, mealType },
-            writes
-          )
-          .then(() => syncNow?.())
-          .catch(() => {});
+        send(
+          "meal_plan_entry.add",
+          {
+            weekStartDate,
+            recipeId,
+            dayOfWeek,
+            mealType,
+            ...(opts?.groupId && { groupId: opts.groupId }),
+            ...(opts?.mealRole && { mealRole: opts.mealRole }),
+          },
+          writes
+        );
       },
 
       /**
@@ -411,40 +459,140 @@ export function WeekPlannerLocal({
        * same reasoning as `addEntry` — so the meal shows up straight away if
        * the user follows it there; the pull after the push replaces both the
        * stand-in plan and the entry's pointer to it with the server's rows.
+       *
+       * A dish moved out of its meal's slot (or week) leaves the meal,
+       * server-side too.
        */
       moveEntry: (entryId, dayOfWeek, weekStartDate) => {
+        const leave = { groupId: null, mealRole: null };
         if (weekStartDate === undefined) {
-          update(entryId, { dayOfWeek }, { id: entryId, dayOfWeek });
+          update(entryId, { dayOfWeek }, { id: entryId, dayOfWeek, ...leave });
           return;
         }
 
-        const existingPlan = plans.find((p) => str(p.weekStartDate) === weekStartDate);
-        const planId = existingPlan ? existingPlan.id : crypto.randomUUID();
-        const row = planEntries.find((e) => e.id === entryId);
-
         const writes: OptimisticChange[] = [];
-        if (!existingPlan) {
-          writes.push({
-            collection: "mealPlans",
-            temporary: true,
-            record: { id: planId, weekStartDate, status: "draft" },
-          });
-        }
+        const planId = planFor(weekStartDate, writes);
+        const row = planEntries.find((e) => e.id === entryId);
         if (row) {
           writes.push({
             collection: "mealPlanEntries",
-            record: { ...row, mealPlanId: planId, dayOfWeek },
+            record: { ...row, mealPlanId: planId, dayOfWeek, ...leave },
           });
         }
 
-        engine
-          .mutate("meal_plan_entry.update", { entryId, dayOfWeek, weekStartDate }, writes)
-          .then(() => syncNow?.())
-          .catch(() => {});
+        send("meal_plan_entry.update", { entryId, dayOfWeek, weekStartDate }, writes);
       },
 
       changeEntryType: (entryId, mealType) =>
-        update(entryId, { mealType }, { id: entryId, mealType }),
+        update(entryId, { mealType }, { id: entryId, mealType, groupId: null, mealRole: null }),
+
+      replaceEntryRecipe: (entryId, recipeId) =>
+        update(entryId, { recipeId }, { id: entryId, recipeId, addedToShoppingListAt: null }),
+
+      setEntryGroup: (entryId, groupId, mealRole) => {
+        const group = groupId ? planGroups.find((g) => g.id === groupId) : undefined;
+        update(
+          entryId,
+          { groupId, ...(mealRole && { mealRole }) },
+          groupId
+            ? {
+                id: entryId,
+                groupId,
+                ...(mealRole && { mealRole }),
+                ...(group && { dayOfWeek: group.dayOfWeek, mealType: group.mealType }),
+              }
+            : { id: entryId, groupId: null, mealRole: null }
+        );
+      },
+
+      /**
+       * The group and its new dishes are temporary rows, as with addEntry;
+       * dishes pulled in from the plan are real rows patched in place. The
+       * server's versions of all of them arrive in the same cycle's pull.
+       */
+      addGroup: (input) => {
+        const writes: OptimisticChange[] = [];
+        const planId = planFor(input.weekStartDate, writes);
+        const groupId = crypto.randomUUID();
+
+        writes.push({
+          collection: "mealPlanGroups",
+          temporary: true,
+          record: {
+            id: groupId,
+            mealPlanId: planId,
+            title: input.title,
+            dayOfWeek: input.dayOfWeek,
+            mealType: input.mealType,
+            sourceMealId: input.sourceMealId ?? null,
+          },
+        });
+
+        for (const c of input.components ?? []) {
+          writes.push({
+            collection: "mealPlanEntries",
+            temporary: true,
+            record: {
+              id: crypto.randomUUID(),
+              mealPlanId: planId,
+              recipeId: c.recipeId,
+              dayOfWeek: input.dayOfWeek,
+              mealType: input.mealType,
+              servings: input.servings ?? null,
+              addedToShoppingListAt: null,
+              groupId,
+              mealRole: c.role,
+            },
+          });
+        }
+
+        for (const { entryId, role } of input.entries ?? []) {
+          const row = planEntries.find((e) => e.id === entryId);
+          if (!row) continue;
+          writes.push({
+            collection: "mealPlanEntries",
+            record: {
+              ...row,
+              groupId,
+              mealRole: role,
+              dayOfWeek: input.dayOfWeek,
+              mealType: input.mealType,
+            },
+          });
+        }
+
+        send("meal_plan_group.add", { ...input }, writes);
+      },
+
+      updateGroup: (groupId, input) => {
+        const row = planGroups.find((g) => g.id === groupId);
+        const groupPatch = {
+          ...(input.title !== undefined && { title: input.title }),
+          ...(input.dayOfWeek !== undefined && { dayOfWeek: input.dayOfWeek }),
+          ...(input.mealType !== undefined && { mealType: input.mealType }),
+        };
+        const entryPatch = {
+          ...(input.dayOfWeek !== undefined && { dayOfWeek: input.dayOfWeek }),
+          ...(input.mealType !== undefined && { mealType: input.mealType }),
+          ...(input.servings !== undefined && { servings: input.servings }),
+        };
+        send("meal_plan_group.update", { groupId, ...input }, [
+          ...(row ? [{ collection: "mealPlanGroups" as const, record: { ...row, ...groupPatch } }] : []),
+          ...patchGroupEntries(groupId, entryPatch),
+        ]);
+      },
+
+      deleteGroup: (groupId, keepRecipes) => {
+        const entryWrites: OptimisticChange[] = keepRecipes
+          ? patchGroupEntries(groupId, { groupId: null, mealRole: null })
+          : planEntries
+              .filter((e) => e.groupId === groupId)
+              .map((e) => ({ collection: "mealPlanEntries" as const, removeId: e.id }));
+        send("meal_plan_group.delete", { groupId, keepRecipes }, [
+          { collection: "mealPlanGroups", removeId: groupId },
+          ...entryWrites,
+        ]);
+      },
 
       // The wire field is `servings`; the prop the UI reads is `entryServings`,
       // mapped in toEntry. The store holds the raw row, so patch `servings`.
@@ -460,7 +608,7 @@ export function WeekPlannerLocal({
           .catch(() => {});
       },
     };
-  }, [engine, local, planEntries, plans, syncNow]);
+  }, [engine, local, planEntries, planGroups, plans, syncNow]);
 
   /**
    * Week change without a server round-trip. `router.push` is not called at
@@ -481,7 +629,9 @@ export function WeekPlannerLocal({
       todayDayIndex={dayIndex}
       planId={data.planId}
       entries={data.entries}
+      groups={data.groups}
       recipes={data.recipes}
+      savedMeals={initial.savedMeals}
       topIngredients={data.topIngredients}
       shoppingItemCount={data.shoppingItemCount}
       heartFocus={heartFocus}

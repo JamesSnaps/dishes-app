@@ -14,6 +14,7 @@ export type SyncCollection =
   | "shoppingItems"
   | "mealPlans"
   | "mealPlanEntries"
+  | "mealPlanGroups"
   | "cookHistory";
 
 export const SYNC_COLLECTIONS: SyncCollection[] = [
@@ -22,6 +23,7 @@ export const SYNC_COLLECTIONS: SyncCollection[] = [
   "shoppingItems",
   "mealPlans",
   "mealPlanEntries",
+  "mealPlanGroups",
   "cookHistory",
 ];
 
