@@ -7,6 +7,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -200,6 +201,78 @@ function readStored(): StoredState {
   }
 }
 
+// ─── Timer pushes while away ─────────────────────────────────────────────────
+//
+// Timers only chime while the app is on screen; a locked phone or a
+// backgrounded tab hears nothing. So when the page is hidden, the running
+// timers go to the server, which pushes each as it finishes; when the page is
+// back, they're taken back (the chime takes over again). Per device, so
+// opening Dishes elsewhere doesn't cancel this phone's timers.
+
+const DEVICE_ID_KEY = "dishes:device-id";
+/** Set while the server holds this device's timers — survives the app being killed. */
+const HANDED_OVER_KEY = "dishes:cook-timers-handed-over";
+
+function markHandedOver(on: boolean) {
+  try {
+    if (on) window.localStorage.setItem(HANDED_OVER_KEY, "1");
+    else window.localStorage.removeItem(HANDED_OVER_KEY);
+  } catch {
+    // Storage blocked: at worst one push arrives while the app is open.
+  }
+}
+
+function wasHandedOver(): boolean {
+  try {
+    return window.localStorage.getItem(HANDED_OVER_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function deviceId(): string | null {
+  try {
+    let id = window.localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      window.localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+/** Every running timer across all cooks, as the server needs it. */
+function runningTimers(sessions: CookSession[]) {
+  return sessions.flatMap((s) =>
+    Object.entries(s.timers)
+      .filter(([, t]) => !t.done && t.endsAt !== null)
+      .map(([idx, t]) => ({
+        key: `${s.recipeId}:${idx}`,
+        endsAt: t.endsAt!,
+        title: `${s.recipeTitle} — timer done`,
+        body: `Step ${t.stepNumber}${t.label ? ` · ${t.label}` : ""}: ${t.preview}`.slice(0, 200),
+        url: `/recipes/${s.recipeId}/cook`,
+      }))
+  );
+}
+
+function sendTimers(timers: ReturnType<typeof runningTimers>, background: boolean) {
+  const id = deviceId();
+  if (!id) return;
+  // keepalive lets the request finish while the page is being hidden or
+  // unloaded. JSON Accept so an expired Authelia session answers 401, not a
+  // login redirect.
+  void fetch("/api/cook-timers", {
+    method: "POST",
+    credentials: "same-origin",
+    keepalive: background,
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ deviceId: id, timers }),
+  }).catch(() => {});
+}
+
 /** A fresh session for a cook that isn't running yet. */
 function newSession(init: CookSessionInit, startedAt: number): CookSession {
   const timers: Record<string, StoredTimer> = {};
@@ -325,6 +398,40 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  // Hand running timers to the server while hidden; take them back on return.
+  // Only sent when what the server holds would change, so flicking between
+  // apps with nothing running costs nothing.
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
+  const handedOver = useRef("[]");
+  useEffect(() => {
+    const onHide = () => {
+      const timers = runningTimers(sessionsRef.current);
+      const payload = JSON.stringify(timers);
+      if (payload === handedOver.current) return;
+      handedOver.current = payload;
+      markHandedOver(timers.length > 0);
+      sendTimers(timers, true);
+    };
+    const onShow = () => {
+      if (handedOver.current === "[]" && !wasHandedOver()) return;
+      handedOver.current = "[]";
+      markHandedOver(false);
+      sendTimers([], false);
+    };
+    // Opened fresh after the app was killed with timers handed over: take
+    // them back now, or they'd push while you're looking at the chime.
+    if (document.visibilityState === "visible") onShow();
+    const onVisibility = () =>
+      document.visibilityState === "hidden" ? onHide() : onShow();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onHide);
+    };
   }, []);
 
   // Promote elapsed timers to done and raise their alerts — across every cook,

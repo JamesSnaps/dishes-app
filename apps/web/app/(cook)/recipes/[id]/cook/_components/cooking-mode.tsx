@@ -5,6 +5,7 @@ import { saveCookAssistThread, deleteCookAssistThread } from "@/app/actions/cook
 import { MarkdownContent } from "@/components/markdown-content";
 import { CookSwitcher } from "@/components/cook-switcher";
 import { MealDishTabs, MealTimelinePanel, MealTimersPanel } from "./meal-cook-bar";
+import { TimerPushHint } from "./timer-push-hint";
 import type { MealCookDish } from "@/lib/services/meal-plan";
 import type { CookCue } from "@/components/providers/cook-session-provider";
 import Link from "next/link";
@@ -1362,6 +1363,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                   onReset={() => resetTimer(stepIndex)}
                 />
               )}
+              <TimerPushHint running={[...timers.values()].some((t) => t.running)} />
 
               {/* AI quick-ask */}
               {currentStep && (
