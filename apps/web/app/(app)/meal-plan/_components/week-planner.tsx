@@ -110,6 +110,7 @@ export type Recipe = {
   calories?: number | null;
   saturatedFatG?: string | null;
   fiberG?: string | null;
+  mealRole?: MealRole | null;
   /** Which slots the recipe suits; empty/missing = unknown. Used by swap suggestions. */
   mealTypes?: string[];
 };

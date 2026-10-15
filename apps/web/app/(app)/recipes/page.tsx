@@ -20,6 +20,7 @@ interface Props {
   searchParams: Promise<{
     q?: string;
     cuisine?: string;
+    role?: string;
     favourites?: string;
     heart?: string;
     difficulty?: string;
@@ -33,7 +34,7 @@ export default async function RecipesPage({ searchParams }: Props) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
-  const { q, cuisine, favourites, heart, difficulty, maxTime, tags, sort } = await searchParams;
+  const { role, q, cuisine, favourites, heart, difficulty, maxTime, tags, sort } = await searchParams;
 
   const conditions = [eq(recipes.householdId, householdId)];
   if (q?.trim()) {
@@ -54,6 +55,7 @@ export default async function RecipesPage({ searchParams }: Props) {
       )!
     );
   }
+  if (role && ["main", "side", "sauce", "other"].includes(role)) conditions.push(eq(recipes.mealRole, role as "main" | "side" | "sauce" | "other"));
   if (cuisine?.trim()) conditions.push(eq(recipes.cuisine, cuisine.trim()));
   if (favourites === "1") conditions.push(eq(recipes.isFavourite, true));
   if (heart === "1") conditions.push(heartHealthyCondition());
@@ -90,6 +92,7 @@ export default async function RecipesPage({ searchParams }: Props) {
         title: recipes.title,
         description: recipes.description,
         cuisine: recipes.cuisine,
+        mealRole: recipes.mealRole,
         prepTimeMinutes: recipes.prepTimeMinutes,
         cookTimeMinutes: recipes.cookTimeMinutes,
         calories: recipes.calories,

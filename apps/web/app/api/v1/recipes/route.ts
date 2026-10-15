@@ -24,6 +24,7 @@ export const GET = withApiErrors(async (req: NextRequest) => {
   const results = await recipeService.listRecipes(session, {
     q: query.q,
     cuisine: query.cuisine,
+    role: query.role,
     favouritesOnly: query.favourites === "1",
     heartHealthyOnly: query.heartHealthy === "1",
     difficulty: query.difficulty,

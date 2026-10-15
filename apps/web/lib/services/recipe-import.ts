@@ -211,6 +211,7 @@ function buildWriteInput(
       servings: source.servings,
       servingsUnit: source.servingsUnit ?? "servings",
       difficulty: source.difficulty,
+      mealRole: source.mealRole,
       mealTypes: source.mealTypes,
       sourceUrl: source.sourceUrl,
       // Notes are the owner's private annotations — "halve the chilli", "Dad

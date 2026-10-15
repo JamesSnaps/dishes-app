@@ -9,12 +9,14 @@
  * be reasoned about, and reused by the native app later.
  */
 
+import { isMealRole } from "@dishes/shared";
 import { isHeartHealthy } from "./heart-healthy";
 
 export type FilterableRecipe = {
   id: string;
   title: string;
   cuisine: string | null;
+  mealRole?: string | null;
   difficulty?: string | null;
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
@@ -31,6 +33,7 @@ export type FilterableRecipe = {
 export type RecipeFilters = {
   q?: string;
   cuisine?: string;
+  role?: string;
   favourites?: string;
   heart?: string;
   difficulty?: string;
@@ -42,7 +45,7 @@ export type RecipeFilters = {
 const DIFFICULTIES = ["easy", "medium", "hard"];
 
 export function hasActiveFilters(f: RecipeFilters): boolean {
-  return Boolean(f.q || f.cuisine || f.favourites || f.heart || f.difficulty || f.maxTime || f.tags);
+  return Boolean(f.role || f.q || f.cuisine || f.favourites || f.heart || f.difficulty || f.maxTime || f.tags);
 }
 
 export function filterRecipes<T extends FilterableRecipe>(
@@ -50,6 +53,7 @@ export function filterRecipes<T extends FilterableRecipe>(
   f: RecipeFilters
 ): T[] {
   let out = recipes;
+  if (isMealRole(f.role)) out = out.filter((r) => r.mealRole === f.role);
 
   // Matches the SQL: title ILIKE, OR any tag ILIKE, OR any ingredient name ILIKE.
   const q = f.q?.trim().toLowerCase();

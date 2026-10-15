@@ -33,6 +33,7 @@ export type SwapRecipe = {
   saturatedFatG?: number | string | null;
   fiberG?: number | string | null;
   /** Empty or missing means "unknown" — allowed for any slot. */
+  mealRole?: string | null;
   mealTypes?: string[];
 };
 
@@ -89,7 +90,7 @@ export function weekGaps(proteins: Record<ProteinKind, number>): SwapGap[] {
 }
 
 function fitsSlot(recipe: SwapRecipe, mealType: string): boolean {
-  return !recipe.mealTypes?.length || recipe.mealTypes.includes(mealType);
+  return (!recipe.mealRole || recipe.mealRole === "main") && (!recipe.mealTypes?.length || recipe.mealTypes.includes(mealType));
 }
 
 /**

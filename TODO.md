@@ -80,6 +80,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [ ] Move the dinner reminder loop into the worker container when Phase 2's worker lands
 
 ## Combined Meals (e.g. Sunday roast)
+- [x] Recipe roles (Main, Side, Sauce, Extra), role badges and library filters; AI accompaniment suggestions using selected dishes and optional context in saved meal editing and the planner; exclude accompaniments from automatic standalone meal selection (v1.20.0)
 - [x] Step 1 — planned meal groups (`meal_plan_groups`, `group_id`/`meal_role` on entries) and saved meals (`meals`, `meal_components`); group card on the planner with swap/add/role/servings/move/split/remove, whole-meal shopping add, "Make into a meal…", Saved meals tab in the picker, save/update saved meal, `/meals` page; groups synced offline; `mealGroup` on integrations `today`/`week` (v1.15.0)
 - [x] Saved meal options — dishes become slots with several recipe options (pick one / pick several), a chooser when adding that remembers last time's picks, one-tap swap chips on the planned meal (`meal_slots`, `meal_slot_options` replace `meal_components`) (v1.16.0)
 - [x] Step 2 — meal cooking mode: "Cook this meal" starts every dish together, a tab per dish in cooking mode, and a whole-meal timers panel (v1.17.0)

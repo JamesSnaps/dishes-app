@@ -1,5 +1,6 @@
 "use client";
 
+import { MEAL_ROLES, MEAL_ROLE_LABELS } from "@dishes/shared";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import { useRef, useState, useCallback } from "react";
@@ -95,6 +96,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const cuisine = params.get("cuisine") ?? "";
   const favourites = params.get("favourites") ?? "";
   const heart = params.get("heart") ?? "";
+  const recipeRole = params.get("role") ?? "";
   const difficulty = params.get("difficulty") ?? "";
   const maxTime = params.get("maxTime") ?? "";
   const activeTags = (params.get("tags") ?? "").split(",").filter(Boolean);
@@ -150,6 +152,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
 
   function applyFilters() {
     const next = new URLSearchParams();
+    if (recipeRole) next.set("role", recipeRole);
     const currentQ = searchRef.current?.value.trim() ?? q;
     if (currentQ) next.set("q", currentQ);
     if (pendingCuisine) next.set("cuisine", pendingCuisine);
@@ -206,7 +209,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     pendingTags.length +
     (pendingSort !== "newest" ? 1 : 0);
 
-  const hasActiveFilters = !!(q || cuisine || favourites || heart || difficulty || maxTime || activeTags.length || sort !== "newest");
+  const hasActiveFilters = !!(recipeRole || q || cuisine || favourites || heart || difficulty || maxTime || activeTags.length || sort !== "newest");
 
   // Sheet tag list: selected tags first, then the rest, narrowed by the search box
   const normalizedTagSearch = tagSearch.trim().toLowerCase();
@@ -217,6 +220,11 @@ export function RecipeFilters({ cuisines, tags }: Props) {
 
   return (
     <div className="mb-6 space-y-3">
+      <div className="flex flex-wrap items-center gap-1" aria-label="Recipe role">
+        <span className="mr-1 text-xs font-medium text-muted-foreground">Role</span>
+        <button type="button" aria-pressed={!recipeRole} className={pill(!recipeRole)} onClick={() => push({ role: "" })}>All</button>
+        {MEAL_ROLES.map((role) => <button key={role} type="button" aria-pressed={recipeRole === role} className={pill(recipeRole === role)} onClick={() => push({ role })}>{MEAL_ROLE_LABELS[role]}</button>)}
+      </div>
       {/* Search row */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">

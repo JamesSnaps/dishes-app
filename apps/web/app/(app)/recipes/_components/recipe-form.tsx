@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@dishes/ui";
 import { deleteAllCookAssistThreadsForRecipe } from "@/app/actions/cook-assist-threads";
+import { MEAL_ROLES, MEAL_ROLE_LABELS, isMealRole, type MealRole } from "@dishes/shared";
 import { improveRecipe, generateRecipeImageUrl } from "@/app/actions/ai";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { IMAGE_STYLES } from "@/lib/image-styles";
@@ -96,6 +97,7 @@ export type RecipeFormDefaults = {
   servings?: string | null;
   servingsUnit?: string;
   difficulty?: "easy" | "medium" | "hard" | null;
+  mealRole?: MealRole | null;
   mealTypes?: string[] | null;
   sourceUrl?: string | null;
   notes?: string | null;
@@ -473,6 +475,7 @@ export function RecipeForm({
   const [difficulty, setDifficulty] = useState<string>(
     defaults.difficulty ?? ""
   );
+  const [mealRole, setMealRole] = useState<MealRole | null>(defaults.mealRole ?? null);
   const [mealTypes, setMealTypes] = useState<string[]>(
     defaults.mealTypes ?? []
   );
@@ -583,6 +586,7 @@ export function RecipeForm({
       cookTimeMinutes: cookTimeMinutes ? Number(cookTimeMinutes) : null,
       servings,
       servingsUnit,
+      mealRole,
       mealTypes,
       tags,
       ingredients: sectionsToFlat(ingredientSections, ({ key: _k, ...rest }, groupLabel) => ({
@@ -616,6 +620,7 @@ export function RecipeForm({
     setCookTimeMinutes(r.cookTimeMinutes?.toString() ?? "");
     setServings(r.servings);
     setServingsUnit(r.servingsUnit);
+    if (isMealRole(r.mealRole) || r.mealRole === null) setMealRole(r.mealRole);
     if (Array.isArray(r.mealTypes)) setMealTypes(r.mealTypes);
     setTags(r.tags);
     setNotes(r.notes ?? "");
@@ -964,6 +969,7 @@ export function RecipeForm({
       )
     );
     formData.set("difficulty", difficulty);
+    formData.set("mealRole", mealRole ?? "");
     formData.set("mealTypes", JSON.stringify(mealTypes));
     formData.set("imageUrl", imageUrl);
     formData.set("thumbnailUrl", thumbnailUrl);
@@ -1261,6 +1267,12 @@ export function RecipeForm({
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="recipe-role">Recipe role</Label>
+        <p className="text-xs text-muted-foreground">How this recipe is served. Helps you find dishes for a combined meal.</p>
+        <select id="recipe-role" className="w-full rounded-md border bg-background p-2 text-sm" value={mealRole ?? ""} onChange={(e) => setMealRole(isMealRole(e.target.value) ? e.target.value : null)}>
+          <option value="">Unspecified</option>
+          {MEAL_ROLES.map((role) => <option key={role} value={role}>{MEAL_ROLE_LABELS[role]}</option>)}
+        </select>
         <Label>Suitable meals</Label>
         <p className="text-xs text-muted-foreground">
           Which meals this dish fits. Used by the weekly planner so it stops

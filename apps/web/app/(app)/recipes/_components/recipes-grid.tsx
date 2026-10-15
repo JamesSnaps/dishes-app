@@ -29,6 +29,7 @@ type Recipe = {
   title: string;
   description: string | null;
   cuisine: string | null;
+  mealRole?: string | null;
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   calories?: number | null;

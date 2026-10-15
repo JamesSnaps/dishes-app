@@ -92,6 +92,7 @@ export default async function EditRecipePage({ params }: Props) {
           servings: recipe.servings ?? undefined,
           servingsUnit: recipe.servingsUnit ?? undefined,
           difficulty: recipe.difficulty ?? undefined,
+          mealRole: recipe.mealRole,
           mealTypes: recipe.mealTypes ?? undefined,
           sourceUrl: recipe.sourceUrl ?? undefined,
           notes: recipe.notes ?? undefined,

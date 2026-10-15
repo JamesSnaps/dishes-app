@@ -1,5 +1,6 @@
 "use client";
 
+import { ComponentSuggestions } from "@/components/meals/component-suggestions";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -528,6 +529,13 @@ export function MealsManager({
                   ))}
                 </ul>
 
+                <ComponentSuggestions
+                  key={draft.id ?? "new"}
+                  excludedRecipeIds={draft.slots.flatMap((s) => s.options.map((o) => o.recipeId))}
+                  mealTitle={draft.title}
+                  recipeIds={draft.slots.flatMap((s) => s.options.filter((o) => o.isDefault).map((o) => o.recipeId))}
+                  onAdd={(suggestion) => setDraft((d) => d && !d.slots.some((s) => s.options.some((o) => o.recipeId === suggestion.recipeId)) ? ({ ...d, slots: [...d.slots, { key: crypto.randomUUID(), role: suggestion.role, label: "", allowMultiple: false, options: [{ key: crypto.randomUUID(), recipeId: suggestion.recipeId, isDefault: true }] }] }) : d)}
+                />
                 <div className="mt-2.5 grid grid-cols-2 gap-2">
                   {MEAL_ROLES.map((r) => (
                     <button
@@ -571,11 +579,11 @@ export function MealsManager({
               : `Add ${withArticle(pickerRole ? MEAL_ROLE_LABELS[pickerRole].toLowerCase() : "dish")}`,
           onPick: handlePick,
           preferredIds: pickerRole
-            ? savedMeals.flatMap((m) =>
+            ? [...recipes.filter((r) => r.mealRole === pickerRole).map((r) => r.id), ...savedMeals.flatMap((m) =>
                 m.slots
                   .filter((s) => s.role === pickerRole)
                   .flatMap((s) => s.options.map((o) => o.recipe.id))
-              )
+              )]
             : [],
         }}
       />

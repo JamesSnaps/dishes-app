@@ -48,6 +48,7 @@ import type { ShoppingAddResult } from "@/lib/services/meal-plan";
 import { notifyShoppingChanged } from "@/components/providers/shopping-count-context";
 import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
+import { ComponentSuggestions } from "@/components/meals/component-suggestions";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { MealScheduleDialog } from "./meal-schedule-dialog";
 import { MEAL_BG, MEAL_COLOR, MEAL_ICON, MEAL_LABELS } from "./entry-card";
@@ -143,6 +144,7 @@ export function MealGroupCard({
   const [servingsInput, setServingsInput] = useState("");
   const [picker, setPicker] = useState<Picker | null>(null);
   const [addRole, setAddRole] = useState<MealRole>("side");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const dishes = sortByRole(entries);
@@ -607,6 +609,7 @@ export function MealGroupCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center">
+              <DropdownMenuItem onClick={() => setSuggestionsOpen(true)}>Suggest accompaniments…</DropdownMenuItem>
               {MEAL_ROLES.map((r) => (
                 <DropdownMenuItem
                   key={r}
@@ -639,12 +642,18 @@ export function MealGroupCard({
               ? `Swap ${picker.entry.recipe.title}`
               : `Add ${withArticle(MEAL_ROLE_LABELS[addRole].toLowerCase())} to ${group.title}`,
           onPick: handlePick,
-          preferredIds: preferredFor(
+          preferredIds: [...recipes.filter((r) => r.mealRole === (picker?.kind === "swap" ? (picker.entry.mealRole ?? "side") : addRole)).map((r) => r.id), ...preferredFor(
             picker?.kind === "swap" ? (picker.entry.mealRole ?? "side") : addRole
-          ),
+          )],
         }}
       />
 
+      <Dialog open={suggestionsOpen} onOpenChange={setSuggestionsOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Complete {group.title}</DialogTitle></DialogHeader>
+          {suggestionsOpen && <ComponentSuggestions mealTitle={group.title} recipeIds={entries.map((e) => e.recipe.id)} onAdd={(s) => { if (!entries.some((e) => e.recipe.id === s.recipeId)) addToMeal(s.recipeId, s.role); }} />}
+        </DialogContent>
+      </Dialog>
       <MealScheduleDialog groupId={group.id} open={scheduleOpen} onOpenChange={setScheduleOpen} />
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>

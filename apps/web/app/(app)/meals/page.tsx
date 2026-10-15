@@ -19,6 +19,7 @@ export default async function MealsPage() {
         id: recipes.id,
         title: recipes.title,
         cuisine: recipes.cuisine,
+        mealRole: recipes.mealRole,
         difficulty: recipes.difficulty,
         thumbnailUrl: recipes.thumbnailUrl,
         imageUrl: recipes.imageUrl,

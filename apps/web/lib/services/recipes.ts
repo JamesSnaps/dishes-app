@@ -21,7 +21,7 @@ import {
   recipeCollections,
 } from "@dishes/db/schema";
 import { eq, and, inArray, or, ilike, isNotNull, sql, desc, asc } from "drizzle-orm";
-import { MEAL_TYPES } from "@dishes/shared";
+import { MEAL_TYPES, isMealRole, type MealRole } from "@dishes/shared";
 import type { HouseholdContext } from "@/lib/session";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { withReferences } from "@/lib/ai/references";
@@ -86,6 +86,7 @@ export type RecipeFields = {
   servings: string | null;
   servingsUnit: string;
   difficulty: "easy" | "medium" | "hard" | null;
+  mealRole?: MealRole | null;
   mealTypes: string[] | null;
   sourceUrl: string | null;
   notes: string | null;
@@ -108,6 +109,7 @@ export type RecipeWriteInput = {
 export type RecipeListFilters = {
   q?: string;
   cuisine?: string;
+  role?: MealRole;
   favouritesOnly?: boolean;
   heartHealthyOnly?: boolean;
   difficulty?: string;
@@ -139,6 +141,7 @@ export function generatedToWriteInput(
       servings: recipe.servings || null,
       servingsUnit: recipe.servingsUnit || "servings",
       difficulty: recipe.difficulty || null,
+      mealRole: isMealRole(recipe.mealRole) ? recipe.mealRole : null,
       mealTypes: sanitizeMealTypes(recipe.mealTypes),
       ...withReferences(recipe.notes, recipe.references),
       imageUrl: null,
@@ -353,6 +356,7 @@ export async function listRecipes(
   filters: RecipeListFilters = {}
 ) {
   const conditions = [eq(recipes.householdId, ctx.householdId)];
+  if (filters.role && isMealRole(filters.role)) conditions.push(eq(recipes.mealRole, filters.role));
 
   const q = filters.q?.trim();
   if (q) {
@@ -470,6 +474,7 @@ export async function createRecipe(
   /** Pass a transaction when the recipe must land atomically with other writes. */
   tx: Tx = db
 ): Promise<CreateRecipeResult> {
+  if (input.fields.mealRole != null && !isMealRole(input.fields.mealRole)) throw new RecipeValidationError("Invalid recipe role");
   if (!input.fields.title?.trim()) {
     throw new RecipeValidationError("Title is required");
   }
@@ -503,6 +508,7 @@ export async function updateRecipe(
   recipeId: string,
   input: RecipeWriteInput
 ): Promise<void> {
+  if (input.fields.mealRole != null && !isMealRole(input.fields.mealRole)) throw new RecipeValidationError("Invalid recipe role");
   if (!input.fields.title?.trim()) {
     throw new RecipeValidationError("Title is required");
   }

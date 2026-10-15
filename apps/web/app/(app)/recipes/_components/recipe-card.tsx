@@ -1,5 +1,6 @@
 "use client";
 
+import { isMealRole, MEAL_ROLE_LABELS } from "@dishes/shared";
 import Link from "next/link";
 import { Check, Clock, Flame, HeartPulse, UtensilsCrossed } from "lucide-react";
 import { Badge, Card, cn } from "@dishes/ui";
@@ -11,6 +12,7 @@ type RecipeCardProps = {
   title: string;
   description: string | null;
   cuisine: string | null;
+  mealRole?: string | null;
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   calories?: number | null;
@@ -50,6 +52,7 @@ export function RecipeCard({
   title,
   description,
   cuisine,
+  mealRole,
   prepTimeMinutes,
   cookTimeMinutes,
   calories,
@@ -125,8 +128,9 @@ export function RecipeCard({
           </div>
         )}
 
-        {(cuisine || isAiGenerated || heartHealthy) && (
+        {(cuisine || mealRole || isAiGenerated || heartHealthy) && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {isMealRole(mealRole) && <Badge variant="secondary" className="text-xs">{MEAL_ROLE_LABELS[mealRole]}</Badge>}
             {cuisine && (
               <Badge variant="secondary" className="text-xs">
                 {cuisine}

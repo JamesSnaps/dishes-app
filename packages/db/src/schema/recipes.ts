@@ -44,6 +44,7 @@ export const recipes = pgTable(
     // meal-plan slot matching. Stored as text[] (not the meal_type enum) to
     // avoid a circular schema import with meal-plans. Validated in app code
     // against MEAL_TYPES. Empty/null = unknown (treated as "fits any slot").
+    mealRole: varchar("meal_role", { length: 20 }).$type<"main" | "side" | "sauce" | "other">(),
     mealTypes: text("meal_types").array().$type<string[]>(),
     imageUrl: text("image_url"),
     thumbnailUrl: text("thumbnail_url"),

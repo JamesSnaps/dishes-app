@@ -48,6 +48,7 @@ export type GeneratedRecipe = {
   cookTimeMinutes: number | null;
   servings: string;
   servingsUnit: string;
+  mealRole?: "main" | "side" | "sauce" | "other" | null;
   mealTypes: string[];
   tags: string[];
   ingredients: Array<{
@@ -79,6 +80,7 @@ export const generatedRecipeSchema = z.object({
   cookTimeMinutes: z.number().int().nonnegative().nullable(),
   servings: z.string().min(1),
   servingsUnit: z.string().min(1),
+  mealRole: z.enum(["main", "side", "sauce", "other"]).nullable(),
   mealTypes: z.array(z.enum(["breakfast", "lunch", "dinner", "dessert", "snack"])),
   tags: z.array(z.string()),
   ingredients: z
@@ -126,7 +128,8 @@ export const generatedRecipeSchema = z.object({
 
 // Shared prompt fragment for the meal-types array. Drives meal-plan slot
 // matching, so the model must be honest about which meals a dish actually suits.
-export const MEAL_TYPES_SCHEMA_FRAGMENT = `  "mealTypes": string[] (which meals this dish genuinely suits — any of "breakfast","lunch","dinner","dessert","snack". Be realistic: a rich curry or roast is ["dinner"] (maybe "lunch"), eggs/pancakes/porridge are ["breakfast"], a light salad bowl is ["lunch","dinner"] but NOT "breakfast". Never include a meal a normal person wouldn't eat this dish for.)`;
+export const MEAL_TYPES_SCHEMA_FRAGMENT = `  "mealRole": "main"|"side"|"sauce"|"other"|null (the role of this recipe: main dish, accompaniment, sauce/gravy/dressing, or another component; null if unsure),
+  "mealTypes": string[] (which meals this dish genuinely suits — any of "breakfast","lunch","dinner","dessert","snack". Be realistic: a rich curry or roast is ["dinner"] (maybe "lunch"), eggs/pancakes/porridge are ["breakfast"], a light salad bowl is ["lunch","dinner"] but NOT "breakfast". Never include a meal a normal person wouldn't eat this dish for.)`;
 
 // Shared prompt fragment describing the nutrition object the model must return.
 export const NUTRITION_SCHEMA_FRAGMENT = `  "nutrition": {

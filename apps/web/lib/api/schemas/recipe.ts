@@ -47,6 +47,7 @@ export const recipeWriteSchema = z.object({
   servings: z.string().nullable().default(null),
   servingsUnit: z.string().default("servings"),
   difficulty: z.enum(["easy", "medium", "hard"]).nullable().default(null),
+  mealRole: z.enum(["main", "side", "sauce", "other"]).nullable().optional(),
   mealTypes: z.array(z.string()).nullable().default(null),
   sourceUrl: z.string().url().nullable().default(null),
   notes: z.string().nullable().default(null),
@@ -81,6 +82,7 @@ export function toWriteInput(payload: RecipeWritePayload): RecipeWriteInput {
 export const recipeListQuerySchema = z.object({
   q: z.string().optional(),
   cuisine: z.string().optional(),
+  role: z.enum(["main", "side", "sauce", "other"]).optional(),
   favourites: z.enum(["0", "1"]).optional(),
   heartHealthy: z.enum(["0", "1"]).optional(),
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),

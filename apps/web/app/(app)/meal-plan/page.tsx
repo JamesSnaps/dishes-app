@@ -109,6 +109,7 @@ export default async function MealPlanPage({
         calories: recipes.calories,
         saturatedFatG: recipes.saturatedFatG,
         fiberG: recipes.fiberG,
+        mealRole: recipes.mealRole,
         mealTypes: recipes.mealTypes,
       })
       .from(recipes)

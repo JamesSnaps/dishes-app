@@ -77,6 +77,7 @@ function toGridRecipes(recipes: SyncedRecipe[], cooks: SyncedCook[]): GridRecipe
       id: r.id,
       title: (r.title as string) ?? "",
       description: (r.description as string | null) ?? null,
+      mealRole: (r.mealRole as string | null) ?? null,
       cuisine: (r.cuisine as string | null) ?? null,
       difficulty: (r.difficulty as string | null) ?? null,
       prepTimeMinutes: (r.prepTimeMinutes as number | null) ?? null,
@@ -128,6 +129,7 @@ export function RecipesLocalGrid({
   const list = useLocal
     ? filterAndSortRecipes(toGridRecipes(recipes, cooks), {
         q: params.get("q") ?? undefined,
+        role: params.get("role") ?? undefined,
         cuisine: params.get("cuisine") ?? undefined,
         favourites: params.get("favourites") ?? undefined,
         heart: params.get("heart") ?? undefined,

@@ -1,5 +1,6 @@
 "use server";
 
+import { isMealRole } from "@dishes/shared";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
@@ -33,6 +34,7 @@ function parseJSON<T>(raw: string | null, fallback: T): T {
 
 function extractRecipeFields(formData: FormData): RecipeFields {
   const str = (key: string) => (formData.get(key) as string)?.trim() || null;
+  const role = str("mealRole");
 
   return {
     title: (formData.get("title") as string)?.trim() ?? "",
@@ -46,6 +48,7 @@ function extractRecipeFields(formData: FormData): RecipeFields {
     mealTypes: recipeService.sanitizeMealTypes(
       parseJSON<string[]>(formData.get("mealTypes") as string, [])
     ),
+    mealRole: isMealRole(role) ? role : null,
     sourceUrl: str("sourceUrl"),
     notes: str("notes"),
     imageUrl: str("imageUrl"),
