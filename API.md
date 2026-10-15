@@ -25,7 +25,7 @@ Tokens carry granular scopes. Each endpoint documents the required scope. Reques
 
 ## OpenAPI spec
 
-`GET /api/integrations/openapi.json` returns an OpenAPI 3.1 description of every endpoint below — parameters, request schemas, example responses, and an `operationId` per endpoint (`getToday`, `getWeekMealPlan`, `getRecipe`, `getShoppingList`, `addShoppingItems`, `quickAddShoppingItem`, `generateMealPlan`). It needs **no token**, so AI assistants (Grok, ChatGPT custom actions, Claude) and n8n can import it before auth is configured; it contains no household data. `servers[0].url` is taken from the request's `X-Forwarded-Host`/`X-Forwarded-Proto`.
+`GET /api/integrations/openapi.json` returns an OpenAPI 3.1 description of every endpoint below — parameters, request schemas, example responses, and an `operationId` per endpoint (`getToday`, `getWeekMealPlan`, `getRecipe`, `getShoppingList`, `addShoppingItems`, `quickAddShoppingItem`, `generateMealPlan`, `getDeliveries`, `ingestDeliveryEmail`, `recordDeliveryOrder`). It needs **no token**, so AI assistants (Grok, ChatGPT custom actions, Claude) and n8n can import it before auth is configured; it contains no household data. `servers[0].url` is taken from the request's `X-Forwarded-Host`/`X-Forwarded-Proto`.
 
 The spec and the **Settings → Integrations** reference page are both generated from `apps/web/lib/integrations-catalog.ts` — update that file alongside this one when an endpoint changes.
 
@@ -43,6 +43,8 @@ For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's f
 | `write:meal_plan` | Create meal plan entries and trigger AI generation |
 | `read:shopping_list` | Read the active shopping list |
 | `write:shopping_list` | Add items to the active shopping list |
+| `read:deliveries` | Read grocery delivery days and order status |
+| `write:deliveries` | Record grocery orders (e.g. from retailer emails) |
 
 ## Common error shape
 
@@ -87,9 +89,12 @@ Returns today's meal plan entries across all meal types.
         "calories": 650
       }
     }
-  ]
+  ],
+  "nextDelivery": null
 }
 ```
+
+`nextDelivery` is the next grocery order that's still open, in the same shape as `next` from [`GET /api/integrations/deliveries`](#get-apiintegrationsdeliveries), or `null` when no delivery is coming (or delivery days aren't set up).
 
 `recipe.calories` is the per-serving calorie estimate, or `null` if the recipe has no nutrition data. `meals` is empty `[]` if no plan exists for the current week or no entries fall on today.
 
@@ -422,6 +427,178 @@ Because every meal costs a second AI call, a full week takes appreciably longer 
 ```
 
 **Error `502`** — AI returned an unexpected or incomplete response.
+
+---
+
+### `GET /api/integrations/deliveries`
+
+The next grocery order that's still open, with what's left to do before it closes, plus every delivery in the next two weeks. Good for a Home Assistant sensor ("Order by 23:00 tonight · 2 dinners not planned").
+
+**Scope:** `read:deliveries`
+
+**Response `200`**
+
+```json
+{
+  "today": "2026-10-17",
+  "timezone": "Europe/London",
+  "deliveryWeekdays": [0, 4],
+  "next": {
+    "date": "2026-10-19",
+    "status": "scheduled",
+    "slot": null,
+    "total": null,
+    "orderReference": null,
+    "orderBy": "2026-10-18T22:00:00.000Z",
+    "orderByLabel": "23:00 tomorrow",
+    "covers": ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"],
+    "unplannedDinners": ["2026-10-21"],
+    "mealsNotOnList": 1,
+    "itemsNotInBasket": 6,
+    "addedSinceOrder": []
+  },
+  "upcoming": [
+    {
+      "date": "2026-10-19",
+      "status": "scheduled",
+      "regular": true,
+      "away": null,
+      "slot": null,
+      "total": null,
+      "orderReference": null,
+      "orderBy": "2026-10-18T22:00:00.000Z"
+    }
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `next` | The soonest delivery that's coming (not skipped) and whose order deadline hasn't passed. `null` if none. |
+| `status` | `scheduled` (not ordered yet), `ordered`, or `skipped` (in `upcoming` only). |
+| `orderBy` | The order deadline as a UTC instant; `orderByLabel` is the same in household-local words. |
+| `covers` | The dates the delivery has to feed: up to the day before the next delivery, stopping at a holiday, at most 7 days. |
+| `unplannedDinners` | Dates in `covers` with no dinner on the meal plan. |
+| `mealsNotOnList` | Planned meals in `covers` not yet added to the shopping list (a combined meal counts once). |
+| `itemsNotInBasket` | Unticked items on the active shopping list. Ticking an item means it's in the online basket. |
+| `addedSinceOrder` | Once ordered: names of unticked items added after the order was placed — they need amending in before `orderBy`. |
+| `deliveryWeekdays` | Regular delivery days, `0` = Monday … `6` = Sunday. |
+| `away` | The holiday label when a date falls in one (`"Away"` if unlabelled). |
+
+---
+
+### `POST /api/integrations/deliveries/email`
+
+Forward a supermarket order email — Sainsbury's, Tesco, Ocado and similar — and the household's AI reads it and updates the matching delivery. The household must have an AI key in **Settings → AI**. Each call is one small AI request.
+
+**Scope:** `write:deliveries`
+
+**Request body** (send `text`, `html` or both; `text` wins)
+
+```json
+{
+  "subject": "Your Sainsbury's order confirmation",
+  "from": "groceries@sainsburys.co.uk",
+  "receivedAt": "2026-10-17T19:42:00Z",
+  "text": "Thanks for your order 1234567890. Delivery: Monday 19 October, 8:00am - 9:00am. Order total £94.20"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `subject` | string | no | Email subject |
+| `from` | string | no | Sender |
+| `receivedAt` | string (ISO date-time) | no | When it arrived. Dates without a year are read relative to it. Defaults to now. |
+| `text` | string | no* | Plain-text body |
+| `html` | string | no* | HTML body; markup is stripped before the AI sees it |
+
+\* At least one of `text`, `html` or `subject`. Bodies are cut to 15,000 characters.
+
+What happens, by the kind of email:
+
+| Email | Effect |
+|---|---|
+| Order confirmed | The delivery date is marked **ordered** with slot, total and order number. Reminders stop. |
+| Order amended | Same, by order number. If the slot moved to another day the order moves with it; a regular delivery day it left is marked skipped. |
+| Order cancelled | The delivery goes back to **not ordered**, so reminders pick it up again. |
+| Delivered / receipt | The final charged total replaces the estimate (it feeds Stats → Grocery spend). |
+| Anything else | Ignored — offers, "you can still amend until…" reminders, slot reservations. |
+
+Members with delivery reminders on get a push for confirmations, amendments and cancellations.
+
+**Response `200`**
+
+```json
+{
+  "action": "ordered",
+  "delivery": {
+    "date": "2026-10-19",
+    "status": "ordered",
+    "slot": "08:00-09:00",
+    "total": "94.20",
+    "orderReference": "1234567890"
+  },
+  "extracted": {
+    "kind": "placed",
+    "retailer": "Sainsbury's",
+    "orderReference": "1234567890",
+    "deliveryDate": "2026-10-19",
+    "slotStart": "08:00",
+    "slotEnd": "09:00",
+    "total": 94.2
+  }
+}
+```
+
+`action` is `ordered`, `updated`, `cancelled` or `ignored` (with a `reason`). `movedFrom` is added when an amendment moved the delivery to another date. `extracted` is what the AI read, for checking in n8n's execution log. A delivery date more than 14 days before or 60 days after `receivedAt` is discarded as a misread.
+
+**Error `400`** — bad JSON, or no text/html/subject. **Error `422`** — no AI key set up. **Error `502`** — the AI call failed (bad key, rate limit, unreadable answer).
+
+**n8n setup**
+
+1. Create a token with `write:deliveries` in **Settings → Integrations**.
+2. Add an **Email Trigger (IMAP)** node (or the Gmail / Outlook trigger) on the mailbox the orders go to. Filter to the supermarket's sender, e.g. a Gmail search of `from:sainsburys.co.uk`, or an **If** node on `from` containing `sainsburys`.
+3. Add an **HTTP Request** node:
+   - Method `POST`, URL `https://dishes.yourdomain.com/api/integrations/deliveries/email`
+   - Authentication: Generic → Header Auth, `Authorization` = `Bearer <token>`
+   - Body: JSON, e.g. `{ "subject": {{ JSON.stringify($json.subject) }}, "from": {{ JSON.stringify($json.from) }}, "receivedAt": {{ JSON.stringify($json.date) }}, "text": {{ JSON.stringify($json.textPlain || $json.text || "") }}, "html": {{ JSON.stringify($json.textHtml || $json.html || "") }} }` (field names vary slightly between the trigger nodes — check one execution's output).
+4. Send yourself a test by running the workflow on a past confirmation email; the response's `extracted` shows what was read.
+
+---
+
+### `POST /api/integrations/deliveries/order`
+
+Record an order from details you've already parsed — no AI involved. Same effects as the email endpoint.
+
+**Scope:** `write:deliveries`
+
+**Request body**
+
+```json
+{
+  "kind": "placed",
+  "deliveryDate": "2026-10-19",
+  "slot": "08:00-09:00",
+  "total": 94.2,
+  "orderReference": "1234567890",
+  "retailer": "Sainsbury's"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `kind` | string | no | `placed` (default), `amended`, `cancelled` or `delivered` |
+| `deliveryDate` | string | see below | `YYYY-MM-DD` |
+| `slot` | string | no | `"08:00-09:00"`, `"8am-9am"` or `"7-8pm"` — stored as `HH:MM-HH:MM` |
+| `total` | number or string | no | Pounds; `"£94.20"` is accepted |
+| `orderReference` | string | see below | The retailer's order number; links later updates to this order |
+| `retailer` | string | no | Shown in the push notification |
+
+Give `deliveryDate`, `orderReference`, or both.
+
+**Response `201`** — same shape as the email endpoint, without `extracted`. `200` with `action: "ignored"` when nothing matched (e.g. cancelling an unknown order).
+
+**Error `400`** — bad JSON, unknown `kind`, malformed date, or neither date nor reference.
 
 ---
 

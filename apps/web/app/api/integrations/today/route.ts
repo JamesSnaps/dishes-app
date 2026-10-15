@@ -4,6 +4,16 @@ import { db } from "@/lib/db";
 import { mealPlans, mealPlanEntries, mealPlanGroups, recipes } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { withMealGroup } from "@/lib/integration-meal-groups";
+import { getDeliveryConfig, getNextOpenDelivery } from "@/lib/deliveries/schedule";
+import { nextDeliveryJson } from "@/lib/deliveries/json";
+import { localNow } from "@/lib/dinner-reminders/time";
+
+/** The next grocery order still open, or null when deliveries aren't set up. */
+async function nextDelivery(householdId: string) {
+  const config = await getDeliveryConfig(householdId);
+  const report = await getNextOpenDelivery(householdId, config);
+  return nextDeliveryJson(report, localNow(config.timezone).date);
+}
 
 // Returns today's meal plan entries for the household's active plan.
 export const GET = withIntegrationAuth(
@@ -29,7 +39,11 @@ export const GET = withIntegrationAuth(
       .limit(1);
 
     if (!plan) {
-      return NextResponse.json({ date: today.toISOString().split("T")[0], meals: [] });
+      return NextResponse.json({
+        date: today.toISOString().split("T")[0],
+        meals: [],
+        nextDelivery: await nextDelivery(ctx.householdId),
+      });
     }
 
     const entries = await db
@@ -63,6 +77,7 @@ export const GET = withIntegrationAuth(
     return NextResponse.json({
       date: today.toISOString().split("T")[0],
       meals: entries.map(withMealGroup),
+      nextDelivery: await nextDelivery(ctx.householdId),
     });
   }
 );

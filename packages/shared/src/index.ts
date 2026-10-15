@@ -45,6 +45,8 @@ export const TOKEN_SCOPES = [
   "write:meal_plan",
   "read:shopping_list",
   "write:shopping_list",
+  "read:deliveries",
+  "write:deliveries",
   "read:recipes",
   "write:recipes",
   "run:automations",

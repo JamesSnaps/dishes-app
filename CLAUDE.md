@@ -184,6 +184,9 @@ GET  /api/integrations/shopping-list
 POST /api/integrations/shopping-list/items
 POST /api/integrations/shopping-list/quick-add
 POST /api/integrations/meal-plan/generate
+GET  /api/integrations/deliveries
+POST /api/integrations/deliveries/email
+POST /api/integrations/deliveries/order
 GET  /api/integrations/openapi.json   (public, no token)
 ```
 

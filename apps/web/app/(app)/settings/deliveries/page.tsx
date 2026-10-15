@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, Truck } from "lucide-react";
+import { ChevronLeft, Mail, Truck } from "lucide-react";
 import { getDeliveryOverview } from "@/app/actions/deliveries";
 import { DeliverySettingsForm } from "./_components/delivery-settings-form";
 import { DeliveryCalendar } from "./_components/delivery-calendar";
@@ -50,6 +50,38 @@ export default async function DeliveriesPage() {
         canEdit={overview.canEdit}
         today={overview.today}
       />
+
+      <section className="mt-6 rounded-xl border bg-gradient-to-br from-card to-sky-50/60 dark:to-sky-950/10 p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Mail className="h-4 w-4 text-sky-600" />
+          <h2 className="font-semibold">Read your order emails</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Forward your supermarket&apos;s order emails here (e.g. with an n8n email trigger) and
+          deliveries mark themselves as ordered, with the slot and total. Amended, moved and
+          cancelled orders are tracked by order number, and the totals feed the grocery spend
+          on the Stats page. Needs an AI key in Settings → AI.
+        </p>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
+          <li>
+            Create a token with the <code className="rounded bg-muted px-1">write:deliveries</code>{" "}
+            scope in Settings → Integrations.
+          </li>
+          <li>
+            In n8n, trigger on new emails from your supermarket and POST{" "}
+            <code className="rounded bg-muted px-1">{"{ subject, from, receivedAt, text, html }"}</code>{" "}
+            to <code className="rounded bg-muted px-1 break-all">/api/integrations/deliveries/email</code>{" "}
+            with the token as a Bearer header.
+          </li>
+          <li>Non-order emails (offers, &ldquo;you can still amend&rdquo; reminders) are ignored.</li>
+        </ol>
+        <Link
+          href="/settings/integrations"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-sky-700 hover:to-teal-600"
+        >
+          Integrations &amp; API reference ›
+        </Link>
+      </section>
     </div>
   );
 }

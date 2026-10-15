@@ -64,20 +64,23 @@ export function StatTile({
 export function BarList({
   rows,
   barClassName = "bg-primary",
+  valuePrefix = "",
   valueSuffix = "",
 }: {
   rows: { key: string; label: ReactNode; value: number; tooltip?: string }[];
   barClassName?: string;
+  valuePrefix?: string;
   valueSuffix?: string;
 }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <ul className="space-y-2">
       {rows.map((r) => (
-        <li key={r.key} className="group" title={r.tooltip ?? `${r.value}${valueSuffix}`}>
+        <li key={r.key} className="group" title={r.tooltip ?? `${valuePrefix}${r.value}${valueSuffix}`}>
           <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
             <span className="min-w-0 truncate">{r.label}</span>
             <span className="shrink-0 tabular-nums text-muted-foreground">
+              {valuePrefix}
               {r.value}
               {valueSuffix}
             </span>

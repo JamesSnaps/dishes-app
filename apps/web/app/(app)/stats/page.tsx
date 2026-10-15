@@ -9,6 +9,7 @@ import {
   Trophy,
   Users,
   Star,
+  Truck,
 } from "lucide-react";
 import { cn } from "@dishes/ui";
 import { getAutheliaUser } from "@/lib/auth";
@@ -28,6 +29,7 @@ import {
 import { STATS_RANGES, getStatsReport, parseRange, type StatsRange } from "@/lib/services/stats";
 import { BarList, DataTable, Section, ShareColumns, StatTile } from "./_components/stat-pieces";
 import { PrintButton } from "./_components/print-button";
+import { getGrocerySpend, type GrocerySpend } from "@/lib/deliveries/spend";
 
 export const metadata = { title: "Stats" };
 
@@ -58,6 +60,7 @@ export default async function StatsPage({
   const params = await searchParams;
   const range = parseRange(params.range);
   const report = await getStatsReport(householdId, range, params.person);
+  const spend = await getGrocerySpend(householdId, report.from, report.to);
   const personParam = report.person ? `&person=${report.person.id}` : "";
   const { totals, summary } = report;
 
@@ -370,6 +373,49 @@ export default async function StatsPage({
           </p>
         </div>
       )}
+
+      {spend.orders > 0 && !report.person && <SpendSection spend={spend} />}
+    </div>
+  );
+}
+
+const POUNDS = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+
+function SpendSection({ spend }: { spend: GrocerySpend }) {
+  return (
+    <div className="mt-5">
+      <Section
+        title="Grocery spend"
+        icon={<Truck className="h-4 w-4 text-emerald-600" />}
+        description="Delivery orders with a total, from your retailer's emails or the integrations API."
+      >
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile value={POUNDS.format(spend.total)} label="Spent" tone="emerald" />
+          <StatTile value={spend.orders} label="Orders" />
+          <StatTile
+            value={spend.averagePerOrder !== null ? POUNDS.format(spend.averagePerOrder) : "—"}
+            label="Average order"
+          />
+          <StatTile
+            value={spend.averagePerWeek !== null ? POUNDS.format(spend.averagePerWeek) : "—"}
+            label="Per week"
+            hint="Total spread over the weeks since the first order in this period"
+          />
+        </div>
+        <BarList
+          barClassName="bg-gradient-to-r from-emerald-500 to-teal-400"
+          valuePrefix="£"
+          rows={spend.periods.map((p) => ({
+            key: p.key,
+            label: `${p.label} · ${p.orders} order${p.orders === 1 ? "" : "s"}`,
+            value: Math.round(p.total),
+            tooltip: `${p.label}: ${POUNDS.format(p.total)} across ${p.orders} order${p.orders === 1 ? "" : "s"}`,
+          }))}
+        />
+        <p className="mt-2 text-xs text-muted-foreground">
+          {spend.byWeek ? "By week" : "By month"}, rounded to the pound.
+        </p>
+      </Section>
     </div>
   );
 }

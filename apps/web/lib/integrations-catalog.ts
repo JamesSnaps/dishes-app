@@ -55,6 +55,8 @@ export const SCOPE_DESCRIPTIONS: Record<TokenScope, string> = {
   "write:meal_plan": "Trigger AI meal plan generation",
   "read:shopping_list": "Read the active shopping list",
   "write:shopping_list": "Add items to the active shopping list",
+  "read:deliveries": "Read grocery delivery days and order status",
+  "write:deliveries": "Record grocery orders (e.g. from retailer emails)",
 };
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
@@ -68,6 +70,157 @@ const RECIPE_SUMMARY_EXAMPLE = {
   calories: 650,
 };
 
+const NEXT_DELIVERY_EXAMPLE = {
+  date: "2026-10-19",
+  status: "scheduled",
+  slot: null,
+  total: null,
+  orderReference: null,
+  orderBy: "2026-10-18T22:00:00.000Z",
+  orderByLabel: "23:00 tomorrow",
+  covers: ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"],
+  unplannedDinners: ["2026-10-21"],
+  mealsNotOnList: 1,
+  itemsNotInBasket: 6,
+  addedSinceOrder: [],
+};
+
+const ORDER_RESULT_EXAMPLE = {
+  action: "ordered",
+  delivery: {
+    date: "2026-10-19",
+    status: "ordered",
+    slot: "08:00-09:00",
+    total: "94.20",
+    orderReference: "1234567890",
+  },
+};
+
+const DELIVERY_ENDPOINTS: EndpointDoc[] = [
+  {
+    id: "getDeliveries",
+    method: "GET",
+    path: "/api/integrations/deliveries",
+    scope: "read:deliveries",
+    summary: "Grocery deliveries",
+    description:
+      "The next grocery order that's still open, with what's left to do before it closes: dinners not planned in the days it covers, planned meals not on the shopping list, and items not ticked off (ticked = in the online basket). Once ordered, addedSinceOrder lists items added afterwards that need amending in. upcoming lists deliveries for the next two weeks; status is scheduled, ordered or skipped, and orderBy is the order deadline. Good for a Home Assistant sensor.",
+    response: {
+      status: 200,
+      description: "`next` is null when no order is open.",
+      example: {
+        today: "2026-10-17",
+        timezone: "Europe/London",
+        deliveryWeekdays: [0, 4],
+        next: NEXT_DELIVERY_EXAMPLE,
+        upcoming: [
+          {
+            date: "2026-10-19",
+            status: "scheduled",
+            regular: true,
+            away: null,
+            slot: null,
+            total: null,
+            orderReference: null,
+            orderBy: "2026-10-18T22:00:00.000Z",
+          },
+        ],
+      },
+    },
+  },
+  {
+    id: "ingestDeliveryEmail",
+    method: "POST",
+    path: "/api/integrations/deliveries/email",
+    scope: "write:deliveries",
+    summary: "Record an order from a retailer email",
+    description:
+      "Forward an order email from Sainsbury's, Tesco, Ocado or similar, e.g. from an n8n email trigger. The household's AI reads it and the delivery for that date is marked ordered (confirmation), updated (amendment, including moving to another day) or put back to not-ordered (cancellation); a delivered/receipt email records the final total. The order number links later emails to the same order. Anything else (marketing, \"you can still amend\" reminders) is ignored. Members with delivery reminders on get a push. Send text or html; text wins if both are given.",
+    costly: true,
+    body: {
+      schema: {
+        type: "object",
+        properties: {
+          subject: { type: "string", description: "Email subject." },
+          from: { type: "string", description: "Sender address." },
+          receivedAt: {
+            type: "string",
+            format: "date-time",
+            description: "When it arrived. Dates without a year are read relative to it. Defaults to now.",
+          },
+          text: { type: "string", description: "Plain-text body." },
+          html: { type: "string", description: "HTML body, used when text is missing." },
+        },
+      },
+      example: {
+        subject: "Your Sainsbury's order confirmation",
+        from: "groceries@sainsburys.co.uk",
+        receivedAt: "2026-10-17T19:42:00Z",
+        text: "Thanks for your order 1234567890. Delivery: Monday 19 October, 8:00am - 9:00am. Order total £94.20",
+      },
+    },
+    response: {
+      status: 200,
+      description:
+        "What happened (ordered, updated, cancelled or ignored) and what the AI read. movedFrom is set when an amendment moved the delivery to another day.",
+      example: {
+        ...ORDER_RESULT_EXAMPLE,
+        extracted: {
+          kind: "placed",
+          retailer: "Sainsbury's",
+          orderReference: "1234567890",
+          deliveryDate: "2026-10-19",
+          slotStart: "08:00",
+          slotEnd: "09:00",
+          total: 94.2,
+        },
+      },
+    },
+    errors: [
+      { status: 400, description: "Body isn't valid JSON or has no text, html or subject." },
+      { status: 422, description: "The household has no AI key set up (Settings → AI)." },
+      { status: 502, description: "The AI call failed or returned something unreadable." },
+    ],
+  },
+  {
+    id: "recordDeliveryOrder",
+    method: "POST",
+    path: "/api/integrations/deliveries/order",
+    scope: "write:deliveries",
+    summary: "Record an order from parsed details",
+    description:
+      "Like ingestDeliveryEmail without the AI, for when you've already pulled out the details. kind placed or amended marks the date ordered (an amendment with a known orderReference and a new deliveryDate moves it); cancelled puts it back to not-ordered; delivered records the final total. Needs a deliveryDate, an orderReference, or both.",
+    body: {
+      schema: {
+        type: "object",
+        required: ["kind"],
+        properties: {
+          kind: { type: "string", enum: ["placed", "amended", "cancelled", "delivered"], default: "placed" },
+          deliveryDate: { type: "string", format: "date", description: "YYYY-MM-DD." },
+          slot: { type: "string", description: "e.g. \"08:00-09:00\" or \"7-8pm\"." },
+          total: { type: "number", description: "Order total in pounds." },
+          orderReference: { type: "string", description: "The retailer's order number." },
+          retailer: { type: "string", description: "Shown in the push, e.g. \"Sainsbury's\"." },
+        },
+      },
+      example: {
+        kind: "placed",
+        deliveryDate: "2026-10-19",
+        slot: "08:00-09:00",
+        total: 94.2,
+        orderReference: "1234567890",
+        retailer: "Sainsbury's",
+      },
+    },
+    response: {
+      status: 201,
+      description: "What happened. 200 with action \"ignored\" when there was nothing to update.",
+      example: ORDER_RESULT_EXAMPLE,
+    },
+    errors: [{ status: 400, description: "Bad JSON, unknown kind, bad date, or neither date nor reference." }],
+  },
+];
+
 export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
   {
     id: "getToday",
@@ -76,7 +229,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     scope: "read:meal_plan",
     summary: "Today's meals",
     description:
-      "Every meal planned for today, across all meal types. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own.",
+      "Every meal planned for today, across all meal types. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own. nextDelivery is the next grocery order still open (see getDeliveries), or null when delivery days aren't set up.",
     response: {
       status: 200,
       description: "Today's meals. `meals` is empty when nothing is planned.",
@@ -104,6 +257,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             recipe: { ...RECIPE_SUMMARY_EXAMPLE, title: "Roast Chicken", cuisine: "British" },
           },
         ],
+        nextDelivery: null,
       },
     },
   },
@@ -381,6 +535,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
       { status: 502, description: "The AI returned an unexpected or incomplete response." },
     ],
   },
+  ...DELIVERY_ENDPOINTS,
 ];
 
 export const COMMON_ERRORS = [

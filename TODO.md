@@ -79,8 +79,9 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Dinner reminders — opt-in push saying when to start cooking tonight's dinner, timed from the household's real cook-mode durations (median of recent cooks, else recipe time × household pace factor); household + per-weekday dinner times in Settings → Dinner reminders, one-off per-date time / "no reminder" on the planner day header, "Push back 30 min" notification button; in-process scheduler started from `instrumentation.ts`, Redis-deduped (v1.12.0)
 - [ ] Move the dinner reminder loop into the worker container when Phase 2's worker lands
 - [x] Grocery deliveries — weekly delivery days + order deadline, holidays, one-off/skip/ordered per date, next-order card and day markers on the planner, opt-in deadline-day push of what's outstanding with "Mark as ordered", post-order "added since you ordered" nudge (v1.21.0, migration 0039)
-- [ ] Deliveries step 2 — `POST /api/integrations/deliveries` so n8n can forward Sainsbury's confirmation/amend/cancel emails; AI extracts order number, date, slot and total and marks the delivery ordered (columns already exist)
-- [ ] Deliveries step 3 — grocery spend over time in Stats; next delivery on `GET /api/integrations/today` for Home Assistant
+- [x] Deliveries step 2 — `POST /api/integrations/deliveries/email` (AI reads forwarded order emails: placed/amended/moved/cancelled/delivered, by order number), `POST …/deliveries/order` for pre-parsed details, `GET …/deliveries`, `read:deliveries`/`write:deliveries` scopes, order pushes (v1.22.0)
+- [x] Deliveries step 3 — Stats → Grocery spend; `nextDelivery` on `GET /api/integrations/today` (v1.22.0)
+- [ ] Edit an order's slot/total by hand in the app (today only via email or the API)
 
 ## Combined Meals (e.g. Sunday roast)
 - [x] Recipe roles (Main, Side, Sauce, Extra), role badges and library filters; AI accompaniment suggestions using selected dishes and optional context in saved meal editing and the planner; exclude accompaniments from automatic standalone meal selection (v1.20.0)
