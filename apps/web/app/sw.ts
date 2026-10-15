@@ -333,11 +333,48 @@ async function snoozeDinner(date: string) {
   }
 }
 
+/**
+ * "Mark as ordered" on a delivery reminder. Stops the remaining "place your
+ * order" reminders for that delivery without opening the app; falls back to
+ * opening the planner if the request fails (e.g. expired session).
+ */
+async function markDeliveryOrdered(date: string) {
+  try {
+    const res = await fetch("/api/deliveries/ordered", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ date }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = (await res.json()) as { day: string };
+    await self.registration.showNotification(`${result.day}'s order marked as placed`, {
+      body: "We'll only nudge you again if something's added to the list before it closes.",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: `delivery-${date}`,
+      data: { url: "/meal-plan" },
+    });
+  } catch {
+    await self.registration.showNotification("Couldn't mark the order as placed", {
+      body: "Tap to mark it from the meal planner.",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: `delivery-${date}`,
+      data: { url: "/meal-plan" },
+    });
+  }
+}
+
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const data = e.notification.data ?? {};
   if (e.action === "snooze" && typeof data.snoozeDate === "string") {
     e.waitUntil(snoozeDinner(data.snoozeDate));
+    return;
+  }
+  if (e.action === "delivery-ordered" && typeof data.deliveryDate === "string") {
+    e.waitUntil(markDeliveryOrdered(data.deliveryDate));
     return;
   }
   e.waitUntil(openOrFocus(data.url ?? "/"));

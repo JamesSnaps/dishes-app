@@ -18,3 +18,4 @@ export * from "./sync";
 export * from "./library-shares";
 export * from "./client-errors";
 export * from "./dinner-reminders";
+export * from "./deliveries";

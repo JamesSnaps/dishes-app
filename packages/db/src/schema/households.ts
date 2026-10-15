@@ -40,6 +40,8 @@ export const householdMembers = pgTable("household_members", {
   customNotes: text("custom_notes"),
   // Opt-in: push this member a "start cooking dinner" reminder.
   dinnerReminders: boolean("dinner_reminders").notNull().default(false),
+  // Opt-in: push this member when a grocery delivery's order deadline is near.
+  deliveryReminders: boolean("delivery_reminders").notNull().default(false),
   // Null until this member finishes or skips the welcome wizard.
   onboardingCompletedAt: timestamp("onboarding_completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

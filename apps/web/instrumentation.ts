@@ -9,6 +9,8 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { startDinnerReminderScheduler } = await import("./lib/dinner-reminders/scheduler");
     startDinnerReminderScheduler();
+    const { startDeliveryReminderScheduler } = await import("./lib/deliveries/scheduler");
+    startDeliveryReminderScheduler();
     // Timers handed over by cooking mode before a restart are re-armed.
     const { restoreCookTimers } = await import("./lib/cook-timer-push");
     void restoreCookTimers();

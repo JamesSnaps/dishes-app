@@ -53,6 +53,16 @@ export default async function SettingsPage() {
           </div>
           <span className="text-muted-foreground">›</span>
         </Link>
+        <Link
+          href="/settings/deliveries"
+          className="mt-2 flex items-center justify-between rounded-lg border border-emerald-300/60 dark:border-emerald-900/60 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 px-4 py-3 hover:from-emerald-500/20 hover:to-teal-500/20 transition-colors"
+        >
+          <div>
+            <p className="font-medium">Grocery deliveries</p>
+            <p className="text-sm text-muted-foreground">Delivery days, holidays, and reminders before orders close</p>
+          </div>
+          <span className="text-muted-foreground">›</span>
+        </Link>
       </section>
 
       {/* Household */}

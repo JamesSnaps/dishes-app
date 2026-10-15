@@ -10,6 +10,7 @@ import {
   Sparkles,
   Plus,
   Lightbulb,
+  Truck,
 } from "lucide-react";
 import {
   DndContext,
@@ -41,6 +42,8 @@ import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { DinnerTimeChip, useWeekDinnerSchedule } from "./dinner-time-chip";
+import { DeliveryChip, useWeekDeliveries } from "./delivery-chip";
+import { NextDeliveryCard } from "@/components/deliveries/next-delivery-card";
 import { EntryCard } from "./entry-card";
 import { MealGroupCard, groupTotalMinutes } from "./meal-group-card";
 import { CombineMealDialog } from "./combine-meal-dialog";
@@ -430,6 +433,7 @@ function DroppableDayChip({
   mealCount,
   isDragActive,
   hasSuggestion,
+  delivery,
   onClick,
 }: {
   dayIndex: number;
@@ -440,6 +444,8 @@ function DroppableDayChip({
   mealCount: number;
   isDragActive: boolean;
   hasSuggestion: boolean;
+  /** A delivery that's coming this day (skipped ones aren't marked). */
+  delivery: "scheduled" | "ordered" | null;
   onClick: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIndex}` });
@@ -490,6 +496,14 @@ function DroppableDayChip({
         <span
           className="absolute right-1 top-1 h-2 w-2 rounded-full bg-gradient-to-br from-violet-500 to-orange-500 ring-2 ring-background"
           aria-label="Swap suggested"
+        />
+      )}
+      {delivery && (
+        <Truck
+          className={`absolute left-1 bottom-1 h-3 w-3 ${
+            delivery === "ordered" ? "text-emerald-600 dark:text-emerald-400" : "text-teal-500/80"
+          }`}
+          aria-label={delivery === "ordered" ? "Delivery (ordered)" : "Delivery"}
         />
       )}
       {mealCount > 0 ? (
@@ -1108,6 +1122,16 @@ export function WeekPlanner({
   );
   const selectedDinnerDay = dinnerSchedule?.days[selectedDay];
 
+  const deliveryRefreshKey = `${localEntries
+    .map((e) => `${e.id}:${e.dayOfWeek}:${e.mealType}:${e.addedToShoppingListAt ? 1 : 0}`)
+    .join("|")}#${shoppingItemCount}`;
+  const { panel: deliveryPanel, reload: reloadDeliveries } = useWeekDeliveries(
+    weekStartDate,
+    deliveryRefreshKey
+  );
+  const deliveryByDate = new Map((deliveryPanel?.days ?? []).map((d) => [d.date, d]));
+  const selectedDelivery = deliveryByDate.get(addDays(weekStartDate, selectedDay));
+
   // Report what actually reached the list. A week whose ingredients are all
   // covered by the pantry used to look identical to a successful generation.
   function reportShoppingResult(result: ShoppingAddResult) {
@@ -1267,6 +1291,10 @@ export function WeekPlanner({
                   mealCount={mealCount}
                   isDragActive={activeDragEntry !== null || activeDragGroup !== null}
                   hasSuggestion={suggestions.some((sg) => sg.dayOfWeek === i)}
+                  delivery={(() => {
+                    const d = deliveryByDate.get(addDays(weekStartDate, i));
+                    return d && d.status !== "skipped" ? d.status : null;
+                  })()}
                   onClick={() => setSelectedDay(i)}
                 />
               );
@@ -1306,6 +1334,16 @@ export function WeekPlanner({
             )}
           </div>
 
+          {deliveryPanel?.next && (
+            <div className="mb-4">
+              <NextDeliveryCard
+                next={deliveryPanel.next}
+                canEdit={deliveryPanel.canEdit}
+                onChanged={reloadDeliveries}
+              />
+            </div>
+          )}
+
           <WeekNutritionPanel
             summary={nutritionSummary}
             heartFocus={heartFocus}
@@ -1344,6 +1382,13 @@ export function WeekPlanner({
                     }))}
                   estimates={dinnerSchedule.estimates}
                   onChange={updateDinnerDay}
+                />
+              )}
+              {selectedDelivery && deliveryPanel && (
+                <DeliveryChip
+                  day={selectedDelivery}
+                  canEdit={deliveryPanel.canEdit}
+                  onChanged={reloadDeliveries}
                 />
               )}
             </div>

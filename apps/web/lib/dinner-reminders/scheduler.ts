@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { householdMembers } from "@dishes/db/schema";
 import { and, eq } from "drizzle-orm";
-import { getRedis } from "@/lib/redis";
+import { claimReminder } from "@/lib/reminder-claim";
 import { sendPushToUsers, type PushPayload } from "@/lib/push";
 import { describeEstimate } from "./estimate";
 import { getDinnerPlan, getReminderSettings, type DinnerPlan } from "./schedule";
@@ -20,7 +20,6 @@ import type { TimelineCue } from "@/lib/meal-timeline";
  */
 
 const TICK_MS = 60_000;
-const SENT_TTL_SECONDS = 36 * 60 * 60;
 
 export const SNOOZE_ACTION = "snooze";
 export const SNOOZE_MINUTES = 30;
@@ -29,28 +28,11 @@ declare global {
   var __dinnerReminderTimer: NodeJS.Timeout | undefined;
 }
 
-// Fallback dedupe when Redis isn't configured. Lost on restart, which at worst
-// means one repeat reminder if the container restarts inside the window.
-const sentLocally = new Set<string>();
-
 /**
- * Claim the right to send one reminder. The key includes the dinner time, so
+ * Claim the right to send one reminder. Keys include the dinner time, so
  * pushing dinner back (or any one-off change) naturally arms a fresh reminder.
  */
-async function claim(key: string): Promise<boolean> {
-  const redis = getRedis();
-  if (redis) {
-    try {
-      return (await redis.set(key, "1", "EX", SENT_TTL_SECONDS, "NX")) === "OK";
-    } catch (err) {
-      console.error("[dinner-reminders] redis claim failed, using memory:", err);
-    }
-  }
-  if (sentLocally.has(key)) return false;
-  sentLocally.add(key);
-  if (sentLocally.size > 500) sentLocally.clear();
-  return true;
-}
+const claim = claimReminder;
 
 export function buildReminderPayload(plan: DinnerPlan, nowMinutes: number): PushPayload | null {
   const { lead, startAt, dinner } = plan;
