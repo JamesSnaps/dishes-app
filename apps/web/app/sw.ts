@@ -225,6 +225,45 @@ serwist.registerCapture(
   })
 );
 
+// ── A server action makes its page's cached copies stale ─────────────────────
+//
+// The usual write path is a server action followed by `router.refresh()`. That
+// refresh is an RSC GET for the current URL, so it comes through the route
+// above and is answered stale-while-revalidate — with the copy from *before*
+// the action. The fresh render the action itself returned gets painted over by
+// the old one, and the change only appears on the next refresh: every button
+// on a pure server-rendered screen (Settings → Deliveries' "Next four weeks"
+// panel, say) looked like it needed two presses. PAGE_UPDATED can't rescue it
+// either — its budget runs out after a couple of changes.
+//
+// Next posts an action to the URL of the page that called it, with a
+// `Next-Action` header. Drop that page's cached document and RSC payloads as the
+// request goes out, so the refresh that follows misses the cache and waits for
+// the network. Nothing is answered here: the action itself goes straight to the
+// server as it always has. Other routes the action revalidates keep their copies
+// and correct themselves through PAGE_UPDATED when next opened.
+async function evictPage(pathname: string) {
+  await Promise.all(
+    [PAGE_CACHES.html, PAGE_CACHES.rsc].map(async (name) => {
+      const cache = await caches.open(name);
+      const keys = await cache.keys();
+      await Promise.all(
+        keys
+          .filter((req) => new URL(req.url).pathname === pathname)
+          .map((req) => cache.delete(req, { ignoreVary: true }))
+      );
+    })
+  );
+}
+
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "POST" || !request.headers.has("Next-Action")) return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  event.waitUntil(evictPage(url.pathname));
+});
+
 // Keep recipe photos cached generously so recipes and cook mode stay usable
 // offline for far longer than the default image window.
 serwist.registerCapture(

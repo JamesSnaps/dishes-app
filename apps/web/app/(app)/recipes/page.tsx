@@ -13,6 +13,7 @@ import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
 import { RecipeFilters } from "./_components/recipe-filters";
 import { RecipesLocalGrid } from "./_components/recipes-local-grid";
+import { mergeCaseVariants, parseTags } from "@/lib/recipe-filtering";
 
 export const metadata = { title: "Recipes" };
 
@@ -56,7 +57,9 @@ export default async function RecipesPage({ searchParams }: Props) {
     );
   }
   if (role && ["main", "side", "sauce", "other"].includes(role)) conditions.push(eq(recipes.mealRole, role as "main" | "side" | "sauce" | "other"));
-  if (cuisine?.trim()) conditions.push(eq(recipes.cuisine, cuisine.trim()));
+  // Case-insensitive, mirrored in lib/recipe-filtering.ts: free-text cuisines
+  // and tags come in several capitalisations ("British" / "british").
+  if (cuisine?.trim()) conditions.push(sql`lower(${recipes.cuisine}) = ${cuisine.trim().toLowerCase()}`);
   if (favourites === "1") conditions.push(eq(recipes.isFavourite, true));
   if (heart === "1") conditions.push(heartHealthyCondition());
   if (difficulty?.trim() && ["easy", "medium", "hard"].includes(difficulty)) {
@@ -74,12 +77,15 @@ export default async function RecipesPage({ searchParams }: Props) {
     }
   }
   if (tags?.trim()) {
-    const tagList = tags.split(",").filter(Boolean);
+    const tagList = parseTags(tags).map((t) => t.toLowerCase());
     if (tagList.length > 0) {
       conditions.push(
         inArray(
           recipes.id,
-          db.select({ id: recipeTags.recipeId }).from(recipeTags).where(inArray(recipeTags.tag, tagList))
+          db
+            .select({ id: recipeTags.recipeId })
+            .from(recipeTags)
+            .where(inArray(sql`lower(${recipeTags.tag})`, tagList))
         )
       );
     }
@@ -113,18 +119,19 @@ export default async function RecipesPage({ searchParams }: Props) {
       .from(recipes)
       .where(eq(recipes.householdId, householdId)),
     db
-      .selectDistinct({ cuisine: recipes.cuisine })
+      .select({ cuisine: recipes.cuisine, count: count() })
       .from(recipes)
       .where(
         and(eq(recipes.householdId, householdId), isNotNull(recipes.cuisine))
       )
-      .orderBy(recipes.cuisine),
+      .groupBy(recipes.cuisine),
     getCookStatsByRecipe(householdId),
     db
-      .selectDistinct({ tag: recipeTags.tag })
+      .select({ tag: recipeTags.tag, count: count() })
       .from(recipeTags)
       .innerJoin(recipes, eq(recipeTags.recipeId, recipes.id))
       .where(eq(recipes.householdId, householdId))
+      .groupBy(recipeTags.tag)
       .orderBy(recipeTags.tag),
     db
       .select({
@@ -150,9 +157,12 @@ export default async function RecipesPage({ searchParams }: Props) {
   const totalRecipes = Number(totalCountRows[0]?.total ?? 0);
   const isFiltered = allRecipes.length !== totalRecipes;
 
-  const cuisines = cuisineRows
-    .map((r) => r.cuisine)
-    .filter((c): c is string => Boolean(c));
+  const cuisineOptions = mergeCaseVariants(
+    cuisineRows.flatMap((r) => (r.cuisine ? [{ value: r.cuisine, count: Number(r.count) }] : []))
+  );
+  const tagOptions = mergeCaseVariants(
+    tagRows.flatMap((r) => (r.tag ? [{ value: r.tag, count: Number(r.count) }] : []))
+  );
 
   const allTags = tagRows
     .map((r) => r.tag)
@@ -223,7 +233,7 @@ export default async function RecipesPage({ searchParams }: Props) {
 
       {/* Filters */}
       <Suspense>
-        <RecipeFilters cuisines={cuisines} tags={allTags} />
+        <RecipeFilters cuisines={cuisineOptions} tags={tagOptions} />
       </Suspense>
 
       {/* Results */}
