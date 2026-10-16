@@ -1,0 +1,95 @@
+// The signed-in session: holds the tokens, hands out a fresh access token to
+// every request, and refreshes in one place. It's an actor, so twenty requests
+// that all find the token expired cause one refresh, not twenty (Authelia
+// rotates refresh tokens, so parallel refreshes would sign the phone out).
+//
+//   let auth = AuthSession(oidc: OIDCClient(config: .dishesIOS()), store: KeychainTokenStore())
+//   try await auth.signIn { url in try await WebAuthenticator.present(url, callbackScheme: "dishes") }
+//   let api = APIClient(baseURL: base, tokens: auth)
+//
+// If a refresh is refused, the tokens are dropped and requests throw
+// APIError.signedOut; local data and the outbox stay, and the app asks the
+// person to sign in again.
+
+import Foundation
+
+public actor AuthSession: TokenProvider {
+    let oidc: OIDCClient
+    let store: any TokenStore
+    let now: @Sendable () -> Date
+    private var tokens: TokenSet?
+    private var loaded = false
+    private var refreshing: Task<TokenSet?, Error>?
+
+    public init(oidc: OIDCClient, store: any TokenStore, now: @escaping @Sendable () -> Date = { Date() }) {
+        self.oidc = oidc
+        self.store = store
+        self.now = now
+    }
+
+    public var isSignedIn: Bool {
+        get throws { try current() != nil }
+    }
+
+    /// Runs the browser sign-in. `present` opens the URL and returns the redirect it ends on.
+    public func signIn(present: @Sendable (URL) async throws -> URL) async throws {
+        let request = try await oidc.authorisationRequest()
+        let callback = try await present(request.url)
+        let fresh = try await oidc.exchange(callback: callback, for: request)
+        try store.save(fresh)
+        tokens = fresh
+        loaded = true
+    }
+
+    /// Forgets the tokens (signing out, or after a wipe).
+    public func signOut() throws {
+        refreshing?.cancel()
+        refreshing = nil
+        tokens = nil
+        loaded = true
+        try store.clear()
+    }
+
+    public func accessToken() async throws -> String? {
+        guard let tokens = try current() else { return nil }
+        if tokens.isExpiring(now: now()) { return try await refreshOnce()?.accessToken }
+        return tokens.accessToken
+    }
+
+    public func refresh(after rejected: String) async throws -> String? {
+        // Someone else already replaced the token the server turned down.
+        if let tokens = try current(), tokens.accessToken != rejected, !tokens.isExpiring(now: now()) {
+            return tokens.accessToken
+        }
+        return try await refreshOnce()?.accessToken
+    }
+
+    private func current() throws -> TokenSet? {
+        if !loaded {
+            tokens = try store.load()
+            loaded = true
+        }
+        return tokens
+    }
+
+    private func refreshOnce() async throws -> TokenSet? {
+        if let refreshing { return try await refreshing.value }
+        guard let refreshToken = try current()?.refreshToken else {
+            try signOut()
+            return nil
+        }
+        let oidc = oidc
+        let task = Task<TokenSet?, Error> { try await oidc.refresh(refreshToken) }
+        refreshing = task
+        defer { refreshing = nil }
+        do {
+            guard let fresh = try await task.value else { return nil }
+            try store.save(fresh)
+            tokens = fresh
+            return fresh
+        } catch OIDCError.invalidGrant {
+            try signOut()
+            return nil
+        }
+    }
+}

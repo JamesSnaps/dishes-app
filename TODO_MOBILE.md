@@ -344,44 +344,58 @@ apps/ios/
 fixtures/                      # repo root: the TS ↔ Swift contract (C2)
 ```
 
-- [ ] `apps/ios` with XcodeGen, Swift 6 strict concurrency, iOS 26.1 minimum
+**Started 16 Oct 2026** — see `apps/ios/RUNBOOK.md` for how to run it and the log.
+
+- [x] `apps/ios` with XcodeGen, Swift 6 strict concurrency, iOS 26.1 minimum
   (same as Keepsake). **Universal from the start — iPhone and iPad**
   (`TARGETED_DEVICE_FAMILY: "1,2"`, all iPad orientations). Most cooking
   happens on the iPad, so it is not a later port; screens are built with size
   classes from the first commit rather than retrofitted
-- [ ] Bundle id `uk.collco.dishes`, team `C729B84RYG` (James's individual
-  membership, as Keepsake). App Group `group.uk.collco.dishes` from day one —
-  widgets and the share extension both need to read the store
-- [ ] **One dependency: GRDB.** Everything else is Apple frameworks
-- [ ] Debug **Developer** menu pointing at a local dev server, wiping the local
+- [x] Bundle id `uk.collco.dishes`, team `C729B84RYG` (James's individual
+  membership, as Keepsake)
+- [ ] App Group `group.uk.collco.dishes` — widgets and the share extension
+  both need to read the store. **Deferred to the first extension** rather than
+  day one: it needs a provisioning profile with the group, and the database is
+  a copy of the server's, so moving it into the group container later is a
+  resync, not a migration
+- [x] **One dependency: GRDB.** Everything else is Apple frameworks
+- [x] Debug **Developer** menu pointing at a local dev server, wiping the local
   store when the server changes (Keepsake's `forgetOtherServer`) so dev data
   never reaches production
-- [ ] Dev server accepts token-less `/api/v1` requests as a stand-in user in
-  development only (check what `resolveIdentity()` does in dev today; Keepsake
-  has `AUTH_DEV_USER`)
-- [ ] `.claude/launch.json` / `sim.sh` so the simulator can be driven from a
-  session, and an `apps/ios` section in `CLAUDE.md` and `README.md`
-- [ ] Version: `MARKETING_VERSION` tracks `apps/web/package.json`
+- [x] Dev server accepts token-less `/api/v1` requests as a stand-in user in
+  development only — already true: with no bearer token `resolveIdentity()`
+  falls back to the proxy headers, which in development return `DEV_USER`
+- [x] `sim.sh` so the simulator can be driven from a session (it takes a
+  simulator name or UDID), and an `apps/ios` section in `CLAUDE.md` and `README.md`
+- [x] Version: `MARKETING_VERSION` tracks `apps/web/package.json`
 
 ### C2. `DishesCore` — the shared-logic contract
 
 Port, don't redesign. Each piece has a TS original that stays the reference.
 
-- [ ] **Auth** — copy Keepsake's `OIDC.swift`, `WebAuthenticator.swift`
+- [x] **Auth** — copy Keepsake's `OIDC.swift`, `WebAuthenticator.swift`
   (`ASWebAuthenticationSession` + PKCE), `Keychain.swift`, `AuthSession.swift`.
   Client id is `dishes-mobile` (already configured in Authelia). Refresh-token
-  handling is the open A1 item, and it lands here
-- [ ] **API client** — `URLSession` + async/await, the `/api/v1` error envelope
+  handling is the open A1 item, and it lands here — `AuthSession` refreshes
+  once however many requests find the token expired. **Not yet exercised
+  from the app against the real Authelia**
+- [x] **API client** — `URLSession` + async/await, the `/api/v1` error envelope
   decoded into a typed error
-- [ ] **Store** — GRDB, one table per `SyncCollection`, cursor and outbox
-  tables, pull applied in one transaction with the cursor (as the Dexie store)
-- [ ] **Sync engine** — port of `sync-engine.ts`: opaque cursor, paginated
+- [x] **Store** — GRDB: one `records` table keyed by (collection, id) holding
+  each row's JSON, plus `outbox` and `meta`. Rows are kept whole so a column
+  the server adds later survives; typed views read them (`Entities.swift`).
+  Pull applied in one transaction with the cursor
+- [x] **Sync engine** — port of `sync-engine.ts`: opaque cursor, paginated
   pull, batched push with client `opId`s, `duplicate` on replay, temp-id
   reconciliation persisted with the queued mutation, and the stale-cursor
-  path (`invalid_request` → clear store → full snapshot, outbox untouched)
+  path (`invalid_request` → clear store → full snapshot, outbox untouched).
+  Pushes go in batches of 200 (the server's limit; the web sends its whole
+  queue). 10 Swift tests in `SyncEngineTests` mirror the TS rules
 - [ ] **Fixtures** (`fixtures/` at the repo root; Vitest and Swift Testing both
   loop over them — change a rule, change a fixture, both suites must agree):
-  - `wire/*.json` — sample pulls/pushes for every collection; decode → re-encode → compare
+  - `wire/*.json` — sample pulls/pushes for every collection; decode → re-encode → compare.
+    **Started:** `wire/pull-snapshot.json` is a real dev-server snapshot the
+    Swift tests decode; the Vitest side and the other fixtures are still to do
   - `sync-scenarios/*.json` — offline create then push; replay → `duplicate`;
     pull while an op is pending; temp-id plan + entry created together;
     tombstone for an entity with a pending edit; stale cursor → snapshot
@@ -401,20 +415,29 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
 `.swipeActions`, `.contextMenu`. Every read comes from the local store via
 `ValueObservation`; every write is an outbox mutation.
 
-- [ ] Sign-in screen + tab shell: **Plan · Recipes · Shop · More**. On iPad
+- [x] Sign-in screen + tab shell: **Plan · Recipes · Shop · More**. On iPad
   the same `TabView` with `.sidebarAdaptable`, so it becomes a sidebar in
   regular width and tabs in compact (Split View / Slide Over / Stage Manager)
-- [ ] **Shopping list** first — the screen used in a supermarket with no signal.
-  Add, check off (haptic), edit, clear checked; grouped by aisle as the web
-- [ ] **Meal plan week** — week paging with no network, entries and combined
-  meal groups, move/change type/servings/delete, add from the recipe library or
+- [x] **Shopping list** first — the screen used in a supermarket with no signal.
+  Add, check off (haptic), swipe to delete, clear ticked; grouped by aisle as
+  the web. Add and tick verified against the dev server
+- [ ] Shopping: edit an item (amount, notes, category)
+- [x] Meal plan week, read-only: week paging with no network, entries and
+  combined meal groups (iPad: a grid of day cards), remove a dish
+- [ ] **Meal plan week** — move/change type/servings, add from the recipe library or
   a saved meal (needs C0), "add week to shopping" (online — stays a server call,
   see Phase B)
-- [ ] **Recipes** — list with the same filters/sorts as the web, detail with
-  scaling, favourites, cook history and per-person ratings
+- [x] Recipes: list (iPad: card grid), search on title/cuisine/tags,
+  favourites filter; detail with ingredients beside the method on iPad,
+  serving scaling with kitchen fractions, favourite toggle (online — not a
+  sync mutation)
+- [ ] **Recipes** — the web's full filter set and sorts (port
+  `lib/recipe-filtering.ts`), cook history and per-person ratings on the detail
 - [ ] **Log a cook** — rating, per-person ratings, notes, dish photo from the
   camera (background `URLSession` upload, as Keepsake's `UploadManager`)
 - [ ] **Today** card on Plan: tonight's meal, serve-at time, start-cooking time
+- [x] More: signed-in member, sync status and pending count, sign out,
+  Developer menu (Debug). Devices still to do (needs the server's device list)
 - [ ] More → Settings: server, signed-in member, devices, sign out. Everything
   else in Settings links to the web app — it remains the admin surface
 - [ ] Recipe create/edit — last in C3; the web editor is large and editing on

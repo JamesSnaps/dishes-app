@@ -32,7 +32,7 @@ UI mockups: `setup_guide/*.png`
 ```
 /apps
   /web          Next.js web application
-  /ios          future — SwiftUI app (see TODO_MOBILE.md Phase C)
+  /ios          native iPhone + iPad app (SwiftUI, XcodeGen) — apps/ios/RUNBOOK.md
 
 /packages
   /ui           shared shadcn/ui components
@@ -108,6 +108,21 @@ The family profile picker (Phase 2) is a household-level UX feature — switchin
 - Tailwind for all styling — no CSS modules or styled-components
 - All database queries scoped to household — this is not optional
 - **No wireframe/white-box UI.** Avoid flat white cards with just a border. Use gradient backgrounds, coloured tints, shadows, and visual weight to make the UI feel alive. Interactive elements (buttons, cards) must look obviously clickable — solid fills, gradients, or strong outlines, never bare text or ghost-only styling for primary actions.
+
+## iOS App (`apps/ios`)
+
+Native SwiftUI app for iPhone **and iPad** (most cooking happens on the iPad,
+so every screen is built for both size classes). Modelled on Keepsake's iOS
+app (`~/Github/keepsake/apps/ios`). Scope and status: `TODO_MOBILE.md`
+Phase C. How to run: `apps/ios/RUNBOOK.md` — add to its log after each session.
+
+- `project.yml` is the source of truth (XcodeGen); the `.xcodeproj` is generated and gitignored
+- `Packages/DishesCore` holds everything that isn't UI; `swift test` runs it on macOS
+- The TypeScript in `packages/client` stays the reference for sync behaviour —
+  change a rule there and in `DishesCore/Sync` together
+- `apps/ios/scripts/sim.sh` builds and launches against the local dev server
+  (`DEVICE="iPad Pro 11-inch (M5)"` for the iPad); no Authelia needed in dev
+- Keep `MARKETING_VERSION` in `project.yml` equal to `apps/web/package.json`
 
 ## Keeping Docs Updated
 
