@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, AlertCircle, Target, Check, ChevronDown, ChevronUp, HeartPulse } from "lucide-react";
+import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
 import { cn } from "@dishes/ui";
 import {
   Button,
@@ -44,6 +45,7 @@ export function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
     servings: r.servings,
     servingsUnit: r.servingsUnit,
     mealTypes: r.mealTypes,
+    mealRole: r.mealRole ?? null,
     tags: r.tags,
     ...withReferences(r.notes, r.references),
     ingredients: r.ingredients,
@@ -217,6 +219,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   const [step, setStep] = useState<Step>("prompt");
   const [promptText, setPromptText] = useState("");
   const [mealType, setMealType] = useState<string>("");
+  const [mealRole, setMealRole] = useState<MealRole | null>(null);
   const [targetCalories, setTargetCalories] = useState<string>("");
   const [heartHealthy, setHeartHealthy] = useState(false);
   const [concepts, setConcepts] = useState<ConceptCard[]>([]);
@@ -241,6 +244,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
     setStep("prompt");
     setPromptText("");
     setMealType("");
+    setMealRole(null);
     setTargetCalories("");
     setHeartHealthy(false);
     setConcepts([]);
@@ -258,7 +262,10 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   function handleGenerateConcepts() {
     setError(null);
     startTransition(async () => {
-      const result = await generateConcepts(promptText, undefined, mealType || undefined, parsedTargetCalories, { heartHealthy });
+      const result = await generateConcepts(promptText, undefined, mealType || undefined, parsedTargetCalories, {
+        heartHealthy,
+        ...(mealRole ? { mealRole } : {}),
+      });
       if (result.error) {
         setError(result.error);
         return;
@@ -282,7 +289,10 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       difficulty: "medium",
     };
     startTransition(async () => {
-      const result = await generateFullRecipe(directConcept, undefined, mealType || undefined, parsedTargetCalories, { heartHealthy });
+      const result = await generateFullRecipe(directConcept, undefined, mealType || undefined, parsedTargetCalories, {
+        heartHealthy,
+        ...(mealRole ? { mealRole } : {}),
+      });
       if (result.error) {
         setError(result.error);
         setStep("prompt");
@@ -311,7 +321,10 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       setError(null);
       setStep("generating");
       startTransition(async () => {
-        const result = await generateFullRecipe(chosenConcepts[0]!, undefined, mealType || undefined, parsedTargetCalories, { heartHealthy });
+        const result = await generateFullRecipe(chosenConcepts[0]!, undefined, mealType || undefined, parsedTargetCalories, {
+          heartHealthy,
+          ...(mealRole ? { mealRole } : {}),
+        });
         if (result.error) {
           setError(result.error);
           setStep("concepts");
@@ -340,7 +353,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
             undefined,
             mealType || undefined,
             parsedTargetCalories,
-            { heartHealthy }
+            { heartHealthy, ...(mealRole ? { mealRole } : {}) }
           );
           if (genResult.error) {
             updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
@@ -444,6 +457,31 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div>
+                  <p className="mb-1.5 text-sm font-medium text-muted-foreground">Kind of dish</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {MEAL_ROLES.map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => setMealRole((prev) => (prev === role ? null : role))}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-xs font-medium transition-all disabled:pointer-events-none",
+                          mealRole === role
+                            ? "border-emerald-500 bg-emerald-600 text-white shadow-sm"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                        )}
+                      >
+                        {MEAL_ROLE_LABELS[role]}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Choose Side to generate a side dish. You can also just ask for one.
+                  </p>
                 </div>
 
                 {/* Calorie target */}

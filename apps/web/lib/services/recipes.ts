@@ -550,6 +550,22 @@ export async function toggleFavourite(
   return updated.isFavourite;
 }
 
+/** Sets or clears the recipe's role (main, side, sauce, extra) without rewriting the rest. */
+export async function setMealRole(
+  ctx: HouseholdContext,
+  recipeId: string,
+  mealRole: MealRole | null
+): Promise<void> {
+  if (mealRole != null && !isMealRole(mealRole)) throw new RecipeValidationError("Invalid recipe role");
+  const [updated] = await db
+    .update(recipes)
+    .set({ mealRole })
+    .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, ctx.householdId)))
+    .returning({ id: recipes.id });
+
+  if (!updated) throw new RecipeNotFoundError();
+}
+
 export async function updateRecipeCookTime(
   ctx: HouseholdContext,
   recipeId: string,

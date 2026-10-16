@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useDeferredValue, useMemo } from "react";
+import { useState, useTransition, useDeferredValue, useMemo, useEffect } from "react";
 import {
   Plus,
   Search,
@@ -26,6 +26,7 @@ import {
   Input,
 } from "@dishes/ui";
 import { addMealEntry } from "@/app/actions/meal-plan";
+import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 
@@ -62,6 +63,9 @@ type Recipe = {
   tags: string[];
   avgRating: number | null;
   ingredientNames: string[];
+  mealRole?: string | null;
+  /** Which meals this recipe suits. Empty means it has not been marked. */
+  mealTypes?: string[] | null;
 };
 
 interface Props {
@@ -83,6 +87,8 @@ interface Props {
     title: string;
     onPick: (recipeId: string) => void;
     preferredIds?: string[];
+    /** Pre-select the dish-role filter, for example when adding a side. */
+    role?: MealRole;
   };
   /** Controlled open state, for picker mode where there is no trigger. */
   open?: boolean;
@@ -162,8 +168,14 @@ export function AddEntryDialog({
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
   const [minRating, setMinRating] = useState<number | null>(null);
   const [favouritesOnly, setFavouritesOnly] = useState(false);
+  const [matchMealType, setMatchMealType] = useState(true);
+  const [roleFilter, setRoleFilter] = useState<MealRole | null>(pick?.role ?? null);
   const [pending, startTransition] = useTransition();
   const deferredSearch = useDeferredValue(search);
+
+  useEffect(() => {
+    if (open) setRoleFilter(pick?.role ?? null);
+  }, [open, pick?.role]);
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -199,6 +211,10 @@ export function AddEntryDialog({
       list = list.filter((r) => r.avgRating !== null && r.avgRating >= minRating);
     if (favouritesOnly)
       list = list.filter((r) => r.isFavourite);
+    if (!pick && matchMealType)
+      list = list.filter((r) => (r.mealTypes ?? []).includes(mealType));
+    if (roleFilter)
+      list = list.filter((r) => r.mealRole === roleFilter);
     // Picker mode: likely candidates (recipes used in the same role before)
     // first, keeping alphabetical order within each half.
     const preferred = pick?.preferredIds;
@@ -207,7 +223,7 @@ export function AddEntryDialog({
       list = [...list].sort((a, b) => Number(rank.has(b.id)) - Number(rank.has(a.id)));
     }
     return list;
-  }, [recipes, deferredSearch, selectedCuisines, selectedTags, selectedDifficulty, minRating, favouritesOnly, pick?.preferredIds]);
+  }, [recipes, deferredSearch, selectedCuisines, selectedTags, selectedDifficulty, minRating, favouritesOnly, matchMealType, roleFilter, mealType, pick, pick?.preferredIds]);
 
   const filteredMeals = useMemo(() => {
     if (!deferredSearch) return savedMeals;
@@ -224,7 +240,9 @@ export function AddEntryDialog({
     selectedCuisines.length +
     (selectedDifficulty ? 1 : 0) +
     (minRating !== null ? 1 : 0) +
-    (favouritesOnly ? 1 : 0);
+    (favouritesOnly ? 1 : 0) +
+    (!pick && matchMealType ? 1 : 0) +
+    (roleFilter ? 1 : 0);
 
   function clearAllFilters() {
     setSelectedTags([]);
@@ -232,6 +250,8 @@ export function AddEntryDialog({
     setSelectedDifficulty(null);
     setMinRating(null);
     setFavouritesOnly(false);
+    setMatchMealType(false);
+    setRoleFilter(null);
   }
 
   function reset() {
@@ -239,6 +259,7 @@ export function AddEntryDialog({
     setSearch("");
     setTab("recipes");
     clearAllFilters();
+    setMatchMealType(true);
   }
 
   function handleSelectMeal(meal: SavedMeal) {
@@ -363,18 +384,6 @@ export function AddEntryDialog({
           ))}
         </div>
       </div>
-
-      <button
-        onClick={() => setFavouritesOnly((v) => !v)}
-        className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border transition-all ${
-          favouritesOnly
-            ? "bg-rose-500 text-white border-rose-500"
-            : "bg-background border-border text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        <Heart className={`h-3 w-3 ${favouritesOnly ? "fill-white" : ""}`} />
-        Favourites
-      </button>
 
       {activeFilterCount > 0 && (
         <button
@@ -591,7 +600,7 @@ export function AddEntryDialog({
             {/* Meal type — horizontal pills on mobile, vertical list on desktop */}
             <div className={`px-4 pt-3 pb-3 border-b shrink-0 ${pick ? "hidden" : ""}`}>
               <p className="hidden sm:block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Meal type
+                Add to this slot
               </p>
               <div className="flex flex-wrap gap-1.5 sm:flex-col sm:gap-0.5">
                 {MEAL_TYPES.map((mt) => (
@@ -607,6 +616,71 @@ export function AddEntryDialog({
                     {mt.label}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Always-visible filters: meal match, favourites, dish role */}
+            <div className={`px-4 py-3 border-b shrink-0 space-y-2.5 ${tab === "meals" ? "hidden" : ""}`}>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  aria-pressed={favouritesOnly}
+                  onClick={() => setFavouritesOnly((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border shadow-sm transition-all ${
+                    favouritesOnly
+                      ? "bg-rose-500 text-white border-rose-500"
+                      : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300"
+                  }`}
+                >
+                  <Heart className={`h-3 w-3 ${favouritesOnly ? "fill-white" : "fill-rose-500 text-rose-500"}`} />
+                  Favourites
+                </button>
+                {!pick && (
+                  <button
+                    type="button"
+                    aria-pressed={matchMealType}
+                    onClick={() => setMatchMealType((v) => !v)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold border shadow-sm transition-all ${
+                      matchMealType
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Suited to {MEAL_TYPES.find((mt) => mt.value === mealType)?.label.toLowerCase()}
+                  </button>
+                )}
+              </div>
+              <div>
+                <FilterLabel>Kind of dish</FilterLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    aria-pressed={roleFilter === null}
+                    onClick={() => setRoleFilter(null)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold border transition-all ${
+                      roleFilter === null
+                        ? "bg-orange-500 text-white border-orange-500"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Any
+                  </button>
+                  {MEAL_ROLES.map((role) => (
+                    <button
+                      key={role}
+                      type="button"
+                      aria-pressed={roleFilter === role}
+                      onClick={() => setRoleFilter((prev) => (prev === role ? null : role))}
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold border transition-all ${
+                        roleFilter === role
+                          ? "bg-orange-500 text-white border-orange-500"
+                          : "bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100 dark:bg-orange-950/40 dark:border-orange-900 dark:text-orange-200"
+                      }`}
+                    >
+                      {MEAL_ROLE_LABELS[role]}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -698,10 +772,14 @@ export function AddEntryDialog({
               ) : filtered.length === 0 ? (
                 <div className="py-12 flex flex-col items-center gap-2 text-muted-foreground">
                   <ChefHat className="h-8 w-8 opacity-30" />
-                  <p className="text-sm">No recipes match your filters.</p>
+                  <p className="text-sm text-center px-6">
+                    {matchMealType && !pick
+                      ? `No recipes are marked as ${MEAL_TYPES.find((mt) => mt.value === mealType)?.label.toLowerCase()}.`
+                      : "No recipes match your filters."}
+                  </p>
                   {activeFilterCount > 0 && (
-                    <button onClick={clearAllFilters} className="text-xs text-primary hover:underline mt-1">
-                      Clear filters
+                    <button onClick={clearAllFilters} className="text-xs font-medium text-primary hover:underline mt-1">
+                      Show every recipe
                     </button>
                   )}
                 </div>

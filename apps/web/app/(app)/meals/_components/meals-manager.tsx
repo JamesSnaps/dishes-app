@@ -578,6 +578,7 @@ export function MealsManager({
               ? `Another option for ${slotName({ label: pickerSlot.label, role: pickerSlot.role }).toLowerCase()}`
               : `Add ${withArticle(pickerRole ? MEAL_ROLE_LABELS[pickerRole].toLowerCase() : "dish")}`,
           onPick: handlePick,
+          ...(pickerRole ? { role: pickerRole } : {}),
           preferredIds: pickerRole
             ? [...recipes.filter((r) => r.mealRole === pickerRole).map((r) => r.id), ...savedMeals.flatMap((m) =>
                 m.slots
