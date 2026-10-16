@@ -41,6 +41,11 @@ export const deliverySettings = pgTable("delivery_settings", {
     .$type<string[]>()
     .notNull()
     .default(["09:00", "19:00", "22:00"]),
+  /**
+   * Warn when a placed order's total is under this (e.g. the retailer's
+   * minimum spend). Null means no check.
+   */
+  minOrderTotal: decimal("min_order_total", { precision: 10, scale: 2 }),
   /** Holidays: regular deliveries inside these ranges are skipped. */
   awayPeriods: jsonb("away_periods").$type<AwayPeriod[]>().notNull().default([]),
   updatedAt: timestamp("updated_at")

@@ -17,7 +17,9 @@ import {
   DEFAULT_REMINDER_TIMES,
   cutoffEpoch,
   describeCutoff,
+  formatPounds,
   getDeliveryConfig,
+  isBelowMinimum,
   getNextOpenDelivery,
   isValidDate,
   listDays,
@@ -44,6 +46,8 @@ export interface DeliveryDayView {
   orderReference: string | null;
   cutoffLabel: string;
   cutoffPassed: boolean;
+  /** Placed, with a total under the household's minimum order ("£50"), else null. */
+  belowMinimum: string | null;
 }
 
 export interface NextDeliveryView extends DeliveryDayView {
@@ -75,6 +79,10 @@ function dayView(
     orderReference: d.orderReference,
     cutoffLabel: describeCutoff(d, today),
     cutoffPassed: cutoffAt(d) <= nowMs,
+    belowMinimum:
+      config.minOrderTotal != null && isBelowMinimum(d, config.minOrderTotal)
+        ? formatPounds(config.minOrderTotal)
+        : null,
   };
 }
 
@@ -129,6 +137,7 @@ export async function getDeliveryOverview() {
       cutoffTime: config.cutoffTime,
       cutoffDaysBefore: config.cutoffDaysBefore,
       reminderTimes: config.reminderTimes,
+      minOrderTotal: config.minOrderTotal,
       timezone: config.timezone,
     },
     configured: config.configured,
@@ -158,9 +167,19 @@ export async function saveDeliverySettings(input: {
   cutoffTime: string;
   cutoffDaysBefore: number;
   reminderTimes: string[];
+  minOrderTotal?: number | null;
 }) {
   const session = await requireSession();
   if (session.role !== "admin") throw new Error("Only admins can change delivery days");
+
+  let minOrderTotal: string | null = null;
+  if (input.minOrderTotal != null) {
+    const min = Number(input.minOrderTotal);
+    if (!Number.isFinite(min) || min < 0 || min > 10_000) {
+      throw new Error("Minimum order must be between £0 and £10,000");
+    }
+    minOrderTotal = min > 0 ? min.toFixed(2) : null;
+  }
 
   const weekdays = [...new Set(input.weekdays)]
     .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
@@ -179,7 +198,13 @@ export async function saveDeliverySettings(input: {
     throw new Error(`At most ${MAX_REMINDER_TIMES} reminder times`);
   }
 
-  const values = { weekdays, cutoffTime: input.cutoffTime, cutoffDaysBefore, reminderTimes };
+  const values = {
+    weekdays,
+    cutoffTime: input.cutoffTime,
+    cutoffDaysBefore,
+    reminderTimes,
+    minOrderTotal,
+  };
   await db
     .insert(deliverySettings)
     .values({ householdId: session.householdId, ...values })

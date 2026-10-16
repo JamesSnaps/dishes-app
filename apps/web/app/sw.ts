@@ -183,11 +183,16 @@ const pageCache = new StaleWhileRevalidate({
   ],
 });
 
-// Edit forms seed their fields from the server render once, on mount. A stale
-// paint there is not corrected by the refresh above — the form keeps the old
-// values and saving writes them back (e.g. wiping nutrition estimated since the
-// page was cached). They fall through to defaultCache's NetworkFirst instead.
-const FORM_PAGE = /\/edit\/?$/;
+// Pages that go to the network first (defaultCache's NetworkFirst) rather than
+// painting from cache:
+//  * Edit forms seed their fields from the server render once, on mount. A
+//    stale paint there is not corrected by the refresh above — the form keeps
+//    the old values and saving writes them back (e.g. wiping nutrition
+//    estimated since the page was cached).
+//  * Grocery deliveries changes from outside the page (order emails, another
+//    member marking an order) and refreshes itself on a timer to pick that up;
+//    a cached copy would make every one of those refreshes a step behind.
+const NETWORK_FIRST_PAGE = /(\/edit|^\/settings\/deliveries)\/?$/;
 
 // "/" is only ever a redirect to /home (`app/page.tsx`), and it is where the
 // installed app opens (manifest `start_url`). The page caches no longer keep
@@ -205,7 +210,7 @@ serwist.registerCapture(
 // matcher lost these to the catch-all.
 serwist.registerRoute(
   new NavigationRoute(pageCache, {
-    denylist: [/^\/api\//, /^\/_next\//, FORM_PAGE],
+    denylist: [/^\/api\//, /^\/_next\//, NETWORK_FIRST_PAGE],
   })
 );
 
@@ -213,7 +218,7 @@ serwist.registerCapture(
   ({ request, url: { pathname }, sameOrigin }) =>
     sameOrigin &&
     !pathname.startsWith("/api/") &&
-    !FORM_PAGE.test(pathname) &&
+    !NETWORK_FIRST_PAGE.test(pathname) &&
     request.headers.get("RSC") === "1",
   new StaleWhileRevalidate({
     cacheName: PAGE_CACHES.rsc,

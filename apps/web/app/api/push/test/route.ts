@@ -1,25 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { sendPushToEndpoint } from "@/lib/push";
+import { sendPushToEndpoint, type PushPayload } from "@/lib/push";
+import { previewDeliveryReminder } from "@/lib/deliveries/scheduler";
 
 export async function POST(req: NextRequest) {
   const user = await getAutheliaUser();
   const { householdId } = await requireHousehold(user);
 
   const body = await req.json().catch(() => ({}));
-  const { endpoint } = body ?? {};
+  const { endpoint, kind } = body ?? {};
 
   if (!endpoint) {
     return NextResponse.json({ error: "endpoint is required" }, { status: 400 });
   }
 
   try {
-    const outcome = await sendPushToEndpoint(householdId, endpoint, {
+    // kind "delivery": what the next open order's final reminder would say now.
+    let payload: PushPayload = {
       title: "Dishes test notification",
       body: "Push notifications are working on this device 🎉",
       url: "/settings",
-    });
+    };
+    if (kind === "delivery") {
+      payload = (await previewDeliveryReminder(householdId)) ?? {
+        title: "Test · Delivery reminders are working",
+        body: "No order is open right now; its reminders will look like this one.",
+        url: "/settings/deliveries",
+      };
+    }
+    const outcome = await sendPushToEndpoint(householdId, endpoint, payload);
 
     console.info(`[push] test notification for ${user.username} → ${outcome}`);
 

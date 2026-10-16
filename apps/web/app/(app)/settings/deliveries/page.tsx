@@ -5,6 +5,7 @@ import { DeliverySettingsForm } from "./_components/delivery-settings-form";
 import { DeliveryCalendar } from "./_components/delivery-calendar";
 import { AwayPeriods } from "./_components/away-periods";
 import { NextDeliveryCard } from "@/components/deliveries/next-delivery-card";
+import { RefreshOnFocus } from "@/components/refresh-on-focus";
 
 export const metadata = { title: "Grocery Deliveries" };
 export const dynamic = "force-dynamic";
@@ -32,6 +33,9 @@ export default async function DeliveriesPage() {
           items not in the basket yet.
         </p>
       </div>
+
+      {/* Orders are marked from emails and other members' phones: keep up. */}
+      <RefreshOnFocus intervalMs={60_000} />
 
       {/* One column on phones; on wide screens the schedule sits beside the calendar. */}
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">

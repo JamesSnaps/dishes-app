@@ -13,7 +13,10 @@ import {
 } from "@/lib/dinner-reminders/time";
 import {
   describeCutoff,
+  formatPounds,
   getDeliveryConfig,
+  getNextOpenDelivery,
+  isBelowMinimum,
   getDeliveryReport,
   listDays,
   weekdayName,
@@ -25,8 +28,10 @@ import {
  * In-process grocery delivery reminder loop. On the day an order closes, at
  * each of the household's reminder times, it pushes whatever is still
  * outstanding: dinners not planned, meals not on the list, items not in the
- * basket — or, once the order is placed, items added since that need an amend.
- * Nothing outstanding means no push.
+ * basket — or, once the order is placed, items added since that need an amend
+ * and a total under the household's minimum order. A placed order with nothing
+ * to flag gets no push, except at the last reminder: that always goes, as a
+ * "last orders" nudge with the order's slot and total.
  *
  * Like dinner reminders it runs in the web container until Phase 2's worker,
  * and every send is claimed once per delivery and reminder time.
@@ -75,7 +80,7 @@ function nameList(names: string[], max = 4): string {
 
 export function buildDeliveryReminder(
   report: DeliveryReport,
-  opts: { today: string; last: boolean }
+  opts: { today: string; last: boolean; minOrderTotal?: number | null }
 ): PushPayload | null {
   const { delivery, checklist } = report;
   const day = weekdayName(delivery.date);
@@ -84,11 +89,30 @@ export function buildDeliveryReminder(
 
   if (delivery.status === "ordered") {
     const added = checklist.addedSinceOrder;
-    if (!added.length) return null;
+    const min = opts.minOrderTotal ?? null;
+    const low = isBelowMinimum(delivery, min);
+    const issues: string[] = [];
+    if (low) {
+      issues.push(`£${delivery.total} is under your ${formatPounds(min!)} minimum`);
+    }
+    if (added.length) {
+      issues.push(`${plural(added.length, "item")} added since you ordered: ${nameList(added)}`);
+    }
+
+    // Placed and nothing to flag: only the last reminder goes, as a nudge.
+    if (!issues.length && !opts.last) return null;
+
+    const details = [delivery.slot, delivery.total ? `£${delivery.total}` : null]
+      .filter(Boolean)
+      .join(" · ");
     return {
-      title: `${plural(added.length, "item")} added since you ordered`,
-      body: `Amend ${day}'s order before ${closes}: ${nameList(added)}`,
-      url: "/shopping",
+      title: issues.length
+        ? `${opts.last ? "Last orders: amend" : "Amend"} ${day}'s order by ${closes}`
+        : `Last orders soon: ${day}'s order closes ${closes}`,
+      body: issues.length
+        ? issues.join(" · ")
+        : `Ordered${details ? ` · ${details}` : ""}. Nothing to change, unless you've remembered something.`,
+      url: added.length ? "/shopping" : "/settings/deliveries",
       tag,
     };
   }
@@ -131,17 +155,43 @@ async function remindHousehold(householdId: string, users: string[]): Promise<vo
   // delivery has its deadline today.
   const deliveryDate = addDaysToDate(now.date, config.cutoffDaysBefore);
   const report = await getDeliveryReport(householdId, deliveryDate, config);
-  if (!report || report.delivery.status === "skipped") return;
+  if (!report) return; // no delivery closes today
+  const where = `household=${householdId} delivery=${deliveryDate} at=${due.time}`;
+  if (report.delivery.status === "skipped") return;
 
   if (!(await claimReminder(`delivrem:${householdId}:${deliveryDate}:${due.time}`))) return;
 
-  const payload = buildDeliveryReminder(report, { today: now.date, last: due.last });
-  if (!payload) return;
+  const payload = buildDeliveryReminder(report, {
+    today: now.date,
+    last: due.last,
+    minOrderTotal: config.minOrderTotal,
+  });
+  if (!payload) {
+    // Logged so "why didn't I get one?" can be answered from the container logs.
+    console.info(`[delivery-reminders] ${where} skipped: already ordered, nothing to flag`);
+    return;
+  }
   const result = await sendPushToUsers(householdId, users, payload);
   console.info(
-    `[delivery-reminders] household=${householdId} delivery=${deliveryDate} at=${due.time} ` +
-      `status=${report.delivery.status} sent=${result.sent} failed=${result.failed}`
+    `[delivery-reminders] ${where} status=${report.delivery.status} ` +
+      `sent=${result.sent} failed=${result.failed}`
   );
+}
+
+/**
+ * What the last reminder for the next open order would say right now, for the
+ * "send a test reminder" button. Null when no order is open.
+ */
+export async function previewDeliveryReminder(householdId: string): Promise<PushPayload | null> {
+  const config = await getDeliveryConfig(householdId);
+  const report = await getNextOpenDelivery(householdId, config);
+  if (!report) return null;
+  const payload = buildDeliveryReminder(report, {
+    today: localNow(config.timezone).date,
+    last: true,
+    minOrderTotal: config.minOrderTotal,
+  });
+  return payload && { ...payload, title: `Test · ${payload.title}`, tag: `${payload.tag}-test` };
 }
 
 export async function runDeliveryReminderTick(): Promise<void> {

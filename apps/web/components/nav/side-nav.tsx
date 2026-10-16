@@ -7,7 +7,6 @@ import { useTheme } from "next-themes";
 import {
   BookOpen,
   CalendarDays,
-  ChefHat,
   FileText,
   FolderOpen,
   Heart,
@@ -24,6 +23,7 @@ import {
   ShoppingCart,
   Sparkles,
   Sun,
+  Truck,
   UtensilsCrossed,
   ChevronUp,
 } from "lucide-react";
@@ -63,7 +63,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/shopping", label: "Shopping List", icon: ShoppingCart },
   { href: "/ai-concierge", label: "AI Concierge", icon: Sparkles },
   { href: "/pantry", label: "Pantry", icon: Package },
-  { href: "/what-can-i-cook", label: "What Can I Cook?", icon: ChefHat, disabled: true },
+  { href: "/settings/deliveries", label: "Deliveries", icon: Truck },
 ];
 
 const PERSONAL_NAV: NavItem[] = [
@@ -199,7 +199,12 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
 
         {/* Settings + Help */}
         <div className="border-t p-3 flex flex-col gap-1">
-          <NavLink item={{ href: "/settings", label: "Settings", icon: Settings }} pathname={pathname} onNavigate={requestNavigation} />
+          {/* Deliveries lives under /settings but has its own entry above; don't light both. */}
+          <NavLink
+            item={{ href: "/settings", label: "Settings", icon: Settings }}
+            pathname={pathname.startsWith("/settings/deliveries") ? "" : pathname}
+            onNavigate={requestNavigation}
+          />
           <NavLink item={{ href: "/help", label: "Help & Support", icon: HelpCircle, disabled: true }} pathname={pathname} onNavigate={requestNavigation} />
         </div>
       </div>
