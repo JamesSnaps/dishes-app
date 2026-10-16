@@ -4,8 +4,22 @@ import { MEAL_ROLES, MEAL_ROLE_LABELS } from "@dishes/shared";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import { useRef, useState, useCallback } from "react";
-import { Heart, HeartPulse, Search, SlidersHorizontal, X } from "lucide-react";
-import { Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@dishes/ui";
+import {
+  ArrowDownUp,
+  Check,
+  ChefHat,
+  Clock,
+  Globe2,
+  Heart,
+  HeartPulse,
+  Search,
+  SlidersHorizontal,
+  Tag,
+  X,
+} from "lucide-react";
+import { Input, Sheet, SheetContent, SheetHeader, SheetTitle } from "@dishes/ui";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { parseTags, type FacetOption } from "@/lib/recipe-filtering";
 
 const SORT_OPTIONS = [
   { label: "Newest", value: "newest" },
@@ -27,8 +41,8 @@ const DIFFICULTY_OPTIONS = [
   { label: "Hard", value: "hard" },
 ];
 
-// Above this many household tags the filter sheet shows a search box
-const TAG_SEARCH_THRESHOLD = 12;
+const labelOf = (options: { label: string; value: string }[], value: string) =>
+  options.find((o) => o.value === value)?.label ?? value;
 
 function pill(active: boolean) {
   return `rounded-full px-3 py-1 text-xs font-medium transition-colors ${
@@ -38,41 +52,184 @@ function pill(active: boolean) {
   }`;
 }
 
-function sheetPill(active: boolean) {
-  return `rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-    active
-      ? "bg-primary text-primary-foreground"
-      : "bg-muted text-muted-foreground hover:bg-muted/80"
-  }`;
-}
-
-interface PillGroupProps {
+/** One row of mutually exclusive options, shown as a segmented control. */
+function Segmented({
+  options,
+  value,
+  onChange,
+}: {
   options: { label: string; value: string }[];
-  current: string;
-  onSelect: (v: string) => void;
-  className?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-xl bg-muted p-1">
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(o.value)}
+            className={`rounded-lg px-2 py-1.5 text-sm font-medium transition-all ${
+              on
+                ? "bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow-md"
+                : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
-function PillGroup({ options, current, onSelect, className }: PillGroupProps) {
+function Section({
+  icon: Icon,
+  title,
+  aside,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={`flex flex-wrap gap-1 ${className ?? ""}`}>
-      {options.map((o) => (
-        <button key={o.value} onClick={() => onSelect(o.value)} className={pill(o.value === current)}>
-          {o.label}
-        </button>
-      ))}
+    <section>
+      <div className="mb-2 flex items-center gap-2">
+        <Icon className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {aside && <div className="ml-auto">{aside}</div>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** How many suggestions to show before the user has typed anything. */
+const POPULAR_COUNT = 10;
+/** Cap on matches while typing; the list scrolls, but hundreds is noise. */
+const MATCH_LIMIT = 30;
+/** Below this many options, just show them all with no search box. */
+const SEARCH_THRESHOLD = 12;
+
+/**
+ * Pick one or more values from a long free-text list (cuisines, tags): what's
+ * selected sits on top as removable chips, a box narrows the rest as you type,
+ * and with nothing typed it offers the most used ones.
+ */
+function FacetPicker({
+  options,
+  selected,
+  onToggle,
+  placeholder,
+  noun,
+}: {
+  options: FacetOption[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  placeholder: string;
+  noun: string;
+}) {
+  const [query, setQuery] = useState("");
+  const isSelected = (v: string) => selected.some((s) => s.toLowerCase() === v.toLowerCase());
+
+  const needle = query.trim().toLowerCase();
+  const searchable = options.length > SEARCH_THRESHOLD;
+  const rest = options.filter((o) => !isSelected(o.value));
+
+  let suggestions: FacetOption[];
+  if (!searchable) suggestions = rest;
+  else if (!needle) suggestions = [...rest].sort((a, b) => b.count - a.count).slice(0, POPULAR_COUNT);
+  else {
+    const rank = (o: FacetOption) => (o.value.toLowerCase().startsWith(needle) ? 0 : 1);
+    suggestions = rest
+      .filter((o) => o.value.toLowerCase().includes(needle))
+      .sort((a, b) => rank(a) - rank(b) || b.count - a.count)
+      .slice(0, MATCH_LIMIT);
+  }
+
+  function pick(value: string) {
+    onToggle(value);
+    setQuery("");
+  }
+
+  return (
+    <div className="space-y-2">
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onToggle(v)}
+              aria-label={`Remove ${v}`}
+              className="flex items-center gap-1 rounded-full bg-gradient-to-br from-orange-500 to-rose-500 py-1 pl-3 pr-2 text-sm font-medium text-white shadow-sm"
+            >
+              {v}
+              <X className="h-3.5 w-3.5 opacity-80" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {searchable && (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (needle && suggestions[0]) pick(suggestions[0].value);
+              }
+            }}
+            placeholder={placeholder}
+            aria-label={placeholder}
+            className="h-9 border-0 bg-muted pl-9 text-sm focus-visible:ring-1"
+          />
+        </div>
+      )}
+
+      {searchable && !needle && suggestions.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Most used · {options.length} {noun} in all — type to find the rest
+        </p>
+      )}
+
+      <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto">
+        {suggestions.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => pick(o.value)}
+            className="flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-3 py-1 text-sm font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-primary/10"
+          >
+            {o.value}
+            <span className="text-xs tabular-nums text-muted-foreground">{o.count}</span>
+          </button>
+        ))}
+        {needle && suggestions.length === 0 && (
+          <p className="py-1 text-sm text-muted-foreground">No {noun} match &ldquo;{query.trim()}&rdquo;.</p>
+        )}
+      </div>
     </div>
   );
 }
 
 interface Props {
-  cuisines: string[];
-  tags: string[];
+  cuisines: FacetOption[];
+  tags: FacetOption[];
 }
 
 export function RecipeFilters({ cuisines, tags }: Props) {
   const router = useRouter();
   const params = useSearchParams();
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   // When the list is being rendered from the local store, a filter change does
   // not need the server: push the URL with the History API instead of
@@ -99,7 +256,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const recipeRole = params.get("role") ?? "";
   const difficulty = params.get("difficulty") ?? "";
   const maxTime = params.get("maxTime") ?? "";
-  const activeTags = (params.get("tags") ?? "").split(",").filter(Boolean);
+  const activeTags = parseTags(params.get("tags"));
   const sort = params.get("sort") ?? "newest";
 
   const searchRef = useRef<HTMLInputElement>(null);
@@ -115,12 +272,10 @@ export function RecipeFilters({ cuisines, tags }: Props) {
         navigate(`/recipes?${next.toString()}`);
       }, 300);
     },
-    [params, router],
+    [params, navigate]
   );
 
-  const [showAllTags, setShowAllTags] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [tagSearch, setTagSearch] = useState("");
   const [pendingCuisine, setPendingCuisine] = useState(cuisine);
   const [pendingFavourites, setPendingFavourites] = useState(favourites === "1");
   const [pendingHeart, setPendingHeart] = useState(heart === "1");
@@ -146,7 +301,6 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     setPendingMaxTime(maxTime);
     setPendingTags(activeTags);
     setPendingSort(sort);
-    setTagSearch("");
     setSheetOpen(true);
   }
 
@@ -177,18 +331,16 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   }
 
   function togglePendingTag(tag: string) {
-    setPendingTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+    setPendingTags((prev) =>
+      prev.some((t) => t.toLowerCase() === tag.toLowerCase())
+        ? prev.filter((t) => t.toLowerCase() !== tag.toLowerCase())
+        : [...prev, tag]
+    );
   }
 
-  function toggleTagUrl(tag: string) {
-    const next = activeTags.includes(tag)
-      ? activeTags.filter((t) => t !== tag)
-      : [...activeTags, tag];
-    push({ tags: next.join(",") });
-  }
-
-  function removeTagUrl(tag: string) {
-    push({ tags: activeTags.filter((t) => t !== tag).join(",") });
+  function clearAll() {
+    if (searchRef.current) searchRef.current.value = "";
+    navigate(recipeRole ? `/recipes?role=${recipeRole}` : "/recipes");
   }
 
   const activeFilterCount =
@@ -209,14 +361,17 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     pendingTags.length +
     (pendingSort !== "newest" ? 1 : 0);
 
-  const hasActiveFilters = !!(recipeRole || q || cuisine || favourites || heart || difficulty || maxTime || activeTags.length || sort !== "newest");
+  const chip =
+    "flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 py-1 pl-2.5 pr-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20";
 
-  // Sheet tag list: selected tags first, then the rest, narrowed by the search box
-  const normalizedTagSearch = tagSearch.trim().toLowerCase();
-  const visibleTags = [
-    ...tags.filter((t) => pendingTags.includes(t)),
-    ...tags.filter((t) => !pendingTags.includes(t)),
-  ].filter((t) => !normalizedTagSearch || t.toLowerCase().includes(normalizedTagSearch));
+  const toggleCard = (on: boolean, tone: "primary" | "rose") =>
+    `flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-all ${
+      on
+        ? tone === "rose"
+          ? "border-transparent bg-gradient-to-br from-rose-500 to-pink-500 text-white shadow-md"
+          : "border-transparent bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow-md"
+        : "border-border bg-muted/60 hover:bg-muted"
+    }`;
 
   return (
     <div className="mb-6 space-y-3">
@@ -225,414 +380,65 @@ export function RecipeFilters({ cuisines, tags }: Props) {
         <button type="button" aria-pressed={!recipeRole} className={pill(!recipeRole)} onClick={() => push({ role: "" })}>All</button>
         {MEAL_ROLES.map((role) => <button key={role} type="button" aria-pressed={recipeRole === role} className={pill(recipeRole === role)} onClick={() => push({ role })}>{MEAL_ROLE_LABELS[role]}</button>)}
       </div>
-      {/* Search row */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <Input
-            ref={searchRef}
-            defaultValue={q}
-            placeholder="Search recipes or ingredients…"
-            className="pl-9 bg-muted border-0 focus-visible:ring-1"
-            onChange={(e) => handleSearchChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                if (debounceRef.current) clearTimeout(debounceRef.current);
-                push({ q: (e.target as HTMLInputElement).value });
-              }
-            }}
-          />
-        </div>
 
-        {/* Mobile-only filter sheet trigger */}
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger asChild>
-            <button
-              onClick={openSheet}
-              className={`lg:hidden relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-                activeFilterCount > 0
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-input bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-              aria-label="Filter recipes"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              {activeFilterCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          </SheetTrigger>
-
-          <SheetContent className="flex max-h-[85dvh] flex-col p-0">
-            <SheetHeader className="shrink-0 border-b px-4 py-3">
-              <div className="flex items-center justify-between pr-8">
-                <SheetTitle>Filter Recipes</SheetTitle>
-                {pendingFilterCount > 0 && (
-                  <button
-                    onClick={clearPending}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                    Clear all
-                  </button>
-                )}
-              </div>
-            </SheetHeader>
-
-            <div className="flex-1 space-y-5 overflow-y-auto p-4">
-              {/* Sort */}
-              <div>
-                <p className="mb-2.5 text-sm font-medium">Sort by</p>
-                <div className="flex flex-wrap gap-2">
-                  {SORT_OPTIONS.map((o) => (
-                    <button
-                      key={o.value}
-                      onClick={() => setPendingSort(o.value)}
-                      className={sheetPill(pendingSort === o.value)}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Favourites */}
-              <div>
-                <p className="mb-2.5 text-sm font-medium">Show</p>
-                <label className="flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3">
-                  <span className="text-sm">Favourites only</span>
-                  <div
-                    onClick={() => setPendingFavourites((v) => !v)}
-                    className={`relative h-6 w-11 rounded-full transition-colors ${pendingFavourites ? "bg-primary" : "bg-muted"}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                        pendingFavourites ? "translate-x-5" : "translate-x-0.5"
-                      }`}
-                    />
-                  </div>
-                </label>
-                <label className="mt-2 flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3">
-                  <span className="flex items-center gap-2 text-sm">
-                    <HeartPulse className="h-4 w-4 text-rose-500" />
-                    Heart-healthy only
-                  </span>
-                  <div
-                    onClick={() => setPendingHeart((v) => !v)}
-                    className={`relative h-6 w-11 rounded-full transition-colors ${pendingHeart ? "bg-rose-500" : "bg-muted"}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                        pendingHeart ? "translate-x-5" : "translate-x-0.5"
-                      }`}
-                    />
-                  </div>
-                </label>
-                <p className="mt-1.5 px-1 text-xs text-muted-foreground">
-                  Low saturated fat and good fibre per serving. Recipes without nutrition data won&rsquo;t show.
-                </p>
-              </div>
-
-              {/* Difficulty */}
-              <div>
-                <p className="mb-2.5 text-sm font-medium">Difficulty</p>
-                <div className="flex flex-wrap gap-2">
-                  {DIFFICULTY_OPTIONS.slice(1).map((o) => (
-                    <button
-                      key={o.value}
-                      onClick={() => setPendingDifficulty(pendingDifficulty === o.value ? "" : o.value)}
-                      className={sheetPill(pendingDifficulty === o.value)}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Total time */}
-              <div>
-                <p className="mb-2.5 text-sm font-medium">Total time</p>
-                <div className="flex flex-wrap gap-2">
-                  {TIME_OPTIONS.slice(1).map((o) => (
-                    <button
-                      key={o.value}
-                      onClick={() => setPendingMaxTime(pendingMaxTime === o.value ? "" : o.value)}
-                      className={sheetPill(pendingMaxTime === o.value)}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Cuisine */}
-              {cuisines.length > 0 && (
-                <div>
-                  <p className="mb-2.5 text-sm font-medium">Cuisine</p>
-                  <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto">
-                    {cuisines.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => setPendingCuisine(pendingCuisine === c ? "" : c)}
-                        className={sheetPill(pendingCuisine === c)}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Tags */}
-              {tags.length > 0 && (
-                <div>
-                  <div className="mb-2.5 flex items-center justify-between">
-                    <p className="text-sm font-medium">Tags</p>
-                    {pendingTags.length > 0 && (
-                      <button
-                        onClick={() => setPendingTags([])}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        Clear {pendingTags.length}
-                      </button>
-                    )}
-                  </div>
-
-                  {tags.length > TAG_SEARCH_THRESHOLD && (
-                    <div className="relative mb-2.5">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={tagSearch}
-                        onChange={(e) => setTagSearch(e.target.value)}
-                        placeholder="Search tags…"
-                        className="h-9 border-0 bg-muted pl-9 text-sm focus-visible:ring-1"
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex max-h-52 flex-wrap gap-2 overflow-y-auto">
-                    {visibleTags.map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => togglePendingTag(t)}
-                        className={sheetPill(pendingTags.includes(t))}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                    {visibleTags.length === 0 && (
-                      <p className="py-2 text-sm text-muted-foreground">No matching tags.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Sticky apply bar — always reachable however many tags there are */}
-            <div className="shrink-0 border-t bg-background p-4 pb-safe-bottom">
-              <button
-                onClick={applyFilters}
-                className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
-              >
-                Show Recipes
-                {pendingFilterCount > 0 && (
-                  <span className="ml-1.5 opacity-80">({pendingFilterCount})</span>
-                )}
-              </button>
-            </div>
-          </SheetContent>
-        </Sheet>
-
-        {/* Mobile-only clear button */}
-        {hasActiveFilters && (
-          <button
-            onClick={() => navigate("/recipes")}
-            className="lg:hidden flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-            Clear
-          </button>
-        )}
+      {/* Search, with the filter panel's button tucked into its right edge */}
+      <div className="relative max-w-3xl">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          ref={searchRef}
+          defaultValue={q}
+          placeholder="Search recipes or ingredients…"
+          className="h-11 border-0 bg-muted pl-9 pr-20 focus-visible:ring-1 sm:pr-28"
+          onChange={(e) => handleSearchChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              if (debounceRef.current) clearTimeout(debounceRef.current);
+              push({ q: (e.target as HTMLInputElement).value });
+            }
+          }}
+        />
+        <button
+          type="button"
+          onClick={openSheet}
+          aria-label={activeFilterCount ? `Filters (${activeFilterCount} on)` : "Filters"}
+          className={`absolute right-1.5 top-1/2 flex h-8 -translate-y-1/2 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold shadow-sm transition-all ${
+            activeFilterCount > 0
+              ? "bg-gradient-to-br from-orange-500 to-rose-500 text-white"
+              : "border border-border bg-background text-foreground hover:border-primary/50"
+          }`}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          <span className="hidden sm:inline">Filters</span>
+          {activeFilterCount > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/25 px-1 text-xs tabular-nums">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Desktop inline filter bar */}
-      <div className="hidden lg:flex lg:flex-wrap lg:items-center lg:gap-x-1 lg:gap-y-2">
-        {/* Sort */}
-        <div className="flex items-center gap-2 mr-1">
-          <span className="text-xs text-muted-foreground">Sort</span>
-          <div className="flex gap-1">
-            {SORT_OPTIONS.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => push({ sort: o.value === "newest" ? "" : o.value })}
-                className={pill(sort === o.value)}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="h-4 w-px bg-border mx-2" />
-
-        {/* Favourites toggle */}
-        <button
-          onClick={() => push({ favourites: favourites === "1" ? "" : "1" })}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors mr-3 ${
-            favourites === "1"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground hover:bg-muted/70"
-          }`}
-        >
-          <Heart className={`h-3 w-3 ${favourites === "1" ? "fill-current" : ""}`} />
-          Favourites
-        </button>
-
-        {/* Heart-healthy toggle */}
-        <button
-          onClick={() => push({ heart: heart === "1" ? "" : "1" })}
-          title="Low saturated fat and good fibre per serving"
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors mr-3 ${
-            heart === "1"
-              ? "bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-sm"
-              : "bg-muted text-muted-foreground hover:bg-muted/70"
-          }`}
-        >
-          <HeartPulse className="h-3 w-3" />
-          Heart-healthy
-        </button>
-
-        <div className="h-4 w-px bg-border mx-2" />
-
-        {/* Difficulty */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Difficulty</span>
-          <PillGroup
-            options={DIFFICULTY_OPTIONS}
-            current={difficulty}
-            onSelect={(v) => push({ difficulty: v })}
-          />
-        </div>
-
-        <div className="h-4 w-px bg-border mx-2" />
-
-        {/* Time */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Time</span>
-          <PillGroup
-            options={TIME_OPTIONS}
-            current={maxTime}
-            onSelect={(v) => push({ maxTime: v })}
-          />
-        </div>
-
-        {/* Cuisine */}
-        {cuisines.length > 0 && (
-          <>
-            <div className="h-4 w-px bg-border mx-2" />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Cuisine</span>
-              <div className="flex flex-wrap gap-1">
-                <button
-                  onClick={() => push({ cuisine: "" })}
-                  className={pill(!cuisine)}
-                >
-                  All
-                </button>
-                {cuisines.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => push({ cuisine: cuisine === c ? "" : c })}
-                    className={pill(cuisine === c)}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Tags */}
-        {tags.length > 0 && (() => {
-          const VISIBLE = 6;
-          // Active tags always shown first, then the rest alphabetically
-          const sorted = [
-            ...tags.filter((t) => activeTags.includes(t)),
-            ...tags.filter((t) => !activeTags.includes(t)),
-          ];
-          const visible = showAllTags ? sorted : sorted.slice(0, VISIBLE);
-          const hiddenCount = sorted.length - VISIBLE;
-          return (
-            <>
-              <div className="h-4 w-px bg-border mx-2" />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Tags</span>
-                <div className="flex flex-wrap gap-1">
-                  {visible.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => toggleTagUrl(t)}
-                      className={pill(activeTags.includes(t))}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                  {!showAllTags && hiddenCount > 0 && (
-                    <button
-                      onClick={() => setShowAllTags(true)}
-                      className="rounded-full px-3 py-1 text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/70 border border-dashed border-muted-foreground/30"
-                    >
-                      +{hiddenCount} more
-                    </button>
-                  )}
-                  {showAllTags && tags.length > VISIBLE && (
-                    <button
-                      onClick={() => setShowAllTags(false)}
-                      className="rounded-full px-3 py-1 text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/70"
-                    >
-                      Show less
-                    </button>
-                  )}
-                </div>
-              </div>
-            </>
-          );
-        })()}
-
-        {/* Clear all */}
-        {hasActiveFilters && (
-          <>
-            <div className="h-4 w-px bg-border mx-2" />
-            <button
-              onClick={() => navigate("/recipes")}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
+      {/* What's on, each removable in one tap */}
+      {(activeFilterCount > 0 || q) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {sort !== "newest" && (
+            <button type="button" onClick={() => push({ sort: "" })} className={chip}>
+              <ArrowDownUp className="h-3 w-3" />
+              {labelOf(SORT_OPTIONS, sort)}
               <X className="h-3 w-3" />
-              Clear all
             </button>
-          </>
-        )}
-      </div>
-
-      {/* Mobile: active filter chips */}
-      {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2 lg:hidden">
-          {cuisine && (
-            <button
-              onClick={() => push({ cuisine: "" })}
-              className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
-            >
-              {cuisine}
+          )}
+          {favourites === "1" && (
+            <button type="button" onClick={() => push({ favourites: "" })} className={chip}>
+              <Heart className="h-3 w-3 fill-current" />
+              Favourites
               <X className="h-3 w-3" />
             </button>
           )}
           {heart === "1" && (
             <button
+              type="button"
               onClick={() => push({ heart: "" })}
-              className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400"
+              className="flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 py-1 pl-2.5 pr-2 text-xs font-medium text-rose-600 hover:bg-rose-500/20 dark:text-rose-400"
             >
               <HeartPulse className="h-3 w-3" />
               Heart-healthy
@@ -640,35 +446,168 @@ export function RecipeFilters({ cuisines, tags }: Props) {
             </button>
           )}
           {difficulty && (
-            <button
-              onClick={() => push({ difficulty: "" })}
-              className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
-            >
-              {difficulty}
+            <button type="button" onClick={() => push({ difficulty: "" })} className={chip}>
+              <ChefHat className="h-3 w-3" />
+              {labelOf(DIFFICULTY_OPTIONS, difficulty)}
               <X className="h-3 w-3" />
             </button>
           )}
           {maxTime && (
-            <button
-              onClick={() => push({ maxTime: "" })}
-              className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
-            >
-              ≤ {maxTime === "60" ? "1 hr" : maxTime === "120" ? "2 hrs" : `${maxTime} min`}
+            <button type="button" onClick={() => push({ maxTime: "" })} className={chip}>
+              <Clock className="h-3 w-3" />
+              {labelOf(TIME_OPTIONS, maxTime)}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {cuisine && (
+            <button type="button" onClick={() => push({ cuisine: "" })} className={chip}>
+              <Globe2 className="h-3 w-3" />
+              {cuisine}
               <X className="h-3 w-3" />
             </button>
           )}
           {activeTags.map((t) => (
             <button
               key={t}
-              onClick={() => removeTagUrl(t)}
-              className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+              type="button"
+              onClick={() => push({ tags: activeTags.filter((x) => x !== t).join(",") })}
+              className={chip}
             >
-              #{t}
+              <Tag className="h-3 w-3" />
+              {t}
               <X className="h-3 w-3" />
             </button>
           ))}
+          <button
+            type="button"
+            onClick={clearAll}
+            className="ml-1 text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Clear all
+          </button>
         </div>
       )}
+
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent
+          side={isDesktop ? "right" : "bottom"}
+          className={`flex flex-col p-0 ${isDesktop ? "w-full max-w-md" : "max-h-[85dvh]"}`}
+          aria-describedby={undefined}
+        >
+          <SheetHeader className="shrink-0 border-b px-4 py-3">
+            <div className="flex items-center justify-between pr-8">
+              <SheetTitle>Filter recipes</SheetTitle>
+              {pendingFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearPending}
+                  className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                  Reset
+                </button>
+              )}
+            </div>
+          </SheetHeader>
+
+          <div className="flex-1 space-y-6 overflow-y-auto p-4">
+            <Section icon={ArrowDownUp} title="Sort by">
+              <Segmented options={SORT_OPTIONS} value={pendingSort} onChange={setPendingSort} />
+            </Section>
+
+            <Section icon={Heart} title="Show only">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  aria-pressed={pendingFavourites}
+                  onClick={() => setPendingFavourites((v) => !v)}
+                  className={toggleCard(pendingFavourites, "primary")}
+                >
+                  <Heart className={`h-4 w-4 ${pendingFavourites ? "fill-current" : ""}`} />
+                  Favourites
+                  {pendingFavourites && <Check className="ml-auto h-4 w-4" />}
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={pendingHeart}
+                  onClick={() => setPendingHeart((v) => !v)}
+                  className={toggleCard(pendingHeart, "rose")}
+                >
+                  <HeartPulse className={`h-4 w-4 ${pendingHeart ? "" : "text-rose-500"}`} />
+                  Heart-healthy
+                  {pendingHeart && <Check className="ml-auto h-4 w-4" />}
+                </button>
+              </div>
+              <p className="mt-1.5 px-1 text-xs text-muted-foreground">
+                Heart-healthy: low saturated fat and good fibre per serving. Recipes without
+                nutrition data won&rsquo;t show.
+              </p>
+            </Section>
+
+            <Section icon={ChefHat} title="Difficulty">
+              <Segmented
+                options={DIFFICULTY_OPTIONS}
+                value={pendingDifficulty}
+                onChange={setPendingDifficulty}
+              />
+            </Section>
+
+            <Section icon={Clock} title="Total time">
+              <Segmented options={TIME_OPTIONS} value={pendingMaxTime} onChange={setPendingMaxTime} />
+            </Section>
+
+            {cuisines.length > 0 && (
+              <Section icon={Globe2} title="Cuisine">
+                <FacetPicker
+                  options={cuisines}
+                  selected={pendingCuisine ? [pendingCuisine] : []}
+                  onToggle={(v) =>
+                    setPendingCuisine(pendingCuisine.toLowerCase() === v.toLowerCase() ? "" : v)
+                  }
+                  placeholder="Find a cuisine…"
+                  noun="cuisines"
+                />
+              </Section>
+            )}
+
+            {tags.length > 0 && (
+              <Section
+                icon={Tag}
+                title="Tags"
+                aside={
+                  pendingTags.length > 1 && (
+                    <span className="text-xs text-muted-foreground">Matches any of them</span>
+                  )
+                }
+              >
+                <FacetPicker
+                  options={tags}
+                  selected={pendingTags}
+                  onToggle={togglePendingTag}
+                  placeholder="Find a tag…"
+                  noun="tags"
+                />
+              </Section>
+            )}
+          </div>
+
+          {/* Sticky apply bar — always reachable however long the panel gets */}
+          <div className="shrink-0 border-t bg-background p-4 pb-safe-bottom">
+            <button
+              type="button"
+              onClick={applyFilters}
+              className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 py-3 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
+            >
+              Show recipes
+              {pendingFilterCount > 0 && (
+                <span className="ml-1.5 opacity-80">
+                  ({pendingFilterCount} {pendingFilterCount === 1 ? "filter" : "filters"})
+                </span>
+              )}
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

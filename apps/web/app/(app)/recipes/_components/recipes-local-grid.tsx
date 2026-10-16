@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import {
@@ -139,6 +140,22 @@ export function RecipesLocalGrid({
         sort: params.get("sort") ?? undefined,
       })
     : initial;
+
+  // The server shows its own empty state, but a local re-filter that matches
+  // nothing would otherwise leave a blank page.
+  if (useLocal && list.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <p className="text-muted-foreground">No recipes match your filters.</p>
+        <Link
+          href="/recipes"
+          className="mt-4 rounded-lg bg-gradient-to-r from-orange-500 to-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:opacity-90"
+        >
+          Clear filters
+        </Link>
+      </div>
+    );
+  }
 
   return <RecipesGrid recipes={list} allTags={allTags} />;
 }

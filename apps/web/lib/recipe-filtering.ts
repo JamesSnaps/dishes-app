@@ -66,8 +66,10 @@ export function filterRecipes<T extends FilterableRecipe>(
     );
   }
 
-  const cuisine = f.cuisine?.trim();
-  if (cuisine) out = out.filter((r) => r.cuisine === cuisine);
+  // Case-insensitive, like the SQL's lower() = lower(): "american" and
+  // "American" are one cuisine (see mergeCaseVariants).
+  const cuisine = f.cuisine?.trim().toLowerCase();
+  if (cuisine) out = out.filter((r) => r.cuisine?.toLowerCase() === cuisine);
 
   if (f.favourites === "1") out = out.filter((r) => r.isFavourite);
 
@@ -89,10 +91,10 @@ export function filterRecipes<T extends FilterableRecipe>(
     );
   }
 
-  const tagList = f.tags?.split(",").filter(Boolean) ?? [];
+  const tagList = parseTags(f.tags).map((t) => t.toLowerCase());
   if (tagList.length) {
-    // IN (…) semantics: any of the selected tags, not all of them.
-    out = out.filter((r) => (r.tags ?? []).some((t) => tagList.includes(t)));
+    // IN (…) semantics: any of the selected tags, not all of them. Case-insensitive.
+    out = out.filter((r) => (r.tags ?? []).some((t) => tagList.includes(t.toLowerCase())));
   }
 
   return out;
@@ -116,6 +118,46 @@ export function filterAndSortRecipes<T extends FilterableRecipe>(
   f: RecipeFilters
 ): T[] {
   return sortRecipes(filterRecipes(recipes, f), f.sort);
+}
+
+/** The `tags` URL param as a list. */
+export function parseTags(tags: string | null | undefined): string[] {
+  return (tags ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+}
+
+/** A cuisine or tag the filter panel offers, and how many recipes have it. */
+export type FacetOption = { value: string; count: number };
+
+function capitals(s: string): number {
+  return s.replace(/[^A-Z]/g, "").length;
+}
+
+/**
+ * Fold spellings that differ only in case ("Italian-American" and
+ * "Italian-american", "british" and "British") into one option. Cuisines and
+ * tags are free text, often AI-written, so these pile up. The filters match
+ * case-insensitively, so any spelling selects them all; the one shown is the
+ * most capitalised, then the most used.
+ */
+export function mergeCaseVariants(options: FacetOption[]): FacetOption[] {
+  const groups = new Map<string, { best: FacetOption; count: number }>();
+  for (const o of options) {
+    const key = o.value.trim().toLowerCase();
+    if (!key) continue;
+    const g = groups.get(key);
+    if (!g) {
+      groups.set(key, { best: o, count: o.count });
+      continue;
+    }
+    g.count += o.count;
+    const better =
+      capitals(o.value) > capitals(g.best.value) ||
+      (capitals(o.value) === capitals(g.best.value) && o.count > g.best.count);
+    if (better) g.best = o;
+  }
+  return [...groups.values()]
+    .map((g) => ({ value: g.best.value.trim(), count: g.count }))
+    .sort((a, b) => a.value.localeCompare(b.value));
 }
 
 /** Distinct cuisines present, for the filter chips. */
