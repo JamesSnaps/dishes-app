@@ -8,6 +8,7 @@ import {
   ArrowDownUp,
   Check,
   ChefHat,
+  Layers,
   Clock,
   Globe2,
   Heart,
@@ -41,16 +42,13 @@ const DIFFICULTY_OPTIONS = [
   { label: "Hard", value: "hard" },
 ];
 
+const ROLE_OPTIONS = [
+  { label: "All", value: "" },
+  ...MEAL_ROLES.map((role) => ({ label: MEAL_ROLE_LABELS[role], value: role as string })),
+];
+
 const labelOf = (options: { label: string; value: string }[], value: string) =>
   options.find((o) => o.value === value)?.label ?? value;
-
-function pill(active: boolean) {
-  return `rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-    active
-      ? "bg-primary text-primary-foreground"
-      : "bg-muted text-muted-foreground hover:bg-muted/70"
-  }`;
-}
 
 /** One row of mutually exclusive options, shown as a segmented control. */
 function Segmented({
@@ -276,6 +274,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   );
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [pendingRole, setPendingRole] = useState(recipeRole);
   const [pendingCuisine, setPendingCuisine] = useState(cuisine);
   const [pendingFavourites, setPendingFavourites] = useState(favourites === "1");
   const [pendingHeart, setPendingHeart] = useState(heart === "1");
@@ -294,6 +293,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   }
 
   function openSheet() {
+    setPendingRole(recipeRole);
     setPendingCuisine(cuisine);
     setPendingFavourites(favourites === "1");
     setPendingHeart(heart === "1");
@@ -306,7 +306,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
 
   function applyFilters() {
     const next = new URLSearchParams();
-    if (recipeRole) next.set("role", recipeRole);
+    if (pendingRole) next.set("role", pendingRole);
     const currentQ = searchRef.current?.value.trim() ?? q;
     if (currentQ) next.set("q", currentQ);
     if (pendingCuisine) next.set("cuisine", pendingCuisine);
@@ -321,6 +321,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   }
 
   function clearPending() {
+    setPendingRole("");
     setPendingCuisine("");
     setPendingFavourites(false);
     setPendingHeart(false);
@@ -340,10 +341,11 @@ export function RecipeFilters({ cuisines, tags }: Props) {
 
   function clearAll() {
     if (searchRef.current) searchRef.current.value = "";
-    navigate(recipeRole ? `/recipes?role=${recipeRole}` : "/recipes");
+    navigate("/recipes");
   }
 
   const activeFilterCount =
+    (recipeRole ? 1 : 0) +
     (cuisine ? 1 : 0) +
     (favourites === "1" ? 1 : 0) +
     (heart === "1" ? 1 : 0) +
@@ -353,6 +355,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     (sort !== "newest" ? 1 : 0);
 
   const pendingFilterCount =
+    (pendingRole ? 1 : 0) +
     (pendingCuisine ? 1 : 0) +
     (pendingFavourites ? 1 : 0) +
     (pendingHeart ? 1 : 0) +
@@ -375,12 +378,6 @@ export function RecipeFilters({ cuisines, tags }: Props) {
 
   return (
     <div className="mb-6 space-y-3">
-      <div className="flex flex-wrap items-center gap-1" aria-label="Recipe role">
-        <span className="mr-1 text-xs font-medium text-muted-foreground">Role</span>
-        <button type="button" aria-pressed={!recipeRole} className={pill(!recipeRole)} onClick={() => push({ role: "" })}>All</button>
-        {MEAL_ROLES.map((role) => <button key={role} type="button" aria-pressed={recipeRole === role} className={pill(recipeRole === role)} onClick={() => push({ role })}>{MEAL_ROLE_LABELS[role]}</button>)}
-      </div>
-
       {/* Search, with the filter panel's button tucked into its right edge */}
       <div className="relative max-w-3xl">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -420,6 +417,13 @@ export function RecipeFilters({ cuisines, tags }: Props) {
       {/* What's on, each removable in one tap */}
       {(activeFilterCount > 0 || q) && (
         <div className="flex flex-wrap items-center gap-1.5">
+          {recipeRole && (
+            <button type="button" onClick={() => push({ role: "" })} className={chip}>
+              <Layers className="h-3 w-3" />
+              {labelOf(ROLE_OPTIONS, recipeRole)}
+              <X className="h-3 w-3" />
+            </button>
+          )}
           {sort !== "newest" && (
             <button type="button" onClick={() => push({ sort: "" })} className={chip}>
               <ArrowDownUp className="h-3 w-3" />
@@ -511,6 +515,10 @@ export function RecipeFilters({ cuisines, tags }: Props) {
           </SheetHeader>
 
           <div className="flex-1 space-y-6 overflow-y-auto p-4">
+            <Section icon={Layers} title="Role">
+              <Segmented options={ROLE_OPTIONS} value={pendingRole} onChange={setPendingRole} />
+            </Section>
+
             <Section icon={ArrowDownUp} title="Sort by">
               <Segmented options={SORT_OPTIONS} value={pendingSort} onChange={setPendingSort} />
             </Section>
