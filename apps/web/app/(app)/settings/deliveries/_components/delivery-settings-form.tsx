@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, Loader2, X } from "lucide-react";
+import { BellRing, Loader2, Send, X } from "lucide-react";
 import { Button, Input } from "@dishes/ui";
 import { toast } from "@/hooks/use-toast";
 import { saveDeliverySettings, setMyDeliveryReminders } from "@/app/actions/deliveries";
@@ -20,6 +20,7 @@ interface Props {
     cutoffTime: string;
     cutoffDaysBefore: number;
     reminderTimes: string[];
+    minOrderTotal: number | null;
     timezone: string;
   };
   optedIn: boolean;
@@ -46,8 +47,41 @@ export function DeliverySettingsForm({ settings, optedIn, isAdmin }: Props) {
   const [daysBefore, setDaysBefore] = useState(settings.cutoffDaysBefore);
   const [reminderTimes, setReminderTimes] = useState<string[]>(settings.reminderTimes);
   const [newTime, setNewTime] = useState("");
+  const [minOrder, setMinOrder] = useState(
+    settings.minOrderTotal != null ? String(settings.minOrderTotal) : ""
+  );
 
   const disabled = !isAdmin || saving;
+  const [testing, setTesting] = useState(false);
+
+  /** Push a preview of the next order's final reminder to this device. */
+  async function sendTest() {
+    setTesting(true);
+    try {
+      const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.ready : null;
+      const sub = await reg?.pushManager.getSubscription();
+      if (!sub) {
+        toast({
+          variant: "destructive",
+          title: "Notifications aren't on for this device",
+          description: "Turn them on in Settings → Notifications, then try again.",
+        });
+        return;
+      }
+      const res = await fetch("/api/push/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: sub.endpoint, kind: "delivery" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (res.ok) toast({ title: "Test reminder sent", description: "It should arrive in a moment." });
+      else toast({ variant: "destructive", title: "Couldn't send", description: data.error });
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't send a test reminder" });
+    } finally {
+      setTesting(false);
+    }
+  }
 
   function toggle() {
     const next = !enabled;
@@ -84,6 +118,7 @@ export function DeliverySettingsForm({ settings, optedIn, isAdmin }: Props) {
           cutoffTime,
           cutoffDaysBefore: daysBefore,
           reminderTimes,
+          minOrderTotal: minOrder.trim() ? Number(minOrder) : null,
         });
         toast({ title: "Delivery settings saved" });
         router.refresh();
@@ -116,8 +151,9 @@ export function DeliverySettingsForm({ settings, optedIn, isAdmin }: Props) {
         <div className="flex-1 min-w-0">
           <p className="font-semibold">Remind me before orders close</p>
           <p className={`text-sm ${enabled ? "text-white/85" : "text-muted-foreground"}`}>
-            Sent to every device where you&apos;ve enabled notifications, only when something
-            still needs doing. Other household members choose for themselves.
+            Sent to every device where you&apos;ve enabled notifications when something still
+            needs doing, plus a last-orders reminder before the deadline. Other household
+            members choose for themselves.
           </p>
         </div>
         <span
@@ -136,6 +172,24 @@ export function DeliverySettingsForm({ settings, optedIn, isAdmin }: Props) {
           )}
         </span>
       </button>
+
+      {enabled && (
+        <div className="-mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
+          <Button
+            type="button"
+            size="sm"
+            onClick={sendTest}
+            disabled={testing}
+            className="gap-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300/70 dark:bg-emerald-900/40 dark:hover:bg-emerald-900/60 dark:text-emerald-100 dark:border-emerald-800 shadow-sm"
+          >
+            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            Send me a test reminder
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            To this device, showing what the next order&apos;s final reminder would say.
+          </span>
+        </div>
+      )}
 
       {/* Household schedule */}
       <form
@@ -261,6 +315,33 @@ export function DeliverySettingsForm({ settings, optedIn, isAdmin }: Props) {
             Times must be before {cutoffTime || "the deadline"}. The last one is sent as a
             &ldquo;last call&rdquo;. Uses the household timezone ({settings.timezone}) from
             Dinner reminders.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="min-order" className="text-sm font-medium">
+            Warn if an order is under
+          </label>
+          <div className="relative w-40">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+              £
+            </span>
+            <Input
+              id="min-order"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              value={minOrder}
+              onChange={(e) => setMinOrder(e.target.value)}
+              disabled={disabled}
+              placeholder="No minimum"
+              className="pl-7"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            E.g. your supermarket&apos;s minimum spend. A placed order under it is flagged here and
+            in the deadline-day reminders, so you can top it up before orders close.
           </p>
         </div>
 

@@ -111,6 +111,12 @@ export function NextDeliveryCard({
       </div>
 
       <ul className="mt-3 space-y-1.5">
+        {ordered && next.belowMinimum && (
+          <Row ok={false}>
+            £{next.total} is under your {next.belowMinimum} minimum: top it up before{" "}
+            {next.cutoffLabel}
+          </Row>
+        )}
         {ordered ? (
           next.addedSinceOrder.length > 0 ? (
             <Row ok={false}>

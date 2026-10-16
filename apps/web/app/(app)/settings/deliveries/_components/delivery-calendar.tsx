@@ -149,11 +149,19 @@ export function DeliveryCalendar({ upcoming, canEdit, today }: Props) {
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {d.status === "ordered" ? (
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                        Ordered
-                        {d.slot ? ` · ${d.slot}` : ""}
-                        {d.total ? ` · £${d.total}` : ""}
-                      </span>
+                      <>
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                          Ordered
+                          {d.slot ? ` · ${d.slot}` : ""}
+                          {d.total ? ` · £${d.total}` : ""}
+                        </span>
+                        {d.belowMinimum && (
+                          <span className="font-semibold text-amber-700 dark:text-amber-400">
+                            {" "}
+                            · under {d.belowMinimum}
+                          </span>
+                        )}
+                      </>
                     ) : d.status === "skipped" ? (
                       d.awayLabel ? (
                         `Skipped — ${d.awayLabel}`
