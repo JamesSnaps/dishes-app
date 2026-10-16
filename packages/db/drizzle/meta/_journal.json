@@ -29,6 +29,13 @@
       "when": 1792108800000,
       "tag": "0039_deliveries",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792195200000,
+      "tag": "0040_schema_drift",
+      "breakpoints": true
     }
   ]
 }

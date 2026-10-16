@@ -10,8 +10,17 @@ import { useRouter } from "next/navigation";
  * equivalent — you see fresh data the moment you reopen the app.
  *
  * Throttled so rapid focus/blur cycles don't hammer the server.
+ *
+ * `intervalMs` also refreshes on a timer while the page is visible, for
+ * screens that change from elsewhere (another member, an order email).
  */
-export function RefreshOnFocus({ throttleMs = 15_000 }: { throttleMs?: number }) {
+export function RefreshOnFocus({
+  throttleMs = 15_000,
+  intervalMs,
+}: {
+  throttleMs?: number;
+  intervalMs?: number;
+}) {
   const router = useRouter();
   const lastRefresh = useRef(0);
 
@@ -26,11 +35,13 @@ export function RefreshOnFocus({ throttleMs = 15_000 }: { throttleMs?: number })
 
     document.addEventListener("visibilitychange", maybeRefresh);
     window.addEventListener("focus", maybeRefresh);
+    const timer = intervalMs ? setInterval(maybeRefresh, intervalMs) : undefined;
     return () => {
       document.removeEventListener("visibilitychange", maybeRefresh);
       window.removeEventListener("focus", maybeRefresh);
+      if (timer) clearInterval(timer);
     };
-  }, [router, throttleMs]);
+  }, [router, throttleMs, intervalMs]);
 
   return null;
 }
