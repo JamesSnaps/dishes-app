@@ -33,6 +33,7 @@ import type { HouseholdContext, ActorContext } from "@/lib/session";
 import type { MealRole, MealType } from "@dishes/shared";
 import * as shoppingService from "@/lib/services/shopping";
 import * as mealPlanService from "@/lib/services/meal-plan";
+import * as mealsService from "@/lib/services/meals";
 import { getRecipe, RecipeNotFoundError } from "@/lib/services/recipes";
 
 export class SyncCursorError extends Error {
@@ -52,6 +53,7 @@ export const SYNC_ENTITIES = [
   "meal_plan_entry",
   "meal_plan_group",
   "cook_history",
+  "meal",
 ] as const;
 
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];
@@ -65,6 +67,7 @@ const RESPONSE_KEY: Record<SyncEntity, string> = {
   meal_plan_entry: "mealPlanEntries",
   meal_plan_group: "mealPlanGroups",
   cook_history: "cookHistory",
+  meal: "meals",
 };
 
 // --- Cursor -----------------------------------------------------------------
@@ -136,8 +139,9 @@ async function prunedThroughFor(householdId: string): Promise<bigint | null> {
 }
 
 /**
- * Fetch the current state of the given ids, per entity. Recipes come back as
- * full documents (ingredients, steps, tags); everything else is its own row.
+ * Fetch the current state of the given ids, per entity. Recipes and saved
+ * meals come back as full documents (ingredients, steps, tags; slots and their
+ * options); everything else is its own row.
  */
 async function loadEntities(
   ctx: HouseholdContext,
@@ -239,6 +243,13 @@ async function loadEntities(
             inArray(cookHistory.id, ids)
           )
         );
+
+    case "meal": {
+      // One household read covers any number of ids. A meal missing from it
+      // was deleted since the log was read; its tombstone follows.
+      const wanted = new Set(ids);
+      return (await mealsService.listMeals(ctx)).filter((m) => wanted.has(m.id));
+    }
   }
 }
 
@@ -253,7 +264,7 @@ function emptyGrouping<T>(): Record<string, T[]> {
 async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
   const seq = await currentSeq(ctx.householdId);
 
-  const [recipeIds, listRows, itemRows, planRows, entryRows, groupRows, cookRows] =
+  const [recipeIds, listRows, itemRows, planRows, entryRows, groupRows, cookRows, mealDocs] =
     await Promise.all([
       db
         .select({ id: recipes.id })
@@ -280,6 +291,7 @@ async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
         .where(eq(mealPlans.householdId, ctx.householdId))
         .then((rows) => rows.map((r) => r.group)),
       db.select().from(cookHistory).where(eq(cookHistory.householdId, ctx.householdId)),
+      mealsService.listMeals(ctx),
     ]);
 
   const changes = emptyGrouping<unknown>();
@@ -294,6 +306,7 @@ async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
   changes[RESPONSE_KEY.meal_plan_entry] = entryRows;
   changes[RESPONSE_KEY.meal_plan_group] = groupRows;
   changes[RESPONSE_KEY.cook_history] = cookRows;
+  changes[RESPONSE_KEY.meal] = mealDocs;
 
   return {
     cursor: encodeCursor(seq),
@@ -438,6 +451,11 @@ export type SyncMutation =
     }
   | {
       opId: string;
+      type: "meal_plan_group.add_from_meal";
+      payload: mealsService.PlanMealInput;
+    }
+  | {
+      opId: string;
       type: "meal_plan_group.update";
       payload: { groupId: string } & mealPlanService.UpdateGroupInput;
     }
@@ -539,6 +557,10 @@ async function applyMutation(
     }
     case "meal_plan_group.add": {
       const id = await mealPlanService.addGroup(ctx, mutation.payload);
+      return { id };
+    }
+    case "meal_plan_group.add_from_meal": {
+      const id = await mealsService.planMeal(ctx, mutation.payload);
       return { id };
     }
     case "meal_plan_group.update": {

@@ -22,7 +22,9 @@ import { meals, mealSlots, mealSlotOptions, recipes } from "@dishes/db/schema";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { MEAL_ROLES, isMealRole, type MealRole, type MealType } from "@dishes/shared";
 import type { HouseholdContext } from "@/lib/session";
+import { defaultSelection, selectionToComponents } from "@/lib/saved-meals";
 import {
+  addGroup,
   assertMealType,
   getGroupComponents,
   rememberSlotChoices,
@@ -313,6 +315,64 @@ export async function deleteMeal(ctx: HouseholdContext, mealId: string): Promise
   await assertMealOwned(ctx, mealId);
   // Planned copies keep their recipes; their source link is cleared by the FK.
   await db.delete(meals).where(eq(meals.id, mealId));
+}
+
+export type PlanMealInput = {
+  mealId: string;
+  weekStartDate: string;
+  dayOfWeek: number;
+  /** Defaults to the saved meal's own default meal type. */
+  mealType?: MealType;
+  /**
+   * The options chosen, across all slots. Omitted: each slot's defaults, the
+   * same pre-selection the planner's chooser starts from. A slot with none of
+   * its options listed is left out of the planned meal.
+   */
+  optionIds?: string[];
+  servings?: number | null;
+};
+
+/**
+ * Put a saved meal on the plan as a planned meal group — what the web planner
+ * does when a saved meal is picked, for callers that can't build the
+ * components themselves (offline sync). The choices are remembered as the
+ * saved meal's next defaults, as on the web.
+ */
+export async function planMeal(ctx: HouseholdContext, input: PlanMealInput): Promise<string> {
+  const meal = await getMeal(ctx, input.mealId);
+
+  let selection: Record<string, string[]>;
+  if (input.optionIds) {
+    const chosen = new Set(input.optionIds);
+    const known = new Set(meal.slots.flatMap((s) => s.options.map((o) => o.id)));
+    if (input.optionIds.some((id) => !known.has(id))) {
+      throw new MealValidationError("Option is not part of this meal");
+    }
+    selection = {};
+    for (const slot of meal.slots) {
+      const ids = slot.options.filter((o) => chosen.has(o.id)).map((o) => o.recipe.id);
+      if (!slot.allowMultiple && ids.length > 1) {
+        throw new MealValidationError("Only one option can be chosen for this dish");
+      }
+      selection[slot.id] = ids;
+    }
+  } else {
+    selection = defaultSelection(meal);
+  }
+
+  const components = selectionToComponents(meal, selection);
+  if (!components.length) throw new MealValidationError("Choose at least one dish");
+
+  return addGroup(ctx, {
+    weekStartDate: input.weekStartDate,
+    title: meal.title,
+    dayOfWeek: input.dayOfWeek,
+    mealType: input.mealType ?? meal.defaultMealType,
+    sourceMealId: meal.id,
+    servings: input.servings,
+    components,
+    rememberChoices: true,
+  });
 }
 
 /**
