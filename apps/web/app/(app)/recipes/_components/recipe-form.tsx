@@ -1267,8 +1267,8 @@ export function RecipeForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="recipe-role">Recipe role</Label>
-        <p className="text-xs text-muted-foreground">How this recipe is served. Helps you find dishes for a combined meal.</p>
+        <Label htmlFor="recipe-role">Kind of dish</Label>
+        <p className="text-xs text-muted-foreground">Choose Side for a side dish, Sauce for gravy or a dressing, or Extra for bread and the like. Unspecified dishes are treated as mains by the weekly planner.</p>
         <select id="recipe-role" className="w-full rounded-md border bg-background p-2 text-sm" value={mealRole ?? ""} onChange={(e) => setMealRole(isMealRole(e.target.value) ? e.target.value : null)}>
           <option value="">Unspecified</option>
           {MEAL_ROLES.map((role) => <option key={role} value={role}>{MEAL_ROLE_LABELS[role]}</option>)}

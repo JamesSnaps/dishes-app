@@ -642,6 +642,7 @@ export function MealGroupCard({
               ? `Swap ${picker.entry.recipe.title}`
               : `Add ${withArticle(MEAL_ROLE_LABELS[addRole].toLowerCase())} to ${group.title}`,
           onPick: handlePick,
+          role: picker?.kind === "swap" ? (picker.entry.mealRole ?? "side") : addRole,
           preferredIds: [...recipes.filter((r) => r.mealRole === (picker?.kind === "swap" ? (picker.entry.mealRole ?? "side") : addRole)).map((r) => r.id), ...preferredFor(
             picker?.kind === "swap" ? (picker.entry.mealRole ?? "side") : addRole
           )],

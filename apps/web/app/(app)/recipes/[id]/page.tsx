@@ -27,8 +27,9 @@ import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { aiConfigurations } from "@dishes/db/schema";
 import type { ImageStyleValue } from "@/lib/image-styles";
-import { isMealRole, MEAL_ROLE_LABELS } from "@dishes/shared";
 import { Badge } from "@dishes/ui";
+import { RecipeRoleBar } from "./_components/recipe-role-bar";
+import { isMealRole } from "@dishes/shared";
 import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
 import { RecipeTabs } from "./_components/recipe-tabs";
 import { StartCookingButton } from "./_components/start-cooking-button";
@@ -346,7 +347,6 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
 
       {/* Meta row */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        {isMealRole(recipe.mealRole) && <Badge variant="secondary">{MEAL_ROLE_LABELS[recipe.mealRole]}</Badge>}
         {recipe.cuisine && (
           <Badge variant="secondary">{recipe.cuisine}</Badge>
         )}
@@ -386,6 +386,12 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
           </span>
         )}
       </div>
+
+      <RecipeRoleBar
+        recipeId={id}
+        recipeTitle={recipe.title}
+        mealRole={isMealRole(recipe.mealRole) ? recipe.mealRole : null}
+      />
 
       {/* Planner stats */}
       {plannerStats.timesPlanned > 0 && (

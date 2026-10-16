@@ -1,6 +1,6 @@
 "use server";
 
-import { isMealRole } from "@dishes/shared";
+import { isMealRole, type MealRole } from "@dishes/shared";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
@@ -110,6 +110,13 @@ export async function updateRecipe(recipeId: string, formData: FormData) {
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
   redirect(`/recipes/${recipeId}`);
+}
+
+export async function setRecipeMealRole(recipeId: string, mealRole: MealRole | null) {
+  const session = await requireSession();
+  await recipeService.setMealRole(session, recipeId, mealRole);
+  revalidatePath(`/recipes/${recipeId}`);
+  revalidatePath("/recipes");
 }
 
 export async function deleteRecipe(recipeId: string) {
