@@ -26,6 +26,13 @@ function writeJobs(jobs: PendingImageJob[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
 }
 
+export const IMAGE_READY_EVENT = "dishes-image-ready";
+export interface ImageReadyDetail {
+  recipeId: string;
+  imageUrl?: string;
+  thumbnailUrl?: string | null;
+}
+
 export function addPendingImageJob(job: PendingImageJob) {
   const jobs = readJobs();
   if (!jobs.find((j) => j.jobId === job.jobId)) {
@@ -48,7 +55,12 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         try {
           const res = await fetch(`/api/jobs/${job.jobId}`);
           if (!res.ok) return;
-          const data: { status: string; error?: string } = await res.json();
+          const data: {
+            status: string;
+            error?: string;
+            imageUrl?: string;
+            thumbnailUrl?: string | null;
+          } = await res.json();
 
           if (data.status === "done") {
             writeJobs(readJobs().filter((j) => j.jobId !== job.jobId));
@@ -58,6 +70,15 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
             });
             // Refresh server components on the current page so the image appears
             router.refresh();
+            window.dispatchEvent(
+              new CustomEvent<ImageReadyDetail>(IMAGE_READY_EVENT, {
+                detail: {
+                  recipeId: job.recipeId,
+                  imageUrl: data.imageUrl,
+                  thumbnailUrl: data.thumbnailUrl,
+                },
+              })
+            );
             window.dispatchEvent(new Event("dishes-notification-added"));
           } else if (data.status === "failed") {
             writeJobs(readJobs().filter((j) => j.jobId !== job.jobId));

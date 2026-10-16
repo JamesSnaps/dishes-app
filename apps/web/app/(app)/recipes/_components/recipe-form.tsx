@@ -46,7 +46,11 @@ import { improveRecipe, generateRecipeImageUrl } from "@/app/actions/ai";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { IMAGE_STYLES } from "@/lib/image-styles";
 import type { ImageStyleValue } from "@/lib/image-styles";
-import { addPendingImageJob } from "@/components/providers/jobs-provider";
+import {
+  addPendingImageJob,
+  IMAGE_READY_EVENT,
+  type ImageReadyDetail,
+} from "@/components/providers/jobs-provider";
 import { toast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/components/unsaved-changes-context";
 import { PasteImportModal } from "./paste-import-modal";
@@ -686,6 +690,19 @@ export function RecipeForm({
     }
   }
 
+  // Show a background-generated photo as soon as its job finishes.
+  useEffect(() => {
+    if (!recipeId) return;
+    function onImageReady(e: Event) {
+      const detail = (e as CustomEvent<ImageReadyDetail>).detail;
+      if (detail?.recipeId !== recipeId || !detail.imageUrl) return;
+      setImageUrl(detail.imageUrl);
+      setThumbnailUrl(detail.thumbnailUrl ?? "");
+    }
+    window.addEventListener(IMAGE_READY_EVENT, onImageReady);
+    return () => window.removeEventListener(IMAGE_READY_EVENT, onImageReady);
+  }, [recipeId]);
+
   async function handleGenerateImage() {
     setImageError(null);
 
@@ -971,8 +988,17 @@ export function RecipeForm({
     formData.set("difficulty", difficulty);
     formData.set("mealRole", mealRole ?? "");
     formData.set("mealTypes", JSON.stringify(mealTypes));
-    formData.set("imageUrl", imageUrl);
-    formData.set("thumbnailUrl", thumbnailUrl);
+    // In edit mode only send the photo when it was changed here — otherwise a
+    // photo generated in the background since the form opened would be
+    // overwritten with the stale value the form loaded with.
+    if (
+      !recipeId ||
+      imageUrl !== (defaults.imageUrl ?? "") ||
+      thumbnailUrl !== (defaults.thumbnailUrl ?? "")
+    ) {
+      formData.set("imageUrl", imageUrl);
+      formData.set("thumbnailUrl", thumbnailUrl);
+    }
     formData.set("calories", calories);
     formData.set("proteinG", proteinG);
     formData.set("carbsG", carbsG);
