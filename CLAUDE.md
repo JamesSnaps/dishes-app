@@ -32,7 +32,7 @@ UI mockups: `setup_guide/*.png`
 ```
 /apps
   /web          Next.js web application
-  /mobile       future — Expo / React Native
+  /ios          future — SwiftUI app (see TODO_MOBILE.md Phase C)
 
 /packages
   /ui           shared shadcn/ui components

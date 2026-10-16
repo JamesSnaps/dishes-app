@@ -1,6 +1,6 @@
 # Dishes — Native iOS Roadmap
 
-Tracks the work to ship a native iOS app (`/apps/mobile`, Expo / React Native) alongside the existing PWA. The PWA is **not** being replaced — it remains the desktop/Mac experience and the admin surface.
+Tracks the work to ship a native iOS app (`/apps/ios`, SwiftUI) alongside the existing PWA. The PWA is **not** being replaced — it remains the desktop/Mac experience and the admin surface.
 
 Items are ordered by dependency. Phases A and B benefit the web app on their own, so they are worth doing even if the native app is deferred.
 
@@ -9,7 +9,7 @@ Items are ordered by dependency. Phases A and B benefit the web app on their own
 ## Guiding principles
 
 - **The perceived slowness is a data-layer problem, not a rendering problem.** Almost every screen currently waits on a server round-trip (~110 server actions across `apps/web/app/actions/` plus RSC page loads). A native client hitting the same endpoints the same way would feel identical. The fix is local-first reads on both platforms.
-- **Share types and logic, not UI.** `@dishes/shared` types, a new `@dishes/client` (API client + sync engine) are shared. Screens are written twice. Do not attempt cross-platform React/React Native components.
+- **Share contracts, not UI.** The wire format, sync protocol and client-side rules are defined once (`@dishes/shared`, `@dishes/client`) and pinned by shared JSON fixtures that the TypeScript and Swift implementations must both pass. Screens are written twice.
 - **Server actions stay.** REST routes and server actions both call the same underlying functions in a shared module. The web app does not get rewritten to use `fetch`.
 - **One auth model, two transports.** Proxy headers (browser via Authelia) and bearer tokens (native) resolve to the same `AutheliaUser` identity. See Phase A1.
 
@@ -259,34 +259,332 @@ shopping generate) still go through the existing server actions.
 
 ---
 
-## Phase C — The Expo app
+## Phase C — The SwiftUI app
 
-- [ ] `apps/mobile` scaffolded with Expo (dev client, not Expo Go — needs native modules)
-- [ ] Turborepo pipeline updated; `@dishes/shared` and `@dishes/client` consumed by mobile
-- [ ] expo-sqlite storage adapter for `@dishes/client`
-- [ ] OIDC login flow via `expo-auth-session` + `ASWebAuthenticationSession`, tokens in Keychain (`expo-secure-store`)
-- [ ] Navigation shell: tabs matching the web app (Recipes, Plan, Shop, Settings)
-- [ ] Recipe list + detail
-- [ ] Shopping list (the highest-value offline screen — it's used in a supermarket with bad signal)
-- [ ] Meal planner week view
-- [ ] Recipe create/edit
-- [ ] Expo Background Tasks for periodic sync
-- [ ] Push via APNs — extend `lib/push.ts` to dispatch to both web-push and APNs from one call site
+**Decided 16 Oct 2026: SwiftUI, not Expo.** This plan originally said Expo so
+the app could reuse `@dishes/client`. Two things changed:
 
-### Native-only wins (the actual reason to do this)
+1. **Keepsake now has a working SwiftUI app** (`~/Github/keepsake/apps/ios`)
+   talking to the same Authelia, with OIDC + PKCE, Keychain tokens, a GRDB store,
+   a sync engine with an outbox, a device list, XcodeGen and simulator/device
+   scripts. That is most of the plumbing this phase needs, already proven, in
+   the language it would be copied in. Two apps on two mobile stacks would mean
+   two sets of SDK upgrades to keep alive.
+2. **Every item under "native-only wins" is an Apple framework** — WidgetKit,
+   ActivityKit (Live Activities), App Intents, share extensions, AVAudioSession,
+   UserNotifications. In Expo each is a Swift module bridged to JavaScript; in
+   SwiftUI it's a direct call. Cooking mode with pooled timers on the Lock
+   Screen is the headline feature, and it's ActivityKit end to end.
 
-- [ ] **Cooking mode** — `expo-keep-awake`, audio session that survives lock, no Safari chrome
-- [ ] **Share extension** — import a recipe from Safari/Instagram/Notes via the iOS Share Sheet
-- [ ] **Home Screen widget** — tonight's meal + shopping item count (WidgetKit, via a native module)
-- [ ] **Live Activity** — cooking timers on the Lock Screen / Dynamic Island
-- [ ] **Siri / App Intents** — "add milk to my shopping list"
-- [ ] Camera capture for cook-debrief dish photos
-- [ ] Haptics on step navigation and item check-off
+**What it costs:** the sync engine (`packages/client/src/sync-engine.ts`, ~340
+lines) and the small amount of client-side logic below get written a second
+time in Swift. That's handled the way Keepsake handles it — **shared JSON
+fixtures both test suites must pass** (C2) — rather than by sharing code.
+
+**What does not carry over from Keepsake:** its sync *semantics*. Keepsake sends
+`baseRev` and gets `conflict` responses; Dishes is last-write-wins at whole-
+entity granularity with temp-id reconciliation for optimistic creates. The
+Swift engine is a port of `@dishes/client`, using Keepsake's code only for the
+shape (GRDB store, outbox table, `ValueObservation` driving SwiftUI).
+
+### C0. Server gaps — features added since v0.75 (audited 16 Oct 2026)
+
+This plan was last revised at v0.75; the app is now v1.23. The sync log already
+carries more than expected: whole rows are selected, so new **columns** on
+synced tables arrive automatically. New **tables** do not.
+
+| Feature (version) | In sync? | In `/api/v1`? | Needed for iOS v1? |
+|---|---|---|---|
+| Combined meals — `meal_plan_groups` (v1.14) | ✅ collection + `meal_plan_group.add/update/delete` | via sync only — fine | ✅ yes, already covered |
+| Cooking schedule — `serve_at`, `timeline` on groups (v1.18) | ✅ as fields | ❌ AI timeline planning (`planMealTimelineWithAi`) is server-action only | ✅ read; planning can stay web for v1 |
+| Recipe roles — `recipes.meal_role` (v1.20) | ✅ on the recipe document | ✅ | ✅ covered |
+| Per-person cook ratings — `cook_history.member_ratings` (v1.8) | ✅ | ✅ in the cook-history wire schema | ✅ covered |
+| Saved meals + meal options — `meals`, `meal_components`, `meal_slots`, `meal_slot_options` (v1.14/v1.16) | ❌ | ❌ | ✅ — the planner picker offers them |
+| Accompaniment suggestions (v1.20) / side-dish generation (v1.23) | — | ❌ server action / AI | Later |
+| Cook-timer pushes (v1.19) | — | web-push only | Replaced on iOS by local notifications + Live Activity; no server work |
+| Dinner reminders (v1.12) + snooze | — | web-push only, `/api/dinner-reminders/snooze` is browser-session | ✅ needs APNs fan-out (C5) and a `/api/v1` snooze |
+| Grocery deliveries + order emails (v1.21/v1.22) | ❌ | integrations API only (household token, no member) | Later — read-only card on Home at most |
+| Shared libraries (v0.82) | ❌ | ❌ | Later — browse/copy is a web task |
+| Stats, Wrapped, nutrition (v1.4–v1.9) | — | ❌ server-computed | No — stays web |
+| AI concierge, web-grounded generation, AI meal plan preview (v1.6–v1.11) | — | ❌ (the open A2 AI item) | Later (C4) |
+| Cook-assist / recipe-assist chat | — | browser-specific streaming routes | Later (C4) |
+| Crouton / URL import | — | ❌ server action | ✅ for the share extension (C4) |
+| Pantry, collections, notes | ❌ | ❌ (open A2 / A3 items) | Collections read-only would be nice; the rest later |
+| Push subscriptions | — | web-push only | ✅ APNs device registration (C5) |
+
+Server work this implies, in order:
+
+- [ ] **Saved meals over sync** — a `meals` collection (meal + components +
+  slots + options rolled up to the meal, like recipe children roll up to the
+  recipe). Read-only on the phone for v1; creating and editing saved meals
+  stays on the web. Plus `meal_plan_group.add_from_meal` (or reuse the existing
+  service call) so "plan this saved meal" works offline
+- [ ] `/api/v1/dinner-reminders/snooze` — bearer equivalent of the browser route
+- [ ] `/api/v1/import` — URL or text in, recipe out, for the share extension
+  (lift the body out of the server action into `lib/services/recipe-import.ts`)
+- [ ] `/api/v1/collections` read + add/remove (already listed under A2)
+- [ ] Device list in Settings (open A1 item) — copy Keepsake's version
+  (`1a2f1b3 Devices: list signed-in phones and sign one out`)
+- [ ] Bump the sync schema version so an older app build fails loudly rather
+  than silently ignoring a collection it doesn't know
+
+### C1. Project scaffold
+
+Mirror Keepsake's layout so the two apps can be worked on with the same habits:
+
+```
+apps/ios/
+├─ project.yml                 # XcodeGen; .xcodeproj generated, not committed
+├─ RUNBOOK.md                  # build/run/device how-to + dated log, as Keepsake
+├─ scripts/sim.sh              # build, install, launch against a dev server
+├─ Dishes/                     # app target: SwiftUI views, lifecycle, App Intents
+├─ DishesWidgets/              # WidgetKit + Live Activity extension (C4)
+├─ DishesShare/                # share extension (C4)
+└─ Packages/DishesCore/        # models, store, sync, API, auth — no UI, `swift test` on macOS
+fixtures/                      # repo root: the TS ↔ Swift contract (C2)
+```
+
+- [ ] `apps/ios` with XcodeGen, Swift 6 strict concurrency, iOS 26.1 minimum
+  (same as Keepsake). **Universal from the start — iPhone and iPad**
+  (`TARGETED_DEVICE_FAMILY: "1,2"`, all iPad orientations). Most cooking
+  happens on the iPad, so it is not a later port; screens are built with size
+  classes from the first commit rather than retrofitted
+- [ ] Bundle id `uk.collco.dishes`, team `C729B84RYG` (James's individual
+  membership, as Keepsake). App Group `group.uk.collco.dishes` from day one —
+  widgets and the share extension both need to read the store
+- [ ] **One dependency: GRDB.** Everything else is Apple frameworks
+- [ ] Debug **Developer** menu pointing at a local dev server, wiping the local
+  store when the server changes (Keepsake's `forgetOtherServer`) so dev data
+  never reaches production
+- [ ] Dev server accepts token-less `/api/v1` requests as a stand-in user in
+  development only (check what `resolveIdentity()` does in dev today; Keepsake
+  has `AUTH_DEV_USER`)
+- [ ] `.claude/launch.json` / `sim.sh` so the simulator can be driven from a
+  session, and an `apps/ios` section in `CLAUDE.md` and `README.md`
+- [ ] Version: `MARKETING_VERSION` tracks `apps/web/package.json`
+
+### C2. `DishesCore` — the shared-logic contract
+
+Port, don't redesign. Each piece has a TS original that stays the reference.
+
+- [ ] **Auth** — copy Keepsake's `OIDC.swift`, `WebAuthenticator.swift`
+  (`ASWebAuthenticationSession` + PKCE), `Keychain.swift`, `AuthSession.swift`.
+  Client id is `dishes-mobile` (already configured in Authelia). Refresh-token
+  handling is the open A1 item, and it lands here
+- [ ] **API client** — `URLSession` + async/await, the `/api/v1` error envelope
+  decoded into a typed error
+- [ ] **Store** — GRDB, one table per `SyncCollection`, cursor and outbox
+  tables, pull applied in one transaction with the cursor (as the Dexie store)
+- [ ] **Sync engine** — port of `sync-engine.ts`: opaque cursor, paginated
+  pull, batched push with client `opId`s, `duplicate` on replay, temp-id
+  reconciliation persisted with the queued mutation, and the stale-cursor
+  path (`invalid_request` → clear store → full snapshot, outbox untouched)
+- [ ] **Fixtures** (`fixtures/` at the repo root; Vitest and Swift Testing both
+  loop over them — change a rule, change a fixture, both suites must agree):
+  - `wire/*.json` — sample pulls/pushes for every collection; decode → re-encode → compare
+  - `sync-scenarios/*.json` — offline create then push; replay → `duplicate`;
+    pull while an op is pending; temp-id plan + entry created together;
+    tombstone for an entity with a pending edit; stale cursor → snapshot
+  - `scale.json` — `lib/scale-ingredient.ts` + `lib/format-quantity.ts`
+    (fractions, unit promotion, metric/imperial)
+  - `filter.json` — `lib/recipe-filtering.ts` (the eight parity cases already
+    checked against SQL become the first fixtures)
+  - `timeline.json` — step-cue times from `lib/meal-timeline.ts` for a serve-at
+- [ ] Moving those TS modules into `@dishes/shared` first would let the fixtures
+  test one copy on the web side rather than reaching into `apps/web/lib` —
+  worth doing as part of writing the fixtures
+
+### C3. Screens — offline-first MVP
+
+Order is by value on poor signal, not by how the web app is laid out.
+Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
+`.swipeActions`, `.contextMenu`. Every read comes from the local store via
+`ValueObservation`; every write is an outbox mutation.
+
+- [ ] Sign-in screen + tab shell: **Plan · Recipes · Shop · More**. On iPad
+  the same `TabView` with `.sidebarAdaptable`, so it becomes a sidebar in
+  regular width and tabs in compact (Split View / Slide Over / Stage Manager)
+- [ ] **Shopping list** first — the screen used in a supermarket with no signal.
+  Add, check off (haptic), edit, clear checked; grouped by aisle as the web
+- [ ] **Meal plan week** — week paging with no network, entries and combined
+  meal groups, move/change type/servings/delete, add from the recipe library or
+  a saved meal (needs C0), "add week to shopping" (online — stays a server call,
+  see Phase B)
+- [ ] **Recipes** — list with the same filters/sorts as the web, detail with
+  scaling, favourites, cook history and per-person ratings
+- [ ] **Log a cook** — rating, per-person ratings, notes, dish photo from the
+  camera (background `URLSession` upload, as Keepsake's `UploadManager`)
+- [ ] **Today** card on Plan: tonight's meal, serve-at time, start-cooking time
+- [ ] More → Settings: server, signed-in member, devices, sign out. Everything
+  else in Settings links to the web app — it remains the admin surface
+- [ ] Recipe create/edit — last in C3; the web editor is large and editing on
+  a phone is rare. Recipe edits are also not in the sync schema (A3), so this
+  is online-only via `/api/v1/recipes`
+- [ ] **iPad layouts** for each screen above, not stretched phone screens:
+  - Recipes: grid of cards in regular width; detail as two columns
+    (ingredients beside steps), as the desktop web view
+  - Meal plan: the whole week as a grid, drag-and-drop between days (the
+    desktop planner's layout), with the picker as a side panel rather than a
+    sheet
+  - Shopping: list plus a side panel of recipes it came from; mostly a phone
+    screen, but must still work in Split View next to a recipe
+  - Check every screen at the narrowest Split View width — it behaves like an
+    iPhone and that is where layouts break
+- [ ] `BGAppRefreshTask` for periodic sync; sync on foreground and on
+  reachability change (no polling — the same rule as the web `SyncProvider`)
+
+### C4. Native-only wins (the actual reason to do this)
+
+Grouped by priority. Where a feature differs on iPad it says so — the iPad is
+the main cooking device, and some iPhone features (Dynamic Island, StandBy)
+don't exist there.
+
+#### Tier 1 — cooking, done properly
+
+- [ ] **Cooking mode, designed iPad-first.** One recipe or a combined meal
+  (as v1.17), `isIdleTimerDisabled`, ingredient highlighting from step →
+  ingredient references, haptics on step change (iPhone).
+  - iPad landscape: the current step large in the centre, ingredients in one
+    rail and running timers in another — no scrolling to find a timer with wet
+    hands. Portrait: step above, ingredients and timers in a bottom tray
+  - Combined meal: one column per dish in landscape (tabs on iPhone), timers
+    pooled across dishes
+  - Big targets: tap or swipe anywhere on the step area to advance; nothing
+    precise needed with floury fingers
+  - Hardware keyboard shortcuts (→ / ← steps, space starts the step's timer)
+    for an iPad on a keyboard case
+- [ ] **Hands-free cooking.** On-device `SpeechAnalyzer` for "next step",
+  "previous step", "start the timer", "how much butter?"; `AVSpeechSynthesizer`
+  to read a step aloud. Most useful on the iPad, propped up out of reach
+- [ ] **Timers as real alarms (AlarmKit, iOS 26).** They sound through silent
+  mode and Focus, which a notification doesn't. Fall back to local
+  notifications if AlarmKit isn't available. Either way they fire with no
+  server and no signal, replacing the v1.19 server push on iOS.
+  **Check AlarmKit availability on the iPad** before relying on it there
+- [ ] **Live Activity — timers and next step** on the Lock Screen and Dynamic
+  Island (iPhone). On iPad, verify Live Activity support on the actual device;
+  the in-app timer rail and alarms carry the iPad either way
+- [ ] **Live Activity — meal schedule.** The serve-at timeline (v1.18) as a
+  countdown across the whole meal: "Potatoes in at 18:05 · serve 18:45".
+  Started remotely by the dinner-reminder push (ActivityKit push-to-start
+  tokens, via C5), so it's on the Lock Screen before the app is opened
+- [ ] **Log a cook → HealthKit** (see the HealthKit section below)
+
+#### Tier 2 — at a glance
+
+- [ ] **Interactive widgets** (App Intents buttons): tonight's meal with a
+  "Start cooking" button; shopping list with tap-to-tick. Home Screen and Lock
+  Screen sizes. Read from the App Group store, refreshed after each sync.
+  iPad Home Screen widgets get the larger family showing the week
+- [ ] **StandBy** (iPhone on its side, charging): tonight's meal, or the
+  current step and timers while cooking
+- [ ] **Live Activity — shopping trip.** "9 items left", updated by push as
+  someone at home adds or ticks things
+- [ ] **Control Center control** — "Add to shopping"
+- [ ] **App Intents / Siri / Shortcuts** — "add milk to the shopping list",
+  "what's for dinner", "start cooking tonight's meal". Queues an outbox
+  mutation, so it works offline. Also makes an NFC tag on the fridge (via a
+  Shortcuts automation) free
+- [ ] **Spotlight** — recipes indexed with `CoreSpotlight`, searchable from the
+  Home Screen, offline
+
+#### Tier 3 — getting recipes in
+
+- [ ] **Share extension** — import from Safari/Instagram/Notes via the Share
+  Sheet (needs `/api/v1/import`, C0)
+- [ ] **Scan a cookbook page or recipe card** — VisionKit document camera +
+  on-device text recognition, then the existing parser/AI to structure it
+- [ ] **Barcode scanning** (`DataScannerViewController`) for shopping items,
+  and for the pantry once it has an API
+- [ ] **On-device Foundation Models** — free, private, offline help for small
+  jobs: tidy pasted recipe text, "what can I swap for crème fraîche?", unit
+  questions. The concierge and meal-plan generation stay on OpenAI server-side
+- [ ] Cook-assist chat and AI recipe generation once the A2 AI endpoints exist
+  (they must stream; `URLSession.bytes` reads SSE directly)
+
+#### Tier 4 — later
+
+- [ ] **Apple Watch app** — the shopping list on the wrist, timers and step
+  cues as taps while cooking. Strongest second-wave feature
+- [ ] **Handoff + universal links** — a Dishes URL opens in the app; a recipe
+  open on the Mac continues on the iPad (`NSUserActivity` with `webpageURL`)
+- [ ] **Supermarket geofence** — "You're at Tesco: 12 items on the list"
+- [ ] **Live Activity — delivery order deadline**, from the v1.21 delivery data
+
+#### HealthKit — nutrition from logged cooks
+
+Recipes already carry per-serving nutrition (`calories`, `protein_g`,
+`carbs_g`, `fat_g`, `saturated_fat_g`, `fiber_g`, `sugar_g`, `sodium_mg`;
+migrations `0019` / `0031`), which is exactly what HealthKit's dietary types
+take. The heart-healthy diet support makes saturated fat and sodium the
+numbers worth having in Health.
+
+- [ ] **Write-only**, opt-in, asked for at the moment it's first useful (logging
+  a cook), not at launch. Dishes never reads Health data
+- [ ] On logging a cook, write one `HKCorrelation` of type `.food` for the
+  person using this device, dated the cook time, containing
+  `dietaryEnergyConsumed`, `dietaryProtein`, `dietaryCarbohydrates`,
+  `dietaryFatTotal`, `dietaryFatSaturated`, `dietaryFiber`, `dietarySugar`,
+  `dietarySodium` — whichever the recipe has (skip nulls; skip entirely if
+  `nutrition_source` is `none`)
+- [ ] Portion: default 1 serving, adjustable on the log sheet (½, 1, 1½, 2).
+  `cook_history` has no per-person portion and doesn't need one — it's a
+  device-side choice
+- [ ] Combined meals write one food entry per dish eaten, so Health shows
+  "Roast chicken" and "Roast potatoes" rather than one opaque total
+- [ ] Only write if this device's member is in `cookedFor` (matched by display
+  name, as `member_ratings` is)
+- [ ] Keep the written sample UUIDs locally against the cook-history id, so
+  editing or deleting the log updates or deletes the Health entry
+- [ ] **Shared-iPad caveat:** Health data belongs to the Apple ID signed into
+  the device. On a family iPad, writing the cook's meal to whoever owns the
+  iPad would be wrong. The setting is per device, off by default, with a
+  "who eats from this device?" choice — expect it on for phones, off for the
+  kitchen iPad
+- [ ] HealthKit entitlement and `NSHealthUpdateUsageDescription` in
+  `project.yml`; HealthKit is available on iPadOS 17+
+
+### C5. Push via APNs
+
+- [ ] `.p8` token auth from the server, env vars in the `docker` repo compose
+  file as well as `.env` (see deploy notes)
+- [ ] `POST/DELETE /api/v1/push/devices` — register an APNs token against the
+  member, alongside the existing web-push subscriptions
+- [ ] Extend `lib/push.ts` so `sendPushToHousehold` / `sendPushToUsers` /
+  `notifyHousehold` fan out to web-push **and** APNs from the same call sites.
+  Covers shopping changes, dinner reminders and delivery deadlines at once
+- [ ] Silent "sync now" push after a household write, so a second phone is
+  current before it's opened
+- [ ] Notification actions: snooze a dinner reminder, open cooking mode
+
+### C6. Distribution
+
+- [ ] Development installs on family phones first (`devicectl`, as Keepsake's
+  runbook), then TestFlight for anyone not plugged into the Mac
+- [ ] App icon from `setup_guide/dishes-icon.png`, launch colour matching the
+  web theme
+- [ ] Privacy: `ITSAppUsesNonExemptEncryption: false`; camera, photo
+  library, microphone/speech (hands-free cooking) and HealthKit usage strings;
+  no tracking. The App Store privacy label must declare Health data (written,
+  not collected by us)
+
+### Open questions
+
+- **Share Swift code with Keepsake?** Auth, Keychain and the API client will be
+  near-identical. Copy first; extract a shared Swift package only once both
+  apps are stable and the copies have actually stayed the same
+- **Design tokens.** Keepsake generates `Tokens.swift` from `design/tokens.json`.
+  Dishes' colours live in Tailwind config; extracting them is worth it if the
+  iOS app should match the web's gradients rather than look stock-iOS
+- **Background Sync on the PWA** (open Phase B item) doesn't block this —
+  the iOS app has `BGAppRefreshTask` and a real outbox regardless
 
 ---
 
 ## Explicitly not doing
 
 - **Capacitor/Tauri wrapper around the PWA.** ~1 week of work for an App Store build, APNs and native wake lock, but it ships the same webview and the same network-bound data layer — it does not fix the responsiveness complaint. Only reconsider if the goal changes to "a Home Screen icon that isn't a Safari bookmark."
+- **Expo / React Native.** Superseded by SwiftUI (see Phase C). `@dishes/client` stays as the web client and the reference implementation the Swift engine is tested against.
+- **CarPlay, SharePlay.** No real use in a recipe app.
 - **Sharing UI components between web and native.** Consistently costs more than it saves.
-- **Replacing the PWA.** It stays as the desktop/Mac client.
+- **Replacing the PWA.** It stays as the desktop/Mac client and the admin surface.
