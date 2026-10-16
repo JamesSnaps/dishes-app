@@ -1,12 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Check,
   CheckCircle2,
+  PencilLine,
   Loader2,
   Settings2,
   SkipForward,
@@ -16,6 +17,7 @@ import {
 import { Button } from "@dishes/ui";
 import { toast } from "@/hooks/use-toast";
 import { setDelivery, type NextDeliveryView } from "@/app/actions/deliveries";
+import { OrderDetailsDialog } from "./order-details-dialog";
 
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -50,6 +52,7 @@ export function NextDeliveryCard({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
   const ordered = next.status === "ordered";
 
   function change(target: "ordered" | "scheduled" | "skipped" | "default", success: string) {
@@ -142,15 +145,26 @@ export function NextDeliveryCard({
       {canEdit && (
         <div className="mt-3 flex flex-wrap gap-2">
           {ordered ? (
-            <Button
-              size="sm"
-              disabled={pending}
-              onClick={() => change("scheduled", "Order unmarked")}
-              className="gap-1.5 bg-background/70 hover:bg-background text-foreground border shadow-sm"
-            >
-              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
-              Not ordered yet
-            </Button>
+            <>
+              <Button
+                size="sm"
+                disabled={pending}
+                onClick={() => setEditing(true)}
+                className="gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white border-0 shadow-md"
+              >
+                <PencilLine className="h-4 w-4" />
+                {next.slot || next.total ? "Edit order" : "Add slot & total"}
+              </Button>
+              <Button
+                size="sm"
+                disabled={pending}
+                onClick={() => change("scheduled", "Order unmarked")}
+                className="gap-1.5 bg-background/70 hover:bg-background text-foreground border shadow-sm"
+              >
+                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                Not ordered yet
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -176,6 +190,16 @@ export function NextDeliveryCard({
             </>
           )}
         </div>
+      )}
+      {canEdit && (
+        <OrderDetailsDialog
+          date={next.date}
+          label={next.label}
+          initial={next}
+          open={editing}
+          onOpenChange={setEditing}
+          onSaved={() => (onChanged ? onChanged() : router.refresh())}
+        />
       )}
     </div>
   );

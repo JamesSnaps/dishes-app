@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Loader2, RotateCcw, Settings2, SkipForward, Truck, Undo2 } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  PencilLine,
+  RotateCcw,
+  Settings2,
+  SkipForward,
+  Truck,
+  Undo2,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +27,7 @@ import {
   type DeliveryDayView,
   type WeekDeliveryPanel,
 } from "@/app/actions/deliveries";
+import { OrderDetailsDialog } from "@/components/deliveries/order-details-dialog";
 
 /**
  * Deliveries for the visible week, loaded per week like dinner times (the
@@ -64,6 +74,10 @@ export function DeliveryChip({
   onChanged: () => void;
 }) {
   const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
+  // Open after the menu has closed, so the menu's focus handling doesn't
+  // fight the dialog's.
+  const openEditor = () => setTimeout(() => setEditing(true), 0);
 
   function change(target: "ordered" | "scheduled" | "skipped" | "default", success: string) {
     startTransition(async () => {
@@ -85,69 +99,89 @@ export function DeliveryChip({
     day.status === "ordered" ? (day.slot ? `Delivery ${day.slot}` : "Ordered") : day.status === "skipped" ? "No delivery" : "Delivery";
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-opacity hover:opacity-90 ${STATUS_STYLE[day.status]}`}
-          aria-label={`Delivery: ${label}`}
-        >
-          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Truck className="h-3 w-3" />}
-          {label}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuLabel className="font-normal">
-          <p className="font-semibold">{day.label} delivery</p>
-          <p className="text-xs text-muted-foreground">
-            {day.status === "ordered"
-              ? [day.slot, day.total ? `£${day.total}` : null].filter(Boolean).join(" · ") ||
-                "Order placed"
-              : day.status === "skipped"
-                ? day.awayLabel
-                  ? `Skipped: ${day.awayLabel}`
-                  : "Skipped this week"
-                : day.cutoffPassed
-                  ? "Order deadline passed"
-                  : `Order by ${day.cutoffLabel}`}
-          </p>
-        </DropdownMenuLabel>
-        {canEdit && (
-          <>
-            <DropdownMenuSeparator />
-            {day.status === "scheduled" && (
-              <>
-                <DropdownMenuItem onSelect={() => change("ordered", "Marked as ordered")}>
-                  <Check className="mr-2 h-4 w-4 text-emerald-600" /> Mark as ordered
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-opacity hover:opacity-90 ${STATUS_STYLE[day.status]}`}
+            aria-label={`Delivery: ${label}`}
+          >
+            {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Truck className="h-3 w-3" />}
+            {label}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuLabel className="font-normal">
+            <p className="font-semibold">{day.label} delivery</p>
+            <p className="text-xs text-muted-foreground">
+              {day.status === "ordered"
+                ? [day.slot, day.total ? `£${day.total}` : null].filter(Boolean).join(" · ") ||
+                  "Order placed"
+                : day.status === "skipped"
+                  ? day.awayLabel
+                    ? `Skipped: ${day.awayLabel}`
+                    : "Skipped this week"
+                  : day.cutoffPassed
+                    ? "Order deadline passed"
+                    : `Order by ${day.cutoffLabel}`}
+            </p>
+          </DropdownMenuLabel>
+          {canEdit && (
+            <>
+              <DropdownMenuSeparator />
+              {day.status === "scheduled" && (
+                <>
+                  <DropdownMenuItem onSelect={() => change("ordered", "Marked as ordered")}>
+                    <Check className="mr-2 h-4 w-4 text-emerald-600" /> Mark as ordered
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={openEditor}>
+                    <PencilLine className="mr-2 h-4 w-4 text-emerald-600" /> Ordered — add slot &amp; total
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      change(day.regular ? "skipped" : "default", "Delivery skipped")
+                    }
+                  >
+                    <SkipForward className="mr-2 h-4 w-4 text-amber-600" />
+                    {day.regular ? "Skip this delivery" : "Remove this delivery"}
+                  </DropdownMenuItem>
+                </>
+              )}
+              {day.status === "ordered" && (
+                <>
+                  <DropdownMenuItem onSelect={openEditor}>
+                    <PencilLine className="mr-2 h-4 w-4 text-emerald-600" /> Edit order details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => change("scheduled", "Order unmarked")}>
+                    <Undo2 className="mr-2 h-4 w-4" /> Not ordered yet
+                  </DropdownMenuItem>
+                </>
+              )}
+              {day.status === "skipped" && (
+                <DropdownMenuItem onSelect={() => change("scheduled", "Delivery restored")}>
+                  <RotateCcw className="mr-2 h-4 w-4 text-emerald-600" /> Restore delivery
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() =>
-                    change(day.regular ? "skipped" : "default", "Delivery skipped")
-                  }
-                >
-                  <SkipForward className="mr-2 h-4 w-4 text-amber-600" />
-                  {day.regular ? "Skip this delivery" : "Remove this delivery"}
-                </DropdownMenuItem>
-              </>
-            )}
-            {day.status === "ordered" && (
-              <DropdownMenuItem onSelect={() => change("scheduled", "Order unmarked")}>
-                <Undo2 className="mr-2 h-4 w-4" /> Not ordered yet
-              </DropdownMenuItem>
-            )}
-            {day.status === "skipped" && (
-              <DropdownMenuItem onSelect={() => change("scheduled", "Delivery restored")}>
-                <RotateCcw className="mr-2 h-4 w-4 text-emerald-600" /> Restore delivery
-              </DropdownMenuItem>
-            )}
-          </>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/settings/deliveries">
-            <Settings2 className="mr-2 h-4 w-4" /> Delivery settings
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+              )}
+            </>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/settings/deliveries">
+              <Settings2 className="mr-2 h-4 w-4" /> Delivery settings
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {canEdit && (
+        <OrderDetailsDialog
+          date={day.date}
+          label={day.label}
+          initial={day}
+          open={editing}
+          onOpenChange={setEditing}
+          onSaved={onChanged}
+        />
+      )}
+    </>
   );
 }

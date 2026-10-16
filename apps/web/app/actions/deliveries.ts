@@ -10,6 +10,7 @@ import {
 } from "@dishes/db/schema";
 import { eq } from "drizzle-orm";
 import { requireSession, type Session } from "@/lib/session";
+import { saveOrderDetails, type OrderDetailsInput } from "@/lib/deliveries/orders";
 import {
   DEFAULT_CUTOFF_DAYS_BEFORE,
   DEFAULT_CUTOFF_TIME,
@@ -40,6 +41,7 @@ export interface DeliveryDayView {
   awayLabel: string | null;
   slot: string | null;
   total: string | null;
+  orderReference: string | null;
   cutoffLabel: string;
   cutoffPassed: boolean;
 }
@@ -70,6 +72,7 @@ function dayView(
     awayLabel: d.away ? d.away.label || "Away" : null,
     slot: d.slot,
     total: d.total,
+    orderReference: d.orderReference,
     cutoffLabel: describeCutoff(d, today),
     cutoffPassed: cutoffAt(d) <= nowMs,
   };
@@ -250,6 +253,20 @@ export async function setDelivery(date: string, target: DeliveryStatus | "defaul
   }
   await setDeliveryState(session, date, target);
   revalidatePath("/settings/deliveries");
+}
+
+/** Save an order's slot, total and order number by hand; marks the date ordered. */
+export async function saveDeliveryOrder(date: string, input: OrderDetailsInput) {
+  const session = await requireSession();
+  requireEditor(session);
+  const delivery = await saveOrderDetails(session, date, {
+    slot: typeof input.slot === "string" ? input.slot : null,
+    total: typeof input.total === "number" ? input.total : null,
+    orderReference: typeof input.orderReference === "string" ? input.orderReference : null,
+  });
+  revalidatePath("/settings/deliveries");
+  revalidatePath("/stats");
+  return delivery;
 }
 
 // ─── Meal planner ────────────────────────────────────────────────────────────

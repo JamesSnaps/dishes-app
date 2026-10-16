@@ -3,6 +3,7 @@ import { deliveries, householdMembers } from "@dishes/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { sendPushToUsers } from "@/lib/push";
 import { getDeliveryConfig, isValidDate, shortDate } from "./schedule";
+import type { HouseholdContext } from "@/lib/session";
 import { dayOfWeekOf } from "@/lib/dinner-reminders/time";
 
 /**
@@ -220,6 +221,57 @@ export async function applyOrderUpdate(
     .where(eq(deliveries.id, existing.id))
     .returning();
   return { action: "updated", delivery: view(row!) };
+}
+
+export interface OrderDetailsInput {
+  /** "HH:MM-HH:MM" (or any form normaliseSlot accepts); empty clears it. */
+  slot: string | null;
+  /** Pounds; null clears it. */
+  total: number | null;
+  orderReference: string | null;
+}
+
+/**
+ * Hand-entered order details for one date — the fix-up for an email that was
+ * misread or never arrived. Saving details marks the date ordered (keeping the
+ * original order time if it already was).
+ */
+export async function saveOrderDetails(
+  ctx: HouseholdContext,
+  date: string,
+  input: OrderDetailsInput
+): Promise<OrderDeliveryView> {
+  if (!isValidDate(date)) throw new Error("Date must be YYYY-MM-DD");
+  const slotText = input.slot?.trim() ?? "";
+  const slot = slotText ? normaliseSlot(slotText) : null;
+  if (slotText && !slot) throw new Error("Slot must look like 08:00-09:00");
+  if (slot && slot.slice(6) <= slot.slice(0, 5)) {
+    throw new Error("The slot must end after it starts");
+  }
+  if (input.total !== null && (!Number.isFinite(input.total) || money(input.total) === null)) {
+    throw new Error("Total must be between £0 and £100,000");
+  }
+  const total = input.total === null ? null : money(input.total);
+  const orderReference = input.orderReference?.trim().slice(0, 100) || null;
+
+  const existing = await rowBy(ctx.householdId, { date });
+  const wasOrdered = existing?.status === "ordered";
+  const values = {
+    status: "ordered",
+    slot,
+    total,
+    orderReference,
+    ...(wasOrdered ? {} : { orderedAt: sql`now()`, orderedById: ctx.memberId, source: "manual" }),
+  };
+  const [row] = await db
+    .insert(deliveries)
+    .values({ householdId: ctx.householdId, deliveryDate: date, ...values })
+    .onConflictDoUpdate({
+      target: [deliveries.householdId, deliveries.deliveryDate],
+      set: values,
+    })
+    .returning();
+  return view(row!);
 }
 
 /** Tell opted-in members an order was confirmed, moved or cancelled. */

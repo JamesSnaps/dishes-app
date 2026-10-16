@@ -2,7 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, Check, Loader2, Palmtree, Plus, RotateCcw, SkipForward, Trash2, Undo2 } from "lucide-react";
+import {
+  CalendarPlus,
+  Check,
+  Loader2,
+  Palmtree,
+  PencilLine,
+  Plus,
+  RotateCcw,
+  SkipForward,
+  Trash2,
+  Undo2,
+} from "lucide-react";
+import { OrderDetailsDialog } from "@/components/deliveries/order-details-dialog";
 import { Button, Input } from "@dishes/ui";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -28,6 +40,7 @@ export function DeliveryCalendar({ upcoming, awayPeriods, canEdit, today }: Prop
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [editingDay, setEditingDay] = useState<DeliveryDayView | null>(null);
 
   const [awayFrom, setAwayFrom] = useState("");
   const [awayTo, setAwayTo] = useState("");
@@ -60,13 +73,23 @@ export function DeliveryCalendar({ upcoming, awayPeriods, canEdit, today }: Prop
     if (busy) return <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />;
     if (d.status === "ordered") {
       return (
-        <Button
-          size="sm"
-          onClick={() => run(d.date, () => setDelivery(d.date, "scheduled"))}
-          className={`${btn} bg-muted hover:bg-muted/70 text-foreground border-border`}
-        >
-          <Undo2 className="h-3.5 w-3.5" /> Not ordered
-        </Button>
+        <div className="flex gap-1.5">
+          <Button
+            size="sm"
+            onClick={() => setEditingDay(d)}
+            aria-label={`Edit ${d.label} order details`}
+            className={`${btn} bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white border-transparent`}
+          >
+            <PencilLine className="h-3.5 w-3.5" /> Details
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => run(d.date, () => setDelivery(d.date, "scheduled"))}
+            className={`${btn} bg-muted hover:bg-muted/70 text-foreground border-border`}
+          >
+            <Undo2 className="h-3.5 w-3.5" /> Not ordered
+          </Button>
+        </div>
       );
     }
     if (d.status === "skipped") {
@@ -315,6 +338,16 @@ export function DeliveryCalendar({ upcoming, awayPeriods, canEdit, today }: Prop
           </form>
         )}
       </section>
+      {editingDay && (
+        <OrderDetailsDialog
+          date={editingDay.date}
+          label={editingDay.label}
+          initial={editingDay}
+          open
+          onOpenChange={(open) => !open && setEditingDay(null)}
+          onSaved={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }
