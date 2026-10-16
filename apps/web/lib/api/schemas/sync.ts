@@ -133,6 +133,20 @@ export const mutationSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     opId,
+    type: z.literal("meal_plan_group.add_from_meal"),
+    payload: z.object({
+      mealId: z.string().uuid(),
+      weekStartDate,
+      dayOfWeek,
+      /** Defaults to the saved meal's own meal type. */
+      mealType: z.enum(MEAL_TYPES).optional(),
+      /** Chosen options across all slots; omit for each slot's defaults. */
+      optionIds: z.array(z.string().uuid()).max(50).optional(),
+      servings: z.number().positive().nullable().optional(),
+    }),
+  }),
+  z.object({
+    opId,
     type: z.literal("meal_plan_group.update"),
     payload: z
       .object({

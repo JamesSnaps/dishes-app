@@ -16,6 +16,9 @@ public enum SyncCollection: String, CaseIterable, Codable, Hashable, Sendable {
     case mealPlanEntries
     case mealPlanGroups
     case cookHistory
+    /// Saved meals, whole (meal + components + slots + options). Stored now;
+    /// the planner's picker reads them next.
+    case meals
 }
 
 public struct PullResponse: Decodable, Sendable {

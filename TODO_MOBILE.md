@@ -314,7 +314,7 @@ synced tables arrive automatically. New **tables** do not.
 
 Server work this implies, in order:
 
-- [ ] **Saved meals over sync** — a `meals` collection (meal + components +
+- [x] **Saved meals over sync** — a `meals` collection (meal + components +
   slots + options rolled up to the meal, like recipe children roll up to the
   recipe). Read-only on the phone for v1; creating and editing saved meals
   stays on the web. Plus `meal_plan_group.add_from_meal` (or reuse the existing

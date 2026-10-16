@@ -251,4 +251,4 @@ public struct MealPlanGroup: Hashable, Sendable, Identifiable {
 }
 
 /// The order meal types appear in a day, as on the web planner.
-public let mealTypeOrder = ["breakfast", "lunch", "dinner", "snack"]
+public let mealTypeOrder = ["breakfast", "lunch", "dinner", "dessert", "snack"]
