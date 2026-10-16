@@ -90,8 +90,9 @@ export type RecipeFields = {
   mealTypes: string[] | null;
   sourceUrl: string | null;
   notes: string | null;
-  imageUrl: string | null;
-  thumbnailUrl: string | null;
+  /** Omit (undefined) to leave the stored photo untouched on update. */
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
 } & NutritionInput;
 
 export type RecipeWriteInput = {

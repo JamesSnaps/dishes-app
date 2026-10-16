@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback, type ReactNode } from "react";
-import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2, Layers, GripVertical, FolderPlus } from "lucide-react";
+import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2, Layers, GripVertical, FolderPlus, Check } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -46,7 +46,11 @@ import { improveRecipe, generateRecipeImageUrl } from "@/app/actions/ai";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { IMAGE_STYLES } from "@/lib/image-styles";
 import type { ImageStyleValue } from "@/lib/image-styles";
-import { addPendingImageJob } from "@/components/providers/jobs-provider";
+import {
+  addPendingImageJob,
+  IMAGE_READY_EVENT,
+  type ImageReadyDetail,
+} from "@/components/providers/jobs-provider";
 import { toast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/components/unsaved-changes-context";
 import { PasteImportModal } from "./paste-import-modal";
@@ -686,6 +690,19 @@ export function RecipeForm({
     }
   }
 
+  // Show a background-generated photo as soon as its job finishes.
+  useEffect(() => {
+    if (!recipeId) return;
+    function onImageReady(e: Event) {
+      const detail = (e as CustomEvent<ImageReadyDetail>).detail;
+      if (detail?.recipeId !== recipeId || !detail.imageUrl) return;
+      setImageUrl(detail.imageUrl);
+      setThumbnailUrl(detail.thumbnailUrl ?? "");
+    }
+    window.addEventListener(IMAGE_READY_EVENT, onImageReady);
+    return () => window.removeEventListener(IMAGE_READY_EVENT, onImageReady);
+  }, [recipeId]);
+
   async function handleGenerateImage() {
     setImageError(null);
 
@@ -971,8 +988,17 @@ export function RecipeForm({
     formData.set("difficulty", difficulty);
     formData.set("mealRole", mealRole ?? "");
     formData.set("mealTypes", JSON.stringify(mealTypes));
-    formData.set("imageUrl", imageUrl);
-    formData.set("thumbnailUrl", thumbnailUrl);
+    // In edit mode only send the photo when it was changed here — otherwise a
+    // photo generated in the background since the form opened would be
+    // overwritten with the stale value the form loaded with.
+    if (
+      !recipeId ||
+      imageUrl !== (defaults.imageUrl ?? "") ||
+      thumbnailUrl !== (defaults.thumbnailUrl ?? "")
+    ) {
+      formData.set("imageUrl", imageUrl);
+      formData.set("thumbnailUrl", thumbnailUrl);
+    }
     formData.set("calories", calories);
     formData.set("proteinG", proteinG);
     formData.set("carbsG", carbsG);
@@ -1406,7 +1432,9 @@ export function RecipeForm({
                       {numbers.get(row.key)}
                     </span>
 
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_2fr_auto_auto]">
+                    {/* Mobile: name + delete / amount, unit, optional / preparation.
+                        Desktop: one line. */}
+                    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 sm:grid-cols-[2fr_1fr_1fr_2fr_auto_auto]">
                       <Input
                         value={row.ingredientName}
                         onChange={(e) =>
@@ -1415,7 +1443,7 @@ export function RecipeForm({
                           })
                         }
                         placeholder="Ingredient *"
-                        className="col-span-2 sm:col-span-1 h-9 text-sm"
+                        className="col-span-2 h-9 text-sm sm:col-span-1"
                       />
                       <Input
                         value={row.amount}
@@ -1445,21 +1473,26 @@ export function RecipeForm({
                           })
                         }
                         placeholder="Preparation"
-                        className="col-span-2 sm:col-span-1 h-9 text-sm"
+                        className="col-span-3 h-9 text-sm sm:col-span-1"
                       />
-                      <div className="flex items-center justify-center">
-                        <input
-                          type="checkbox"
-                          checked={row.isOptional}
-                          onChange={(e) =>
-                            ingredientHelpers.updateRow(section.key, row.key, {
-                              isOptional: e.target.checked,
-                            })
-                          }
-                          className="h-4 w-4"
-                          title="Optional"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        aria-pressed={row.isOptional}
+                        onClick={() =>
+                          ingredientHelpers.updateRow(section.key, row.key, {
+                            isOptional: !row.isOptional,
+                          })
+                        }
+                        title="Mark as optional — shown as “(optional)” on the recipe"
+                        className={`col-start-3 row-start-2 flex h-9 items-center justify-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors sm:col-start-auto sm:row-start-auto ${
+                          row.isOptional
+                            ? "border-amber-500/60 bg-amber-500/15 text-amber-700 shadow-sm dark:text-amber-300"
+                            : "border-dashed border-border bg-muted/40 text-muted-foreground hover:border-amber-500/50 hover:text-foreground"
+                        }`}
+                      >
+                        {row.isOptional && <Check className="h-3.5 w-3.5" />}
+                        Optional
+                      </button>
                       <Button
                         type="button"
                         variant="ghost"
@@ -1468,7 +1501,9 @@ export function RecipeForm({
                           ingredientHelpers.removeRow(section.key, row.key)
                         }
                         disabled={totalIngredients === 1}
-                        className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                        aria-label="Remove ingredient"
+                        title="Remove ingredient"
+                        className="col-start-3 row-start-1 h-9 w-9 shrink-0 justify-self-end text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:col-start-auto sm:row-start-auto"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

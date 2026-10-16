@@ -92,7 +92,10 @@ export async function generateImageBackground(
 
     // Mark job done BEFORE revalidatePath — revalidatePath can throw from
     // a background context in Next.js and must not block the success signal.
-    await updateJobStatus(jobId, "done", { imageUrl: url });
+    await updateJobStatus(jobId, "done", {
+      imageUrl: url,
+      thumbnailUrl: thumbnailUrl ?? null,
+    });
     log.info(`Job ${jobId} completed for recipe ${recipeId}`);
 
     // Best-effort cache bust — failure here doesn't matter since the recipe
