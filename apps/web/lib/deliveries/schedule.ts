@@ -50,6 +50,8 @@ export interface DeliveryConfig {
   cutoffDaysBefore: number;
   reminderTimes: string[];
   awayPeriods: AwayPeriod[];
+  /** Placed orders under this total get flagged; null for no check. */
+  minOrderTotal: number | null;
   /** Household timezone, shared with dinner reminders. */
   timezone: string;
 }
@@ -70,6 +72,7 @@ export async function getDeliveryConfig(householdId: string): Promise<DeliveryCo
     cutoffDaysBefore: row?.cutoffDaysBefore ?? DEFAULT_CUTOFF_DAYS_BEFORE,
     reminderTimes: row?.reminderTimes ?? DEFAULT_REMINDER_TIMES,
     awayPeriods: row?.awayPeriods ?? [],
+    minOrderTotal: row?.minOrderTotal != null ? Number(row.minOrderTotal) : null,
     timezone: dinner.timezone,
   };
 }
@@ -335,6 +338,20 @@ export async function setDeliveryState(
 }
 
 // ─── Display ─────────────────────────────────────────────────────────────────
+
+/** A placed order whose known total is under the household's minimum. */
+export function isBelowMinimum(
+  delivery: Pick<ResolvedDelivery, "status" | "total">,
+  minOrderTotal: number | null
+): boolean {
+  if (minOrderTotal == null || delivery.status !== "ordered" || delivery.total == null) return false;
+  return Number(delivery.total) < minOrderTotal;
+}
+
+/** "£50" or "£42.50". */
+export function formatPounds(value: number): string {
+  return `£${Number.isInteger(value) ? value : value.toFixed(2)}`;
+}
 
 export { shortDate, weekdayName, weekdayShort };
 

@@ -36,6 +36,13 @@
       "when": 1792195200000,
       "tag": "0040_schema_drift",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792281600000,
+      "tag": "0041_delivery_min_order",
+      "breakpoints": true
     }
   ]
 }
