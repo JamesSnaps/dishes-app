@@ -219,15 +219,32 @@ async function writeAwayPeriods(
   revalidatePath("/meal-plan");
 }
 
-export async function addAwayPeriod(input: AwayPeriod) {
-  const session = await requireSession();
-  requireEditor(session);
+function cleanAwayPeriod(input: AwayPeriod): AwayPeriod {
   if (!isValidDate(input.from) || !isValidDate(input.to)) throw new Error("Pick both dates");
   if (input.to < input.from) throw new Error("The end date is before the start date");
   const label = input.label?.trim().slice(0, 60) || undefined;
+  return { from: input.from, to: input.to, ...(label ? { label } : {}) };
+}
+
+export async function addAwayPeriod(input: AwayPeriod) {
+  const session = await requireSession();
+  requireEditor(session);
+  const period = cleanAwayPeriod(input);
   await writeAwayPeriods(session.householdId, (current) => {
     if (current.length >= 20) throw new Error("That's a lot of holidays — remove an old one first");
-    return [...current, { from: input.from, to: input.to, ...(label ? { label } : {}) }];
+    return [...current, period];
+  });
+}
+
+/** Change a holiday's dates or label; `original` identifies it by its old dates. */
+export async function updateAwayPeriod(original: { from: string; to: string }, input: AwayPeriod) {
+  const session = await requireSession();
+  requireEditor(session);
+  const period = cleanAwayPeriod(input);
+  await writeAwayPeriods(session.householdId, (current) => {
+    const i = current.findIndex((p) => p.from === original.from && p.to === original.to);
+    if (i === -1) throw new Error("That holiday has already been removed");
+    return current.map((p, j) => (j === i ? period : p));
   });
 }
 
