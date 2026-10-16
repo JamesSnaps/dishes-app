@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Wand2, MessageCircleQuestion, ChevronDown, HeartPulse } from "lucide-react";
+import { Sparkles, Wand2, MessageCircleQuestion, ChevronDown, HeartPulse, Salad } from "lucide-react";
 import {
   Button,
   DropdownMenu,
@@ -13,6 +13,7 @@ import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 import { AskRecipeSheet } from "./ask-recipe-sheet";
 import { TweakRecipeButton } from "./tweak-recipe-button";
 import { SimilarRecipesButton } from "./similar-recipes-button";
+import { GenerateSideSheet } from "@/components/meals/generate-side-sheet";
 
 interface Props {
   recipeId: string;
@@ -27,6 +28,7 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Pro
   const [askOpen, setAskOpen] = useState(false);
   const [tweakOpen, setTweakOpen] = useState(false);
   const [similarOpen, setSimilarOpen] = useState(false);
+  const [sideOpen, setSideOpen] = useState(false);
   const [heartOpen, setHeartOpen] = useState(false);
 
   const items = [
@@ -47,6 +49,12 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Pro
       label: "Make it heart-healthy",
       hint: "Lower saturated fat, more fibre, same dish",
       onSelect: () => setHeartOpen(true),
+    },
+    {
+      icon: Salad,
+      label: "Generate a side dish",
+      hint: "A new side recipe to serve with this",
+      onSelect: () => setSideOpen(true),
     },
     {
       icon: Sparkles,
@@ -113,6 +121,13 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Pro
         recipeId={recipeId}
         open={similarOpen}
         onOpenChange={setSimilarOpen}
+        hideTrigger
+      />
+      <GenerateSideSheet
+        recipeIds={[recipeId]}
+        accompanies={recipeTitle}
+        open={sideOpen}
+        onOpenChange={setSideOpen}
         hideTrigger
       />
     </>

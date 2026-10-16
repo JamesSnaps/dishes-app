@@ -36,6 +36,7 @@ import {
   Trash2,
   Undo2,
   UtensilsCrossed,
+  Salad,
 } from "lucide-react";
 import {
   Button,
@@ -49,6 +50,7 @@ import {
 } from "@dishes/ui";
 import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe, generateMealPlanConcepts, type MealPlanSlot } from "@/app/actions/ai";
 import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
+import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
 import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
 import type { StyleBreakdown, LibraryStyle } from "@/lib/services/recipe-library";
 import { StarRating } from "@/app/(app)/recipes/[id]/_components/star-rating";
@@ -167,6 +169,14 @@ const QUICK_PROMPTS = [
     icon: Package,
     iconBg: "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400",
   },
+  {
+    label: "Side dish",
+    description: "Goes with a main",
+    prompt: "A side dish to serve alongside dinner",
+    icon: Salad,
+    iconBg: "bg-lime-100 text-lime-700 dark:bg-lime-950/60 dark:text-lime-400",
+    mealRole: "side",
+  },
 ] as const;
 
 const CUISINE_OPTIONS = [
@@ -225,6 +235,43 @@ const MEAL_TYPE_COLOR: Record<string, string> = {
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "dessert", "snack"] as const;
+
+function DishRolePicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: MealRole | null;
+  onChange: (role: MealRole | null) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-sm font-medium">Kind of dish</p>
+      <div className="flex flex-wrap gap-2">
+        {MEAL_ROLES.map((role) => (
+          <button
+            key={role}
+            type="button"
+            onClick={() => onChange(value === role ? null : role)}
+            disabled={disabled}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
+              value === role
+                ? "border-emerald-500 bg-emerald-600 text-white shadow-sm"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+            )}
+          >
+            {MEAL_ROLE_LABELS[role]}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Choose Side, Sauce or Extra to generate that instead of a main. Asking for one in the box works too.
+      </p>
+    </div>
+  );
+}
 
 const CUISINE_EMOJI: Record<string, string> = {
   italian: "🍝", pizza: "🍕", chinese: "🥢", japanese: "🍱",
@@ -1628,6 +1675,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const [mode, setMode] = useState<"inspire" | "direct">("inspire");
   const [promptText, setPromptText] = useState("");
   const [mealType, setMealType] = useState<string>("");
+  const [mealRole, setMealRole] = useState<MealRole | null>(null);
   const [selectedPrefs, setSelectedPrefs] = useState<Set<string>>(new Set());
   const heartHealthy = selectedPrefs.has(HEART_HEALTHY_PREF);
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
@@ -1654,7 +1702,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const [budget, setBudget] = useState("");
   const [servings, setServings] = useState("");
 
-  function buildPrompt(basePrompt?: string) {
+  function buildPrompt(basePrompt?: string, role: MealRole | null = mealRole) {
     // Send labelled fields rather than one mashed-together sentence, so the
     // user's own words carry clear weight alongside the chips and filters.
     const lines: string[] = [];
@@ -1667,11 +1715,17 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     if (spiceLevel) lines.push(`Spice level: ${spiceLevel}`);
     if (budget) lines.push(`Budget: ${budget}`);
     if (servings) lines.push(`Servings: ${servings}`);
+    if (role) lines.push(`Kind of dish: ${MEAL_ROLE_LABELS[role].toLowerCase()}`);
     return lines.join("\n");
   }
 
-  function runGenerate(overridePrompt?: string) {
-    const full = buildPrompt(overridePrompt);
+  function recipeOptions(role: MealRole | null = mealRole) {
+    return { heartHealthy, ...(role ? { mealRole: role } : {}) };
+  }
+
+  function runGenerate(overridePrompt?: string, roleOverride?: MealRole | null) {
+    const role = roleOverride === undefined ? mealRole : roleOverride;
+    const full = buildPrompt(overridePrompt, role);
     if (!full) return;
     setError(null);
     setConcepts(null);
@@ -1679,7 +1733,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     setSelectedIndices(new Set());
     setBatchItems(null);
     startTransition(async () => {
-      const result = await generateConcepts(full, Array.from(selectedMemberIds), mealType || undefined, undefined, { heartHealthy });
+      const result = await generateConcepts(full, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions(role));
       if (result.error) { setError(result.error); return; }
       setConcepts(result.concepts!);
       setTimeout(() => {
@@ -1688,9 +1742,11 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     });
   }
 
-  function handleQuickPrompt(prompt: string) {
+  function handleQuickPrompt(prompt: string, role?: MealRole | null) {
+    const nextRole = role ?? null;
     setPromptText(prompt);
-    runGenerate(prompt);
+    setMealRole(nextRole);
+    runGenerate(prompt, nextRole);
   }
 
   function togglePref(label: string) {
@@ -1729,7 +1785,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       setError(null);
       setGeneratingIdx(idx);
       startTransition(async () => {
-        const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined, undefined, { heartHealthy });
+        const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions());
         if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
         const defaults = await withSuggestedCollection(result.recipe!);
         sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
@@ -1743,7 +1799,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
         for (let i = 0; i < updated.length; i++) {
           updated[i] = { ...updated[i]!, status: "generating" };
           setBatchItems([...updated]);
-          const genResult = await generateFullRecipe(updated[i]!.concept, Array.from(selectedMemberIds), mealType || undefined, undefined, { heartHealthy });
+          const genResult = await generateFullRecipe(updated[i]!.concept, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions());
           if (genResult.error) {
             updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
             setBatchItems([...updated]);
@@ -1779,7 +1835,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       difficulty: "medium",
     };
     startTransition(async () => {
-      const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds), mealType || undefined, undefined, { heartHealthy });
+      const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions());
       if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
       const defaults = await withSuggestedCollection(result.recipe!);
       sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
@@ -1788,7 +1844,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   }
 
   const hasFilter = !!(cuisine || dietary || cookTime || spiceLevel || budget || servings);
-  const canGenerate = promptText.trim().length > 0 || selectedPrefs.size > 0 || hasFilter;
+  const canGenerate = promptText.trim().length > 0 || selectedPrefs.size > 0 || hasFilter || mealRole !== null;
   const isConceptLoading = isPending && generatingIdx === null;
   const isRecipeLoading = isPending && generatingIdx !== null;
   const isBatchRunning = batchItems !== null && batchItems.some((b) => b.status === "pending" || b.status === "generating");
@@ -1800,23 +1856,26 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       {/* Mobile: quick prompts horizontal scroll (inspire mode only) */}
       {mode === "inspire" && (
         <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-          {QUICK_PROMPTS.map(({ label, description, prompt, icon: Icon, iconBg }) => (
+          {QUICK_PROMPTS.map((item) => {
+            const Icon = item.icon;
+            return (
             <button
-              key={label}
+              key={item.label}
               type="button"
-              onClick={() => handleQuickPrompt(prompt)}
+              onClick={() => handleQuickPrompt(item.prompt, "mealRole" in item ? item.mealRole : null)}
               disabled={isPending}
               className="flex-shrink-0 flex items-center gap-2 rounded-xl border bg-card px-3 py-2.5 text-left disabled:opacity-50"
             >
-              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>
+              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", item.iconBg)}>
                 <Icon className="h-4 w-4" />
               </div>
               <div>
-                <div className="text-sm font-medium whitespace-nowrap">{label}</div>
-                <div className="text-xs text-muted-foreground whitespace-nowrap">{description}</div>
+                <div className="text-sm font-medium whitespace-nowrap">{item.label}</div>
+                <div className="text-xs text-muted-foreground whitespace-nowrap">{item.description}</div>
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1916,16 +1975,18 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                           : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
                       )}
                     >
-                      {type}
-                    </button>
-                  ))}
-                </div>
+                    {type}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {/* Who's eating? */}
-              {members.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Who&apos;s eating?</p>
+            <DishRolePicker value={mealRole} onChange={setMealRole} disabled={isPending} />
+
+            {/* Who's eating? */}
+            {members.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Who&apos;s eating?</p>
                   <div className="flex flex-wrap gap-2">
                     {members.map((m) => (
                       <button
@@ -2072,6 +2133,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                   ))}
                 </div>
               </div>
+
+              <DishRolePicker value={mealRole} onChange={setMealRole} disabled={isPending} />
 
               {/* Heart-healthy */}
               <div>
@@ -2269,14 +2332,14 @@ function FindRecipeTab({ members }: { members: Member[] }) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Quick prompts
           </h3>
-          {QUICK_PROMPTS.map(({ label, description, prompt, icon, iconBg }) => (
+          {QUICK_PROMPTS.map((item) => (
             <QuickPromptButton
-              key={label}
-              label={label}
-              description={description}
-              icon={icon}
-              iconBg={iconBg}
-              onClick={() => handleQuickPrompt(prompt)}
+              key={item.label}
+              label={item.label}
+              description={item.description}
+              icon={item.icon}
+              iconBg={item.iconBg}
+              onClick={() => handleQuickPrompt(item.prompt, "mealRole" in item ? item.mealRole : null)}
               disabled={isPending}
             />
           ))}

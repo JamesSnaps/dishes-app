@@ -196,9 +196,17 @@ export function fullRecipeUserPrompt(
   concept: ConceptCard,
   mealType?: string,
   targetCalories?: number,
-  heartHealthy?: boolean
+  heartHealthy?: boolean,
+  mealRole?: "main" | "side" | "sauce" | "other" | null,
+  accompanies?: string
 ): string {
-  return `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}${targetCalories && targetCalories > 0 ? `\nCalorie target: aim for roughly ${targetCalories} kcal per serving — adjust quantities and ingredient choices to land near this.` : ""}${heartHealthy ? `\nHeart-healthy: ${HEART_HEALTHY_GUIDANCE}` : ""}`;
+  const roleLine =
+    mealRole === "side"
+      ? `\nRole: this must be a side dish${accompanies ? ` to serve with ${accompanies}` : ""}, not a complete meal. One accompaniment only (a vegetable, potato, grain, salad, bread or similar). Set mealRole to "side".`
+      : mealRole
+        ? `\nRole: set mealRole to "${mealRole}".`
+        : "";
+  return `Generate a full recipe for: "${concept.title}"\nDescription: ${concept.description}\nCuisine: ${concept.cuisine}\nDifficulty: ${concept.difficulty}${mealType ? `\nMeal type: This must be a ${mealType} recipe — ensure portion size, richness, and style are appropriate for ${mealType}.` : ""}${targetCalories && targetCalories > 0 ? `\nCalorie target: aim for roughly ${targetCalories} kcal per serving — adjust quantities and ingredient choices to land near this.` : ""}${heartHealthy ? `\nHeart-healthy: ${HEART_HEALTHY_GUIDANCE}` : ""}${roleLine}`;
 }
 
 // --- The call ---------------------------------------------------------------

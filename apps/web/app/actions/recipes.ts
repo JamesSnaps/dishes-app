@@ -1,6 +1,6 @@
 "use server";
 
-import { isMealRole } from "@dishes/shared";
+import { isMealRole, type MealRole } from "@dishes/shared";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
@@ -51,8 +51,10 @@ function extractRecipeFields(formData: FormData): RecipeFields {
     mealRole: isMealRole(role) ? role : null,
     sourceUrl: str("sourceUrl"),
     notes: str("notes"),
-    imageUrl: str("imageUrl"),
-    thumbnailUrl: str("thumbnailUrl"),
+    // Absent when the editor didn't touch the photo, so a save can't wipe one
+    // a background generation job wrote while the form was open.
+    imageUrl: formData.has("imageUrl") ? str("imageUrl") : undefined,
+    thumbnailUrl: formData.has("thumbnailUrl") ? str("thumbnailUrl") : undefined,
     ...recipeService.buildNutrition(
       {
         calories: str("calories"),
@@ -110,6 +112,13 @@ export async function updateRecipe(recipeId: string, formData: FormData) {
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
   redirect(`/recipes/${recipeId}`);
+}
+
+export async function setRecipeMealRole(recipeId: string, mealRole: MealRole | null) {
+  const session = await requireSession();
+  await recipeService.setMealRole(session, recipeId, mealRole);
+  revalidatePath(`/recipes/${recipeId}`);
+  revalidatePath("/recipes");
 }
 
 export async function deleteRecipe(recipeId: string) {
