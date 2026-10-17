@@ -48,6 +48,9 @@ struct DeveloperSection: View {
                 Developer.configured = url
                 next = url
             }
+            Button("Start a 10-second test timer") {
+                Task { await CookTimers.shared.start(label: "Test timer", dish: nil, seconds: 10) }
+            }
             if next != nil {
                 Button("Use the real server") {
                     Developer.configured = nil

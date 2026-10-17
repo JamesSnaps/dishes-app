@@ -12,6 +12,7 @@ struct RecipeDetailView: View {
     let recipeId: String
     @State private var recipe = Observed<Recipe?>(nil)
     @State private var servings: Double?
+    @State private var cooking: CookRequest?
 
     var body: some View {
         Group {
@@ -26,6 +27,7 @@ struct RecipeDetailView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(item: $cooking) { CookingView(request: $0) }
         .task {
             let id = recipeId
             await recipe.follow(app.store) { r in try r.record(.recipes, id: id).flatMap(Recipe.init) }
@@ -38,6 +40,14 @@ struct RecipeDetailView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header(recipe)
+                Button {
+                    cooking = CookRequest(dishes: [CookDish(recipe: recipe, scale: scale)])
+                } label: {
+                    Label("Start cooking", systemImage: "frying.pan")
+                        .frame(maxWidth: width == .regular ? 320 : .infinity)
+                }
+                .buttonStyle(.brand)
+                .disabled(recipe.steps.isEmpty)
                 if width == .regular {
                     HStack(alignment: .top, spacing: 24) {
                         ingredients(recipe, scale: scale)
@@ -138,7 +148,7 @@ struct RecipeDetailView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(item.step.instruction).font(.body)
                             if let minutes = Format.minutes(item.step.durationMinutes) {
-                                Label(item.step.timerLabel ?? minutes, systemImage: "timer")
+                                Label([item.step.timerLabel, minutes].compactMap { $0 }.joined(separator: " · "), systemImage: "timer")
                                     .font(.subheadline.weight(.medium))
                                     .foregroundStyle(Theme.brandDeep)
                             }

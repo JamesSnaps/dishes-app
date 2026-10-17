@@ -9,6 +9,7 @@
 import BackgroundTasks
 import SwiftUI
 import UIKit
+import UserNotifications
 
 @main
 struct DishesApp: App {
@@ -30,11 +31,19 @@ struct DishesApp: App {
     }
 }
 
-final class AppDelegate: NSObject, UIApplicationDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         BackgroundRefresh.register()
+        UNUserNotificationCenter.current().delegate = self
         return true
+    }
+
+    /// A timer that falls back to a notification still shows and sounds with Dishes open.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async
+        -> UNNotificationPresentationOptions {
+        Task { @MainActor in CookTimers.shared.refreshFinished() }
+        return [.banner, .sound, .list]
     }
 
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async

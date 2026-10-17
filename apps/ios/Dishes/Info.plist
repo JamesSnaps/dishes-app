@@ -39,6 +39,8 @@
 	<string>https://dishes.collardserver.co.uk</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>Dishes sets your cooking timers as alarms, so they go off even when your device is on silent.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

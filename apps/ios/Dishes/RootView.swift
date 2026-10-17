@@ -25,6 +25,8 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .bottom) { ToastView() }
+        // A finished timer rings wherever you are in the app, not only in cooking mode.
+        .overlay(alignment: .top) { RingingBanner() }
         .task { await app.start() }
     }
 

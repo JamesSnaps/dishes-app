@@ -14,6 +14,7 @@ struct PlanScreen: View {
     @Environment(\.horizontalSizeClass) private var width
     @State private var week = Week.containing(Date())
     @State private var data = Observed(PlanData())
+    @State private var cooking: CookRequest?
 
     var body: some View {
         NavigationStack {
@@ -24,7 +25,7 @@ struct PlanScreen: View {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: width == .regular ? 18 : 12) {
                     ForEach(0..<7, id: \.self) { day in
                         DayCard(date: week.day(day), isToday: Calendar.current.isDateInToday(week.day(day)),
-                                meals: data.value.meals(on: day, in: week), delete: delete)
+                                meals: data.value.meals(on: day, in: week), delete: delete, cook: cook)
                     }
                 }
                 .padding(width == .regular ? 20 : 16)
@@ -44,6 +45,14 @@ struct PlanScreen: View {
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
         }
         .task { await data.follow(app.store, PlanData.load) }
+        .fullScreenCover(item: $cooking) { CookingView(request: $0) }
+    }
+
+    /// A combined meal cooks as one: every dish as a tab, timers pooled.
+    private func cook(_ meal: PlannedMeal) {
+        let dishes = meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty }.map { CookDish(recipe: $0) }
+        guard !dishes.isEmpty else { return }
+        cooking = CookRequest(title: meal.title, dishes: dishes)
     }
 
     private func delete(_ entry: MealPlanEntry) {
@@ -131,6 +140,7 @@ struct DayCard: View {
     let isToday: Bool
     let meals: [PlannedMeal]
     let delete: (MealPlanEntry) -> Void
+    let cook: (PlannedMeal) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -164,6 +174,14 @@ struct DayCard: View {
                         if let title = meal.title { Text("· \(title)").font(.caption.weight(.semibold)) }
                         if let serveAt = meal.serveAt {
                             Label(serveAt, systemImage: "clock").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        if meal.title != nil && meal.dishes.contains(where: { $0.recipe != nil }) {
+                            Button("Cook", systemImage: "frying.pan") { cook(meal) }
+                                .font(.caption.weight(.bold))
+                                .buttonStyle(.borderedProminent)
+                                .buttonBorderShape(.capsule)
+                                .controlSize(.small)
                         }
                     }
                     ForEach(meal.dishes, id: \.entry.id) { dish in
