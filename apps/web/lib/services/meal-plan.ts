@@ -963,6 +963,7 @@ export async function addAiGeneratedPlan(
 
   await notifyHousehold(
     ctx.householdId,
+    "meal_plan",
     {
       title: "🍽️ Meal plan ready",
       body: `${ctx.actorName} added this week's meal plan`,
@@ -1355,6 +1356,7 @@ export async function generateShoppingFromWeek(
 
     await notifyHousehold(
       ctx.householdId,
+      "shopping_ready",
       {
         title: "🛒 Shopping list ready",
         body: `${ctx.actorName} generated this week's shopping list`,

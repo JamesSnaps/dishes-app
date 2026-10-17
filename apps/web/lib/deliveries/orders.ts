@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
-import { deliveries, householdMembers } from "@dishes/db/schema";
+import { deliveries } from "@dishes/db/schema";
 import { and, eq, sql } from "drizzle-orm";
-import { sendPushToUsers } from "@/lib/push";
+import { sendPushToUsers, usersWanting } from "@/lib/push";
 import { getDeliveryConfig, isValidDate, shortDate } from "./schedule";
 import type { HouseholdContext } from "@/lib/session";
 import { dayOfWeekOf } from "@/lib/dinner-reminders/time";
@@ -281,17 +281,8 @@ export async function notifyOrderUpdate(
   result: OrderUpdateResult
 ): Promise<void> {
   if (result.action === "ignored" || !result.delivery || update.kind === "delivered") return;
-  const members = await db
-    .select({ user: householdMembers.autheliaUser })
-    .from(householdMembers)
-    .where(
-      and(
-        eq(householdMembers.householdId, householdId),
-        eq(householdMembers.deliveryReminders, true),
-        eq(householdMembers.isActive, true)
-      )
-    );
-  if (!members.length) return;
+  const users = await usersWanting(householdId, "delivery_orders");
+  if (!users.length) return;
 
   const shop = update.retailer?.trim() || "Grocery";
   const d = result.delivery;
@@ -315,7 +306,7 @@ export async function notifyOrderUpdate(
         };
   await sendPushToUsers(
     householdId,
-    members.map((m) => m.user),
+    users,
     { ...payload, url: "/meal-plan", tag: `delivery-${d.date}` }
   ).catch((err) => console.error("[deliveries] order push failed:", err));
 }

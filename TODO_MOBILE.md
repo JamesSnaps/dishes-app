@@ -625,15 +625,15 @@ numbers worth having in Health.
 
 ### C5. Push via APNs
 
-- [ ] `.p8` token auth from the server, env vars in the `docker` repo compose
-  file as well as `.env` (see deploy notes)
-- [ ] `POST/DELETE /api/v1/push/devices` — register an APNs token against the
+- [x] `.p8` token auth from the server (`lib/apns.ts`, HTTP/2, `APNS_*` env
+  vars — also in the `docker` repo compose file)
+- [x] `POST/DELETE /api/v1/push/devices` — register an APNs token against the
   member, alongside the existing web-push subscriptions
-- [ ] Extend `lib/push.ts` so `sendPushToHousehold` / `sendPushToUsers` /
-  `notifyHousehold` fan out to web-push **and** APNs from the same call sites.
-  Covers shopping changes, dinner reminders and delivery deadlines at once
-- [ ] Silent "sync now" push after a household write, so a second phone is
-  current before it's opened
+- [x] `lib/push.ts` fans out to web-push **and** APNs from the same call
+  sites, filtered by each member's choices (`lib/notification-types.ts`,
+  Settings → Notifications on the web and in the app)
+- [x] Silent "sync now" push: every alert carries `content-available`, and
+  members who've turned a kind off get a background push instead
 - [ ] Notification actions: snooze a dinner reminder, open cooking mode
 
 ### C6. Distribution

@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -42,6 +43,12 @@ export const householdMembers = pgTable("household_members", {
   dinnerReminders: boolean("dinner_reminders").notNull().default(false),
   // Opt-in: push this member when a grocery delivery's order deadline is near.
   deliveryReminders: boolean("delivery_reminders").notNull().default(false),
+  // Every other notification type, on or off, keyed by type id
+  // (apps/web/lib/notification-types.ts). A missing key means the type's default.
+  notificationPrefs: jsonb("notification_prefs")
+    .$type<Record<string, boolean>>()
+    .notNull()
+    .default({}),
   // Null until this member finishes or skips the welcome wizard.
   onboardingCompletedAt: timestamp("onboarding_completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

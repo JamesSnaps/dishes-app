@@ -1,8 +1,10 @@
 import webpush from "web-push";
 import { db } from "@/lib/db";
 import { getRedis } from "@/lib/redis";
-import { pushSubscriptions, type PushSubscription } from "@dishes/db/schema";
+import { householdMembers, pushSubscriptions, type PushSubscription } from "@dishes/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import { apnsConfigured, apnsDevicesFor, deliverToApnsDevices } from "@/lib/apns";
+import { wantsNotification, type NotificationType } from "@/lib/notification-types";
 
 export interface PushPayload {
   title: string;
@@ -15,6 +17,15 @@ export interface PushPayload {
   actions?: { action: string; title: string }[];
   /** Extra data the service worker needs to handle an action. */
   data?: Record<string, unknown>;
+}
+
+function vapidConfigured(): boolean {
+  return !!(process.env.VAPID_SUBJECT && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+}
+
+/** Whether any push channel — web (VAPID) or Apple (APNs) — is set up. */
+export function pushConfigured(): boolean {
+  return vapidConfigured() || apnsConfigured();
 }
 
 function initVapid() {
@@ -99,28 +110,10 @@ async function deliverToSubscriptions(
   return { sent, failed, stale: staleIds.length };
 }
 
-export async function sendPushToHousehold(
-  householdId: string,
-  payload: PushPayload,
-  options?: PushOptions
-): Promise<void> {
-  initVapid();
-
-  const subs = await db
-    .select()
-    .from(pushSubscriptions)
-    .where(eq(pushSubscriptions.householdId, householdId));
-
-  const targets = options?.excludeAutheliaUser
-    ? subs.filter((s) => s.autheliaUser !== options.excludeAutheliaUser)
-    : subs;
-
-  await deliverToSubscriptions(targets, payload);
-}
-
 /**
- * Send to specific household members' devices (by Authelia username), e.g.
- * only the people who opted in to dinner reminders.
+ * Send to specific household members' devices (by Authelia username): their
+ * browsers through web push, and their iPhones and iPads through APNs. Callers
+ * pass only the members who want this kind of notification.
  */
 export async function sendPushToUsers(
   householdId: string,
@@ -128,19 +121,56 @@ export async function sendPushToUsers(
   payload: PushPayload
 ): Promise<DeliveryResult> {
   if (autheliaUsers.length === 0) return { sent: 0, failed: 0, stale: 0 };
-  initVapid();
 
-  const targets = await db
-    .select()
-    .from(pushSubscriptions)
-    .where(
-      and(
-        eq(pushSubscriptions.householdId, householdId),
-        inArray(pushSubscriptions.autheliaUser, autheliaUsers)
-      )
-    );
+  const [web, apple] = await Promise.all([
+    vapidConfigured()
+      ? (async () => {
+          initVapid();
+          const targets = await db
+            .select()
+            .from(pushSubscriptions)
+            .where(
+              and(
+                eq(pushSubscriptions.householdId, householdId),
+                inArray(pushSubscriptions.autheliaUser, autheliaUsers)
+              )
+            );
+          return deliverToSubscriptions(targets, payload);
+        })()
+      : { sent: 0, failed: 0, stale: 0 },
+    apnsConfigured()
+      ? apnsDevicesFor(householdId, autheliaUsers).then((devices) => deliverToApnsDevices(devices, payload))
+      : { sent: 0, failed: 0, stale: 0 },
+  ]);
 
-  return deliverToSubscriptions(targets, payload);
+  return {
+    sent: web.sent + apple.sent,
+    failed: web.failed + apple.failed,
+    stale: web.stale + apple.stale,
+  };
+}
+
+/** The household's active members who want this kind of notification. */
+export async function usersWanting(householdId: string, type: NotificationType): Promise<string[]> {
+  const members = await db
+    .select({
+      user: householdMembers.autheliaUser,
+      dinnerReminders: householdMembers.dinnerReminders,
+      deliveryReminders: householdMembers.deliveryReminders,
+      notificationPrefs: householdMembers.notificationPrefs,
+    })
+    .from(householdMembers)
+    .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)));
+  return members.filter((m) => wantsNotification(m, type)).map((m) => m.user);
+}
+
+/** Whether one member (by Authelia username) wants this kind of notification. */
+export async function userWants(
+  householdId: string,
+  autheliaUser: string,
+  type: NotificationType
+): Promise<boolean> {
+  return (await usersWanting(householdId, type)).includes(autheliaUser);
 }
 
 /** Outcome of a single-device send — drives the test-notification response. */
@@ -158,7 +188,7 @@ export async function sendPushToEndpoint(
   endpoint: string,
   payload: PushPayload
 ): Promise<EndpointPushOutcome> {
-  initVapid();
+  initVapid(); // throws a clear message when VAPID isn't set
 
   const subs = await db
     .select()
@@ -179,16 +209,30 @@ export async function sendPushToEndpoint(
 }
 
 /**
- * Fire-and-forget wrapper that never throws (e.g. if VAPID isn't configured),
- * so notifying the household can't break the user action that triggered it.
+ * Tell the household about a change, sending to each member who wants this
+ * type. Members who've turned it off still get a silent push on their iOS
+ * devices, so the app syncs the change in the background.
+ *
+ * Fire-and-forget: never throws (e.g. if push isn't configured), so notifying
+ * the household can't break the user action that triggered it.
  */
 export async function notifyHousehold(
   householdId: string,
+  type: NotificationType,
   payload: PushPayload,
   options?: PushOptions
 ): Promise<void> {
   try {
-    await sendPushToHousehold(householdId, payload, options);
+    const wanting = await usersWanting(householdId, type);
+    const recipients = wanting.filter((u) => u !== options?.excludeAutheliaUser);
+    await sendPushToUsers(householdId, recipients, payload);
+
+    if (apnsConfigured()) {
+      const quiet = (await apnsDevicesFor(householdId)).filter(
+        (d) => !wanting.includes(d.autheliaUser) && d.autheliaUser !== options?.excludeAutheliaUser
+      );
+      await deliverToApnsDevices(quiet, null, { silent: true });
+    }
   } catch (err) {
     console.error("[push] notifyHousehold failed:", err);
   }
@@ -209,6 +253,7 @@ export async function notifyHousehold(
  */
 export async function notifyHouseholdThrottled(
   householdId: string,
+  type: NotificationType,
   channel: string,
   windowSeconds: number,
   payload: PushPayload,
@@ -226,5 +271,5 @@ export async function notifyHouseholdThrottled(
     // Redis hiccup shouldn't drop the notification — fall through and send.
     console.error("[push] throttle check failed, sending anyway:", err);
   }
-  await notifyHousehold(householdId, payload, options);
+  await notifyHousehold(householdId, type, payload, options);
 }

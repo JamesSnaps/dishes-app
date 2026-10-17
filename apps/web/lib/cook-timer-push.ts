@@ -1,5 +1,5 @@
 import { getRedis } from "@/lib/redis";
-import { sendPushToUsers } from "@/lib/push";
+import { pushConfigured, sendPushToUsers, userWants } from "@/lib/push";
 
 /**
  * Push notifications for cooking-mode timers that finish while you're away
@@ -49,10 +49,6 @@ declare global {
 // Live setTimeout handles per device, and the store used when Redis is absent.
 const handles = (globalThis.__cookTimerHandles ??= new Map());
 const memory = (globalThis.__cookTimerMemory ??= new Map());
-
-function pushConfigured(): boolean {
-  return !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
-}
 
 function storeKey(memberId: string, deviceId: string): string {
   return `${KEY_PREFIX}${memberId}:${deviceId}`;
@@ -113,6 +109,7 @@ async function fire(key: string, timerKey: string, endsAt: number): Promise<void
 
   if (!(await claimSend(key, timer))) return;
   try {
+    if (!(await userWants(record.householdId, record.user, "cook_timers"))) return;
     const result = await sendPushToUsers(record.householdId, [record.user], {
       title: timer.title,
       body: timer.body,

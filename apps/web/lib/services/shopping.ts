@@ -75,6 +75,7 @@ const SHOPPING_PUSH_WINDOW_SECONDS = 90;
 function notifyShoppingChange(householdId: string, actorName: string): void {
   void notifyHouseholdThrottled(
     householdId,
+    "shopping_updated",
     SHOPPING_PUSH_CHANNEL,
     SHOPPING_PUSH_WINDOW_SECONDS,
     {

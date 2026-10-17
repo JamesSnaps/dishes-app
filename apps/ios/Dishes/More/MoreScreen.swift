@@ -33,6 +33,24 @@ struct MoreScreen: View {
                         .card()
                     }
 
+                    section("Notifications", footer: "Choose which ones you get. The same choices apply on the web.") {
+                        NavigationLink {
+                            NotificationsScreen()
+                        } label: {
+                            HStack {
+                                Label("Choose notifications", systemImage: "bell.badge")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Theme.mutedForeground)
+                            }
+                            .padding(14)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.foreground)
+                    }
+
                     section("Sync", footer: "Everything here works offline. Changes are sent when there’s a connection.") {
                         row("Status") { SyncLine() }
                         if let last = app.status.lastSyncedAt {

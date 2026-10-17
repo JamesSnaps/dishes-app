@@ -719,6 +719,35 @@ Every collection with the ids of its recipes.
 Add a recipe to a collection (idempotent) or take it out. 204, no body; 404 for
 a collection or recipe outside the household.
 
+### `GET /api/v1/notifications` · `PATCH`
+
+Your notification choices and the devices they go to. Each `type` is one of
+`meal_plan`, `shopping_ready`, `shopping_updated`, `dinner`, `cook_timers`,
+`delivery_deadline`, `delivery_orders`.
+
+```json
+{
+  "types": [ { "id": "meal_plan", "title": "Meal plan ready", "description": "…", "group": "Household", "enabled": true } ],
+  "devices": [ { "id": "uuid", "kind": "ios", "name": "James's iPad", "createdAt": "2026-10-17T13:22:13.664Z" } ]
+}
+```
+
+`PATCH` with `{ "type": "shopping_updated", "enabled": false }` changes one and
+answers the same shape. `DELETE /api/v1/notifications/devices/{id}` stops
+sending to one of your devices (web or iOS), 204.
+
+### `POST /api/v1/push/devices` · `DELETE`
+
+Register this device for Apple Push: `{ "token": "<hex>", "environment":
+"sandbox" | "production", "deviceName": "James's iPad" }` → `{ "id", "apnsConfigured" }`
+(201). Re-registering the same token is an upsert, so the app does it at every
+launch. `DELETE` with `{ "token" }` on sign-out, 204.
+
+### `POST /api/v1/push/test`
+
+`{ "token": "<hex>" }` sends a test notification to that device (yours only).
+503 when the server has no APNs key, 410 when Apple says the token is dead.
+
 ### The browser door: `/api/web/*`
 
 Because of that, the same API is also reachable at **`/api/web/*`**, which is

@@ -44,6 +44,16 @@ export default async function SettingsPage() {
           <PushNotificationManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null} />
         </div>
         <Link
+          href="/settings/notifications"
+          className="mt-2 flex items-center justify-between rounded-lg border border-orange-300/60 dark:border-orange-900/60 bg-gradient-to-r from-orange-500/10 to-amber-500/10 px-4 py-3 hover:from-orange-500/20 hover:to-amber-500/20 transition-colors"
+        >
+          <div>
+            <p className="font-medium">Choose notifications</p>
+            <p className="text-sm text-muted-foreground">Which ones you get, and the devices they go to</p>
+          </div>
+          <span className="text-muted-foreground">›</span>
+        </Link>
+        <Link
           href="/settings/dinner-reminders"
           className="mt-2 flex items-center justify-between rounded-lg border border-orange-300/60 dark:border-orange-900/60 bg-gradient-to-r from-orange-500/10 to-rose-500/10 px-4 py-3 hover:from-orange-500/20 hover:to-rose-500/20 transition-colors"
         >

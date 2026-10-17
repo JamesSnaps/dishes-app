@@ -90,6 +90,12 @@ struct RootView: View {
             }
         }
         .task { await tonight.follow(app.store, TonightMeal.load) }
+        // A tapped notification opens the tab its web path belongs to.
+        .onChange(of: Push.shared.openedLink, initial: true) { _, link in
+            guard let link else { return }
+            if let tab = Push.tab(for: link) { nav.tab = tab }
+            Push.shared.openedLink = nil
+        }
     }
 }
 

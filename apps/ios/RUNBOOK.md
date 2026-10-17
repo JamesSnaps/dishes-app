@@ -282,3 +282,18 @@ the web's design rather than stock iOS styling:
   entry is in. Checked via Move to → Monday 19 Oct (same code path): the entry
   moved into a newly created plan for next week.
 
+### 17 Oct 2026 — notifications (v1.32.0)
+
+- Apple Push: the app registers for a token at every launch (silent pushes need
+  no permission) and sends it to `/api/v1/push/devices` once signed in;
+  `aps-environment` is `development` in the entitlements, and Xcode switches it
+  to production when exporting for TestFlight. Settings → Choose notifications
+  asks for permission, has a test button, the switch for each kind and the
+  device list.
+- Checked on the 13-inch simulator against a dev server given the real key
+  (`APNS_KEY_FILE`, key 98BUQ32WWY): the simulator got a sandbox token,
+  registered, and both the test and a real "Shopping list updated" (an item
+  added over `/api/v1`) arrived through Apple as banners. With "Shopping list
+  changes" off, the next change arrived with no banner.
+- **Tapping a notification to open its tab not confirmed**: the banner is gone
+  before a simulated tap lands. Try it on the iPad.
