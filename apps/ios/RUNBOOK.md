@@ -472,3 +472,28 @@ James, on the iPhone TestFlight build (1.37.1):
   delivery chip + menu, dish menu switching Greek Salad → Thai Green Curry.
   **Not checked:** the permission prompts (this simulator had already
   answered), a real avatar (none in dev), photo import (needs an AI key).
+
+### 17 Oct 2026 — Home folded into Recipes, AI tab (v1.39.0)
+
+James: Home was "just a collection of recipes mostly", and tabs are short on
+a phone. Done on both the app and the web so they match:
+
+- Tabs: Recipes, Planner, AI, Shopping, Settings (AI in the middle, like the
+  web's phone nav button). `AppNav.Tab.home` is gone; a saved "home" tab
+  falls back to Recipes, and push links to `/` or `/home` open Recipes.
+- Recipes opens on browse mode (`RecipesBrowse.swift`) when nothing is
+  searched, chosen or filtered: `TonightCard` (moved from Home, a little
+  smaller on iPhone, with a Plan button), the Wrapped banner in Dec/Jan
+  (`WrappedScreen(year:)`), then shelves — Favourites, Cook again (last cook
+  from the synced history), Suggested for you (`taste.get`, left out
+  offline), Recently added, top 3 cuisines with 3+ recipes. See all sets the
+  chip or sort (`RecipeFilters.Sort.cooked` is new); the All chip shows the
+  whole grid and a Clear chip goes back. Switching scrolls to the top.
+- The AI tab is `ConciergeSheet(inTab: true)`: no Close, the form resets
+  after saving, and the new recipe opens in Recipes (`nav.openRecipe`). It
+  re-checks the AI key on reappearing.
+- Checked on the iPhone 18 Pro simulator: tabs, browse mode, shelves, Cook
+  again → See all → grid titled "Cook again", Clear, the AI tab.
+  **Not checked:** the iPad (simulator was signed out), writing a recipe
+  from the AI tab and landing on it (no AI key in dev), the Wrapped banner
+  (it's October).

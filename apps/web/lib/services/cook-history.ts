@@ -11,7 +11,7 @@
 
 import { db } from "@/lib/db";
 import { cookHistory, householdMembers, recipes, type MemberRating } from "@dishes/db/schema";
-import { eq, and, avg, count, desc, isNotNull } from "drizzle-orm";
+import { eq, and, avg, count, desc, isNotNull, max } from "drizzle-orm";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import sharp from "sharp";
@@ -144,6 +144,7 @@ export type RecipeCookStats = {
   recipeId: string;
   averageRating: number | null;
   cookCount: number;
+  lastCookedAt: string | null;
 };
 
 export type CookHistoryEntry = {
@@ -360,7 +361,11 @@ export async function getCookStatsByRecipe(
       .where(eq(cookHistory.householdId, householdId))
       .groupBy(cookHistory.recipeId),
     db
-      .select({ recipeId: cookHistory.recipeId, cookCount: count(cookHistory.id) })
+      .select({
+        recipeId: cookHistory.recipeId,
+        cookCount: count(cookHistory.id),
+        lastCookedAt: max(cookHistory.cookedAt),
+      })
       .from(cookHistory)
       .where(
         and(
@@ -371,13 +376,17 @@ export async function getCookStatsByRecipe(
       .groupBy(cookHistory.recipeId),
   ]);
 
-  const counts = new Map(cookRows.map((r) => [r.recipeId, Number(r.cookCount)]));
-  return ratingRows.map((r) => ({
-    recipeId: r.recipeId,
-    averageRating:
-      r.averageRating != null ? Math.round(parseFloat(r.averageRating) * 10) / 10 : null,
-    cookCount: counts.get(r.recipeId) ?? 0,
-  }));
+  const cooks = new Map(cookRows.map((r) => [r.recipeId, r]));
+  return ratingRows.map((r) => {
+    const c = cooks.get(r.recipeId);
+    return {
+      recipeId: r.recipeId,
+      averageRating:
+        r.averageRating != null ? Math.round(parseFloat(r.averageRating) * 10) / 10 : null,
+      cookCount: c ? Number(c.cookCount) : 0,
+      lastCookedAt: c?.lastCookedAt ? new Date(c.lastCookedAt).toISOString() : null,
+    };
+  });
 }
 
 /** Null until there are at least two timed cooks — one is not a pattern. */

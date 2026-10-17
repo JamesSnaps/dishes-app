@@ -6,6 +6,7 @@
 //
 //   .sheet { ConciergeSheet { recipeId in path.append(recipeId) } }
 //   .sheet { ConciergeSheet(photo: image) { … } }   // straight to reading a photo
+//   ConciergeSheet(inTab: true) { … }                 // the AI tab: no Close, starts over after saving
 
 import DishesCore
 import PhotosUI
@@ -17,6 +18,9 @@ struct ConciergeSheet: View {
     @Environment(\.dismiss) private var dismiss
     /// A photo of a recipe to read in at once (New Recipe → From a photo).
     var photo: UIImage? = nil
+    /// Shown as the AI tab rather than a sheet: nothing to close, and once a
+    /// recipe is saved the form is cleared for the next one.
+    var inTab = false
     /// The new recipe, once it has synced down.
     var created: (String) -> Void
 
@@ -65,8 +69,11 @@ struct ConciergeSheet: View {
             .background(Theme.background)
             .scrollDismissesKeyboard(.interactively)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(inTab ? .hidden : .automatic, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                if !inTab {
+                    ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                }
             }
         }
         .interactiveDismissDisabled(isBusy)
@@ -85,6 +92,11 @@ struct ConciergeSheet: View {
         .task {
             configured = (try? await app.api.aiStatus())?.configured
             if configured != false, let photo, stage == .asking { await readPhoto(photo) }
+        }
+        // As a tab it stays alive, so look again once a key may have been added.
+        .onAppear {
+            guard inTab, configured == false else { return }
+            Task { configured = (try? await app.api.aiStatus())?.configured }
         }
     }
 
@@ -315,7 +327,12 @@ struct ConciergeSheet: View {
     private func open(_ made: APIClient.CreatedRecipe) async {
         await app.syncNow()
         app.toast = made.collectionName.map { "Saved \(made.title) to \($0)" } ?? "Saved \(made.title)"
-        dismiss()
+        if inTab {
+            stage = .asking
+            prompt = ""
+        } else {
+            dismiss()
+        }
         created(made.recipeId)
     }
 

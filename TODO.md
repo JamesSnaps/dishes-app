@@ -179,6 +179,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] My Notes (`/notes`) — standalone notes or linked to a specific recipe; linked notes appear on recipe detail page
 - [x] Nutrition — per-serving calories + macros (protein/carbs/fat/fibre/sugar/sodium) on recipes; AI auto-fills on generate/edit, on-demand "Estimate nutrition" backfill, manual entry; calorie target in concierge + max-calories-per-meal in planner; calories exposed on integrations `today`/`week` and `meal-plan/generate`
 - [x] Recipe meal-type tagging (`recipes.meal_types`) — AI fills it on generate/edit/scan, editable in the recipe form, admin AI backfill for the existing library; the weekly planner matches library recipes to slots by meal type (and hard-rejects mismatches) so breakfast slots stop getting dinner dishes
+- [x] Home folded into Recipes: browse mode (tonight's meal, quick chips, shelves for Favourites, Cook again, Suggested for you, Recently added and top cuisines; "See all" opens the filtered grid), a "Recently cooked" sort, `/` and `/home` redirect to `/recipes`; phone nav is Recipes · Planner · AI · Shopping · Settings, and Settings links to the side nav's other pages on a phone — on the web and iOS (v1.39.0)
 
 ## Memories
 - [x] Memory wall — borderless masonry that preserves each photo's aspect ratio instead of cropping to squares, with the name and rating revealed on hover (v0.81.2)

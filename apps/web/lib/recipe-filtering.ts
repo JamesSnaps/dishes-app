@@ -27,6 +27,8 @@ export type FilterableRecipe = {
   fiberG?: number | string | null;
   averageRating: number | null;
   cookCount: number;
+  /** ISO timestamp of the last cook (not a rating-only entry), for the "cooked" sort. */
+  lastCookedAt?: string | null;
   createdAt?: string | null;
 };
 
@@ -40,12 +42,23 @@ export type RecipeFilters = {
   maxTime?: string;
   tags?: string;
   sort?: string;
+  /** "all": the whole library as a grid, rather than browse mode's shelves. */
+  view?: string;
 };
 
 const DIFFICULTIES = ["easy", "medium", "hard"];
 
 export function hasActiveFilters(f: RecipeFilters): boolean {
   return Boolean(f.role || f.q || f.cuisine || f.favourites || f.heart || f.difficulty || f.maxTime || f.tags);
+}
+
+/**
+ * Browse mode — tonight's meal and shelves of recipes instead of the grid —
+ * is what /recipes shows with nothing searched, filtered, sorted or `view=all`.
+ * The iOS app's RecipesScreen follows the same rule.
+ */
+export function isBrowsing(f: RecipeFilters): boolean {
+  return !hasActiveFilters(f) && !f.sort && f.view !== "all";
 }
 
 export function filterRecipes<T extends FilterableRecipe>(
@@ -106,6 +119,10 @@ export function sortRecipes<T extends FilterableRecipe>(recipes: T[], sort?: str
   if (sort === "az") return out.sort((a, b) => a.title.localeCompare(b.title));
   if (sort === "rating") {
     return out.sort((a, b) => (b.averageRating ?? -1) - (a.averageRating ?? -1));
+  }
+  // Most recently cooked first; never-cooked recipes last.
+  if (sort === "cooked") {
+    return out.sort((a, b) => (b.lastCookedAt ?? "").localeCompare(a.lastCookedAt ?? ""));
   }
 
   // "newest" — the server got this from ORDER BY created_at DESC. Locally we

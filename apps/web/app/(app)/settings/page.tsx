@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BarChart3, FileText, FolderOpen, Gift, Images, Library, Package, UtensilsCrossed } from "lucide-react";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getLogLevel } from "@/app/actions/settings";
@@ -20,6 +21,19 @@ import { getAssistHistoryStats } from "@/app/actions/assist-history";
 
 export const metadata = { title: "Settings" };
 
+// A phone has no side nav, and no Home page any more, so these are its way in
+// to the side nav's other pages — the iOS Settings tab's Kitchen and Insights.
+const KITCHEN_LINKS = [
+  { href: "/pantry", label: "Pantry", icon: Package, tint: "from-emerald-500/15 to-teal-500/10 text-emerald-600 dark:text-emerald-400" },
+  { href: "/meals", label: "Saved meals", icon: UtensilsCrossed, tint: "from-orange-500/15 to-rose-500/10 text-orange-600 dark:text-orange-400" },
+  { href: "/collections", label: "Collections", icon: FolderOpen, tint: "from-amber-500/15 to-orange-500/10 text-amber-600 dark:text-amber-400" },
+  { href: "/memories", label: "Memories", icon: Images, tint: "from-pink-500/15 to-rose-500/10 text-pink-600 dark:text-pink-400" },
+  { href: "/notes", label: "Notes", icon: FileText, tint: "from-sky-500/15 to-blue-500/10 text-sky-600 dark:text-sky-400" },
+  { href: "/shared", label: "Shared with me", icon: Library, tint: "from-indigo-500/15 to-violet-500/10 text-indigo-600 dark:text-indigo-400" },
+  { href: "/stats", label: "Stats", icon: BarChart3, tint: "from-orange-500/15 to-amber-500/10 text-orange-600 dark:text-orange-400" },
+  { href: "/wrapped", label: "Wrapped", icon: Gift, tint: "from-fuchsia-500/15 to-rose-500/10 text-fuchsia-600 dark:text-fuchsia-400" },
+];
+
 export default async function SettingsPage() {
   const user = await getAutheliaUser();
   const { householdId, memberId, role } = await requireHousehold(user);
@@ -33,6 +47,24 @@ export default async function SettingsPage() {
   return (
     <div className="p-4 lg:p-8 max-w-2xl mx-auto">
       <h1 className="mb-6 text-2xl font-bold">Settings</h1>
+
+      <section className="mb-8 lg:hidden">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Kitchen and insights
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          {KITCHEN_LINKS.map(({ href, label, icon: Icon, tint }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`flex items-center gap-2.5 rounded-xl border bg-gradient-to-br px-3 py-3 text-sm font-medium shadow-sm transition-shadow hover:shadow-md ${tint}`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="text-foreground">{label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <AppearanceSection />
 

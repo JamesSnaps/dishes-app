@@ -506,6 +506,10 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
     screen, but must still work in Split View next to a recipe
   - Check every screen at the narrowest Split View width — it behaves like an
     iPhone and that is where layouts break
+- [x] No Home tab: Recipes opens on browse mode (RecipesBrowse — tonight's
+  meal, shelves, All/Clear chips) and the tabs are Recipes, Planner, AI
+  (the concierge as a tab), Shopping, Settings; Wrapped is a banner on
+  Recipes in December and January (v1.39.0, mirrors the web)
 - [ ] `BGAppRefreshTask` for periodic sync; sync on foreground and on
   reachability change (no polling — the same rule as the web `SyncProvider`)
 

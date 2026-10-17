@@ -1,13 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, Home, ShoppingCart, Sparkles } from "lucide-react";
+import { BookOpen, CalendarDays, Settings, ShoppingCart, Sparkles } from "lucide-react";
 import { cn } from "@dishes/ui";
 import { NAV_ITEMS } from "./nav-items";
 import { useUnsavedChanges } from "@/components/unsaved-changes-context";
 import { usePrefetchRoutes } from "@/hooks/use-prefetch-routes";
 
-const ICONS = { BookOpen, CalendarDays, Home, ShoppingCart, Sparkles };
+const ICONS = { BookOpen, CalendarDays, Settings, ShoppingCart, Sparkles };
 
 interface Props {
   className?: string;

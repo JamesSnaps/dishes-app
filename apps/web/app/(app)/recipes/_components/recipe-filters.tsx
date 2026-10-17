@@ -9,6 +9,7 @@ import {
   Check,
   ChefHat,
   Layers,
+  LayoutGrid,
   Clock,
   Globe2,
   Heart,
@@ -26,6 +27,7 @@ const SORT_OPTIONS = [
   { label: "Newest", value: "newest" },
   { label: "A–Z", value: "az" },
   { label: "Top rated", value: "rating" },
+  { label: "Recently cooked", value: "cooked" },
 ];
 
 const TIME_OPTIONS = [
@@ -256,6 +258,8 @@ export function RecipeFilters({ cuisines, tags }: Props) {
   const maxTime = params.get("maxTime") ?? "";
   const activeTags = parseTags(params.get("tags"));
   const sort = params.get("sort") ?? "newest";
+  // The whole library as a grid, chosen from browse mode (recipes-browse.tsx).
+  const viewAll = params.get("view") === "all";
 
   const searchRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -316,6 +320,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     if (pendingMaxTime) next.set("maxTime", pendingMaxTime);
     if (pendingTags.length > 0) next.set("tags", pendingTags.join(","));
     if (pendingSort && pendingSort !== "newest") next.set("sort", pendingSort);
+    if (viewAll) next.set("view", "all");
     setSheetOpen(false);
     navigate(`/recipes?${next.toString()}`);
   }
@@ -415,8 +420,15 @@ export function RecipeFilters({ cuisines, tags }: Props) {
       </div>
 
       {/* What's on, each removable in one tap */}
-      {(activeFilterCount > 0 || q) && (
+      {(activeFilterCount > 0 || q || viewAll) && (
         <div className="flex flex-wrap items-center gap-1.5">
+          {viewAll && (
+            <button type="button" onClick={() => push({ view: "" })} className={chip}>
+              <LayoutGrid className="h-3 w-3" />
+              All recipes
+              <X className="h-3 w-3" />
+            </button>
+          )}
           {recipeRole && (
             <button type="button" onClick={() => push({ role: "" })} className={chip}>
               <Layers className="h-3 w-3" />

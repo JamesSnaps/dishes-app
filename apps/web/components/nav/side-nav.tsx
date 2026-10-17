@@ -11,7 +11,6 @@ import {
   FolderOpen,
   Heart,
   HelpCircle,
-  Home,
   Images,
   BarChart3,
   Gift,
@@ -57,7 +56,6 @@ interface NavItem {
 }
 
 const MAIN_NAV: NavItem[] = [
-  { href: "/home", label: "Home", icon: Home },
   { href: "/recipes", label: "Recipes", icon: BookOpen },
   { href: "/meal-plan", label: "Meal Planner", icon: CalendarDays },
   { href: "/shopping", label: "Shopping List", icon: ShoppingCart },

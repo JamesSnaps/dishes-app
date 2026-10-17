@@ -194,15 +194,16 @@ const pageCache = new StaleWhileRevalidate({
 //    a cached copy would make every one of those refreshes a step behind.
 const NETWORK_FIRST_PAGE = /(\/edit|^\/settings\/deliveries)\/?$/;
 
-// "/" is only ever a redirect to /home (`app/page.tsx`), and it is where the
+// "/" is only ever a redirect to /recipes (`app/page.tsx`), and it is where the
 // installed app opens (manifest `start_url`). The page caches no longer keep
 // redirects — see onlyRealPages — so left to the network, launching with no
 // signal would land on the offline page. Answer it here instead: identical
-// online, and it works offline because /home itself is cached.
+// online, and it works offline because /recipes itself is cached. /home, the
+// old front page, redirects the same way for bookmarks and old links.
 serwist.registerCapture(
   ({ request, url, sameOrigin }) =>
-    sameOrigin && request.mode === "navigate" && url.pathname === "/",
-  async ({ url }) => Response.redirect(new URL("/home", url).href, 307)
+    sameOrigin && request.mode === "navigate" && (url.pathname === "/" || url.pathname === "/home"),
+  async ({ url }) => Response.redirect(new URL("/recipes", url).href, 307)
 );
 
 // NavigationRoute matches on the request being a navigation, which is what a
