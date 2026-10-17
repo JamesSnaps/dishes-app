@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getAiConfig } from "@/app/actions/settings";
+import { getAiConfig } from "@/lib/services/household-settings";
 import { AiConfigForm } from "./_components/ai-config-form";
 
 export const metadata = { title: "AI Settings" };
@@ -10,7 +10,7 @@ export const metadata = { title: "AI Settings" };
 export default async function AiSettingsPage() {
   const user = await getAutheliaUser();
   const { householdId, role } = await requireHousehold(user);
-  const config = await getAiConfig(householdId);
+  const config = await getAiConfig({ householdId, role });
   const isAdmin = role === "admin";
 
   return (

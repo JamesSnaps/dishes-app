@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getHouseholdWithMembers, getLogLevel } from "@/app/actions/settings";
+import { getLogLevel } from "@/app/actions/settings";
+import { getHouseholdWithMembers } from "@/lib/services/household-settings";
 import { APP_VERSION } from "@/lib/version";
 import { HouseholdNameForm } from "./_components/household-name-form";
 import { MembersList } from "./_components/members-list";

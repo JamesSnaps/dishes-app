@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, Mail } from "lucide-react";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getSmtpConfig } from "@/app/actions/sharing";
+import { getSmtpConfig } from "@/lib/services/smtp";
 import { SmtpConfigForm } from "./_components/smtp-config-form";
 
 export const metadata = { title: "Email Settings" };
@@ -12,7 +12,7 @@ export default async function EmailSettingsPage() {
   const { householdId, role } = await requireHousehold(user);
   const isAdmin = role === "admin";
 
-  const config = await getSmtpConfig(householdId);
+  const config = isAdmin ? await getSmtpConfig({ householdId, role }) : null;
 
   return (
     <div className="p-4 lg:p-8 max-w-2xl mx-auto">

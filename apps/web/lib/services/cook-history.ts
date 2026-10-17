@@ -15,7 +15,7 @@ import { eq, and, avg, count, desc, isNotNull } from "drizzle-orm";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import sharp from "sharp";
-import { refreshTasteProfile } from "@/app/actions/taste-profile";
+import { refreshTasteProfile } from "@/lib/services/taste-profile";
 import type { HouseholdContext } from "@/lib/session";
 import { ownRating, sameName } from "@/lib/cook-ratings";
 

@@ -3,7 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getAiConfig } from "@/app/actions/settings";
+import { getAiConfig } from "@/lib/services/household-settings";
 import { db } from "@/lib/db";
 import { recipes, recipeTags } from "@dishes/db/schema";
 import { NewRecipeClient } from "./new-recipe-client";
@@ -12,9 +12,9 @@ export const metadata = { title: "New Recipe" };
 
 export default async function NewRecipePage() {
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const { householdId, role } = await requireHousehold(user);
   const [aiConfig, allTagRows] = await Promise.all([
-    getAiConfig(householdId),
+    getAiConfig({ householdId, role }),
     db
       .selectDistinct({ tag: recipeTags.tag })
       .from(recipeTags)

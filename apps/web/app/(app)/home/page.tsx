@@ -9,7 +9,7 @@ import { Badge, Button, Card } from "@dishes/ui";
 import { RecipeCard } from "../recipes/_components/recipe-card";
 import { HomeSearchBar } from "./_components/home-search-bar";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
-import { getSuggestedRecipes, type SuggestedRecipe } from "@/app/actions/taste-profile";
+import { getSuggestedRecipes, type SuggestedRecipe } from "@/lib/services/taste-profile";
 
 export const metadata = { title: "Home" };
 

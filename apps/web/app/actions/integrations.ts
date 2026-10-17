@@ -63,17 +63,5 @@ export async function revokeIntegrationToken(tokenId: string) {
   revalidatePath("/settings/integrations");
 }
 
-export async function listIntegrationTokens(householdId: string) {
-  return db
-    .select({
-      id: integrationTokens.id,
-      name: integrationTokens.name,
-      scopes: integrationTokens.scopes,
-      lastUsedAt: integrationTokens.lastUsedAt,
-      expiresAt: integrationTokens.expiresAt,
-      createdAt: integrationTokens.createdAt,
-    })
-    .from(integrationTokens)
-    .where(eq(integrationTokens.householdId, householdId))
-    .orderBy(integrationTokens.createdAt);
-}
+// listIntegrationTokens lives in lib/services/integration-tokens.ts (admin-only,
+// takes the session's context) — not here, where any browser could call it.

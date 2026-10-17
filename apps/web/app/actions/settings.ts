@@ -11,7 +11,7 @@ import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { encrypt, decrypt } from "@/lib/crypto";
+import { encrypt } from "@/lib/crypto";
 
 // ─── Household ────────────────────────────────────────────────────────────────
 
@@ -229,40 +229,8 @@ export async function saveAiConfig(formData: FormData) {
   revalidatePath("/settings/ai");
 }
 
-// ─── Read helpers (called from server components) ─────────────────────────────
-
-export async function getHouseholdWithMembers(householdId: string) {
-  const [household] = await db
-    .select({ id: households.id, name: households.name, slug: households.slug })
-    .from(households)
-    .where(eq(households.id, householdId))
-    .limit(1);
-
-  const members = await db
-    .select({
-      id: householdMembers.id,
-      autheliaUser: householdMembers.autheliaUser,
-      displayName: householdMembers.displayName,
-      role: householdMembers.role,
-      birthYear: householdMembers.birthYear,
-      avatarUrl: householdMembers.avatarUrl,
-      dietaryFlags: householdMembers.dietaryFlags,
-      dislikes: householdMembers.dislikes,
-      preferences: householdMembers.preferences,
-      customNotes: householdMembers.customNotes,
-      createdAt: householdMembers.createdAt,
-    })
-    .from(householdMembers)
-    .where(
-      and(
-        eq(householdMembers.householdId, householdId),
-        eq(householdMembers.isActive, true)
-      )
-    )
-    .orderBy(householdMembers.createdAt);
-
-  return { household: household!, members };
-}
+// Household/member and AI config reads live in lib/services/household-settings.ts:
+// they take a householdId, so they must not be exported from a "use server" module.
 
 // ─── App settings (global, not household-scoped) ─────────────────────────────
 
@@ -291,50 +259,4 @@ export async function setLogLevel(level: LogLevel): Promise<void> {
     });
 
   revalidatePath("/settings");
-}
-
-// ─── AI config ────────────────────────────────────────────────────────────────
-
-export async function getAiConfig(householdId: string) {
-  const [config] = await db
-    .select({
-      id: aiConfigurations.id,
-      model: aiConfigurations.model,
-      imageModel: aiConfigurations.imageModel,
-      monthlyLimitUsd: aiConfigurations.monthlyLimitUsd,
-      defaultPrompt: aiConfigurations.defaultPrompt,
-      kitchenEquipment: aiConfigurations.kitchenEquipment,
-      measurementSystem: aiConfigurations.measurementSystem,
-      imageStyle: aiConfigurations.imageStyle,
-      webGrounding: aiConfigurations.webGrounding,
-      encryptedApiKey: aiConfigurations.encryptedApiKey,
-    })
-    .from(aiConfigurations)
-    .where(eq(aiConfigurations.householdId, householdId))
-    .limit(1);
-
-  if (!config) return null;
-
-  // Reveal only that a key exists, not its value
-  return {
-    id: config.id,
-    model: config.model,
-    imageModel: config.imageModel,
-    monthlyLimitUsd: config.monthlyLimitUsd,
-    defaultPrompt: config.defaultPrompt,
-    kitchenEquipment: config.kitchenEquipment,
-    measurementSystem: config.measurementSystem,
-    imageStyle: config.imageStyle,
-    webGrounding: config.webGrounding,
-    hasKey: true,
-    // Short hint: first 8 chars only — enough to identify the key, won't overflow on mobile
-    keyHint: (() => {
-      try {
-        const plain = decrypt(config.encryptedApiKey);
-        return plain.length > 8 ? `${plain.slice(0, 8)}…` : plain.slice(0, 5) + "…";
-      } catch {
-        return "••••••••";
-      }
-    })(),
-  };
 }

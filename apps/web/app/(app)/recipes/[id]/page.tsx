@@ -41,7 +41,7 @@ import { GenerateImageButton } from "./_components/generate-image-button";
 import { NutritionPanel } from "./_components/nutrition-panel";
 import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/lib/services/cook-history";
-import { getSmtpConfig } from "@/app/actions/sharing";
+import { hasSmtpConfig } from "@/lib/services/smtp";
 import { isStorageAvailable } from "@/lib/storage";
 import { ratingsByPerson } from "@/lib/cook-ratings";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
@@ -79,7 +79,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration, smtpConfig, aiConfig, members] = await Promise.all([
+  const [recipe, ingredients, steps, tags, plannerStats, cookStats, cookHistoryRows, linkedNotes, avgDuration, hasSmtp, aiConfig, members] = await Promise.all([
     db
       .select()
       .from(recipes)
@@ -123,7 +123,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
       .where(and(eq(notes.recipeId, id), eq(notes.householdId, householdId)))
       .orderBy(desc(notes.updatedAt)),
     getAverageDuration(householdId, id),
-    getSmtpConfig(householdId),
+    hasSmtpConfig(householdId),
     db
       .select({ imageStyle: aiConfigurations.imageStyle })
       .from(aiConfigurations)
@@ -340,7 +340,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
             recipeId={id}
             recipeTitle={recipe.title}
             recipeServings={recipe.servings}
-            hasSmtp={!!smtpConfig}
+            hasSmtp={hasSmtp}
           />
         </div>
       </div>
