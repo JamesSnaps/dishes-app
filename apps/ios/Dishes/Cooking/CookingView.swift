@@ -6,11 +6,15 @@
 //   iPhone           the step, a strip of running timers, ingredients in a sheet
 //
 // Big targets for floury fingers: tap the step to go on, swipe either way, or
-// use the arrow keys and space on a keyboard case. The screen stays on while
-// it's open. A combined meal shows its dishes as tabs, and every dish's timers
-// sit in one pool.
+// use ← → and space on a keyboard. The screen stays on while it's open. A
+// combined meal shows its dishes as tabs, and every dish's timers sit in one
+// pool. The ingredients a step names are picked out in its text and in the
+// list (StepMatch), following the step's section when the recipe has them.
 //
-//   .fullScreenCover(item: $cooking) { CookingView(request: $0) }
+// A cook is a CookSession that outlives the screen: Minimise goes back to the
+// app with a resume bar (CookingBar), as the web's mini bar; Exit ends it.
+//
+//   nav.cooking = CookRequest(…)   // starts (or resumes) and shows it
 
 import DishesCore
 import SwiftUI
@@ -28,27 +32,77 @@ struct CookRequest: Identifiable {
     var dishes: [CookDish]
 }
 
-struct CookingView: View {
-    @Environment(\.dismiss) private var dismiss
+/// Where a cook has got to: kept while it's minimised, gone on Exit.
+@MainActor @Observable
+final class CookSession {
     let request: CookRequest
-
-    @State private var dishIndex = 0
+    var dishIndex = 0
     /// Current step per dish, by recipe id, so switching tabs keeps your place.
-    @State private var steps: [String: Int] = [:]
+    var steps: [String: Int] = [:]
     /// Ingredients ticked off as they go in, by ingredient id.
-    @State private var used: Set<String> = []
+    var used: Set<String> = []
+    /// Scale per dish, by recipe id; starts at the recipe page's.
+    var scales: [String: Double]
+
+    init(request: CookRequest) {
+        self.request = request
+        scales = Dictionary(request.dishes.map { ($0.recipe.id, $0.scale) }, uniquingKeysWith: { a, _ in a })
+    }
+
+    var title: String { request.title ?? request.dishes.first?.recipe.title ?? "Cooking" }
+
+    var dish: CookDish {
+        var dish = request.dishes[min(dishIndex, request.dishes.count - 1)]
+        dish.scale = scales[dish.recipe.id] ?? dish.scale
+        return dish
+    }
+
+    var stepIndex: Int { steps[dish.recipe.id] ?? 0 }
+
+    /// The same dishes, in any order: tapping Cook again resumes rather than restarts.
+    func isCooking(_ other: CookRequest) -> Bool {
+        Set(request.dishes.map(\.recipe.id)) == Set(other.dishes.map(\.recipe.id))
+    }
+}
+
+struct CookingView: View {
+    @Environment(AppNav.self) private var nav
+    @Bindable var session: CookSession
+
     @State private var showIngredients = false
     @State private var stepChanges = 0
-    /// Finish offers to log the cook (the dish on screen), then closes.
+    /// Finish offers to log the cook (the dish on screen), then ends it.
     @State private var logging: Recipe?
     @State private var confirmExit = false
     @State private var asking = false
+    @State private var addingTimer = false
+    @FocusState private var keys: Bool
     @Environment(\.horizontalSizeClass) private var width
 
-    private var dish: CookDish { request.dishes[min(dishIndex, request.dishes.count - 1)] }
-    private var stepIndex: Int { steps[dish.recipe.id] ?? 0 }
+    private var request: CookRequest { session.request }
+    private var dish: CookDish { session.dish }
+    private var stepIndex: Int { session.stepIndex }
     private var step: RecipeStep? { dish.recipe.steps.indices.contains(stepIndex) ? dish.recipe.steps[stepIndex] : nil }
     private var isLast: Bool { stepIndex >= dish.recipe.steps.count - 1 }
+
+    /// The step's section ("For the sauce"), when its ingredients are split the same way.
+    private var section: String? {
+        guard let label = step?.groupLabel?.trimmingCharacters(in: .whitespaces), !label.isEmpty else { return nil }
+        return dish.recipe.ingredients.contains { $0.groupLabel?.trimmingCharacters(in: .whitespaces) == label } ? label : nil
+    }
+
+    /// Who the step's text can name: the section's ingredients plus any it links to, else all of them.
+    private var match: StepMatch {
+        let all = dish.recipe.ingredients
+        let linked = Set(step?.ingredientIds ?? [])
+        let candidates = section.map { label in
+            all.filter { $0.groupLabel?.trimmingCharacters(in: .whitespaces) == label || linked.contains($0.id) }
+        } ?? all
+        return StepMatch(step?.instruction ?? "", candidates: candidates)
+    }
+
+    /// The ingredients in use now: linked to the step, or named in it.
+    private var inUse: Set<String> { Set(step?.ingredientIds ?? []).union(match.ids) }
 
     var body: some View {
         NavigationStack {
@@ -58,12 +112,12 @@ struct CookingView: View {
                 Group {
                     if wide {
                         HStack(spacing: 0) {
-                            IngredientsPanel(dish: dish, current: step, used: $used)
-                                .frame(width: min(320, geo.size.width * 0.26))
+                            ingredientsPanel
+                                .frame(width: min(330, geo.size.width * 0.27))
                             Divider()
                             stepPane(size: 42)
                             Divider()
-                            TimersPanel()
+                            TimersPanel(dish: dish.recipe.title) { addingTimer = true }
                                 .frame(width: min(300, geo.size.width * 0.24))
                         }
                     } else if regular {
@@ -71,16 +125,16 @@ struct CookingView: View {
                             stepPane(size: 38)
                             Divider()
                             HStack(spacing: 0) {
-                                IngredientsPanel(dish: dish, current: step, used: $used)
+                                ingredientsPanel
                                 Divider()
-                                TimersPanel()
+                                TimersPanel(dish: dish.recipe.title) { addingTimer = true }
                             }
-                            .frame(height: geo.size.height * 0.36)
+                            .frame(height: geo.size.height * 0.38)
                         }
                     } else {
                         VStack(spacing: 0) {
                             stepPane(size: 28)
-                            TimerStrip()
+                            TimerStrip { addingTimer = true }
                         }
                     }
                 }
@@ -90,34 +144,50 @@ struct CookingView: View {
             .toolbar { toolbar }
             .sheet(isPresented: $showIngredients) {
                 NavigationStack {
-                    IngredientsPanel(dish: dish, current: step, used: $used)
+                    ingredientsPanel
                         .navigationTitle("Ingredients")
                         .toolbar { Button("Done") { showIngredients = false } }
                 }
                 .presentationDetents([.medium, .large])
             }
         }
+        // ← → for the step, space for its timer, from a keyboard case. Key
+        // presses, not button shortcuts: those don't reach a full-screen cover.
+        .focusable()
+        .focused($keys)
+        .focusEffectDisabled()
+        .onKeyPress(.rightArrow) { move(1); return .handled }
+        .onKeyPress(.leftArrow) { move(-1); return .handled }
+        .onKeyPress(.space) {
+            if let step, let minutes = step.durationMinutes, minutes > 0 { startTimer(step, minutes: minutes) } else { move(1) }
+            return .handled
+        }
+        .onKeyPress(.escape) { minimise(); return .handled }
         .overlay(alignment: .top) { RingingBanner() }
         .sheet(isPresented: $asking) {
             CookAssistSheet(dish: dish, stepIndex: stepIndex)
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $addingTimer) {
+            CustomTimerSheet(dish: dish.recipe.title)
+                .presentationDetents([.large])
+        }
         .sheet(item: $logging) { recipe in
-            LogCookSheet(recipe: recipe, afterCooking: true) { dismiss() }
+            LogCookSheet(recipe: recipe, afterCooking: true) { end() }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: stepChanges)
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
+            keys = true
             showActivity()
         }
-        .onDisappear {
-            UIApplication.shared.isIdleTimerDisabled = false
-            CookingActivity.shared.end()
-        }
+        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         // The Live Activity follows the step, the dish tab and the timers.
         .onChange(of: stepIndex) { showActivity() }
-        .onChange(of: dishIndex) { showActivity() }
+        .onChange(of: session.dishIndex) { showActivity() }
         .onChange(of: CookTimers.shared.timers) { showActivity() }
+        // A sheet takes the keyboard; have it back when they close.
+        .onChange(of: asking || addingTimer || logging != nil || showIngredients) { _, open in if !open { keys = true } }
     }
 
     /// This cook's timers that haven't gone off (every dish in a meal).
@@ -126,30 +196,38 @@ struct CookingView: View {
         return CookTimers.shared.timers.filter { $0.state != .finished && $0.dish.map(dishes.contains) == true }
     }
 
-    /// Exit ends the whole cook: every dish of a meal at once. Only running
-    /// timers make it ask, since they'd otherwise ring after you've left.
+    /// Back to the app, the cook kept: the resume bar brings it back.
+    private func minimise() { nav.cookingShown = false }
+
+    /// The cook is over: every dish of a meal at once.
+    private func end() {
+        CookingActivity.shared.end()
+        nav.cooking = nil
+    }
+
+    /// Exit ends the cook; only running timers make it ask, since they'd ring after you've gone.
     private func exit() {
-        if mealTimers.isEmpty { dismiss() } else { confirmExit = true }
+        if mealTimers.isEmpty { end() } else { confirmExit = true }
     }
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             Button("Exit", systemImage: "xmark") { exit() }
-                .keyboardShortcut(.escape, modifiers: [])
                 .confirmationDialog("Stop cooking?", isPresented: $confirmExit, titleVisibility: .visible) {
                     Button("End cooking and cancel timers", role: .destructive) {
                         for timer in mealTimers { CookTimers.shared.cancel(timer) }
-                        dismiss()
+                        end()
                     }
-                    Button("Keep timers running") { dismiss() }
+                    Button("End cooking, keep timers") { end() }
+                    Button("Minimise instead") { minimise() }
                 } message: {
                     Text(mealTimers.count == 1 ? "A timer is still running." : "\(mealTimers.count) timers are still running.")
                 }
         }
         ToolbarItem(placement: .principal) {
             if request.dishes.count > 1 {
-                Picker("Dish", selection: $dishIndex) {
+                Picker("Dish", selection: $session.dishIndex) {
                     ForEach(request.dishes.indices, id: \.self) { i in
                         Text(request.dishes[i].recipe.title).tag(i)
                     }
@@ -160,11 +238,15 @@ struct CookingView: View {
                 Text(dish.recipe.title).font(.headline).lineLimit(1)
             }
         }
-        // On iPad the ingredients are always on screen.
-        if width == .compact {
-            ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            // On iPad the ingredients are always on screen.
+            if width == .compact {
                 Button("Ingredients", systemImage: "list.bullet") { showIngredients = true }
             }
+            Button { minimise() } label: {
+                Label("Minimise", systemImage: "chevron.down")
+            }
+            .help("Minimise — keep cooking and go back to the app")
         }
     }
 
@@ -181,14 +263,14 @@ struct CookingView: View {
                             .foregroundStyle(Theme.brandDeep)
                             .textCase(.uppercase)
                     }
-                    Text(step?.instruction ?? "This recipe has no steps.")
+                    Text(step.map { _ in match.highlighted(color: Theme.brandDeep) } ?? AttributedString("This recipe has no steps."))
                         .font(.system(size: size, weight: .medium, design: .rounded))
                         .lineSpacing(size * 0.18)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         // Tap the words to go on: no aiming needed.
                         .onTapGesture { move(1) }
-                    if let step { stepIngredients(step, size: size) }
+                    stepIngredients(size: size)
                     if step != nil {
                         Button { asking = true } label: {
                             Label("Ask about this step", systemImage: "bubble.left.and.text.bubble.right")
@@ -228,9 +310,9 @@ struct CookingView: View {
         }
     }
 
-    /// The ingredients this step uses, scaled — exact, from the step's references.
-    private func stepIngredients(_ step: RecipeStep, size: CGFloat) -> some View {
-        let ingredients = dish.recipe.ingredients.filter { step.ingredientIds.contains($0.id) }
+    /// The ingredients in use, scaled, in recipe order.
+    private func stepIngredients(size: CGFloat) -> some View {
+        let ingredients = dish.recipe.ingredients.filter { inUse.contains($0.id) }
         return Group {
             if !ingredients.isEmpty {
                 FlowLayout(spacing: 10) {
@@ -248,19 +330,25 @@ struct CookingView: View {
         }
     }
 
+    private var ingredientsPanel: some View {
+        IngredientsPanel(dish: dish, inUse: inUse, section: section, used: $session.used,
+                         scale: Binding(get: { dish.scale }, set: { session.scales[dish.recipe.id] = $0 }))
+    }
+
+    private func startTimer(_ step: RecipeStep, minutes: Int) {
+        Task {
+            await CookTimers.shared.start(label: step.timerLabel ?? "Step \(stepIndex + 1)",
+                                          dish: dish.recipe.title, seconds: TimeInterval(minutes * 60))
+        }
+    }
+
     private func timerButton(_ step: RecipeStep, minutes: Int) -> some View {
-        Button {
-            Task {
-                await CookTimers.shared.start(label: step.timerLabel ?? "Step \(stepIndex + 1)",
-                                              dish: dish.recipe.title, seconds: TimeInterval(minutes * 60))
-            }
-        } label: {
+        Button { startTimer(step, minutes: minutes) } label: {
             Label("\(step.timerLabel ?? "Timer") · \(Format.minutes(minutes) ?? "")", systemImage: "timer")
                 .font(.title3.weight(.semibold))
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.brand)
-        .keyboardShortcut(.space, modifiers: [])
     }
 
     /// Fixed below the step, never scrolled away: the timer for this step, then Back and Next.
@@ -287,7 +375,6 @@ struct CookingView: View {
             }
             .buttonStyle(.plain)
             .disabled(stepIndex == 0)
-            .keyboardShortcut(.leftArrow, modifiers: [])
 
             Button {
                 if isLast { logging = dish.recipe } else { move(1) }
@@ -297,13 +384,12 @@ struct CookingView: View {
                     .font(.system(size: 19, weight: .bold))
             }
             .buttonStyle(GradientButtonStyle(gradient: .brand, height: 60))
-            .keyboardShortcut(.rightArrow, modifiers: [])
         }
     }
 
     private func showActivity() {
         CookingActivity.shared.show(
-            title: request.title ?? dish.recipe.title, dish: dish.recipe.title,
+            title: session.title, dish: dish.recipe.title,
             step: min(stepIndex + 1, max(dish.recipe.steps.count, 1)), of: max(dish.recipe.steps.count, 1),
             instruction: step?.instruction ?? "")
     }
@@ -311,7 +397,7 @@ struct CookingView: View {
     private func move(_ by: Int) {
         let next = stepIndex + by
         guard dish.recipe.steps.indices.contains(next) else { return }
-        withAnimation(.snappy) { steps[dish.recipe.id] = next }
+        withAnimation(.snappy) { session.steps[dish.recipe.id] = next }
         stepChanges += 1
     }
 }
@@ -324,31 +410,99 @@ private struct TrailingIconLabelStyle: LabelStyle {
 
 // MARK: Ingredients
 
-/// Every ingredient, the current step's highlighted; tap to tick one off as it goes in.
+/// The dish's photo, servings, and every ingredient — grouped by section, the
+/// ones in use highlighted, other sections faded while you're in one. Tap an
+/// ingredient to tick it off as it goes in.
 struct IngredientsPanel: View {
     let dish: CookDish
-    let current: RecipeStep?
+    let inUse: Set<String>
+    let section: String?
     @Binding var used: Set<String>
+    @Binding var scale: Double
+
+    private var groups: [(label: String?, items: [Ingredient])] {
+        var out: [(label: String?, items: [Ingredient])] = []
+        for ingredient in dish.recipe.ingredients {
+            let label = ingredient.groupLabel?.trimmingCharacters(in: .whitespaces).nilIfBlank
+            if let last = out.last, last.label == label { out[out.count - 1].items.append(ingredient) }
+            else { out.append((label, [ingredient])) }
+        }
+        return out
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                PanelLabel(text: "Ingredients")
-                VStack(spacing: 0) {
-                    ForEach(Array(dish.recipe.ingredients.enumerated()), id: \.element.id) { index, ingredient in
-                        if index > 0 { Rectangle().fill(Theme.border).frame(height: 1) }
-                        row(ingredient)
-                    }
+            VStack(alignment: .leading, spacing: 12) {
+                if dish.recipe.imageUrl != nil {
+                    Color.clear
+                        .frame(height: 150)
+                        .overlay { RecipeImage(recipe: dish.recipe) }
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .card()
+                servings
+                ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                    let current = section == nil || group.label == section
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let label = group.label {
+                            HStack(spacing: 6) {
+                                PanelLabel(text: label)
+                                if section != nil && group.label == section {
+                                    Text("NOW").font(.system(size: 10, weight: .bold))
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .background(Theme.brand, in: Capsule())
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                        } else {
+                            PanelLabel(text: "Ingredients")
+                        }
+                        VStack(spacing: 0) {
+                            ForEach(Array(group.items.enumerated()), id: \.element.id) { index, ingredient in
+                                if index > 0 { Rectangle().fill(Theme.border).frame(height: 1) }
+                                row(ingredient)
+                            }
+                        }
+                        .card()
+                    }
+                    .opacity(current ? 1 : 0.55)
+                }
             }
             .padding(16)
         }
         .background(Theme.muted.opacity(0.35))
     }
 
+    /// "Serves 4 − +": rescales every amount here and in the step.
+    private var servings: some View {
+        let base = dish.recipe.servings ?? 0
+        let serves = base > 0 ? base * scale : nil
+        return HStack(spacing: 10) {
+            Image(systemName: "person.2").foregroundStyle(Theme.mutedForeground)
+            Text(serves.map { "Serves \(Format.amount(String($0)) ?? "")" } ?? "Scale ×\(Format.amount(String(scale)) ?? "")")
+                .font(.system(size: 15, weight: .semibold))
+            Spacer()
+            Button { change(-1) } label: { Image(systemName: "minus").frame(width: 34, height: 34) }
+                .disabled(serves.map { $0 <= 1 } ?? (scale <= 0.5))
+            Button { change(1) } label: { Image(systemName: "plus").frame(width: 34, height: 34) }
+        }
+        .buttonStyle(.bordered)
+        .tint(Theme.brand)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .card()
+    }
+
+    private func change(_ by: Double) {
+        let base = dish.recipe.servings ?? 0
+        if base > 0 {
+            scale = max(1, (base * scale).rounded() + by) / base
+        } else {
+            scale = max(0.5, scale + by * 0.5)
+        }
+    }
+
     private func row(_ ingredient: Ingredient) -> some View {
-        let now = current?.ingredientIds.contains(ingredient.id) == true
+        let now = inUse.contains(ingredient.id)
         let done = used.contains(ingredient.id)
         return Button {
             if done { used.remove(ingredient.id) } else { used.insert(ingredient.id) }
@@ -380,6 +534,10 @@ struct IngredientsPanel: View {
     }
 }
 
+private extension String {
+    var nilIfBlank: String? { isEmpty ? nil : self }
+}
+
 /// The web's small uppercase section label.
 struct PanelLabel: View {
     let text: String
@@ -396,6 +554,14 @@ struct PanelLabel: View {
 /// Every running timer, from every dish.
 struct TimersPanel: View {
     private var timers = CookTimers.shared
+    /// The dish on screen, which a timer you add belongs to.
+    let dish: String
+    let add: () -> Void
+
+    init(dish: String, add: @escaping () -> Void) {
+        self.dish = dish
+        self.add = add
+    }
 
     var body: some View {
         ScrollView {
@@ -406,11 +572,20 @@ struct TimersPanel: View {
                     if !timers.timers.isEmpty {
                         Button("Clear all") { withAnimation(.easeOut(duration: 0.35)) { timers.clearAll() } }
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Theme.brand)
+                            .foregroundStyle(Theme.mutedForeground)
                     }
+                    Button(action: add) {
+                        Label("Add timer", systemImage: "plus")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .frame(height: 26)
+                            .background(Theme.brand, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
                 if timers.timers.isEmpty {
-                    EmptyBox(emoji: "⏲️", message: "Timers you start appear here")
+                    EmptyBox(emoji: "⏲️", message: "A step’s timer, or one of your own, appears here")
                 }
                 ForEach(timers.timers) { timer in
                     TimerRow(timer: timer)
@@ -516,11 +691,23 @@ extension AnyTransition {
 /// iPhone: running timers as a strip under the step.
 struct TimerStrip: View {
     private var timers = CookTimers.shared
+    let add: () -> Void
+
+    init(add: @escaping () -> Void) { self.add = add }
 
     var body: some View {
-        if !timers.timers.isEmpty {
+        Group {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
+                    Button(action: add) {
+                        Label(timers.timers.isEmpty ? "Add timer" : "Add", systemImage: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .frame(height: 44)
+                            .background(Theme.brand, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                     ForEach(timers.timers) { timer in
                         TimerRow(timer: timer, compact: true)
                             .padding(.horizontal, 14)

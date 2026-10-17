@@ -346,3 +346,29 @@ the web's design rather than stock iOS styling:
 - The simulator "signed out" quirk: a cold dev server takes more than 10 s to
   compile `/auth/whoami`, so the dev launch path gives up. Hit the route once
   (`curl localhost:3000/api/v1/auth/whoami`) before launching.
+
+### 17 Oct 2026 — cooking mode catch-up with the web (v1.35.0)
+
+James: no ingredient highlighting, no scaling, no section ingredients, no
+image, no keyboard, no custom timer, and Exit was the only way out.
+
+- `StepMatch` (Cooking/StepText.swift) ports the web's StepText matcher:
+  names in the step text are highlighted and their ingredients picked out in
+  the list, on top of any stored step→ingredient links. Candidates follow the
+  step's section ("For the sauce") when the ingredients are grouped the same
+  way; other sections fade in the list, with a NOW tag on the current one.
+- Ingredients rail: the dish photo and a Serves stepper (scale per dish).
+- Add timer (timers rail / iPhone strip): a label and a duration, joining
+  the cook's AlarmKit timers.
+- Minimise (⌄ top right, or Esc): the cook becomes a `CookSession` kept on
+  `AppNav`; a resume bar sits at the bottom (iPad) or in the tab bar's
+  accessory (iPhone) with the dish, step and next timer. Tapping Cook on the
+  same dishes resumes rather than restarts. Exit ends the session.
+- Keyboard: ← → steps, space starts the step's timer (or goes on), Esc
+  minimises — via onKeyPress on a focused view, since button shortcuts didn't
+  reach the full-screen cover.
+- Checked on the 13-inch simulator: highlighting (Greek Salad, Chocolate Chip
+  Cookies), Serves 4→5 rescaled every amount, a custom 3-minute timer,
+  Minimise → resume bar with the countdown → back in at the same step and
+  scale, Exit with a running timer ended it. **Not checked:** the keyboard
+  (the simulator tool can't type keys) — try it on the iPad's keyboard case.
