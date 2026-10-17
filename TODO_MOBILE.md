@@ -430,7 +430,10 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   move a combined meal, and plan a saved meal with a choice per slot (Add
   meal → Saved meals). All sync mutations, so offline too
 - [ ] Drag between days: built but not confirmed — simulated drags don't lift
-  the card; check on the iPad
+  the card; check on the iPad. Dragging over the week arrows flips the week
+  (spring-loaded), so a meal can be dropped into another week; a second finger
+  tapping an arrow works too. Combined meals can't change week yet (the
+  server's group update has no week) — they say so and stay put
 - [ ] **Meal plan week** — move/change type/servings, add from the recipe library or
   a saved meal (needs C0), "add week to shopping" (online — stays a server call,
   see Phase B)

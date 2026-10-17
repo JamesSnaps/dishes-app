@@ -275,4 +275,10 @@ the web's design rather than stock iOS styling:
 - Cook photo: picker and resize work; upload got a 400 "Storage not
   configured." because the dev server has no S3 settings. Production has
   storage — confirm there.
+- Cross-week drags: the week arrows are spring-loaded (hover a dragged meal on
+  ‹ or › and the week flips). Fixed a bug that would have bitten this: the drop
+  compared the target week with the week *on screen*, so after flipping it
+  sent no week and the meal only changed day. It now compares with the week the
+  entry is in. Checked via Move to → Monday 19 Oct (same code path): the entry
+  moved into a newly created plan for next week.
 

@@ -69,7 +69,10 @@ struct PlanScreen: View {
         let minutes = entries.compactMap { $0.recipeId.flatMap { data.value.recipes[$0]?.totalMinutes } }.reduce(0, +)
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
-                Button { move(-1) } label: { Image(systemName: "chevron.left").font(.system(size: 17, weight: .medium)) }
+                // Spring-loaded: drag a meal over an arrow and the week flips,
+                // so it can be dropped into another week.
+                Button { move(-1) } label: { Image(systemName: "chevron.left").font(.system(size: 17, weight: .medium)).frame(width: 36, height: 36).contentShape(Rectangle()) }
+                    .springLoadingBehavior(.enabled)
                     .buttonStyle(.plain)
                     .accessibilityLabel("Previous week")
                 Text(week.title)
@@ -82,7 +85,8 @@ struct PlanScreen: View {
                         .foregroundStyle(Theme.brand)
                 }
                 Spacer(minLength: 4)
-                Button { move(1) } label: { Image(systemName: "chevron.right").font(.system(size: 17, weight: .medium)) }
+                Button { move(1) } label: { Image(systemName: "chevron.right").font(.system(size: 17, weight: .medium)).frame(width: 36, height: 36).contentShape(Rectangle()) }
+                    .springLoadingBehavior(.enabled)
                     .buttonStyle(.plain)
                     .accessibilityLabel("Next week")
                 RoundAddButton { adding = true }
@@ -302,7 +306,14 @@ struct PlanScreen: View {
         }
         if item.hasPrefix("group:") {
             let id = String(item.dropFirst(6))
-            guard let meal = (0..<7).flatMap({ data.value.meals(on: $0, in: week) }).first(where: { $0.id == id }) else { return false }
+            guard let meal = (0..<7).flatMap({ data.value.meals(on: $0, in: week) }).first(where: { $0.id == id }) else {
+                // Dragged here from another week: the server moves a combined meal
+                // within its own week only (meal_plan_group.update has no week).
+                if data.value.groups.contains(where: { $0.id == id }) {
+                    app.toast = "Combined meals move within their week for now — move its dishes one by one."
+                }
+                return false
+            }
             moveGroup(meal, to: day)
             return true
         }
@@ -324,7 +335,10 @@ struct PlanScreen: View {
 
     private func moveEntry(_ entry: MealPlanEntry, to day: Int, in target: Week) {
         guard ready(entry.id) else { return }
-        let sameWeek = target == week
+        // Compare with the week the entry is in, not the one on screen: a drag
+        // can flip the screen to another week before it drops.
+        let entryWeek = data.value.plans.first { $0.id == entry.mealPlanId }?.weekStartDate
+        let sameWeek = target.key == entryWeek
         var payload: [String: JSONValue] = ["entryId": .string(entry.id), "dayOfWeek": .number(Double(day))]
         if !sameWeek { payload["weekStartDate"] = .string(target.key) }
         Task {
