@@ -2,6 +2,10 @@
 // strip of seven day pills, the gradient action buttons, then the chosen day's
 // meals as the web's entry cards — a combined meal as one card with its dishes.
 //
+// With room for it (≥1000pt: an iPad in landscape, or the 13-inch either way)
+// the whole week shows at once instead — seven day columns, each with its
+// meals and its own +. A layout the web could take up too.
+//
 // Read from the local store, so paging weeks needs no network. Adding and
 // removing a dish are sync mutations (`meal_plan_entry.add` / `.delete`), so
 // they work offline too; "Add N meals to list" calls the server, as on the
@@ -20,21 +24,30 @@ struct PlanScreen: View {
     @State private var data = Observed(PlanData())
     @State private var adding = false
     @State private var sending = false
+    @State private var pageWidth: CGFloat = 0
+
+    private var wholeWeek: Bool { pageWidth >= 1000 }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     header
-                    dayStrip
-                    actions
-                    dayDetail
+                    if wholeWeek {
+                        actions.frame(maxWidth: 640)
+                        weekGrid
+                    } else {
+                        dayStrip
+                        actions
+                        dayDetail
+                    }
                 }
-                .padding(.horizontal, width == .regular ? 28 : 16)
+                .padding(.horizontal, width == .regular ? 32 : 16)
                 .padding(.vertical, 18)
-                .frame(maxWidth: 900)
+                .frame(maxWidth: wholeWeek ? .infinity : 900)
                 .frame(maxWidth: .infinity)
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
             .background(Theme.background)
             .refreshable { await app.syncNow() }
             .toolbar(.hidden, for: .navigationBar)
@@ -204,6 +217,65 @@ struct PlanScreen: View {
         }
     }
 
+    // MARK: The whole week (wide screens)
+
+    private var weekGrid: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ForEach(0..<7, id: \.self) { day in
+                let date = week.day(day)
+                let isToday = Calendar.current.isDateInToday(date)
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
+                            .font(.system(size: 11, weight: .semibold))
+                            .tracking(0.5)
+                            .foregroundStyle(isToday ? Theme.brand : Theme.mutedForeground)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(date.formatted(.dateTime.day()))
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(isToday ? Theme.brand : Theme.foreground)
+                            if isToday {
+                                Text("Today")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 1)
+                                    .background(Theme.orange50, in: Capsule())
+                                    .foregroundStyle(Theme.brandDeep)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 4)
+
+                    ForEach(data.value.meals(on: day, in: week)) { meal in
+                        WeekMealCard(meal: meal, delete: delete, cook: cook)
+                    }
+
+                    Button {
+                        selectedDay = day
+                        adding = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .foregroundStyle(Theme.mutedForeground)
+                            .background(Theme.muted.opacity(0.25), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(Theme.border, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Add a meal on \(date.formatted(.dateTime.weekday(.wide)))")
+                }
+                .padding(10)
+                // A week reads as a week even when it's mostly empty.
+                .frame(maxWidth: .infinity, minHeight: 420, alignment: .top)
+                .background(isToday ? Theme.orange50.opacity(0.5) : Theme.muted.opacity(0.3),
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(isToday ? Color(hex: 0xFDBA74).opacity(0.7) : .clear, lineWidth: 1.5))
+            }
+        }
+    }
+
     private func delete(_ entry: MealPlanEntry) {
         Task {
             await app.mutate("meal_plan_entry.delete", payload: .object(["entryId": .string(entry.id)]),
@@ -220,6 +292,68 @@ struct PlanScreen: View {
 }
 
 // MARK: Cards (meal-plan/_components/entry-card.tsx, meal-group-card.tsx)
+
+/// A meal in a week column: the photo on top, then the meal-type pill, the
+/// title and the time — the entry card stood upright for a narrow column.
+/// A combined meal lists its dishes. Long-press for Cook and Remove.
+struct WeekMealCard: View {
+    let meal: PlannedMeal
+    let delete: (MealPlanEntry) -> Void
+    let cook: (PlannedMeal) -> Void
+
+    var body: some View {
+        let lead = meal.dishes.first(where: { $0.recipe?.imageUrl != nil })?.recipe ?? meal.dishes.first?.recipe
+        VStack(alignment: .leading, spacing: 0) {
+            if let lead {
+                Color.clear
+                    .frame(height: 92)
+                    .overlay { RecipeImage(recipe: lead) }
+                    .clipped()
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                MealTypePill(type: meal.mealType)
+                if let title = meal.title {
+                    Text(title).font(.system(size: 14, weight: .bold)).lineLimit(2)
+                    ForEach(meal.dishes, id: \.entry.id) { dish in
+                        Text("· \(dish.recipe?.title ?? "A dish")")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.mutedForeground)
+                            .lineLimit(1)
+                    }
+                } else if let dish = meal.dishes.first {
+                    Text(dish.recipe?.title ?? dish.entry.notes ?? "A meal")
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(3)
+                    if let time = Format.shortMinutes(dish.recipe?.totalMinutes) {
+                        Label(time, systemImage: "clock")
+                            .labelStyle(TightLabel())
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.mutedForeground)
+                    }
+                }
+            }
+            .foregroundStyle(Theme.foreground)
+            .padding(9)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(radius: 10)
+        .overlay {
+            // Tapping a single dish opens its recipe; a combined meal opens its first.
+            if let lead {
+                NavigationLink(value: lead.id) { Color.clear.contentShape(Rectangle()) }
+                    .buttonStyle(.plain)
+            }
+        }
+        .contextMenu {
+            if meal.dishes.contains(where: { $0.recipe?.steps.isEmpty == false }) {
+                Button("Cook", systemImage: "frying.pan") { cook(meal) }
+            }
+            ForEach(meal.dishes, id: \.entry.id) { dish in
+                Button("Remove \(dish.recipe?.title ?? "dish")", systemImage: "trash", role: .destructive) { delete(dish.entry) }
+            }
+        }
+    }
+}
 
 /// The web's entry card: photo on the left, meal-type pill, bold title, time
 /// and servings, and a menu on a divided strip at the right.

@@ -5,8 +5,13 @@
 // design language of the iPad").
 //
 // The shopping count is a badge on its tab, as the web shows it in its sidebar.
-// When something is planned for tonight, a "Cook tonight" pill sits above the
-// tab bar (the tab bar's bottom accessory) — the web's orange middle button.
+// The top bar is the default on iPad (`.defaultAdaptableTabBarPlacement`); its
+// sidebar button is still there for anyone who wants one.
+//
+// Tonight's meal: a large card at the top of Home on every device, and on
+// iPhone also a "Cook tonight" pill above the tab bar (its bottom accessory).
+// The pill was too easy to miss on an iPad's wide screen (James, 17 Oct 2026),
+// so iPads get the card only.
 //
 //   RootView()   // DishesApp's only scene content
 
@@ -71,8 +76,9 @@ struct RootView: View {
             Tab("Settings", systemImage: "gearshape", value: AppNav.Tab.more) { MoreScreen() }
         }
         .tabViewStyle(.sidebarAdaptable)
+        .defaultAdaptableTabBarPlacement(.tabBar)
         .tint(Theme.brand)
-        .tabViewBottomAccessory(isEnabled: tonight.value != nil) {
+        .tabViewBottomAccessory(isEnabled: tonight.value != nil && width == .compact) {
             if let request = tonight.value { CookTonightPill(request: request) }
         }
         .task {
@@ -98,8 +104,8 @@ struct CookTonightPill: View {
                 Image(systemName: "frying.pan.fill")
                     .foregroundStyle(.white)
                     .frame(width: 28, height: 28)
-                    .background(Theme.brand, in: Circle())
-                Text("Cook tonight").font(.system(size: 14, weight: .semibold))
+                    .background(Theme.brandGradient, in: Circle())
+                Text("Cook tonight").font(.system(size: 14, weight: .bold)).foregroundStyle(Theme.brandDeep)
                 Text(request.title ?? request.dishes.first?.recipe.title ?? "")
                     .font(.system(size: 14))
                     .foregroundStyle(Theme.mutedForeground)

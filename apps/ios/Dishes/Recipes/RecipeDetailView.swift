@@ -87,7 +87,7 @@ struct RecipeDetailView: View {
             }
             .padding(.horizontal, width == .regular ? 28 : 16)
             .padding(.vertical, 16)
-            .frame(maxWidth: 1000)
+            .frame(maxWidth: 1240)
             .frame(maxWidth: .infinity)
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }

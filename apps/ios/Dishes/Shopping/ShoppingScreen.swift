@@ -4,6 +4,10 @@
 // rows with a square checkbox, "6 Carrots", the recipe it came from, and edit
 // and delete.
 //
+// Wide screens use the width: the categories flow into two columns, and the
+// cart button on an item opens Sainsbury's in a side panel beside the list
+// (SupermarketPanel) instead of on top of it.
+//
 // The screen used in a supermarket with no signal, so every change is an
 // outbox mutation applied to the local copy first (`shopping_item.add /
 // update / toggle / delete`, `shopping_list.clear_checked` — lib/services/sync.ts).
@@ -18,9 +22,47 @@ struct ShoppingScreen: View {
     @State private var showChecked = false
     @State private var editing: ShoppingItem?
     @State private var ticks = 0
+    @State private var pageWidth: CGFloat = 0
+    /// Sainsbury's, beside the list (wide) …
+    @State private var shop: URL?
+    /// … or over it (iPhone).
+    @State private var shopSheet: WebDestination?
+
+    private var wide: Bool { pageWidth >= 900 }
 
     var body: some View {
         NavigationStack {
+            HStack(spacing: 0) {
+                list
+                if wide, let shop {
+                    Rectangle().fill(Theme.border).frame(width: 1)
+                    SupermarketPanel(url: shop) { withAnimation { self.shop = nil } }
+                        .frame(width: max(400, pageWidth * 0.46))
+                        .transition(.move(edge: .trailing))
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
+            .background(Theme.background)
+            .toolbar(.hidden, for: .navigationBar)
+            .sensoryFeedback(.selection, trigger: ticks)
+            .sheet(item: $editing) { EditItemSheet(item: $0) }
+            .sheet(item: $shopSheet) { destination in
+                SupermarketPanel(url: destination.url) { shopSheet = nil }
+            }
+        }
+        .task { await data.follow(app.store, ShoppingData.load) }
+    }
+
+    /// Opens Sainsbury's for an item: in the side panel when there's room.
+    private func openShop(_ item: ShoppingItem) {
+        guard let url = Supermarket.searchURL(for: item.name) else { return }
+        if wide { withAnimation(.snappy) { shop = url } } else { shopSheet = WebDestination(url: url) }
+    }
+
+    /// Two columns of categories when the list has the width to itself.
+    private var twoColumns: Bool { wide && shop == nil }
+
+    private var list: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     let open = data.value.all.filter { !$0.isChecked }.count
@@ -52,26 +94,36 @@ struct ShoppingScreen: View {
                         EmptyBox(emoji: "🛒", message: checked > 0 ? "Everything’s in the basket" : "Nothing on the list")
                     }
 
-                    ForEach(data.value.groups, id: \.name) { group in
-                        groupCard(group.name, group.items)
-                    }
-                    if showChecked && checked > 0 {
-                        groupCard("Checked", data.value.checked)
+                    let groups = data.value.groups.map { ($0.name, $0.items) }
+                        + (showChecked && checked > 0 ? [("Checked", data.value.checked)] : [])
+                    if twoColumns {
+                        let (left, right) = balanced(groups)
+                        HStack(alignment: .top, spacing: 20) {
+                            VStack(spacing: 16) { ForEach(left, id: \.0) { groupCard($0.0, $0.1) } }
+                            VStack(spacing: 16) { ForEach(right, id: \.0) { groupCard($0.0, $0.1) } }
+                        }
+                    } else {
+                        ForEach(groups, id: \.0) { groupCard($0.0, $0.1) }
                     }
                 }
-                .padding(.horizontal, width == .regular ? 28 : 16)
+                .padding(.horizontal, width == .regular ? 32 : 16)
                 .padding(.vertical, 20)
-                .frame(maxWidth: 760)
+                .frame(maxWidth: twoColumns ? 1300 : 760)
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
-            .background(Theme.background)
             .refreshable { await app.syncNow() }
-            .toolbar(.hidden, for: .navigationBar)
-            .sensoryFeedback(.selection, trigger: ticks)
-            .sheet(item: $editing) { EditItemSheet(item: $0) }
+    }
+
+    /// Splits the categories into two columns of about equal length, keeping order.
+    private func balanced(_ groups: [(String, [ShoppingItem])]) -> ([(String, [ShoppingItem])], [(String, [ShoppingItem])]) {
+        let total = groups.reduce(0) { $0 + $1.1.count + 1 }
+        var left: [(String, [ShoppingItem])] = [], running = 0
+        for group in groups where running < total / 2 {
+            left.append(group)
+            running += group.1.count + 1
         }
-        .task { await data.follow(app.store, ShoppingData.load) }
+        return (left, Array(groups.dropFirst(left.count)))
     }
 
     private func groupCard(_ name: String, _ items: [ShoppingItem]) -> some View {
@@ -122,6 +174,12 @@ struct ShoppingScreen: View {
             }
             .buttonStyle(.plain)
 
+            Button { openShop(item) } label: {
+                Image(systemName: "cart").frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(shop == Supermarket.searchURL(for: item.name) ? Theme.brand : Theme.mutedForeground)
+            .accessibilityLabel("Search for \(item.name) on Sainsbury’s")
             Button { editing = item } label: {
                 Image(systemName: "pencil").frame(width: 32, height: 32)
             }

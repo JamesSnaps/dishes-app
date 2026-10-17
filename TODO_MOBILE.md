@@ -442,8 +442,13 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   iPhone — James preferred it to a web-style sidebar) with a "Cook tonight"
   pill; a Home screen; web recipe cards, planner day strip and entry cards, shopping list
   layout. Adding a meal to the plan now works offline (Add meal sheet)
-- [ ] Shopping: "from <recipe>" under an item needs `shopping_item_recipes`
-  (0022) in the sync log
+- [x] Wide iPad layouts: whole-week planner (seven columns), two-column
+  shopping with a Sainsbury's side panel, full-width recipe grids, a Tonight
+  card on Home
+- [ ] Web: take the whole-week planner layout and the Sainsbury's side panel
+  across to wide desktop screens
+- [ ] Shopping: "from <recipe>" for items linked only through
+  `shopping_item_recipes` (0022) — items with a direct recipeId already show it
 - [x] More: signed-in member, sync status and pending count, sign out,
   Developer menu (Debug). Devices still to do (needs the server's device list)
 - [ ] More → Settings: server, signed-in member, devices, sign out. Everything

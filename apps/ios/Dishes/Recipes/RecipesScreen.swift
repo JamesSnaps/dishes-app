@@ -50,10 +50,8 @@ struct RecipesScreen: View {
                             .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, width == .regular ? 28 : 16)
+                .padding(.horizontal, width == .regular ? 32 : 16)
                 .padding(.vertical, 20)
-                .frame(maxWidth: 1200)
-                .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.immediately)
             .background(Theme.background)

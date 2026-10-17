@@ -101,23 +101,27 @@ struct TightLabel: LabelStyle {
 }
 
 /// The card grid the web uses: 2 columns on a phone, as many ~200pt columns as
-/// fit on an iPad. Each row is stretched to its tallest card (`fixedSize` on the
-/// row), as a CSS grid row is; LazyVGrid can't do that.
+/// fit on an iPad — up to 7 on a 13-inch in landscape, so the width the floating
+/// tab bar leaves free is used. Each row is stretched to its tallest card
+/// (`fixedSize` on the row), as a CSS grid row is; LazyVGrid can't do that.
+/// `maxRows` shows only as many recipes as fill that many rows (Home's sections).
 struct RecipeGrid<Card: View>: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     let recipes: [Recipe]
+    var maxRows: Int?
     @ViewBuilder let card: (Recipe) -> Card
     @State private var width: CGFloat = 0
 
-    private var spacing: CGFloat { sizeClass == .regular ? 16 : 12 }
+    private var spacing: CGFloat { sizeClass == .regular ? 18 : 12 }
     private var columns: Int {
-        sizeClass == .regular ? max(2, min(5, Int((width + spacing) / (200 + spacing)))) : 2
+        sizeClass == .regular ? max(2, min(7, Int((width + spacing) / (200 + spacing)))) : 2
     }
 
     var body: some View {
         let columns = columns
         let columnWidth = (width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
-        let rows = stride(from: 0, to: recipes.count, by: columns).map { Array(recipes[$0..<min($0 + columns, recipes.count)]) }
+        let shown = maxRows.map { Array(recipes.prefix($0 * columns)) } ?? recipes
+        let rows = stride(from: 0, to: shown.count, by: columns).map { Array(shown[$0..<min($0 + columns, shown.count)]) }
         LazyVStack(spacing: spacing) {
             ForEach(rows, id: \.first?.id) { row in
                 HStack(alignment: .top, spacing: spacing) {

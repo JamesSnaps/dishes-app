@@ -213,3 +213,22 @@ the web's design rather than stock iOS styling:
   the server once the dev server was back (it had been stopped — the outbox
   held it meanwhile).
 
+### 17 Oct 2026 — using the iPad's width (James's second round)
+
+- **Top bar by default** (`.defaultAdaptableTabBarPlacement(.tabBar)`); the
+  sidebar button remains.
+- **Width caps gone.** Recipes fill the width (up to 7 columns; 4 on a 13-inch
+  in portrait). Home sections show one full row on iPad, two rows of two on
+  iPhone. The recipe page goes to 1240pt.
+- **Planner: the whole week** as seven day columns when the page is ≥1000pt
+  (13-inch portrait, any iPad in landscape), each with its meals as upright
+  cards and its own +; narrower keeps the day strip. Suggested for the web too.
+- **Shopping**: categories in two columns when wide. Each item has the web's
+  cart button (Sainsbury's search); on a wide screen it opens in a side panel
+  beside the list (WKWebView, sign-in remembered), on iPhone in a sheet.
+  The page takes a few seconds to load behind Sainsbury's cookie banner.
+- **Tonight**: the bottom pill was too subtle on a big screen. Home now opens
+  with a large orange Tonight card (photo, serve-at, Start cooking; "Plan a
+  meal" when nothing's planned). The pill stays on iPhone only, recoloured.
+- Checked on the iPad Pro 13-inch simulator, portrait.
+
