@@ -217,4 +217,4 @@ list, kept for history:
 - [ ] **Complete the shopping REST API**: `clearChecked`, `archiveList`, and `generateFromRecipe` are still server actions with no JSON endpoint. A native app needs these as proper REST routes alongside the existing `/api/shopping/*` routes added in v0.21.0.
 - [ ] **Native offline layer**: The web offline stack (Dexie, service worker, Background Sync) is browser-only. Native equivalent would be MMKV or expo-sqlite for local storage, and Expo Background Fetch for background sync.
 - [x] **Push notifications (PWA)**: Web Push API implemented — VAPID keys, `push_subscriptions` table, service worker handlers, subscribe/unsubscribe API routes, `sendPushToHousehold` helper, settings UI toggle. (v0.27.0)
-- [ ] **Push notifications (native)**: APNs integration still needed for the future Expo app — design once for both targets.
+- [x] **Push notifications (native)**: APNs for the SwiftUI app (`lib/apns.ts`, `/api/v1/push/devices`), one fan-out with web push; per-member choice of each notification kind in Settings → Notifications on web and iOS (v1.32.0)

@@ -109,6 +109,7 @@ final class AppModel {
         }) ?? []
         if me != nil {
             phase = .ready
+            await Push.shared.register()
             await syncNow()
         } else if Developer.server != nil {
             await finishSignIn()
@@ -151,6 +152,7 @@ final class AppModel {
             try await store.write { try $0.setMeta("me", json) }
             me = who
             phase = .ready
+            await Push.shared.register()
             await syncNow()
         } catch APIError.signedOut {
             phase = .signedOut
@@ -161,6 +163,7 @@ final class AppModel {
     }
 
     func signOut() async {
+        await Push.shared.unregister()
         try? await auth.signOut()
         try? await store.write { try $0.wipe() }
         me = nil

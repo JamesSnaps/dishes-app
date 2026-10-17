@@ -300,4 +300,67 @@ public final class APIClient: SyncTransport, Sendable {
         struct Reply: Decodable { var isFavourite: Bool }
         return try await request("/recipes/\(recipeId)/favourite", method: "POST", as: Reply.self).isFavourite
     }
+
+    // MARK: Notifications
+
+    /// Your notification choices and the devices they go to (Settings → Notifications).
+    public struct NotificationSettings: Codable, Hashable, Sendable {
+        public struct Kind: Codable, Hashable, Sendable, Identifiable {
+            public var id: String
+            public var title: String
+            public var description: String
+            public var group: String
+            public var enabled: Bool
+        }
+        public struct Device: Codable, Hashable, Sendable, Identifiable {
+            public var id: String
+            /// "web" or "ios".
+            public var kind: String
+            public var name: String
+            public var createdAt: String
+        }
+        public var types: [Kind]
+        public var devices: [Device]
+    }
+
+    public func notificationSettings() async throws -> NotificationSettings {
+        try await request("/notifications")
+    }
+
+    /// Turns one kind on or off; answers the settings as they now stand.
+    public func setNotification(_ type: String, enabled: Bool) async throws -> NotificationSettings {
+        struct Body: Encodable { var type: String; var enabled: Bool }
+        return try await request("/notifications", method: "PATCH", json: Body(type: type, enabled: enabled))
+    }
+
+    /// 204, no body.
+    public func removeNotificationDevice(id: String) async throws {
+        _ = try await send { token in authorisedRequest(url("/notifications/devices/\(id)"), method: "DELETE", token: token) }
+    }
+
+    /// Registers this device's APNs token. `sandbox` for an Xcode (debug) build.
+    public func registerPushDevice(token: String, sandbox: Bool, name: String) async throws {
+        struct Body: Encodable { var token: String; var environment: String; var deviceName: String }
+        struct Reply: Decodable { var id: String }
+        _ = try await request("/push/devices", method: "POST",
+                              json: Body(token: token, environment: sandbox ? "sandbox" : "production", deviceName: name),
+                              as: Reply.self)
+    }
+
+    public func unregisterPushDevice(token: String) async throws {
+        struct Body: Encodable { var token: String }
+        let body = try JSONEncoder().encode(Body(token: token))
+        _ = try await send { bearer in
+            var r = authorisedRequest(url("/push/devices"), method: "DELETE", token: bearer)
+            r.httpBody = body
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+    }
+
+    public func sendTestPush(token: String) async throws {
+        struct Body: Encodable { var token: String }
+        struct Reply: Decodable { var ok: Bool }
+        _ = try await request("/push/test", method: "POST", json: Body(token: token), as: Reply.self)
+    }
 }

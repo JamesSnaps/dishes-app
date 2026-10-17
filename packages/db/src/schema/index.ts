@@ -12,6 +12,7 @@ export * from "./app-settings";
 export * from "./sharing";
 export * from "./taste-profile";
 export * from "./push-subscriptions";
+export * from "./apns-devices";
 export * from "./cook-assist-threads";
 export * from "./recipe-assist-threads";
 export * from "./sync";

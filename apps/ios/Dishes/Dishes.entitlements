@@ -5,5 +5,8 @@
 	<!-- Timer notifications break through Focus (the iPad's timers, which AlarmKit won't take). -->
 	<key>com.apple.developer.usernotifications.time-sensitive</key>
 	<true/>
+	<!-- Apple Push (Push.swift). Xcode switches this to "production" when exporting for TestFlight. -->
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>

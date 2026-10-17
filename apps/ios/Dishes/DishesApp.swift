@@ -2,7 +2,7 @@
 // isn't on screen:
 //   - BGAppRefreshTask "uk.collco.dishes.refresh", scheduled each time the app
 //     goes to the background (iOS decides when it runs)
-//   - a silent push ("content-available") — once the server sends APNs (C5)
+//   - a push from the server (every one carries "content-available"), see Push.swift
 //
 //   @main DishesApp → RootView, with AppModel.shared in the environment
 
@@ -36,7 +36,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         BackgroundRefresh.register()
         UNUserNotificationCenter.current().delegate = self
+        Push.shared.launch()
         return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Push.shared.received(deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[push] APNs registration failed: \(error)")
+    }
+
+    /// A tapped notification: go where it points (the server's web path).
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        guard let link = response.notification.request.content.userInfo["url"] as? String else { return }
+        await MainActor.run { Push.shared.openedLink = link }
     }
 
     /// A timer that falls back to a notification still shows and sounds with Dishes open.
