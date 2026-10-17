@@ -4,6 +4,7 @@
 // follow the web's lib/recipe-filtering.ts.
 
 import DishesCore
+import PhotosUI
 import SwiftUI
 
 struct RecipesScreen: View {
@@ -15,7 +16,11 @@ struct RecipesScreen: View {
     @State private var collectionId: String?
     @State private var creating = false
     @State private var askingAI = false
-    @State private var importingCrumb = false
+    @State private var usingCamera = false
+    @State private var choosingPhoto = false
+    @State private var pickedPhoto: PhotosPickerItem?
+    /// A recipe photo to read in with the AI.
+    @State private var photo: RecipePhoto?
     @State private var path = NavigationPath()
     @State private var filters = RecipeFilters()
     @State private var filtering = false
@@ -57,35 +62,26 @@ struct RecipesScreen: View {
                                    ? "\(recipes.value.count) recipes in your collection"
                                    : "\(shown.count) of \(recipes.value.count) recipes") {
                         HStack(spacing: 8) {
+                            // On iPhone the three buttons are icons, so they fit beside the title.
                             Button { askingAI = true } label: {
-                                Label(width == .regular ? "Create with AI" : "AI", systemImage: "sparkles")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 14)
-                                    .frame(height: 38)
+                                headerLabel("Create with AI", "sparkles")
                                     .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Create with AI")
                             Menu {
-                                Button("Import from Crumb…", systemImage: "tray.and.arrow.down") { importingCrumb = true }
+                                Button("Write a recipe", systemImage: "square.and.pencil") { creating = true }
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    Button("Photograph a recipe", systemImage: "camera") { usingCamera = true }
+                                }
+                                Button("From a photo…", systemImage: "photo") { choosingPhoto = true }
                             } label: {
-                                Image(systemName: "square.and.arrow.down")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .frame(width: 38, height: 38)
-                                    .background(Theme.muted, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                            }
-                            .foregroundStyle(Theme.foreground)
-                            .accessibilityLabel("Import")
-                            Button { creating = true } label: {
-                                Label("New Recipe", systemImage: "plus")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 14)
-                                    .frame(height: 38)
+                                headerLabel("New Recipe", "plus")
                                     .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                             }
-                            .buttonStyle(.plain)
+                            .accessibilityLabel("New Recipe")
                         }
+                        .fixedSize()
                     }
                     chips
                     HStack(spacing: 10) {
@@ -116,7 +112,23 @@ struct RecipesScreen: View {
             .refreshable { await app.syncNow() }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
-            .sheet(isPresented: $importingCrumb) { CrumbImportSheet() }
+            .sheet(item: $photo) { photo in
+                ConciergeSheet(photo: photo.image) { id in path.append(id) }
+                    .presentationSizing(.page)
+            }
+            .fullScreenCover(isPresented: $usingCamera) {
+                CameraPicker { photo = RecipePhoto(image: $0) }.ignoresSafeArea()
+            }
+            .photosPicker(isPresented: $choosingPhoto, selection: $pickedPhoto, matching: .images)
+            .onChange(of: pickedPhoto) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                        photo = RecipePhoto(image: image)
+                    }
+                    pickedPhoto = nil
+                }
+            }
             .sheet(isPresented: $askingAI) {
                 ConciergeSheet { id in path.append(id) }
                     .presentationSizing(.page)
@@ -127,7 +139,8 @@ struct RecipesScreen: View {
             }
         }
         .sheet(isPresented: $filtering) {
-            RecipeFilterSheet(filters: $filters, tags: Array(Set(recipes.value.flatMap(\.tags))).sorted())
+            RecipeFilterSheet(filters: $filters,
+                              tagCounts: Dictionary(recipes.value.flatMap(\.tags).map { ($0, 1) }, uniquingKeysWith: +))
         }
         .task {
             await ratings.follow(app.store) { r in
@@ -230,10 +243,48 @@ struct RecipeFilters: Equatable {
     }
 }
 
+/// A photo picked from New Recipe, for the AI to read in.
+private struct RecipePhoto: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+extension RecipesScreen {
+    /// A header button's label: words and icon on iPad, the icon alone on iPhone.
+    @ViewBuilder func headerLabel(_ title: String, _ icon: String) -> some View {
+        Group {
+            if width == .regular {
+                Label(title, systemImage: icon).padding(.horizontal, 14)
+            } else {
+                Image(systemName: icon).frame(width: 38)
+            }
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .foregroundStyle(.white)
+        .frame(height: 38)
+    }
+}
+
 private struct RecipeFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var filters: RecipeFilters
-    let tags: [String]
+    /// Every tag in the library and how many recipes have it.
+    let tagCounts: [String: Int]
+    @State private var tagSearch = ""
+    @State private var allTags = false
+
+    private static let topTags = 12
+
+    /// What the tag section shows: picked tags first, then matches for the
+    /// search, or the most-used tags (all of them after "Show all").
+    private var shownTags: [String] {
+        let byUse = tagCounts.keys.sorted { (tagCounts[$0] ?? 0, $1) > (tagCounts[$1] ?? 0, $0) }
+        let picked = byUse.filter { filters.tags.contains($0) }
+        let rest = byUse.filter { !filters.tags.contains($0) }
+        let query = tagSearch.trimmingCharacters(in: .whitespaces)
+        if !query.isEmpty { return picked + rest.filter { $0.localizedCaseInsensitiveContains(query) } }
+        return picked + (allTags ? rest : Array(rest.prefix(Self.topTags)))
+    }
 
     var body: some View {
         NavigationStack {
@@ -259,20 +310,43 @@ private struct RecipeFilterSheet: View {
                     }
                     Toggle("Heart-healthy only", isOn: $filters.heartHealthy).tint(Theme.brand)
                 }
-                if !tags.isEmpty {
-                    Section("Tags (any of)") {
-                        FlowLayout(spacing: 8) {
-                            ForEach(tags, id: \.self) { tag in
-                                let on = filters.tags.contains(tag)
-                                Button(tag) { if on { filters.tags.remove(tag) } else { filters.tags.insert(tag) } }
+                if !tagCounts.isEmpty {
+                    Section {
+                        if tagCounts.count > Self.topTags {
+                            TextField("Find a tag", text: $tagSearch)
+                                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        }
+                        let shown = shownTags
+                        if shown.isEmpty {
+                            Text("No tags match “\(tagSearch)”.").foregroundStyle(.secondary)
+                        } else {
+                            FlowLayout(spacing: 8) {
+                                ForEach(shown, id: \.self) { tag in
+                                    let on = filters.tags.contains(tag)
+                                    Button { if on { filters.tags.remove(tag) } else { filters.tags.insert(tag) } } label: {
+                                        HStack(spacing: 5) {
+                                            Text(tag)
+                                            Text("\(tagCounts[tag] ?? 0)").foregroundStyle(on ? .white.opacity(0.8) : Theme.mutedForeground)
+                                        }
+                                    }
                                     .font(.system(size: 14, weight: .medium))
                                     .padding(.horizontal, 12).frame(height: 32)
                                     .foregroundStyle(on ? .white : Theme.foreground)
                                     .background(on ? Theme.brand : Theme.muted, in: Capsule())
                                     .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        if tagSearch.isEmpty && tagCounts.count > Self.topTags {
+                            Button(allTags ? "Show the most used" : "Show all \(tagCounts.count) tags") {
+                                withAnimation { allTags.toggle() }
                             }
                         }
-                        .padding(.vertical, 4)
+                    } header: { Text("Tags (any of)") } footer: {
+                        if tagSearch.isEmpty && !allTags && tagCounts.count > Self.topTags {
+                            Text("The \(Self.topTags) most used — search to find the rest.")
+                        }
                     }
                 }
                 if filters.activeCount > 0 {

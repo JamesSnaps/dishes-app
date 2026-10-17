@@ -18,6 +18,7 @@ struct HouseholdData: Decodable, Sendable {
         var dislikes: [String]?
         var preferences: [String]?
         var customNotes: String?
+        var avatarUrl: String?
     }
     struct Me: Decodable, Sendable { var memberId: String; var role: String }
     var household: Household
@@ -48,7 +49,7 @@ struct HouseholdScreen: View {
                 CardList(items: h.members) { m in
                     Button { if h.isAdmin || m.id == h.me.memberId { editing = m } } label: {
                         HStack(spacing: 12) {
-                            Avatar(name: m.displayName, size: 40)
+                            Avatar(name: m.displayName, url: m.avatarUrl, size: 40)
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack(spacing: 6) {
                                     Text(m.displayName).font(.system(size: 15, weight: .semibold))

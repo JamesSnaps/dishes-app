@@ -96,7 +96,7 @@ struct HomeScreen: View {
             Spacer()
             // On iPhone the avatar is the way into settings, as on the web.
             if width != .regular, let me = app.me {
-                Button { nav.tab = .more } label: { Avatar(name: me.user.displayName, size: 42) }
+                Button { nav.tab = .more } label: { Avatar(name: me.user.displayName, url: app.myAvatarUrl, size: 42) }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Settings")
             }

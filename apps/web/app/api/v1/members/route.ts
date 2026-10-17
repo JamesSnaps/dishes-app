@@ -8,7 +8,7 @@ import { withApiErrors } from "@/lib/api/respond";
 /**
  * The household's active members — who can be "cooked for" and rated by name
  * when logging a cook (cook_history.cooked_for / member_ratings key on display
- * names). The same query the web recipe page runs; nothing private beyond names.
+ * names). The same query the web recipe page runs; nothing private beyond names and profile photos.
  */
 export const GET = withApiErrors(async () => {
   const session = await requireSession();
@@ -18,6 +18,7 @@ export const GET = withApiErrors(async () => {
       id: householdMembers.id,
       displayName: householdMembers.displayName,
       role: householdMembers.role,
+      avatarUrl: householdMembers.avatarUrl,
     })
     .from(householdMembers)
     .where(and(eq(householdMembers.householdId, session.householdId), eq(householdMembers.isActive, true)))

@@ -20,7 +20,7 @@ struct MoreScreen: View {
 
                     if let me = app.me {
                         HStack(spacing: 14) {
-                            Avatar(name: me.user.displayName, size: 52)
+                            Avatar(name: me.user.displayName, url: app.myAvatarUrl, size: 52)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(me.user.displayName).font(.system(size: 17, weight: .semibold))
                                 Text("\(me.household.role.capitalized) · @\(me.user.username)")

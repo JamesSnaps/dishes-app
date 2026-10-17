@@ -258,18 +258,33 @@ struct SyncLine: View {
     }
 }
 
-/// Initials on brand orange (the web's avatar fallback).
+/// A member's profile photo, or their initials on brand orange (the web's
+/// avatar fallback) when there's none or it hasn't loaded.
 struct Avatar: View {
+    @Environment(AppModel.self) private var app
     let name: String
+    var url: String? = nil
     var size: CGFloat = 40
 
     var body: some View {
         let initials = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
-        Text(initials.isEmpty ? "?" : initials)
+        let fallback = Text(initials.isEmpty ? "?" : initials)
             .font(.system(size: size * 0.36, weight: .semibold))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(Theme.brand, in: Circle())
+        if let photo = app.imageURL(url) {
+            AsyncImage(url: photo) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill().frame(width: size, height: size).clipShape(Circle())
+                } else {
+                    fallback
+                }
+            }
+            .frame(width: size, height: size)
+        } else {
+            fallback
+        }
     }
 }
 

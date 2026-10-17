@@ -222,6 +222,13 @@ final class CookTimers {
         }
     }
 
+    /// Asks for AlarmKit while it's undecided (see AppModel.askForPermissions).
+    func askForAlarms() async {
+        if AlarmManager.shared.authorizationState == .notDetermined {
+            _ = try? await AlarmManager.shared.requestAuthorization()
+        }
+    }
+
     private func alarmKitAllowed() async -> Bool {
         switch AlarmManager.shared.authorizationState {
         case .authorized: return true

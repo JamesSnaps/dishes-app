@@ -32,6 +32,8 @@ final class AppModel {
     /// The household's members, for "who ate it". Kept on the device so the
     /// log-a-cook sheet opens offline with the last known names.
     private(set) var members: [APIClient.Member] = []
+    /// The signed-in member's profile photo, from the cached member list.
+    var myAvatarUrl: String? { members.first { $0.id == me?.household.memberId }?.avatarUrl }
     /// Collections aren't in the sync log yet, so they're fetched after each
     /// sync and kept on the device for offline browsing.
     private(set) var collections: [APIClient.Collection] = []
@@ -110,6 +112,7 @@ final class AppModel {
         if me != nil {
             phase = .ready
             await Push.shared.register()
+            Task { await askForPermissions() }
             await syncNow()
         } else if Developer.server != nil {
             await finishSignIn()
@@ -153,6 +156,7 @@ final class AppModel {
             me = who
             phase = .ready
             await Push.shared.register()
+            Task { await askForPermissions() }
             await syncNow()
         } catch APIError.signedOut {
             phase = .signedOut
@@ -171,6 +175,17 @@ final class AppModel {
     }
 
     // MARK: Syncing
+
+    /// The system prompts for notifications and for timer alarms, on the
+    /// first open after signing in rather than mid-cook. Each only shows while
+    /// undecided, so asking on every open is harmless.
+    func askForPermissions() async {
+        await Push.shared.refreshAuthorization()
+        if Push.shared.authorization == .notDetermined {
+            await Push.shared.requestPermission()
+        }
+        await CookTimers.shared.askForAlarms()
+    }
 
     func syncNow(force: Bool = true) async {
         guard phase == .ready else { return }

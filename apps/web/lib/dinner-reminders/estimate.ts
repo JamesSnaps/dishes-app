@@ -12,6 +12,9 @@ import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
  *  2. One logged cook → that cook averaged with the adjusted stated time.
  *  3. Stated prep + cook → scaled by how far off stated times usually are for
  *     this household (median actual ÷ stated across everything they've cooked).
+ *     The scaling only ever lengthens a recipe: a household that's quicker than
+ *     stated at weeknight cooking doesn't make a slow roast's oven time any
+ *     shorter, and a start time that's too late spoils dinner.
  *  4. Nothing at all → a 45-minute guess.
  */
 
@@ -133,7 +136,8 @@ export function estimateFrom(
   ratio: number
 ): CookEstimate {
   const stated = statedMinutes(recipe);
-  const adjusted = stated * ratio;
+  const slower = Math.max(1, ratio);
+  const adjusted = stated * slower;
 
   if (durations.length >= 2) {
     return { minutes: roundUp5(median(durations)), basis: "history", cookCount: durations.length, ratio };
@@ -145,8 +149,8 @@ export function estimateFrom(
   }
   if (stated > 0) {
     // No household ratio yet: pad stated times a little, since they skew short.
-    return ratio !== 1
-      ? { minutes: roundUp5(adjusted), basis: "adjusted", cookCount: 0, ratio }
+    return slower !== 1
+      ? { minutes: roundUp5(adjusted), basis: "adjusted", cookCount: 0, ratio: slower }
       : { minutes: roundUp5(stated * 1.1), basis: "stated", cookCount: 0, ratio };
   }
   return { minutes: FALLBACK_MINUTES, basis: "fallback", cookCount: 0, ratio };

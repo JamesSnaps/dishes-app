@@ -479,7 +479,7 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   and edit), notes, Stats, Wrapped, taste profile, household and members,
   recipe links and shared libraries, AI settings; on a recipe the AI tools
   (improve, heart-healthy, similar, sides, photo, nutrition), share and note;
-  Crumb import, paste-to-parse in the editor, a meal's cooking schedule (incl.
+  paste-to-parse in the editor, a meal's cooking schedule (incl.
   Plan with AI) and Save as a saved meal; Add to pantry on Shopping. Stays on
   the web: integrations tokens, email/SMTP settings, diagnostics, the welcome
   wizard. Pantry, deliveries and the rest need a connection — only recipes,

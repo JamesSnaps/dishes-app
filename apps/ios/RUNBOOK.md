@@ -443,3 +443,32 @@ James: "Add all website features not added yet."
   as a toast), Crumb import with a real export, sharing by email.
 - Simulator tip: a plain tap doesn't flip a SwiftUI `Toggle`; tap with
   `duration: 0.15`.
+
+### 17 Oct 2026 — iPhone fixes, planner chips, permissions (v1.38.0)
+
+James, on the iPhone TestFlight build (1.37.1):
+
+- Recipes header wrapped ("A I", "N…") — on iPhone the buttons are icons now;
+  the import button is gone (Crumb import removed — no longer needed) and
+  New Recipe is a menu: Write a recipe, Photograph a recipe, From a photo…
+  (the photo goes straight into `ConciergeSheet(photo:)`).
+- Filter tags: picked tags, then the 12 most used with counts; search and
+  "Show all N tags" for the rest.
+- Cooking a 4+ dish meal on iPhone: the segmented tabs were "…"; it's a menu
+  headed "Dish n of m" now (segmented only on iPad with up to 4 dishes).
+  Menu items are plain Buttons — an inline Picker inside the Menu didn't
+  switch dishes.
+- Planner: the chosen day shows the web's dinner-time chip (start-by time;
+  tap to change the day's time or skip its reminder) and delivery chip (mark
+  ordered, slot/total, skip). Bridge: `dinner.week|setTime|setReminder`.
+- Start time "10:35 for 17:00" with an ~8h25m roast: the household's
+  actual÷stated ratio (≈0.76) shrank the stated time. `estimateFrom` now
+  only lets the ratio lengthen a recipe.
+- Notification and AlarmKit permission asked on open after sign-in
+  (`AppModel.askForPermissions`), not first mid-cook.
+- Profile photos: `/api/v1/members` and `household.get` carry `avatarUrl`;
+  `Avatar(url:)` shows it on Household, Home and Settings.
+- Checked on the iPhone 18 Pro simulator: Recipes header, dinner chip, Fri
+  delivery chip + menu, dish menu switching Greek Salad → Thai Green Curry.
+  **Not checked:** the permission prompts (this simulator had already
+  answered), a real avatar (none in dev), photo import (needs an AI key).
