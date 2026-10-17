@@ -154,6 +154,21 @@ public final class APIClient: SyncTransport, Sendable {
         return try await request("/sync", method: "POST", json: body)
     }
 
+    // MARK: Meal plan
+
+    public struct ShoppingAddResult: Decodable, Sendable {
+        public var added: Int
+        public var merged: Int
+        public var skipped: [String]
+    }
+
+    /// Puts every meal in a week that isn't on the list yet onto it. Server-side
+    /// on purpose (Phase B): the result depends on pantry stock and merging.
+    public func addWeekToShopping(mealPlanId: String) async throws -> ShoppingAddResult {
+        struct Body: Encodable { var mealPlanId: String }
+        return try await request("/meal-plan/generate-shopping", method: "POST", json: Body(mealPlanId: mealPlanId))
+    }
+
     // MARK: Recipes
 
     /// Flips a recipe's favourite flag; answers the new value. Not a sync

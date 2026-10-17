@@ -230,11 +230,13 @@ struct CookingView: View {
                 move(-1)
             } label: {
                 Label("Back", systemImage: "chevron.left")
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(stepIndex == 0 ? Theme.mutedForeground.opacity(0.5) : Theme.foreground)
                     .frame(maxWidth: .infinity, minHeight: 60)
+                    .background(Theme.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.border, lineWidth: 1.5))
             }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
+            .buttonStyle(.plain)
             .disabled(stepIndex == 0)
             .keyboardShortcut(.leftArrow, modifiers: [])
 
@@ -243,11 +245,9 @@ struct CookingView: View {
             } label: {
                 Label(isLast ? "Finish" : "Next", systemImage: isLast ? "checkmark" : "chevron.right")
                     .labelStyle(TrailingIconLabelStyle())
-                    .font(.title3.weight(.bold))
-                    .frame(maxWidth: .infinity, minHeight: 60)
+                    .font(.system(size: 19, weight: .bold))
             }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
+            .buttonStyle(GradientButtonStyle(gradient: .brand, height: 60))
             .keyboardShortcut(.rightArrow, modifiers: [])
         }
     }
@@ -275,38 +275,63 @@ struct IngredientsPanel: View {
     @Binding var used: Set<String>
 
     var body: some View {
-        List {
-            Section {
-                ForEach(dish.recipe.ingredients) { ingredient in
-                    let now = current?.ingredientIds.contains(ingredient.id) == true
-                    let done = used.contains(ingredient.id)
-                    Button {
-                        if done { used.remove(ingredient.id) } else { used.insert(ingredient.id) }
-                    } label: {
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(done ? Color.green : Theme.brand)
-                            VStack(alignment: .leading, spacing: 2) {
-                                let quantity = Format.quantity(ingredient.amount, ingredient.unit, scale: dish.scale)
-                                Text(quantity.isEmpty ? ingredient.name : "\(quantity) \(ingredient.name)")
-                                    .font(.body.weight(now ? .bold : .regular))
-                                    .strikethrough(done)
-                                if let preparation = ingredient.preparation {
-                                    Text(preparation).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .foregroundStyle(done ? .secondary : .primary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                PanelLabel(text: "Ingredients")
+                VStack(spacing: 0) {
+                    ForEach(Array(dish.recipe.ingredients.enumerated()), id: \.element.id) { index, ingredient in
+                        if index > 0 { Rectangle().fill(Theme.border).frame(height: 1) }
+                        row(ingredient)
                     }
-                    .buttonStyle(.plain)
-                    .listRowBackground(now ? Theme.brand.opacity(0.14) : nil)
                 }
-            } header: {
-                Text("Ingredients")
+                .card()
             }
+            .padding(16)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
+        .background(Theme.muted.opacity(0.35))
+    }
+
+    private func row(_ ingredient: Ingredient) -> some View {
+        let now = current?.ingredientIds.contains(ingredient.id) == true
+        let done = used.contains(ingredient.id)
+        return Button {
+            if done { used.remove(ingredient.id) } else { used.insert(ingredient.id) }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Image(systemName: done ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(done ? Theme.brand : Theme.mutedForeground)
+                VStack(alignment: .leading, spacing: 2) {
+                    let quantity = Format.quantity(ingredient.amount, ingredient.unit, scale: dish.scale)
+                    Text(quantity.isEmpty ? ingredient.name : "\(quantity) \(ingredient.name)")
+                        .font(.system(size: 16, weight: now ? .semibold : .regular))
+                        .strikethrough(done)
+                        .foregroundStyle(done ? Theme.mutedForeground : Theme.foreground)
+                    if let preparation = ingredient.preparation {
+                        Text(preparation).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(now ? Theme.orange50 : .clear)
+            .overlay(alignment: .leading) {
+                if now { Rectangle().fill(Theme.brand).frame(width: 3) }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The web's small uppercase section label.
+struct PanelLabel: View {
+    let text: String
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 12, weight: .semibold))
+            .tracking(0.6)
+            .foregroundStyle(Theme.mutedForeground)
     }
 }
 
@@ -317,26 +342,30 @@ struct TimersPanel: View {
     private var timers = CookTimers.shared
 
     var body: some View {
-        List {
-            Section {
-                if timers.timers.isEmpty {
-                    Text("Timers you start appear here, and keep going if you close Dishes.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(timers.timers) { TimerRow(timer: $0) }
-            } header: {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Timers")
+                    PanelLabel(text: "Timers")
                     Spacer()
                     if timers.timers.contains(where: { $0.state == .finished }) {
-                        Button("Clear done") { timers.dismissFinished() }.font(.caption)
+                        Button("Clear done") { timers.dismissFinished() }
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.brand)
                     }
                 }
+                if timers.timers.isEmpty {
+                    EmptyBox(emoji: "⏲️", message: "Timers you start appear here")
+                }
+                ForEach(timers.timers) { timer in
+                    TimerRow(timer: timer)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .card()
+                }
             }
+            .padding(16)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
+        .background(Theme.muted.opacity(0.35))
     }
 }
 

@@ -215,11 +215,14 @@ public struct MealPlanEntry: Hashable, Sendable, Identifiable {
     public var notes: String?
     public var groupId: String?
     public var mealRole: String?
+    /// Set once the entry's ingredients have gone onto the shopping list.
+    public var addedToShoppingListAt: String?
 
     public init?(_ json: JSONValue) {
         guard let id = json.id, let plan = json.string("mealPlanId") else { return nil }
         self.id = id
         mealPlanId = plan
+        addedToShoppingListAt = json.string("addedToShoppingListAt")
         recipeId = json.string("recipeId")
         dayOfWeek = json.int("dayOfWeek") ?? 0
         mealType = json.string("mealType") ?? "dinner"

@@ -437,6 +437,12 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
 - [ ] **Log a cook** — rating, per-person ratings, notes, dish photo from the
   camera (background `URLSession` upload, as Keepsake's `UploadManager`)
 - [ ] **Today** card on Plan: tonight's meal, serve-at time, start-cooking time
+- [x] **Design matches the web app (v1.27.0).** Shared tokens and components
+  in `Design/Theme.swift`; web sidebar on iPad, web bottom bar on iPhone; a Home
+  screen; web recipe cards, planner day strip and entry cards, shopping list
+  layout. Adding a meal to the plan now works offline (Add meal sheet)
+- [ ] Shopping: "from <recipe>" under an item needs `shopping_item_recipes`
+  (0022) in the sync log
 - [x] More: signed-in member, sync status and pending count, sign out,
   Developer menu (Debug). Devices still to do (needs the server's device list)
 - [ ] More → Settings: server, signed-in member, devices, sign out. Everything

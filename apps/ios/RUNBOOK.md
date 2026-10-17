@@ -150,3 +150,32 @@ Xcode 27.1, iOS 27 simulators.
 - **On James's iPad Pro (device build):** the landscape three-column layout
   looks right, and a step timer asked for alarm permission and went off as an
   AlarmKit alarm. So AlarmKit works on iPad; only the simulators refuse it.
+
+### 17 Oct 2026 — design pass: match the web app (branch `feat/ios-web-design`)
+
+James: the first build "looks like an iOS app from 10 years ago". Rebuilt on
+the web's design rather than stock iOS styling:
+
+- `Design/Theme.swift` mirrors the web's tokens (globals.css slate + orange, in
+  light and dark), the shadcn Card (12pt corners, 1px border, small shadow),
+  Badge, and the gradient action buttons. The web sets no font, so it renders
+  in SF Pro on Apple devices — the system font here is already an exact match.
+- Navigation as the web: the desktop sidebar on iPad (logo, Home, Recipes,
+  Meal Planner, Shopping List with its count, Personal → Favourites, sync line,
+  Settings, the signed-in person); the mobile bottom bar on iPhone with the
+  raised orange button (here: cook tonight's meal, or open the planner).
+- New Home screen (greeting, search, Favourites, the stats banner, Recently
+  Added). Recipe cards are the web's card. Planner has the day strip, gradient
+  buttons ("Add N meals to list" calls the server; "Generate plan" opens the
+  web), web entry cards and an Add meal sheet that works offline (temp ids).
+  Shopping has the add card with qty/unit/category, "Show N checked", web
+  category order, square checkboxes, edit and delete. Recipe page has the
+  web's header, servings stepper, tabs; side-by-side when the page is ≥760pt.
+- Fixed: a wide photo made its card overflow into its neighbours (James's
+  burger) — `RecipeImage` now takes exactly the space it's offered.
+- Known gaps: the "from <recipe>" line under shopping items needs the
+  `shopping_item_recipes` table in sync; the placeholder is SF's fork.knife
+  (no crossed-utensils symbol); AI buttons link to the web.
+- Checked on iPhone 18 Pro and iPad Pro 11-inch simulators in light mode, side
+  by side with the web at the same widths.
+
