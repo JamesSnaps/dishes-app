@@ -73,7 +73,8 @@ struct RootView: View {
             }
         }
         .environment(nav)
-        .overlay(alignment: .bottom) { ToastView() }
+        // Toasts get a window of their own, so they show above sheets too.
+        .background(ToastWindow.Installer(app: app))
         // A finished timer rings wherever you are in the app, not only in cooking mode.
         .overlay(alignment: .top) { RingingBanner() }
         .fullScreenCover(isPresented: $nav.cookingShown) {
@@ -298,6 +299,43 @@ enum TonightMeal {
         guard let meal = meals.first(where: { $0.mealType == "dinner" }) ?? meals.last else { return nil }
         let dishes = meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty }.map { CookDish(recipe: $0) }
         return dishes.isEmpty ? nil : CookRequest(title: meal.title, dishes: dishes)
+    }
+}
+
+/// A window above everything else (sheets and full-screen covers included)
+/// that only shows the toast; touches pass straight through it.
+@MainActor
+enum ToastWindow {
+    private static var window: UIWindow?
+
+    static func install(_ app: AppModel, in scene: UIWindowScene) {
+        guard window == nil else { return }
+        let host = UIHostingController(rootView: ToastView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).environment(app))
+        host.view.backgroundColor = .clear
+        let w = UIWindow(windowScene: scene)
+        w.windowLevel = .alert + 1
+        w.rootViewController = host
+        w.isUserInteractionEnabled = false
+        w.isHidden = false
+        window = w
+    }
+
+    /// Installs the window on the scene of the view it sits in, once that view has one.
+    struct Installer: UIViewRepresentable {
+        let app: AppModel
+        func makeUIView(context: Context) -> Probe { Probe(app: app) }
+        func updateUIView(_ uiView: Probe, context: Context) {}
+
+        final class Probe: UIView {
+            let app: AppModel
+            init(app: AppModel) { self.app = app; super.init(frame: .zero) }
+            required init?(coder: NSCoder) { fatalError() }
+            override func didMoveToWindow() {
+                super.didMoveToWindow()
+                if let scene = window?.windowScene { ToastWindow.install(app, in: scene) }
+            }
+        }
     }
 }
 

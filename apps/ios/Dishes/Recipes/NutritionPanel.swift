@@ -2,15 +2,16 @@
 // the orange-to-amber callout with kcal large, then protein, carbs, fat,
 // saturated fat, fibre, sugar and sodium in a grid — per serving, so the
 // servings stepper doesn't change them — an "AI estimate" tag, and the heart-healthy badge
-// (lib/heart-healthy.ts). With no figures yet, it says so and links to the
-// website, where the AI can estimate them.
+// (lib/heart-healthy.ts). With no figures yet, the AI estimates them from the
+// ingredients (it needs a connection).
 
 import DishesCore
 import SwiftUI
 
 struct NutritionPanel: View {
-    @Environment(\.openURL) private var openURL
+    @Environment(AppModel.self) private var app
     let recipe: Recipe
+    @State private var estimating = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -61,13 +62,17 @@ struct NutritionPanel: View {
                     macro("Sodium", recipe.sodiumMg, "mg", digits: 0)
                 }
             } else {
-                Text("No nutrition yet. The AI on the website can estimate it from the ingredients.")
+                Text("No nutrition yet. The AI can estimate it from the ingredients.")
                     .font(.system(size: 14))
                     .foregroundStyle(Theme.mutedForeground)
                 Button {
-                    openURL(AppModel.serverURL.appendingPathComponent("recipes/\(recipe.id)"))
+                    Task {
+                        estimating = true
+                        defer { estimating = false }
+                        if await WebAction.run("ai.estimateNutrition", [.string(recipe.id)], done: "Nutrition estimated.") { await app.syncNow() }
+                    }
                 } label: {
-                    Label("Estimate on the website", systemImage: "sparkles")
+                    Label(estimating ? "Estimating…" : "Estimate with AI", systemImage: "sparkles")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 14)
@@ -77,6 +82,7 @@ struct NutritionPanel: View {
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .disabled(estimating)
             }
         }
         .padding(16)

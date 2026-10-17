@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { notifications, recipes } from "@dishes/db/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import type { Notification } from "@dishes/db/schema";
 
@@ -12,7 +12,7 @@ export type NotificationWithImage = Notification & {
 };
 
 export async function getNotifications(): Promise<NotificationWithImage[]> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const rows = await db
@@ -37,7 +37,7 @@ export async function getNotifications(): Promise<NotificationWithImage[]> {
 }
 
 export async function getUnreadCount(): Promise<number> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
   const rows = await db
     .select({ id: notifications.id })
@@ -52,7 +52,7 @@ export async function getUnreadCount(): Promise<number> {
 }
 
 export async function markAllRead(): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
   await db
     .update(notifications)

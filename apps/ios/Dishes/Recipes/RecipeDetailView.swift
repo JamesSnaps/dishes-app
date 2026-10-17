@@ -25,6 +25,9 @@ struct RecipeDetailView: View {
     @State private var extras = Observed(RecipeExtras())
     @State private var logging = false
     @State private var editing = false
+    @State private var tool: RecipeTool?
+    /// A recipe the tools made (a copy, a similar dish), opened after.
+    @State private var made: String?
     @State private var confirmDelete = false
     @State private var naming = false
     @State private var newCollection = ""
@@ -63,6 +66,20 @@ struct RecipeDetailView: View {
             if let recipe = recipe.value { CookReviewSheet(recipe: recipe).presentationSizing(.page) }
         }
         .sheet(isPresented: $editing) { RecipeEditor(recipeId: recipeId) }
+        .sheet(item: $tool) { tool in
+            if let recipe = recipe.value {
+                switch tool {
+                case .improve: RecipeTweakSheet(recipe: recipe, kind: .improve) { made = $0 }.presentationSizing(.page)
+                case .heartHealthy: RecipeTweakSheet(recipe: recipe, kind: .heartHealthy) { made = $0 }.presentationSizing(.page)
+                case .similar: RecipeIdeasSheet(recipe: recipe, kind: .similar) { made = $0 }
+                case .sides: RecipeIdeasSheet(recipe: recipe, kind: .sides) { made = $0 }
+                case .share: ShareRecipeSheet(recipe: recipe)
+                case .note: NoteSheet(edit: NoteEdit(note: nil, recipeId: recipe.id, recipeTitle: recipe.title)) {}
+                default: EmptyView()
+                }
+            }
+        }
+        .navigationDestination(item: $made) { RecipeDetailView(recipeId: $0) }
         .toolbar {
             if let recipe = recipe.value {
                 ToolbarItem(placement: .primaryAction) { actionsMenu(recipe) }
@@ -234,10 +251,26 @@ struct RecipeDetailView: View {
             }
             Button("Log a cook", systemImage: "square.and.pencil") { logging = true }
             Divider()
+            toolsMenu(recipe) { picked in run(picked, recipe) }
+            Divider()
             Button("Edit recipe", systemImage: "pencil") { editing = true }
             Button("Delete recipe", systemImage: "trash", role: .destructive) { confirmDelete = true }
         } label: {
             Label("More", systemImage: "ellipsis")
+        }
+    }
+
+    /// Photo and nutrition run straight away; the rest open their sheet.
+    private func run(_ picked: RecipeTool, _ recipe: Recipe) {
+        switch picked {
+        case .photo:
+            app.toast = "Generating a photo… this takes about 30 seconds."
+            Task { if await WebAction.run("ai.recipeImage", [.string(recipe.id)], done: "New photo added.") { await app.syncNow() } }
+        case .nutrition:
+            app.toast = "Estimating nutrition…"
+            Task { if await WebAction.run("ai.estimateNutrition", [.string(recipe.id)], done: "Nutrition estimated.") { await app.syncNow() } }
+        default:
+            tool = picked
         }
     }
 

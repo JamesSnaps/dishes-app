@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getRedis } from "@/lib/redis";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
@@ -91,7 +91,7 @@ async function createRecipeFromParsed(
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, memberId } = await requireHousehold(user);
 
   const body: ImportRequest = await req.json();

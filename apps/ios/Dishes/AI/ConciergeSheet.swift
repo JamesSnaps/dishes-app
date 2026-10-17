@@ -110,7 +110,7 @@ struct ConciergeSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("AI isn’t set up for this household", systemImage: "key")
                 .font(.system(size: 15, weight: .semibold))
-            Text("An admin can add an OpenAI key under Settings → AI on the website.")
+            Text("An admin can add an OpenAI key under Settings → AI settings.")
                 .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
         }
         .padding(16)

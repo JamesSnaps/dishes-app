@@ -52,6 +52,7 @@ struct RecipeEditor: View {
     @State private var loaded = false
     @State private var saving = false
     @State private var tab = Tab.details
+    @State private var pasting = false
 
     /// Three tabs, so no one screen is a long scroll.
     enum Tab: String, CaseIterable { case details = "Details", ingredients = "Ingredients", method = "Method" }
@@ -113,6 +114,7 @@ struct RecipeEditor: View {
                     Button("Add ingredient", systemImage: "plus") {
                         ingredients.append(EditIngredient(group: ingredients.last?.group ?? ""))
                     }
+                    Button("Paste ingredients and method…", systemImage: "doc.on.clipboard") { pasting = true }
                 } header: {
                     Text("Ingredients")
                 } footer: {
@@ -170,6 +172,7 @@ struct RecipeEditor: View {
                     .onDelete { steps.remove(atOffsets: $0) }
                     .onMove { steps.move(fromOffsets: $0, toOffset: $1) }
                     Button("Add step", systemImage: "plus") { steps.append(EditStep(group: steps.last?.group ?? "")) }
+                    Button("Paste ingredients and method…", systemImage: "doc.on.clipboard") { pasting = true }
                 } header: {
                     Text("Method")
                 } footer: {
@@ -193,6 +196,23 @@ struct RecipeEditor: View {
             .tint(Theme.brand)
             .navigationTitle(recipeId == nil ? "New recipe" : "Edit recipe")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $pasting) {
+                PasteImportSheet { parsed in
+                    let blank = ingredients.allSatisfy { $0.name.isEmpty }
+                    let newIngredients = parsed.ingredients.map {
+                        EditIngredient(name: $0.ingredientName, amount: $0.amount, unit: $0.unit,
+                                       preparation: $0.preparation, group: $0.groupLabel, optional: $0.isOptional)
+                    }
+                    ingredients = (blank ? [] : ingredients) + newIngredients
+                    let blankSteps = steps.allSatisfy { $0.instruction.isEmpty }
+                    steps = (blankSteps ? [] : steps) + parsed.steps.map {
+                        EditStep(instruction: $0.instruction, minutes: $0.durationMinutes, timerLabel: $0.timerLabel, group: $0.groupLabel)
+                    }
+                    if ingredients.isEmpty { ingredients = [EditIngredient()] }
+                    if steps.isEmpty { steps = [EditStep()] }
+                    tab = parsed.ingredients.isEmpty ? .method : .ingredients
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) { EditButton() }
@@ -314,6 +334,62 @@ struct RecipeEditor: View {
             app.toast = "Couldn’t save: \(message)"
         } catch {
             app.toast = app.online ? "Couldn’t save the recipe." : "You’re offline — editing recipes needs a connection for now."
+        }
+    }
+}
+
+/// The web's paste import: paste the ingredient list and the method as text
+/// (from a website, a message, notes) and they're parsed into rows.
+struct PasteImportSheet: View {
+    struct Parsed: Decodable, Sendable {
+        struct Ingredient: Decodable, Sendable { var ingredientName: String; var amount: String; var unit: String; var preparation: String; var isOptional: Bool; var groupLabel: String }
+        struct Step: Decodable, Sendable { var instruction: String; var durationMinutes: String; var timerLabel: String; var groupLabel: String }
+        var ingredients: [Ingredient]
+        var steps: [Step]
+    }
+    @Environment(\.dismiss) private var dismiss
+    var imported: (Parsed) -> Void
+    @State private var ingredientText = ""
+    @State private var methodText = ""
+    @State private var working = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("2 onions, finely chopped\n400 g tin chopped tomatoes\n…", text: $ingredientText, axis: .vertical).lineLimit(6...14)
+                } header: { Text("Ingredients") } footer: { Text("One per line. Amounts, units and preparation are picked out.") }
+                Section {
+                    TextField("Fry the onions until soft…\nAdd the tomatoes and simmer for 20 minutes.", text: $methodText, axis: .vertical).lineLimit(6...14)
+                } header: { Text("Method") } footer: { Text("Steps are split by line or number; times become timers.") }
+                if UIPasteboard.general.hasStrings {
+                    Button("Paste everything into Ingredients", systemImage: "doc.on.clipboard") {
+                        ingredientText = UIPasteboard.general.string ?? ""
+                    }
+                }
+            }
+            .navigationTitle("Paste a recipe").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(working ? "Reading…" : "Add") {
+                        Task {
+                            working = true; defer { working = false }
+                            do {
+                                let parsed = try await AppModel.shared.api.action("import.parse", [.string(ingredientText), .string(methodText)], as: Parsed.self)
+                                if parsed.ingredients.isEmpty && parsed.steps.isEmpty {
+                                    AppModel.shared.toast = "Nothing recognisable there."
+                                } else {
+                                    imported(parsed)
+                                    dismiss()
+                                }
+                            } catch { AppModel.shared.toast = WebAction.explain(error) }
+                        }
+                    }
+                    .bold()
+                    .disabled(working || (ingredientText.isEmpty && methodText.isEmpty))
+                }
+            }
         }
     }
 }

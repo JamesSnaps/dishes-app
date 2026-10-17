@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { cookAssistThreads, recipeAssistThreads } from "@dishes/db/schema";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { and, count, eq, lt, min } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -19,7 +19,7 @@ export type AssistHistoryStats = {
 export type PurgeScope = "all" | "recipe" | "cook";
 
 export async function getAssistHistoryStats(): Promise<AssistHistoryStats> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const [recipeRow, cookRow] = await Promise.all([
@@ -53,7 +53,7 @@ export async function purgeAssistHistory(
   scope: PurgeScope,
   olderThanDays: number | null
 ): Promise<{ recipeThreads: number; cookThreads: number }> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
   if (role !== "admin") throw new Error("Only household admins can clear AI history.");
 
@@ -103,7 +103,7 @@ export async function purgeAssistHistory(
 
 // Clear every saved "Ask about this recipe" conversation for one recipe.
 export async function clearRecipeAssistThreads(recipeId: string): Promise<number> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const rows = await db

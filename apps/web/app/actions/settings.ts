@@ -9,14 +9,14 @@ import {
 } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { encrypt, decrypt } from "@/lib/crypto";
 
 // ─── Household ────────────────────────────────────────────────────────────────
 
 export async function updateHouseholdName(formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can update household settings");
@@ -35,7 +35,7 @@ export async function updateHouseholdName(formData: FormData) {
 // ─── Members ──────────────────────────────────────────────────────────────────
 
 export async function addMember(formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can add members");
@@ -86,7 +86,7 @@ function parseBirthYear(raw: FormDataEntryValue | null | undefined): number | nu
 }
 
 export async function updateMemberRole(memberId: string, newRole: "admin" | "adult" | "child") {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can change roles");
@@ -105,7 +105,7 @@ export async function updateMemberRole(memberId: string, newRole: "admin" | "adu
 }
 
 export async function removeMember(memberId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, memberId: currentMemberId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can remove members");
@@ -137,13 +137,25 @@ export async function updateMemberPreferences(
   memberId: string,
   data: MemberPreferencesInput
 ): Promise<void> {
-  const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const user = await resolveIdentity();
+  const { householdId, memberId: ownId, role: ownRole } = await requireHousehold(user);
+
+  // Anyone can set their own diet and preferences; only admins can change
+  // someone else's, or anyone's role (without this a member could make
+  // themselves an admin).
+  const isAdmin = ownRole === "admin";
+  if (!isAdmin && memberId !== ownId) throw new Error("Only admins can change other members");
+  const [current] = await db
+    .select({ role: householdMembers.role })
+    .from(householdMembers)
+    .where(and(eq(householdMembers.id, memberId), eq(householdMembers.householdId, householdId)))
+    .limit(1);
+  if (!current) throw new Error("Member not found");
 
   await db
     .update(householdMembers)
     .set({
-      role: data.role,
+      role: isAdmin ? data.role : current.role,
       birthYear: parseBirthYear(data.birthYear == null ? null : String(data.birthYear)),
       dietaryFlags: data.dietaryFlags.length ? data.dietaryFlags : null,
       dislikes: data.dislikes.length ? data.dislikes : null,
@@ -163,7 +175,7 @@ export async function updateMemberPreferences(
 // ─── AI Config ────────────────────────────────────────────────────────────────
 
 export async function saveAiConfig(formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can configure AI settings");
@@ -266,7 +278,7 @@ export async function getLogLevel(): Promise<LogLevel> {
 }
 
 export async function setLogLevel(level: LogLevel): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { role } = await requireHousehold(user);
   if (role !== "admin") throw new Error("Admin only");
 

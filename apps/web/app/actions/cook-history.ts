@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { cookHistory } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
@@ -17,7 +17,7 @@ export async function logCook(
   recipeId: string,
   data: cookService.LogCookInput
 ): Promise<{ id: string }> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const ctx = await requireHousehold(user);
   const { id } = await cookService.logCook(ctx, recipeId, data);
   revalidatePath(`/recipes/${recipeId}`);
@@ -26,7 +26,7 @@ export async function logCook(
 }
 
 export async function rateCook(cookId: string, rating: number): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const ctx = await requireHousehold(user);
   const { recipeId } = await cookService.rateCook(ctx, cookId, rating);
   revalidatePath(`/recipes/${recipeId}`);
@@ -34,7 +34,7 @@ export async function rateCook(cookId: string, rating: number): Promise<void> {
 }
 
 export async function rateRecipe(recipeId: string, rating: number, notes?: string): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const ctx = await requireHousehold(user);
   await cookService.rateRecipe(ctx, recipeId, rating, notes);
   revalidatePath(`/recipes/${recipeId}`);
@@ -52,7 +52,7 @@ export async function updateCookEntry(
   cookId: string,
   data: cookService.UpdateCookEntryInput
 ): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const ctx = await requireHousehold(user);
   const { recipeId } = await cookService.updateCookEntry(ctx, cookId, data);
   revalidatePath(`/recipes/${recipeId}`);
@@ -63,7 +63,7 @@ export async function updateCookEntry(
 // Remove a single cook-history entry — for duplicates or a mis-logged cook.
 // Deleting an entry also removes its rating from the recipe average.
 export async function deleteCookEntry(cookId: string): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const [row] = await db
@@ -88,7 +88,7 @@ export async function uploadCookPhoto(
 ): Promise<{ url?: string; error?: string }> {
   if (!isStorageAvailable()) return { error: "Storage not configured." };
 
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const [row] = await db

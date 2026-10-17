@@ -82,6 +82,12 @@ struct ShoppingScreen: View {
                             .buttonStyle(.plain)
                             Spacer()
                             if let list = data.value.list {
+                                // The web's "Add to pantry": ticked items into the pantry's stock.
+                                Button("Add to pantry") {
+                                    Task { await WebAction.run("pantry.addCheckedFromList", [.string(list.id)], done: "Ticked items added to the pantry.") }
+                                }
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(Color(hex: 0x047857))
                                 Button("Clear checked") { clearChecked(list) }
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundStyle(Theme.destructive)

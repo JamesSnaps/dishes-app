@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { integrationTokens } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { generateToken } from "@/lib/integration-auth";
 // Note: a "use server" module may only export async functions — no type
@@ -12,7 +12,7 @@ import { generateToken } from "@/lib/integration-auth";
 import { ALL_SCOPES } from "./integration-constants";
 
 export async function createIntegrationToken(formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, memberId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can create integration tokens");
@@ -46,7 +46,7 @@ export async function createIntegrationToken(formData: FormData) {
 }
 
 export async function revokeIntegrationToken(tokenId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can revoke tokens");

@@ -5,11 +5,11 @@ import { notes } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 
 export async function createNote(formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const title = (formData.get("title") as string)?.trim();
@@ -30,7 +30,7 @@ export async function createNote(formData: FormData) {
 }
 
 export async function updateNote(noteId: string, formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const title = (formData.get("title") as string)?.trim();
@@ -50,7 +50,7 @@ export async function updateNote(noteId: string, formData: FormData) {
 }
 
 export async function deleteNote(noteId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const [note] = await db

@@ -69,7 +69,33 @@ struct MoreScreen: View {
                         .foregroundStyle(Theme.brand)
                     }
 
-                    section("On the website", footer: "AI, imports, pantry, stats and household admin are on the website.") {
+                    section("Kitchen", footer: "These need a connection.") {
+                        link("Pantry", "cabinet") { PantryScreen() }
+                        divider
+                        link("Deliveries", "truck.box") { DeliveriesScreen() }
+                        divider
+                        link("Saved meals", "rectangle.stack") { SavedMealsScreen() }
+                        divider
+                        link("Notes", "note.text") { NotesScreen() }
+                    }
+
+                    section("Insights", footer: "What the household has been eating, and what it likes.") {
+                        link("Stats", "chart.bar") { StatsScreen() }
+                        divider
+                        link("Wrapped", "gift") { WrappedScreen() }
+                        divider
+                        link("Taste profile", "heart.text.square") { TasteScreen() }
+                    }
+
+                    section("Household", footer: "Members, diets and dislikes, sharing, and the household’s AI key.") {
+                        link("Household & members", "person.3") { HouseholdScreen() }
+                        divider
+                        link("Sharing", "square.and.arrow.up.on.square") { SharingScreen() }
+                        divider
+                        link("AI settings", "sparkles") { AISettingsScreen() }
+                    }
+
+                    section("On the website", footer: "Integrations, email and diagnostics are on the website.") {
                         Button { openURL(AppModel.serverURL) } label: {
                             HStack {
                                 Label("Open Dishes on the web", systemImage: "safari")
@@ -120,6 +146,20 @@ struct MoreScreen: View {
     }
 
     private var divider: some View { Rectangle().fill(Theme.border).frame(height: 1) }
+
+    private func link(_ title: String, _ icon: String, @ViewBuilder _ destination: @escaping () -> some View) -> some View {
+        NavigationLink(destination: destination) {
+            HStack {
+                Label(title, systemImage: icon)
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.mutedForeground)
+            }
+            .padding(14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.foreground)
+    }
 
     private func section(_ title: String, footer: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {

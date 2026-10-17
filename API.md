@@ -765,7 +765,7 @@ half an hour after serving. `DELETE` with `{ "token" }` stops it.
 
 ### AI — `/api/v1/ai/*` and `/api/v1/cook-assist`
 
-All use the household's own AI key (Settings → AI on the web) and answer a
+All use the household's own AI key (Settings → AI, on the web or in the app) and answer a
 422 with the reason when it isn't set up or the call fails. They take tens of
 seconds, so clients should allow a long timeout.
 
@@ -795,6 +795,34 @@ used at those servings off the pantry. Both 204.
 
 `{ "token": "<hex>" }` sends a test notification to that device (yours only).
 503 when the server has no APNs key, 410 when Apple says the token is dead.
+
+### `POST /api/v1/actions/{name}`
+
+The rest of the website's features, for the app, without a REST route each: it
+runs the web's own server action, so the rules (admin-only, household scope)
+are the same ones the website enforces. Body `{ "args": [ … ] }` — the
+action's arguments in order — answered `{ "result": … }`. An unknown name is
+404; an action that refuses (`{ error }`) or throws is 422 `{ "error": "…" }`.
+The per-action adapters are in `apps/web/lib/api/v1-actions.ts`.
+
+| Group | Actions |
+|---|---|
+| `pantry` | `list`, `addStaple`, `removeStaples`, `addStock`, `removeStock`, `updateStock`, `addCheckedFromList` |
+| `deliveries` | `overview`, `weekPanel`, `setReminders`, `saveSettings`, `addAway`, `updateAway`, `removeAway`, `set`, `saveOrder` |
+| `meals` (saved meals) | `list`, `create`, `update`, `delete`, `saveFromGroup`, `updateFromGroup` |
+| `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear` |
+| `ai` | `improve`, `refine`, `heartHealthy`, `applyTweak`, `saveTweakAsCopy`, `estimateNutrition`, `similar`, `sides`, `recipeImage`, `suggestMealComponents`, `config`, `saveConfig` |
+| `import` | `parse` — `[ingredientText, methodText]` → `{ ingredients, steps }` |
+| `stats` · `wrapped` · `taste` | `stats.report`, `wrapped.report`, `wrapped.recap`, `taste.get`, `taste.refresh`, `taste.clear` |
+| `notes` | `list`, `create`, `update`, `delete` |
+| `share` · `library` | recipe links (`tokens`, `recipeTokens`, `create`, `revoke`, `email`) and shared libraries (`list`, `browse`, `recipe`, `create`, `updateScope`, `rotate`, `revoke`, `leave`, `redeem`, `import`) |
+| `household` | `get`, `rename`, `addMember`, `setRole`, `removeMember`, `setPreferences` |
+
+### `POST /api/v1/import/crumb/preview` · `POST /api/v1/import/crumb`
+
+The Crumb importer with a bearer token: multipart `files` (`.crumb` or a
+`.zip`) → the recipes found; then `{ sessionId | fullData, indices }` imports
+the chosen ones. Same handlers as `/api/import/crumb/*`.
 
 ### The browser door: `/api/web/*`
 

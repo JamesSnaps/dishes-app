@@ -417,3 +417,29 @@ and finishing should clear timers.
   showed in the history; started cooking, ran a step timer, Finish → debrief →
   4 stars, Save & finish → logged, cooking closed, no timers left. **Not
   checked:** AI photo feedback (no key in dev) and the pantry button.
+
+### 17 Oct 2026 — the rest of the website (v1.37.0)
+
+James: "Add all website features not added yet."
+
+- Server: `POST /api/v1/actions/{name}` runs the web's server actions for a
+  bearer token (adapters in `apps/web/lib/api/v1-actions.ts`); every action
+  file now resolves the member with `resolveIdentity()`. Crumb import has
+  `/api/v1/import/crumb/*`. `updateMemberPreferences` now lets non-admins edit
+  only themselves and never their own role (it trusted the client before).
+- App: Settings has Kitchen (pantry, deliveries, saved meals, notes), Insights
+  (Stats, Wrapped, taste profile) and Household (members, sharing, AI
+  settings) sections — `Dishes/Web/`. Recipe ⋯ → AI tools, Share…, Add a note;
+  Filters on Recipes; Import from Crumb; paste ingredients/method in the
+  editor; a meal's cooking schedule and Save as a saved meal on the planner;
+  Add to pantry on Shopping; nutrition estimates in the app.
+- Toasts now live in a window of their own (`ToastWindow` in RootView), so
+  they show above sheets — errors inside a sheet were invisible before.
+- Checked on the 13-inch simulator: every new Settings screen loads; saved a
+  member's preferences, delivery settings (Friday → upcoming Fri 23 Oct) and
+  a saved meal; filters (tag "pasta" → 2 recipes); the AI tools menu and the
+  sides sheet; a meal's schedule (Ready by 17:30 with every dish's steps).
+  **Not checked:** anything that needs an AI key (none in dev — the 422 shows
+  as a toast), Crumb import with a real export, sharing by email.
+- Simulator tip: a plain tap doesn't flip a SwiftUI `Toggle`; tap with
+  `duration: 0.15`.
