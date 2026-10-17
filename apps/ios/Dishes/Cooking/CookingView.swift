@@ -43,6 +43,10 @@ final class CookSession {
     var used: Set<String> = []
     /// Scale per dish, by recipe id; starts at the recipe page's.
     var scales: [String: Double]
+    /// Dishes finished (Finish, then the debrief), by recipe id.
+    var finished: Set<String> = []
+    /// For "How long did it take?" in the debrief; minimised time counts.
+    let startedAt = Date()
 
     init(request: CookRequest) {
         self.request = request
@@ -173,7 +177,12 @@ struct CookingView: View {
                 .presentationDetents([.large])
         }
         .sheet(item: $logging) { recipe in
-            LogCookSheet(recipe: recipe, afterCooking: true) { end() }
+            CookReviewSheet(recipe: recipe,
+                            mode: .afterCooking(minutes: Int(Date().timeIntervalSince(session.startedAt) / 60),
+                                                servings: recipe.servings.map { $0 * dish.scale })) {
+                finish(recipe)
+            }
+            .presentationSizing(.page)
         }
         .sensoryFeedback(.impact(weight: .light), trigger: stepChanges)
         .onAppear {
@@ -194,6 +203,18 @@ struct CookingView: View {
     private var mealTimers: [CookTimer] {
         let dishes = Set(request.dishes.map(\.recipe.title))
         return CookTimers.shared.timers.filter { $0.state != .finished && $0.dish.map(dishes.contains) == true }
+    }
+
+    /// A dish is done (saved or "Review later"): its timers go. In a meal the
+    /// next unfinished dish comes up; after the last, the cook ends.
+    private func finish(_ recipe: Recipe) {
+        for timer in CookTimers.shared.timers where timer.dish == recipe.title { CookTimers.shared.cancel(timer) }
+        session.finished.insert(recipe.id)
+        if let next = request.dishes.firstIndex(where: { !session.finished.contains($0.recipe.id) }) {
+            withAnimation { session.dishIndex = next }
+        } else {
+            end()
+        }
     }
 
     /// Back to the app, the cook kept: the resume bar brings it back.
@@ -229,7 +250,8 @@ struct CookingView: View {
             if request.dishes.count > 1 {
                 Picker("Dish", selection: $session.dishIndex) {
                     ForEach(request.dishes.indices, id: \.self) { i in
-                        Text(request.dishes[i].recipe.title).tag(i)
+                        let done = session.finished.contains(request.dishes[i].recipe.id)
+                        Text((done ? "✓ " : "") + request.dishes[i].recipe.title).tag(i)
                     }
                 }
                 .pickerStyle(.segmented)

@@ -294,31 +294,6 @@ final class AppModel {
         }
     }
 
-    /// Logs a cook, then its photo if there is one; the entry arrives on the
-    /// device with the next sync. Answers whether the cook was saved (the
-    /// toast says why not). A photo that fails doesn't undo the cook.
-    func logCook(_ cook: APIClient.LogCook, photo: Data? = nil) async -> Bool {
-        let id: String
-        do {
-            id = try await api.logCook(cook)
-        } catch {
-            toast = online ? "Couldn’t log that cook." : "You’re offline — logging a cook needs a connection for now."
-            return false
-        }
-        if let photo {
-            do {
-                try await api.uploadCookPhoto(cookId: id, image: photo)
-                toast = "Cook logged, with its photo."
-            } catch {
-                toast = "Cook logged, but the photo didn’t upload."
-            }
-        } else {
-            toast = "Cook logged."
-        }
-        await syncNow()
-        return true
-    }
-
     func deleteCook(_ entry: CookEntry) async {
         do {
             try await api.deleteCook(id: entry.id)

@@ -296,7 +296,7 @@ struct ConciergeSheet: View {
     }
 
     private func readPhoto(_ image: UIImage) async {
-        guard let jpeg = LogCookSheet.jpeg(image) else { return }
+        guard let jpeg = CookReviewSheet.jpeg(image) else { return }
         stage = .writing("Reading the recipe from your photo…")
         do {
             await open(try await app.api.recipeFromPhoto(jpeg))

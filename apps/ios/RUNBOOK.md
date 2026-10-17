@@ -372,3 +372,26 @@ image, no keyboard, no custom timer, and Exit was the only way out.
   Minimise → resume bar with the countdown → back in at the same step and
   scale, Exit with a running timer ended it. **Not checked:** the keyboard
   (the simulator tool can't type keys) — try it on the iPad's keyboard case.
+
+### 17 Oct 2026 — the post-cook review and editing cooks (v1.36.0)
+
+James: cook history couldn't be edited, the web's post-cook flow was missing,
+and finishing should clear timers.
+
+- `CookReviewSheet` (Cooking/LogCookSheet.swift) is the web's cook-review form
+  in three modes: Log a cook, the "All done!" debrief after Finish, and Edit.
+  Duration (−/+ 5; after cooking the real time, and the recipe's cook time is
+  updated when it's 5+ minutes out), your rating, who ate + their ratings,
+  occasion chips or free text, notes, photo (replace or remove), then the AI's
+  photo feedback when there's a new photo. After cooking: Mark ingredients as
+  used from pantry, and Review later (logs time/who/occasion only).
+- Server: `/cook-history/{id}/feedback`, `/recipes/{id}/cook-time`,
+  `/recipes/{id}/use-pantry`; pantry actions use `resolveIdentity` for bearer auth.
+- History cards: ⋯ menu (Edit/Review, Delete) and tap to edit; they show the
+  duration now.
+- Finishing a dish cancels its timers; in a meal the next unfinished dish
+  comes up (✓ on finished tabs) and the cook ends after the last.
+- Checked on the 13-inch simulator: edited a cook (25 min, Date night) and it
+  showed in the history; started cooking, ran a step timer, Finish → debrief →
+  4 stars, Save & finish → logged, cooking closed, no timers left. **Not
+  checked:** AI photo feedback (no key in dev) and the pantry button.

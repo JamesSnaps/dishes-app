@@ -11,13 +11,13 @@ import {
 } from "@dishes/db/schema";
 import { eq, and, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 
 // ─── Staples ──────────────────────────────────────────────────────────────────
 
 export async function addStaple(ingredientName: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const name = ingredientName.trim();
@@ -28,7 +28,7 @@ export async function addStaple(ingredientName: string) {
 }
 
 export async function removeStaple(stapleId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db
@@ -43,7 +43,7 @@ export async function removeStaple(stapleId: string) {
 }
 
 export async function removeStaples(stapleIds: string[]) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   if (stapleIds.length === 0) return;
@@ -62,7 +62,7 @@ export async function removeStaples(stapleIds: string[]) {
 // ─── Stock ────────────────────────────────────────────────────────────────────
 
 export async function addStockItem(formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const ingredientName = (formData.get("ingredientName") as string)?.trim();
@@ -83,7 +83,7 @@ export async function addStockItem(formData: FormData) {
 }
 
 export async function removeStockItem(stockId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db
@@ -98,7 +98,7 @@ export async function removeStockItem(stockId: string) {
 }
 
 export async function removeStockItems(stockIds: string[]) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   if (stockIds.length === 0) return;
@@ -118,7 +118,7 @@ export async function updateStockItem(
   stockId: string,
   values: { ingredientName: string; amount: string | null; unit: string | null }
 ) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const name = values.ingredientName.trim();
@@ -144,7 +144,7 @@ export async function updateStockItem(
 }
 
 export async function updateStockAmount(stockId: string, amount: string | null) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const parsed = amount && !isNaN(parseFloat(amount)) ? amount : null;
@@ -164,7 +164,7 @@ export async function updateStockAmount(stockId: string, amount: string | null) 
 // ─── Cooking integration ──────────────────────────────────────────────────────
 
 export async function deductRecipeIngredients(recipeId: string, servings: number) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const [recipe] = await db
@@ -242,7 +242,7 @@ export async function deductRecipeIngredients(recipeId: string, servings: number
 // ─── Shopping list → stock ────────────────────────────────────────────────────
 
 export async function addCheckedItemsToStock(listId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const [list] = await db

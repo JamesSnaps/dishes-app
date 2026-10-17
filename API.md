@@ -780,6 +780,17 @@ seconds, so clients should allow a long timeout.
 - `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
 - `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text
 
+### `POST /api/v1/cook-history/{id}/feedback`
+
+The AI's take on how the cook's photo looks → `{ feedback }`. 404 without a
+photo; 422 when AI isn't set up.
+
+### `POST /api/v1/recipes/{id}/cook-time` · `POST /api/v1/recipes/{id}/use-pantry`
+
+`{ "minutes": 45 }` sets the recipe's cook time from a real cook (the review
+does this when it's 5+ minutes out). `{ "servings": 4 }` takes what the recipe
+used at those servings off the pantry. Both 204.
+
 ### `POST /api/v1/push/test`
 
 `{ "token": "<hex>" }` sends a test notification to that device (yours only).

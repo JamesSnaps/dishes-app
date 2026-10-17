@@ -196,13 +196,89 @@ public final class APIClient: SyncTransport, Sendable {
         public var notes: String?
         public var cookedFor: [String]?
         public var memberRatings: [MemberRating]?
+        /// Minutes it actually took.
+        public var actualDuration: Int?
+        public var occasion: String?
 
-        public init(recipeId: String, rating: Double?, notes: String?, cookedFor: [String]?, memberRatings: [MemberRating]?) {
+        public init(recipeId: String, rating: Double?, notes: String?, cookedFor: [String]?, memberRatings: [MemberRating]?,
+                    actualDuration: Int? = nil, occasion: String? = nil) {
             self.recipeId = recipeId
             self.rating = rating
             self.notes = notes
             self.cookedFor = cookedFor
             self.memberRatings = memberRatings
+            self.actualDuration = actualDuration
+            self.occasion = occasion
+        }
+    }
+
+    /// Every field of a logged cook, for editing it. Empty fields are sent as
+    /// null, so clearing one on the form clears it on the server.
+    public struct UpdateCook: Encodable, Sendable {
+        public var rating: Double?
+        public var notes: String?
+        public var cookedFor: [String]?
+        public var memberRatings: [LogCook.MemberRating]?
+        public var actualDuration: Int?
+        public var occasion: String?
+        public var removePhoto: Bool
+
+        public init(rating: Double?, notes: String?, cookedFor: [String]?, memberRatings: [LogCook.MemberRating]?,
+                    actualDuration: Int?, occasion: String?, removePhoto: Bool) {
+            self.rating = rating; self.notes = notes; self.cookedFor = cookedFor; self.memberRatings = memberRatings
+            self.actualDuration = actualDuration; self.occasion = occasion; self.removePhoto = removePhoto
+        }
+
+        enum Keys: String, CodingKey { case rating, notes, cookedFor, memberRatings, actualDuration, occasion, removePhoto }
+
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: Keys.self)
+            try c.encode(rating, forKey: .rating)
+            try c.encode(notes, forKey: .notes)
+            try c.encode(cookedFor, forKey: .cookedFor)
+            try c.encode(memberRatings, forKey: .memberRatings)
+            try c.encode(actualDuration, forKey: .actualDuration)
+            try c.encode(occasion, forKey: .occasion)
+            try c.encode(removePhoto, forKey: .removePhoto)
+        }
+    }
+
+    /// Edits a logged cook (every field). 200 with the entry; the change syncs down.
+    public func updateCook(id: String, _ cook: UpdateCook) async throws {
+        let body = try JSONEncoder().encode(cook)
+        _ = try await send { token in
+            var r = authorisedRequest(url("/cook-history/\(id)"), method: "PATCH", token: token)
+            r.httpBody = body
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+    }
+
+    /// The AI's take on the cook's photo, as the web shows after saving.
+    public func cookPhotoFeedback(cookId: String) async throws -> String {
+        struct Reply: Decodable { var feedback: String }
+        return try await slowPost("/cook-history/\(cookId)/feedback", json: [String: String](), timeout: 60, as: Reply.self).feedback
+    }
+
+    /// The recipe's cook time, from how long a cook really took.
+    public func setCookTime(recipeId: String, minutes: Int) async throws {
+        let body = try JSONEncoder().encode(["minutes": minutes])
+        _ = try await send { token in
+            var r = authorisedRequest(url("/recipes/\(recipeId)/cook-time"), method: "POST", token: token)
+            r.httpBody = body
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+    }
+
+    /// "Mark ingredients as used from pantry".
+    public func usePantry(recipeId: String, servings: Double) async throws {
+        let body = try JSONEncoder().encode(["servings": servings])
+        _ = try await send { token in
+            var r = authorisedRequest(url("/recipes/\(recipeId)/use-pantry"), method: "POST", token: token)
+            r.httpBody = body
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
         }
     }
 
