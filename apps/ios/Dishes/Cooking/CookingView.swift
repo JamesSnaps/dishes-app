@@ -365,7 +365,7 @@ struct TimersPanel: View {
                     PanelLabel(text: "Timers")
                     Spacer()
                     if !timers.timers.isEmpty {
-                        Button("Clear all") { timers.clearAll() }
+                        Button("Clear all") { withAnimation(.easeOut(duration: 0.35)) { timers.clearAll() } }
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(Theme.brand)
                     }
@@ -378,6 +378,7 @@ struct TimersPanel: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .card()
+                        .transition(.poof)
                 }
             }
             .padding(16)
@@ -386,76 +387,90 @@ struct TimersPanel: View {
     }
 }
 
-/// One timer: its label and countdown, with the controls in plain sight —
-/// pause or resume, one more minute, and ✕ to clear it. (A tap used to toggle
-/// pause and clearing hid behind a long press, so a paused timer looked like it
-/// couldn't be got rid of.)
+/// One timer: its label, dish and countdown. Tap it for a native menu —
+/// Pause/Resume, Add a minute, Cancel (Clear once done). Buttons on the card
+/// itself were too cramped in a narrow column (James's iPad, 17 Oct 2026).
+/// Clearing animates it away with a "poof" (`.poof`).
 struct TimerRow: View {
     let timer: CookTimer
     var compact = false
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let left = timer.secondsLeft(at: context.date)
-            let finished = timer.state == .finished || left <= 0
-            VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+        Menu {
+            actions
+        } label: {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let left = timer.secondsLeft(at: context.date)
+                let finished = timer.state == .finished || left <= 0
                 HStack(spacing: 10) {
+                    Image(systemName: finished ? "checkmark.circle.fill" : timer.state == .paused ? "pause.circle.fill" : "timer")
+                        .font(.system(size: compact ? 16 : 20, weight: .semibold))
+                        .foregroundStyle(finished ? Theme.emerald700 : timer.state == .paused ? Theme.mutedForeground : Theme.brand)
+                        .symbolEffect(.pulse, isActive: timer.state == .running)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(timer.label)
                             .font(.system(size: compact ? 13 : 15, weight: .semibold))
                             .foregroundStyle(Theme.foreground)
                             .lineLimit(1)
-                        if let dish = timer.dish, !compact {
-                            Text(dish).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
+                        if !compact {
+                            Text(finished ? "Done" : timer.state == .paused ? "Paused" : (timer.dish ?? "Running"))
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.mutedForeground)
+                                .lineLimit(1)
                         }
                     }
                     Spacer(minLength: 4)
-                    Text(finished ? "Done" : timer.state == .paused ? "Paused" : "")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(finished ? Theme.emerald700 : Theme.mutedForeground)
                     Text(finished ? "0:00" : Self.clock(left))
-                        .font(.system(size: compact ? 17 : 24, weight: .bold, design: .rounded))
+                        .font(.system(size: compact ? 17 : 22, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(finished ? Theme.emerald700 : timer.state == .paused ? Theme.mutedForeground : Theme.brandDeep)
                         .contentTransition(.numericText(countsDown: true))
+                        .fixedSize()
                 }
-                HStack(spacing: 8) {
-                    if !finished {
-                        control(timer.state == .paused ? "play.fill" : "pause.fill",
-                                timer.state == .paused ? "Resume" : "Pause", filled: true) {
-                            if timer.state == .paused { CookTimers.shared.resume(timer) } else { CookTimers.shared.pause(timer) }
-                        }
-                        control("plus", "1 min") { Task { await CookTimers.shared.addMinute(timer) } }
-                    }
-                    Spacer(minLength: 0)
-                    control("xmark", finished ? "Clear" : "Cancel", destructive: true) { CookTimers.shared.cancel(timer) }
-                }
+                .contentShape(Rectangle())
+                .onChange(of: finished) { _, now in if now { CookTimers.shared.refreshFinished() } }
             }
-            .onChange(of: finished) { _, now in if now { CookTimers.shared.refreshFinished() } }
-        }
-        .accessibilityElement(children: .contain)
-    }
-
-    /// A small pill button. The label is spoken, and shown when there's room.
-    private func control(_ icon: String, _ label: String, filled: Bool = false, destructive: Bool = false,
-                         action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 11, weight: .bold))
-                if !compact { Text(label).font(.system(size: 12, weight: .semibold)) }
-            }
-            .foregroundStyle(filled ? .white : destructive ? Theme.destructive : Theme.foreground)
-            .padding(.horizontal, compact ? 9 : 11)
-            .frame(height: compact ? 26 : 30)
-            .background(filled ? Theme.brand : Theme.muted, in: Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label)
+        .menuOrder(.fixed)
+    }
+
+    @ViewBuilder private var actions: some View {
+        if timer.state == .running {
+            Button("Pause", systemImage: "pause.fill") { CookTimers.shared.pause(timer) }
+        }
+        if timer.state == .paused {
+            Button("Resume", systemImage: "play.fill") { CookTimers.shared.resume(timer) }
+        }
+        if timer.state != .finished {
+            Button("Add a minute", systemImage: "plus") { Task { await CookTimers.shared.addMinute(timer) } }
+        }
+        Button(timer.state == .finished ? "Clear" : "Cancel timer", systemImage: "xmark", role: .destructive) {
+            withAnimation(.easeOut(duration: 0.35)) { CookTimers.shared.cancel(timer) }
+        }
     }
 
     static func clock(_ seconds: TimeInterval) -> String {
         let s = Int(seconds.rounded(.up))
         return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+/// "Poof": puffs up, blurs and fades — how a cleared timer leaves.
+struct PoofModifier: ViewModifier {
+    let gone: Bool
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(gone ? 1.25 : 1)
+            .blur(radius: gone ? 10 : 0)
+            .opacity(gone ? 0 : 1)
+    }
+}
+
+extension AnyTransition {
+    static var poof: AnyTransition {
+        .asymmetric(insertion: .scale(scale: 0.9).combined(with: .opacity),
+                    removal: .modifier(active: PoofModifier(gone: true), identity: PoofModifier(gone: false)))
     }
 }
 
@@ -473,6 +488,7 @@ struct TimerStrip: View {
                             .padding(.vertical, 10)
                             .frame(width: 210)
                             .card()
+                            .transition(.poof)
                     }
                 }
                 .padding(.horizontal, 16)

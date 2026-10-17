@@ -231,4 +231,10 @@ the web's design rather than stock iOS styling:
   with a large orange Tonight card (photo, serve-at, Start cooking; "Plan a
   meal" when nothing's planned). The pill stays on iPhone only, recoloured.
 - Checked on the iPad Pro 13-inch simulator, portrait.
+- **Timers as a native menu.** The pill buttons wrapped badly in a narrow
+  column ("Resum e"). A timer card is now just an icon, label and countdown;
+  tap it for Pause/Resume, Add a minute, Cancel (Clear once done). Clearing
+  "poofs" it away (scale up, blur, fade — `AnyTransition.poof`). Menu and
+  cancel checked on the 13-inch simulator; the animation is too quick to
+  capture in a screenshot, so judge it on the device.
 
