@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { householdMembers } from "@dishes/db/schema";
 import { and, eq } from "drizzle-orm";
 import { claimReminder } from "@/lib/reminder-claim";
-import { sendPushToUsers, type PushPayload } from "@/lib/push";
+import { pushConfigured, sendPushToUsers, type PushPayload } from "@/lib/push";
 import {
   addDaysToDate,
   isValidTime,
@@ -216,8 +216,8 @@ export async function runDeliveryReminderTick(): Promise<void> {
 
 export function startDeliveryReminderScheduler(): void {
   if (globalThis.__deliveryReminderTimer) return;
-  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
-    console.info("[delivery-reminders] VAPID keys not set — delivery reminders disabled");
+  if (!pushConfigured()) {
+    console.info("[delivery-reminders] no push configured (VAPID or APNs) — delivery reminders disabled");
     return;
   }
 

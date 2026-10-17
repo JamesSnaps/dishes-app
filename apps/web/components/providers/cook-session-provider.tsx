@@ -138,6 +138,12 @@ interface CookSessionValue {
   startSessions: (inits: CookSessionInit[], activeRecipeId: string) => void;
   /** Ends the given cook, or the active one when no id is passed. */
   endSession: (recipeId?: string) => void;
+  /**
+   * Leaves cooking altogether: ends the given cook and, when it's part of a
+   * meal, every other dish of that meal too. Exit and the mini bar's close use
+   * this, so a meal doesn't leave its other dishes behind minimised.
+   */
+  endCook: (recipeId?: string) => void;
   /** Brings a cook to the foreground without touching the rest. */
   activateSession: (recipeId: string) => void;
   setStepIndex: (index: number, recipeId?: string) => void;
@@ -503,6 +509,43 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
     [activeRecipeId]
   );
 
+  // The latest sessions, for endCook to compute from synchronously.
+  const latestSessions = useRef(sessions);
+  latestSessions.current = sessions;
+
+  const endCook = useCallback(
+    (recipeId?: string) => {
+      const prev = latestSessions.current;
+      const target = recipeId ?? activeRecipeId;
+      const groupId = prev.find((s) => s.recipeId === target)?.meal?.groupId;
+      const next = prev.filter(
+        (s) => s.recipeId !== target && (!groupId || s.meal?.groupId !== groupId)
+      );
+      const active = next.some((s) => s.recipeId === activeRecipeId)
+        ? activeRecipeId
+        : next[0]?.recipeId ?? null;
+      // Saved here, in the click, as well as by the persist effect: Exit's link
+      // navigates straight away, and storage mustn't still hold the ended cooks
+      // if that turns into a full page load (a new deploy, an error).
+      try {
+        if (next.length) {
+          window.localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ sessions: next, activeRecipeId: active } satisfies StoredState)
+          );
+        } else {
+          window.localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch {
+        // Storage blocked — the persist effect still covers this page life.
+      }
+      latestSessions.current = next;
+      setSessions(next);
+      setActiveRecipeId(active);
+    },
+    [activeRecipeId]
+  );
+
   const activateSession = useCallback((recipeId: string) => {
     setActiveRecipeId(recipeId);
   }, []);
@@ -638,6 +681,7 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
       startSession,
       startSessions,
       endSession,
+      endCook,
       activateSession,
       setStepIndex,
       setServings,
@@ -656,6 +700,7 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
       startSession,
       startSessions,
       endSession,
+      endCook,
       activateSession,
       setStepIndex,
       setServings,

@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { householdMembers } from "@dishes/db/schema";
 import { and, eq } from "drizzle-orm";
 import { claimReminder } from "@/lib/reminder-claim";
-import { sendPushToUsers, type PushPayload } from "@/lib/push";
+import { pushConfigured, sendPushToUsers, type PushPayload } from "@/lib/push";
+import { runLiveActivityTick } from "@/lib/live-activities";
 import { describeEstimate } from "./estimate";
 import { getDinnerPlan, getReminderSettings, type DinnerPlan } from "./schedule";
 import { localNow, minutesToTime, timeToMinutes, weekStartOf } from "./time";
@@ -200,14 +201,17 @@ export async function runDinnerReminderTick(): Promise<void> {
 
 export function startDinnerReminderScheduler(): void {
   if (globalThis.__dinnerReminderTimer) return;
-  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
-    console.info("[dinner-reminders] VAPID keys not set — dinner reminders disabled");
+  if (!pushConfigured()) {
+    console.info("[dinner-reminders] no push configured (VAPID or APNs) — dinner reminders disabled");
     return;
   }
 
   const tick = () => {
     runDinnerReminderTick().catch((err) =>
       console.error("[dinner-reminders] tick failed:", err)
+    );
+    runLiveActivityTick().catch((err) =>
+      console.error("[live-activities] tick failed:", err)
     );
   };
   globalThis.__dinnerReminderTimer = setInterval(tick, TICK_MS);

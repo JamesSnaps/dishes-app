@@ -23,6 +23,7 @@ struct DishesWidgets: WidgetBundle {
     var body: some Widget {
         CookingLiveActivity()
         CookTimerAlarmActivity()
+        MealScheduleLiveActivity()
     }
 }
 
@@ -148,6 +149,107 @@ private struct CookingLockScreen: View {
                         Text("+\(context.state.runningTimers - 1) more").font(.caption2).foregroundStyle(colors.secondary)
                     }
                 }
+            }
+        }
+        .padding(16)
+    }
+}
+
+// MARK: Meal schedule
+
+struct MealScheduleLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: MealScheduleAttributes.self) { context in
+            LockScreenCard { MealScheduleLockScreen(context: context, colors: $0) }
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Label("Serve \(context.state.serveDate.formatted(date: .omitted, time: .shortened))", systemImage: "fork.knife")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Palette.brand)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    MealCountdown(to: context.state.nextDate)
+                        .font(.title3.weight(.bold).monospacedDigit())
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(Palette.brand)
+                        .frame(maxWidth: 90)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(context.state.nextDate.formatted(date: .omitted, time: .shortened)) · \(context.state.nextText)")
+                            .font(.subheadline).lineLimit(2)
+                        if let after = context.state.afterText {
+                            Text("Then: \(after)").font(.caption).foregroundStyle(Palette.muted).lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } compactLeading: {
+                Image(systemName: "fork.knife").foregroundStyle(Palette.brand)
+            } compactTrailing: {
+                MealCountdown(to: context.state.nextDate)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.brand)
+                    .frame(maxWidth: 52)
+            } minimal: {
+                Image(systemName: "fork.knife").foregroundStyle(Palette.brand)
+            }
+            .keylineTint(Palette.brand)
+        }
+    }
+}
+
+/// Counts down to the next step; past it (until the server's update arrives)
+/// it says "Now" rather than showing a frozen 0:00.
+private struct MealCountdown: View {
+    let to: Date
+
+    var body: some View {
+        if to > .now {
+            Text(timerInterval: Date.now...to, countsDown: true)
+        } else {
+            Text("Now")
+        }
+    }
+}
+
+private struct MealScheduleLockScreen: View {
+    let context: ActivityViewContext<MealScheduleAttributes>
+    let colors: CardColors
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "fork.knife").foregroundStyle(Palette.brand)
+                    Text(context.attributes.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        .foregroundStyle(colors.text)
+                    Text("· serve \(context.state.serveDate.formatted(date: .omitted, time: .shortened))")
+                        .font(.subheadline).foregroundStyle(colors.secondary)
+                }
+                Text("\(context.state.nextDate.formatted(date: .omitted, time: .shortened)) · Next")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.brand)
+                Text(context.state.nextText)
+                    .font(.subheadline)
+                    .foregroundStyle(colors.text)
+                    .lineLimit(3)
+                if let after = context.state.afterText {
+                    Text("Then: \(after)").font(.caption).foregroundStyle(colors.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 2) {
+                MealCountdown(to: context.state.nextDate)
+                    .font(.title.weight(.bold).monospacedDigit())
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(Palette.brand)
+                    .frame(width: 124, alignment: .trailing)
+                Text(context.state.stepsLeft == 1 ? "1 step left" : "\(context.state.stepsLeft) steps left")
+                    .font(.caption).foregroundStyle(colors.secondary)
             }
         }
         .padding(16)

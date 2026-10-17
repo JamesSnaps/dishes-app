@@ -363,4 +363,54 @@ public final class APIClient: SyncTransport, Sendable {
         struct Reply: Decodable { var ok: Bool }
         _ = try await request("/push/test", method: "POST", json: Body(token: token), as: Reply.self)
     }
+
+    // MARK: Notification actions
+
+    public struct Snoozed: Decodable, Sendable { public var dinnerTime: String; public var remindAt: String? }
+
+    /// "Push back 30 min" on a dinner reminder: moves that date's dinner time.
+    public func snoozeDinner(date: String) async throws -> Snoozed {
+        struct Body: Encodable { var date: String }
+        return try await request("/dinner-reminders/snooze", method: "POST", json: Body(date: date))
+    }
+
+    /// "Mark as ordered" on a delivery reminder.
+    public func markDeliveryOrdered(date: String) async throws {
+        struct Body: Encodable { var date: String }
+        struct Reply: Decodable { var date: String }
+        _ = try await request("/deliveries/ordered", method: "POST", json: Body(date: date), as: Reply.self)
+    }
+
+    // MARK: Meal schedule
+
+    /// A planned meal's schedule as clock times (epoch ms), for the Live Activity.
+    public struct MealClock: Decodable, Sendable {
+        public struct Cue: Decodable, Sendable {
+            public var id: String
+            public var at: Double
+            public var dish: String?
+            public var text: String
+        }
+        public var groupId: String
+        public var title: String
+        public var serveAt: Double
+        public var cues: [Cue]
+    }
+
+    public func mealClock(groupId: String) async throws -> MealClock {
+        try await request("/meal-plan/groups/\(groupId)/clock")
+    }
+
+    /// Hands a meal-schedule Live Activity's push token to the server, which
+    /// then keeps it current. 204, no body.
+    public func registerLiveActivity(groupId: String, token: String, sandbox: Bool) async throws {
+        struct Body: Encodable { var groupId: String; var token: String; var environment: String }
+        let body = try JSONEncoder().encode(Body(groupId: groupId, token: token, environment: sandbox ? "sandbox" : "production"))
+        _ = try await send { bearer in
+            var r = authorisedRequest(url("/live-activities"), method: "POST", token: bearer)
+            r.httpBody = body
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+    }
 }

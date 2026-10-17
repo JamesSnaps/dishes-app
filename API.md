@@ -743,6 +743,26 @@ Register this device for Apple Push: `{ "token": "<hex>", "environment":
 (201). Re-registering the same token is an upsert, so the app does it at every
 launch. `DELETE` with `{ "token" }` on sign-out, 204.
 
+### `POST /api/v1/dinner-reminders/snooze` · `POST /api/v1/deliveries/ordered`
+
+The buttons on dinner and delivery reminders, for the app: `{ "date": "YYYY-MM-DD" }`.
+Snooze pushes that date's dinner back 30 minutes and answers
+`{ dinnerTime, remindAt }`; ordered marks the delivery as placed and answers
+`{ date, day }`. Same handlers as the web's service-worker routes.
+
+### `GET /api/v1/meal-plan/groups/{id}/clock`
+
+A planned meal's cooking schedule as clock times (epoch ms), in the household's
+timezone: `{ groupId, title, serveAt, cues: [{ id, at, recipeId, stepIndex, dish, text }] }`.
+404 when the meal has no serve-at time (neither its own nor the day's dinner time).
+
+### `POST /api/v1/live-activities` · `DELETE`
+
+Hand over a meal-schedule Live Activity's push token:
+`{ "groupId", "token": "<hex>", "environment": "sandbox" | "production" }` → 204.
+The server updates the activity over APNs as each step comes due and ends it
+half an hour after serving. `DELETE` with `{ "token" }` stops it.
+
 ### `POST /api/v1/push/test`
 
 `{ "token": "<hex>" }` sends a test notification to that device (yours only).

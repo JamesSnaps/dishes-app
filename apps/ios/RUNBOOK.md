@@ -304,3 +304,26 @@ the web's design rather than stock iOS styling:
   before a simulated tap lands. Try it on the iPad.
 - **On James's iPad Pro (device build, production server):** notifications
   work: permission, the test send and household notifications all arrive.
+
+### 17 Oct 2026 — notification buttons, meals in cooking mode, meal Live Activity (v1.33.0)
+
+- Notification buttons: the server sends a notification's first web action id
+  as the APNs category; the app registers `snooze` (Start cooking, Push back
+  30 min) and `delivery-ordered` (Mark as ordered). Checked on the 13-inch
+  simulator from Notification Center: Push back 30 min reached
+  `/api/v1/dinner-reminders/snooze` and the "Dinner moved to 17:30" confirmation
+  replaced it; tapping a dinner reminder opened cooking mode for Fish Tacos.
+- Simulated taps on a banner rarely land before it slides away; open
+  Notification Center (a slow drag down from the top edge) and act there.
+- Planner: a combined meal's card in the whole-week grid opens the meal (every
+  dish, Cook for all of them) instead of its first dish's recipe.
+- Exit asks "Stop cooking?" when this cook's timers are running: end and cancel
+  them, or keep them going. Checked: the risotto timer was cancelled.
+- Meal-schedule Live Activity: "Show schedule on Lock Screen" on the meal page
+  for today. Checked on the simulator against a dev server with the APNs key:
+  the card showed the next step and countdown, the token reached
+  `/api/v1/live-activities`, and after moving the serve time the server's
+  minute tick sent an update that Apple accepted
+  (`[live-activities] … sent=true`). Not yet seen arriving on a locked iPad.
+- Dev-only oddity: after the dev server restarted mid-session the simulator app
+  came up signed out once; relaunching with `-DishesDevServer` fixed it.

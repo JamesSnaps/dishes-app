@@ -916,6 +916,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     startSession,
     startSessions,
     endSession,
+    endCook,
     setStepIndex,
     setServings,
     toggleIngredient: toggleSessionIngredient,
@@ -1009,8 +1010,11 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   // Opened for a planned meal: the meal's other dishes start alongside, each
   // with its own servings and timers, tagged so they show as one meal.
   const mealStarted = useRef(false);
+  // Set by Exit, so the sessions it ends aren't claimed again while this route
+  // is still mounted (ending them changes the callbacks this effect depends on).
+  const exiting = useRef(false);
   useIsomorphicLayoutEffect(() => {
-    if (!hydrated || steps.length === 0 || isComplete) return;
+    if (!hydrated || steps.length === 0 || isComplete || exiting.current) return;
     const mealTag = meal
       ? {
           groupId: meal.groupId,
@@ -1232,11 +1236,15 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="shrink-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="relative flex items-center px-4 py-3 h-14">
-          {/* Exit ends the cook for good — icon only on small screens, full label on sm+ */}
-          <Button asChild variant="ghost" size="sm" className="-ml-2 shrink-0">
-            <Link href={`/recipes/${recipe.id}`} onClick={() => endSession(recipe.id)}>
-              <ChevronLeft className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">Exit Cooking Mode</span>
+          {/* Exit ends the cook for good — a meal's every dish with it, so
+              nothing is left behind minimised. Minimise (right) keeps it going. */}
+          <Button asChild variant="outline" size="sm" className="-ml-1 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive">
+            <Link href={`/recipes/${recipe.id}`} onClick={() => {
+                exiting.current = true;
+                endCook(recipe.id);
+              }}>
+              <X className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Exit</span>
             </Link>
           </Button>
 

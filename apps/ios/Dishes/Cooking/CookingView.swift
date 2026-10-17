@@ -41,6 +41,7 @@ struct CookingView: View {
     @State private var stepChanges = 0
     /// Finish offers to log the cook (the dish on screen), then closes.
     @State private var logging: Recipe?
+    @State private var confirmExit = false
     @Environment(\.horizontalSizeClass) private var width
 
     private var dish: CookDish { request.dishes[min(dishIndex, request.dishes.count - 1)] }
@@ -114,11 +115,32 @@ struct CookingView: View {
         .onChange(of: CookTimers.shared.timers) { showActivity() }
     }
 
+    /// This cook's timers that haven't gone off (every dish in a meal).
+    private var mealTimers: [CookTimer] {
+        let dishes = Set(request.dishes.map(\.recipe.title))
+        return CookTimers.shared.timers.filter { $0.state != .finished && $0.dish.map(dishes.contains) == true }
+    }
+
+    /// Exit ends the whole cook: every dish of a meal at once. Only running
+    /// timers make it ask, since they'd otherwise ring after you've left.
+    private func exit() {
+        if mealTimers.isEmpty { dismiss() } else { confirmExit = true }
+    }
+
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button("Close", systemImage: "xmark") { dismiss() }
+            Button("Exit", systemImage: "xmark") { exit() }
                 .keyboardShortcut(.escape, modifiers: [])
+                .confirmationDialog("Stop cooking?", isPresented: $confirmExit, titleVisibility: .visible) {
+                    Button("End cooking and cancel timers", role: .destructive) {
+                        for timer in mealTimers { CookTimers.shared.cancel(timer) }
+                        dismiss()
+                    }
+                    Button("Keep timers running") { dismiss() }
+                } message: {
+                    Text(mealTimers.count == 1 ? "A timer is still running." : "\(mealTimers.count) timers are still running.")
+                }
         }
         ToolbarItem(placement: .principal) {
             if request.dishes.count > 1 {
