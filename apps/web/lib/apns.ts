@@ -162,8 +162,12 @@ export async function deliverToApnsDevices(
             // Wakes the app to sync as the notification arrives.
             "content-available": 1,
             ...(payload!.tag ? { "thread-id": payload!.tag } : {}),
+            // The notification's buttons: the app registers one category per
+            // web action id ("snooze", "delivery-ordered"), so the same id names both.
+            ...(payload!.actions?.length ? { category: payload!.actions[0]!.action } : {}),
           },
           ...(payload!.url ? { url: payload!.url } : {}),
+          ...(payload!.data ? { data: payload!.data } : {}),
         }
   );
   const headers: Record<string, string> = {

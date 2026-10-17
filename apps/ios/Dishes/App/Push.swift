@@ -37,7 +37,36 @@ final class Push {
         #endif
     }
 
+    /// The server names a notification's buttons by the web's action ids
+    /// (lib/dinner-reminders/scheduler.ts, lib/deliveries/scheduler.ts) and
+    /// sends the first as the APNs category, so each category is named after one.
+    enum Action {
+        static let snooze = "snooze"
+        static let deliveryOrdered = "delivery-ordered"
+        static let startCooking = "start-cooking"
+    }
+
+    private static let categories: Set<UNNotificationCategory> = [
+        UNNotificationCategory(
+            identifier: Action.snooze,
+            actions: [
+                UNNotificationAction(identifier: Action.startCooking, title: "Start cooking",
+                                     options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "frying.pan")),
+                UNNotificationAction(identifier: Action.snooze, title: "Push back 30 min",
+                                     options: [], icon: UNNotificationActionIcon(systemImageName: "clock.arrow.circlepath")),
+            ],
+            intentIdentifiers: []),
+        UNNotificationCategory(
+            identifier: Action.deliveryOrdered,
+            actions: [
+                UNNotificationAction(identifier: Action.deliveryOrdered, title: "Mark as ordered",
+                                     options: [], icon: UNNotificationActionIcon(systemImageName: "checkmark.circle")),
+            ],
+            intentIdentifiers: []),
+    ]
+
     func launch() {
+        UNUserNotificationCenter.current().setNotificationCategories(Self.categories)
         UIApplication.shared.registerForRemoteNotifications()
         Task { await refreshAuthorization() }
     }
@@ -75,6 +104,56 @@ final class Push {
     func unregister() async {
         guard let token else { return }
         try? await AppModel.shared.api.unregisterPushDevice(token: token)
+    }
+
+    /// A button on a notification. Snooze and mark-ordered run without opening
+    /// the app (iOS gives it a few seconds in the background); the result is
+    /// a local notification, since there's no screen to show it on.
+    func handle(action: String, userInfo: [AnyHashable: Any]) async {
+        let data = userInfo["data"] as? [String: Any] ?? [:]
+        let url = userInfo["url"] as? String
+        switch action {
+        case Action.startCooking, UNNotificationDefaultActionIdentifier:
+            if let url { openedLink = url }
+        case Action.snooze:
+            guard let date = data["snoozeDate"] as? String else { return }
+            await AppModel.shared.start()
+            do {
+                let result = try await AppModel.shared.api.snoozeDinner(date: date)
+                let when = result.remindAt.map { " I’ll remind you at \($0)." } ?? ""
+                await confirm("Dinner moved to \(result.dinnerTime)", body: "Pushed back 30 minutes.\(when)", tag: "dinner-\(date)")
+            } catch {
+                await confirm("Couldn’t push dinner back", body: "Open Dishes to change tonight’s time.", tag: "dinner-\(date)")
+            }
+        case Action.deliveryOrdered:
+            guard let date = data["deliveryDate"] as? String else { return }
+            await AppModel.shared.start()
+            do {
+                try await AppModel.shared.api.markDeliveryOrdered(date: date)
+                await confirm("Order marked as placed", body: "No more deadline reminders for this delivery.", tag: "delivery-\(date)")
+            } catch {
+                await confirm("Couldn’t mark the order", body: "Open Dishes to mark it from the planner.", tag: "delivery-\(date)")
+            }
+        default:
+            break
+        }
+    }
+
+    /// Replaces the notification that was acted on (same identifier as its tag).
+    private func confirm(_ title: String, body: String, tag: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.threadIdentifier = tag
+        try? await UNUserNotificationCenter.current()
+            .add(UNNotificationRequest(identifier: "confirm-\(tag)", content: content, trigger: nil))
+    }
+
+    /// "/recipes/<id>/cook" → the recipe id.
+    static func cookingRecipe(in link: String) -> String? {
+        let parts = link.split(separator: "?").first?.split(separator: "/") ?? []
+        guard parts.count == 3, parts[0] == "recipes", parts[2] == "cook" else { return nil }
+        return String(parts[1])
     }
 
     /// Which tab a notification's web path belongs to.

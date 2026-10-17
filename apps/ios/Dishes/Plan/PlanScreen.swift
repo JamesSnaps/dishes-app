@@ -54,6 +54,13 @@ struct PlanScreen: View {
             .refreshable { await app.syncNow() }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
+            .navigationDestination(for: MealLink.self) { link in
+                if let meal = data.value.meals(on: link.day, in: link.week).first(where: { $0.id == link.id }) {
+                    MealDetailView(meal: meal, delete: delete, cook: cook)
+                } else {
+                    EmptyBox(message: "This meal isn’t on the plan any more")
+                }
+            }
             .environment(\.planActions, planActions)
             .sheet(isPresented: $adding) {
                 AddMealSheet(week: week, day: selectedDay, plan: data.value.plan(for: week))
@@ -254,7 +261,7 @@ struct PlanScreen: View {
                     .padding(.horizontal, 4)
 
                     ForEach(data.value.meals(on: day, in: week)) { meal in
-                        WeekMealCard(meal: meal, delete: delete, cook: cook)
+                        WeekMealCard(meal: meal, link: MealLink(id: meal.id, week: week, day: day), delete: delete, cook: cook)
                             .draggable((meal.title == nil ? "entry:" : "group:") + meal.id)
                     }
 
@@ -476,9 +483,17 @@ struct EntryMenuItems: View {
 /// A meal in a week column: the photo on top, then the meal-type pill, the
 /// title and the time — the entry card stood upright for a narrow column.
 /// A combined meal lists its dishes. Long-press for Cook and Remove.
+/// Where a combined meal's card leads: its own page, not its first dish.
+struct MealLink: Hashable {
+    var id: String
+    var week: Week
+    var day: Int
+}
+
 struct WeekMealCard: View {
     @Environment(\.planActions) private var actions
     let meal: PlannedMeal
+    let link: MealLink
     let delete: (MealPlanEntry) -> Void
     let cook: (PlannedMeal) -> Void
 
@@ -490,7 +505,9 @@ struct WeekMealCard: View {
     /// press can lift it for dragging between days.
     var body: some View {
         Group {
-            if let lead {
+            if meal.title != nil {
+                NavigationLink(value: link) { content }.buttonStyle(.plain)
+            } else if let lead {
                 NavigationLink(value: lead.id) { content }.buttonStyle(.plain)
             } else {
                 content
@@ -687,6 +704,28 @@ struct MealGroupCard: View {
         }
         .padding(12)
         .callout(Theme.orange50, Theme.rose50, border: Color(hex: 0xFED7AA).opacity(0.7))
+    }
+}
+
+/// A combined meal's page, from the whole-week grid: the meal card as the day
+/// view shows it, with Cook starting every dish together.
+struct MealDetailView: View {
+    @Environment(\.horizontalSizeClass) private var width
+    let meal: PlannedMeal
+    let delete: (MealPlanEntry) -> Void
+    let cook: (PlannedMeal) -> Void
+
+    var body: some View {
+        ScrollView {
+            MealGroupCard(meal: meal, delete: delete, cook: cook)
+                .padding(.horizontal, width == .regular ? 32 : 16)
+                .padding(.vertical, 18)
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity)
+        }
+        .background(Theme.background)
+        .navigationTitle(meal.title ?? "Meal")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

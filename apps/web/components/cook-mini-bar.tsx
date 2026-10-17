@@ -16,7 +16,7 @@ import {
 export function CookMiniBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { session, sessions, hydrated, timers, alerts, endSession, setStepIndex, dismissAlert } =
+  const { session, sessions, hydrated, timers, alerts, endCook, setStepIndex, dismissAlert } =
     useCookSession();
 
   // Cooking mode has its own controls; the print view should stay clean.
@@ -161,8 +161,14 @@ export function CookMiniBar() {
 
           <button
             onClick={() => {
-              if (confirm(`End the cook for "${session!.recipeTitle}"? Timers will be cleared.`))
-                endSession(session!.recipeId);
+              if (
+                confirm(
+                  session!.meal
+                    ? `Stop cooking "${session!.meal.title}"? Every dish and its timers will be cleared.`
+                    : `End the cook for "${session!.recipeTitle}"? Timers will be cleared.`
+                )
+              )
+                endCook(session!.recipeId);
             }}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/20"
             aria-label="End cooking session"

@@ -363,4 +363,21 @@ public final class APIClient: SyncTransport, Sendable {
         struct Reply: Decodable { var ok: Bool }
         _ = try await request("/push/test", method: "POST", json: Body(token: token), as: Reply.self)
     }
+
+    // MARK: Notification actions
+
+    public struct Snoozed: Decodable, Sendable { public var dinnerTime: String; public var remindAt: String? }
+
+    /// "Push back 30 min" on a dinner reminder: moves that date's dinner time.
+    public func snoozeDinner(date: String) async throws -> Snoozed {
+        struct Body: Encodable { var date: String }
+        return try await request("/dinner-reminders/snooze", method: "POST", json: Body(date: date))
+    }
+
+    /// "Mark as ordered" on a delivery reminder.
+    public func markDeliveryOrdered(date: String) async throws {
+        struct Body: Encodable { var date: String }
+        struct Reply: Decodable { var date: String }
+        _ = try await request("/deliveries/ordered", method: "POST", json: Body(date: date), as: Reply.self)
+    }
 }

@@ -93,8 +93,12 @@ struct RootView: View {
         // A tapped notification opens the tab its web path belongs to.
         .onChange(of: Push.shared.openedLink, initial: true) { _, link in
             guard let link else { return }
-            if let tab = Push.tab(for: link) { nav.tab = tab }
             Push.shared.openedLink = nil
+            if let recipeId = Push.cookingRecipe(in: link) {
+                Task { await openCooking(recipeId) }
+            } else if let tab = Push.tab(for: link) {
+                nav.tab = tab
+            }
         }
     }
 }
@@ -173,6 +177,21 @@ struct Avatar: View {
 
 /// Tonight's meal, ready to cook: today's dinner (or the latest meal planned
 /// for today), every dish of a combined meal together.
+extension RootView {
+    /// A dinner reminder's "/recipes/<id>/cook": tonight's whole meal when the
+    /// recipe is part of it (every dish's timers together), else just that recipe.
+    func openCooking(_ recipeId: String) async {
+        let request = try? await app.store.read { r -> CookRequest? in
+            if let tonight = try TonightMeal.load(r), tonight.dishes.contains(where: { $0.recipe.id == recipeId }) {
+                return tonight
+            }
+            guard let recipe = try r.record(.recipes, id: recipeId).flatMap(Recipe.init), !recipe.steps.isEmpty else { return nil }
+            return CookRequest(dishes: [CookDish(recipe: recipe)])
+        }
+        if let request { nav.cooking = request } else { nav.tab = .recipes }
+    }
+}
+
 enum TonightMeal {
     @Sendable static func load(_ r: StoreReader) throws -> CookRequest? {
         let data = try PlanData.load(r)

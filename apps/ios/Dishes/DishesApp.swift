@@ -50,8 +50,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     /// A tapped notification: go where it points (the server's web path).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        guard let link = response.notification.request.content.userInfo["url"] as? String else { return }
-        await MainActor.run { Push.shared.openedLink = link }
+        let action = response.actionIdentifier
+        // userInfo isn't Sendable; carry the two parts we read as JSON-safe values.
+        let info = response.notification.request.content.userInfo
+        let payload = SendablePayload(url: info["url"] as? String, data: info["data"] as? [String: String] ?? [:])
+        await Push.shared.handle(action: action, userInfo: payload.userInfo)
     }
 
     /// A timer that falls back to a notification still shows and sounds with Dishes open.
@@ -95,5 +98,16 @@ enum BackgroundRefresh {
         let request = BGAppRefreshTaskRequest(identifier: identifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
         try? BGTaskScheduler.shared.submit(request)
+    }
+}
+
+/// The parts of a notification's payload the actions read, in a Sendable box.
+private struct SendablePayload: Sendable {
+    var url: String?
+    var data: [String: String]
+    var userInfo: [AnyHashable: Any] {
+        var info: [AnyHashable: Any] = ["data": data]
+        if let url { info["url"] = url }
+        return info
     }
 }
