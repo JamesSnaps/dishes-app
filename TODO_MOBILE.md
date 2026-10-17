@@ -425,6 +425,15 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
 - [ ] Shopping: edit an item (amount, notes, category)
 - [x] Meal plan week, read-only: week paging with no network, entries and
   combined meal groups (iPad: a grid of day cards), remove a dish
+- [x] Meal plan: move a dish to another day or next week, change meal type
+  and servings (menu on every card), drag between days on the week grid,
+  move a combined meal, and plan a saved meal with a choice per slot (Add
+  meal → Saved meals). All sync mutations, so offline too
+- [ ] Drag between days: built but not confirmed — simulated drags don't lift
+  the card; check on the iPad. Dragging over the week arrows flips the week
+  (spring-loaded), so a meal can be dropped into another week; a second finger
+  tapping an arrow works too. Combined meals can't change week yet (the
+  server's group update has no week) — they say so and stay put
 - [ ] **Meal plan week** — move/change type/servings, add from the recipe library or
   a saved meal (needs C0), "add week to shopping" (online — stays a server call,
   see Phase B)
@@ -434,13 +443,45 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   sync mutation)
 - [ ] **Recipes** — the web's full filter set and sorts (port
   `lib/recipe-filtering.ts`), cook history and per-person ratings on the detail
-- [ ] **Log a cook** — rating, per-person ratings, notes, dish photo from the
-  camera (background `URLSession` upload, as Keepsake's `UploadManager`)
+- [x] **Log a cook (v1.30.0)** — half-star rating, who ate it and what each
+  of them thought, notes; from the recipe page and offered on Finish in
+  cooking mode. Online (`POST /api/v1/cook-history`); the entry syncs back.
+  Members come from the new `GET /api/v1/members`, cached for offline
+- [x] Log a cook: dish photo from the camera or library, resized to 2048px and
+  uploaded after the cook saves. Not seen succeeding locally — the dev server
+  has no storage configured ("Storage not configured.") — check on the device
+- [ ] Log a cook: occasion; logging offline (needs a sync mutation for cook
+  history); background upload for big photos
+- [x] Recipe page: full nutrition panel with heart-healthy badge, the
+  household's rating and how often it's been cooked and planned, Add to
+  shopping list, cook history, "You might also like"
+- [x] Cook history screen (from "Recently cooked" on Home), grouped by month,
+  photos-only filter
 - [ ] **Today** card on Plan: tonight's meal, serve-at time, start-cooking time
+- [x] **Design matches the web app (v1.27.0).** Shared tokens and components
+  in `Design/Theme.swift`; the native floating tab bar (top on iPad, bottom on
+  iPhone — James preferred it to a web-style sidebar) with a "Cook tonight"
+  pill; a Home screen; web recipe cards, planner day strip and entry cards, shopping list
+  layout. Adding a meal to the plan now works offline (Add meal sheet)
+- [x] Wide iPad layouts: whole-week planner (seven columns), two-column
+  shopping with a Sainsbury's side panel, full-width recipe grids, a Tonight
+  card on Home
+- [ ] Web: take the whole-week planner layout and the Sainsbury's side panel
+  across to wide desktop screens
+- [ ] Shopping: "from <recipe>" for items linked only through
+  `shopping_item_recipes` (0022) — items with a direct recipeId already show it
 - [x] More: signed-in member, sync status and pending count, sign out,
   Developer menu (Debug). Devices still to do (needs the server's device list)
 - [ ] More → Settings: server, signed-in member, devices, sign out. Everything
   else in Settings links to the web app — it remains the admin surface
+- [x] Recipe create/edit (v1.31.0): tabbed editor (Details / Ingredients /
+  Method), sections, reorder, a timer per step, which ingredients each step
+  uses; edit and delete from the recipe's ⋯ menu; New Recipe on Recipes.
+  Online. Fields the editor doesn't show (photo, nutrition, notes, source)
+  are carried over. Server now keeps step → ingredient links across writes
+  (`ingredientIndexes`), which the web editor drops too — worth adopting there
+- [x] Collections: chips on Recipes, Add to collection / New collection on a
+  recipe; `/api/v1/collections` (not in sync yet — fetched after each sync)
 - [ ] Recipe create/edit — last in C3; the web editor is large and editing on
   a phone is rare. Recipe edits are also not in the sync schema (A3), so this
   is online-only via `/api/v1/recipes`
@@ -492,9 +533,16 @@ don't exist there.
   looping chime that ignores silent mode, with a big Stop banner on every
   screen. **AlarmKit works on a real iPad** (asked for permission, went off —
   17 Oct 2026); only the simulators refuse it, where the fallback runs
-- [ ] **Live Activity — timers and next step** on the Lock Screen and Dynamic
-  Island (iPhone). On iPad, verify Live Activity support on the actual device;
-  the in-app timer rail and alarms carry the iPad either way
+- [x] **Live Activity — timers and next step (v1.28.0).** `DishesWidgets`
+  extension: the cooking activity (dish, "Step 3 of 8", the instruction, the
+  soonest timer counting down, a progress bar) on the Lock Screen and in the
+  Dynamic Island while cooking mode is open, started/updated/ended by
+  `CookingActivity`; plus each AlarmKit timer's own countdown, paused and
+  "Done" states (AlarmKit only shows a timer on the Lock Screen through an
+  extension). Cooking activity checked in the iPhone simulator (compact,
+  expanded, Lock Screen). The AlarmKit countdown needs a real device — the
+  simulator refuses AlarmKit. No App Group needed yet: ActivityKit carries the
+  state; Home Screen widgets will need one
 - [ ] **Live Activity — meal schedule.** The serve-at timeline (v1.18) as a
   countdown across the whole meal: "Potatoes in at 18:05 · serve 18:45".
   Started remotely by the dinner-reminder push (ActivityKit push-to-start

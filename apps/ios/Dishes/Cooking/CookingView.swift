@@ -39,6 +39,8 @@ struct CookingView: View {
     @State private var used: Set<String> = []
     @State private var showIngredients = false
     @State private var stepChanges = 0
+    /// Finish offers to log the cook (the dish on screen), then closes.
+    @State private var logging: Recipe?
     @Environment(\.horizontalSizeClass) private var width
 
     private var dish: CookDish { request.dishes[min(dishIndex, request.dishes.count - 1)] }
@@ -94,9 +96,22 @@ struct CookingView: View {
             }
         }
         .overlay(alignment: .top) { RingingBanner() }
+        .sheet(item: $logging) { recipe in
+            LogCookSheet(recipe: recipe, afterCooking: true) { dismiss() }
+        }
         .sensoryFeedback(.impact(weight: .light), trigger: stepChanges)
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            showActivity()
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            CookingActivity.shared.end()
+        }
+        // The Live Activity follows the step, the dish tab and the timers.
+        .onChange(of: stepIndex) { showActivity() }
+        .onChange(of: dishIndex) { showActivity() }
+        .onChange(of: CookTimers.shared.timers) { showActivity() }
     }
 
     @ToolbarContentBuilder
@@ -230,26 +245,33 @@ struct CookingView: View {
                 move(-1)
             } label: {
                 Label("Back", systemImage: "chevron.left")
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(stepIndex == 0 ? Theme.mutedForeground.opacity(0.5) : Theme.foreground)
                     .frame(maxWidth: .infinity, minHeight: 60)
+                    .background(Theme.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.border, lineWidth: 1.5))
             }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
+            .buttonStyle(.plain)
             .disabled(stepIndex == 0)
             .keyboardShortcut(.leftArrow, modifiers: [])
 
             Button {
-                if isLast { dismiss() } else { move(1) }
+                if isLast { logging = dish.recipe } else { move(1) }
             } label: {
                 Label(isLast ? "Finish" : "Next", systemImage: isLast ? "checkmark" : "chevron.right")
                     .labelStyle(TrailingIconLabelStyle())
-                    .font(.title3.weight(.bold))
-                    .frame(maxWidth: .infinity, minHeight: 60)
+                    .font(.system(size: 19, weight: .bold))
             }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
+            .buttonStyle(GradientButtonStyle(gradient: .brand, height: 60))
             .keyboardShortcut(.rightArrow, modifiers: [])
         }
+    }
+
+    private func showActivity() {
+        CookingActivity.shared.show(
+            title: request.title ?? dish.recipe.title, dish: dish.recipe.title,
+            step: min(stepIndex + 1, max(dish.recipe.steps.count, 1)), of: max(dish.recipe.steps.count, 1),
+            instruction: step?.instruction ?? "")
     }
 
     private func move(_ by: Int) {
@@ -275,38 +297,63 @@ struct IngredientsPanel: View {
     @Binding var used: Set<String>
 
     var body: some View {
-        List {
-            Section {
-                ForEach(dish.recipe.ingredients) { ingredient in
-                    let now = current?.ingredientIds.contains(ingredient.id) == true
-                    let done = used.contains(ingredient.id)
-                    Button {
-                        if done { used.remove(ingredient.id) } else { used.insert(ingredient.id) }
-                    } label: {
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(done ? Color.green : Theme.brand)
-                            VStack(alignment: .leading, spacing: 2) {
-                                let quantity = Format.quantity(ingredient.amount, ingredient.unit, scale: dish.scale)
-                                Text(quantity.isEmpty ? ingredient.name : "\(quantity) \(ingredient.name)")
-                                    .font(.body.weight(now ? .bold : .regular))
-                                    .strikethrough(done)
-                                if let preparation = ingredient.preparation {
-                                    Text(preparation).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .foregroundStyle(done ? .secondary : .primary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                PanelLabel(text: "Ingredients")
+                VStack(spacing: 0) {
+                    ForEach(Array(dish.recipe.ingredients.enumerated()), id: \.element.id) { index, ingredient in
+                        if index > 0 { Rectangle().fill(Theme.border).frame(height: 1) }
+                        row(ingredient)
                     }
-                    .buttonStyle(.plain)
-                    .listRowBackground(now ? Theme.brand.opacity(0.14) : nil)
                 }
-            } header: {
-                Text("Ingredients")
+                .card()
             }
+            .padding(16)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
+        .background(Theme.muted.opacity(0.35))
+    }
+
+    private func row(_ ingredient: Ingredient) -> some View {
+        let now = current?.ingredientIds.contains(ingredient.id) == true
+        let done = used.contains(ingredient.id)
+        return Button {
+            if done { used.remove(ingredient.id) } else { used.insert(ingredient.id) }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Image(systemName: done ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(done ? Theme.brand : Theme.mutedForeground)
+                VStack(alignment: .leading, spacing: 2) {
+                    let quantity = Format.quantity(ingredient.amount, ingredient.unit, scale: dish.scale)
+                    Text(quantity.isEmpty ? ingredient.name : "\(quantity) \(ingredient.name)")
+                        .font(.system(size: 16, weight: now ? .semibold : .regular))
+                        .strikethrough(done)
+                        .foregroundStyle(done ? Theme.mutedForeground : Theme.foreground)
+                    if let preparation = ingredient.preparation {
+                        Text(preparation).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(now ? Theme.orange50 : .clear)
+            .overlay(alignment: .leading) {
+                if now { Rectangle().fill(Theme.brand).frame(width: 3) }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The web's small uppercase section label.
+struct PanelLabel: View {
+    let text: String
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 12, weight: .semibold))
+            .tracking(0.6)
+            .foregroundStyle(Theme.mutedForeground)
     }
 }
 
@@ -317,84 +364,118 @@ struct TimersPanel: View {
     private var timers = CookTimers.shared
 
     var body: some View {
-        List {
-            Section {
-                if timers.timers.isEmpty {
-                    Text("Timers you start appear here, and keep going if you close Dishes.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(timers.timers) { TimerRow(timer: $0) }
-            } header: {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Timers")
+                    PanelLabel(text: "Timers")
                     Spacer()
-                    if timers.timers.contains(where: { $0.state == .finished }) {
-                        Button("Clear done") { timers.dismissFinished() }.font(.caption)
+                    if !timers.timers.isEmpty {
+                        Button("Clear all") { withAnimation(.easeOut(duration: 0.35)) { timers.clearAll() } }
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.brand)
                     }
                 }
+                if timers.timers.isEmpty {
+                    EmptyBox(emoji: "⏲️", message: "Timers you start appear here")
+                }
+                ForEach(timers.timers) { timer in
+                    TimerRow(timer: timer)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .card()
+                        .transition(.poof)
+                }
             }
+            .padding(16)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
+        .background(Theme.muted.opacity(0.35))
     }
 }
 
+/// One timer: its label, dish and countdown. Tap it for a native menu —
+/// Pause/Resume, Add a minute, Cancel (Clear once done). Buttons on the card
+/// itself were too cramped in a narrow column (James's iPad, 17 Oct 2026).
+/// Clearing animates it away with a "poof" (`.poof`).
 struct TimerRow: View {
     let timer: CookTimer
     var compact = false
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let left = timer.secondsLeft(at: context.date)
-            let finished = timer.state == .finished || left <= 0
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(timer.label).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    if let dish = timer.dish, !compact {
-                        Text(dish).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        Menu {
+            actions
+        } label: {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let left = timer.secondsLeft(at: context.date)
+                let finished = timer.state == .finished || left <= 0
+                HStack(spacing: 10) {
+                    Image(systemName: finished ? "checkmark.circle.fill" : timer.state == .paused ? "pause.circle.fill" : "timer")
+                        .font(.system(size: compact ? 16 : 20, weight: .semibold))
+                        .foregroundStyle(finished ? Theme.emerald700 : timer.state == .paused ? Theme.mutedForeground : Theme.brand)
+                        .symbolEffect(.pulse, isActive: timer.state == .running)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(timer.label)
+                            .font(.system(size: compact ? 13 : 15, weight: .semibold))
+                            .foregroundStyle(Theme.foreground)
+                            .lineLimit(1)
+                        if !compact {
+                            Text(finished ? "Done" : timer.state == .paused ? "Paused" : (timer.dish ?? "Running"))
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.mutedForeground)
+                                .lineLimit(1)
+                        }
                     }
+                    Spacer(minLength: 4)
+                    Text(finished ? "0:00" : Self.clock(left))
+                        .font(.system(size: compact ? 17 : 22, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(finished ? Theme.emerald700 : timer.state == .paused ? Theme.mutedForeground : Theme.brandDeep)
+                        .contentTransition(.numericText(countsDown: true))
+                        .fixedSize()
                 }
-                Spacer(minLength: 4)
-                Text(finished ? "Done" : Self.clock(left))
-                    .font(.system(compact ? .headline : .title2, design: .rounded, weight: .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(finished ? Color.green : timer.state == .paused ? .secondary : Theme.brandDeep)
-                    .contentTransition(.numericText(countsDown: true))
+                .contentShape(Rectangle())
+                .onChange(of: finished) { _, now in if now { CookTimers.shared.refreshFinished() } }
             }
-            .onChange(of: finished) { _, now in if now { CookTimers.shared.refreshFinished() } }
         }
-        .swipeActions {
-            Button("Cancel", systemImage: "xmark", role: .destructive) { CookTimers.shared.cancel(timer) }
-        }
-        .contextMenu { actions }
-        .accessibilityActions { actions }
-        .onTapGesture { toggle() }
+        .buttonStyle(.plain)
+        .menuOrder(.fixed)
     }
 
     @ViewBuilder private var actions: some View {
-        if timer.state == .running { Button("Pause", systemImage: "pause") { CookTimers.shared.pause(timer) } }
-        if timer.state == .paused { Button("Resume", systemImage: "play") { CookTimers.shared.resume(timer) } }
+        if timer.state == .running {
+            Button("Pause", systemImage: "pause.fill") { CookTimers.shared.pause(timer) }
+        }
+        if timer.state == .paused {
+            Button("Resume", systemImage: "play.fill") { CookTimers.shared.resume(timer) }
+        }
         if timer.state != .finished {
             Button("Add a minute", systemImage: "plus") { Task { await CookTimers.shared.addMinute(timer) } }
         }
         Button(timer.state == .finished ? "Clear" : "Cancel timer", systemImage: "xmark", role: .destructive) {
-            CookTimers.shared.cancel(timer)
-        }
-    }
-
-    /// Tap a timer to pause or resume it; a finished one clears.
-    private func toggle() {
-        switch timer.state {
-        case .running: CookTimers.shared.pause(timer)
-        case .paused: CookTimers.shared.resume(timer)
-        case .finished: CookTimers.shared.cancel(timer)
+            withAnimation(.easeOut(duration: 0.35)) { CookTimers.shared.cancel(timer) }
         }
     }
 
     static func clock(_ seconds: TimeInterval) -> String {
         let s = Int(seconds.rounded(.up))
         return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+/// "Poof": puffs up, blurs and fades — how a cleared timer leaves.
+struct PoofModifier: ViewModifier {
+    let gone: Bool
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(gone ? 1.25 : 1)
+            .blur(radius: gone ? 10 : 0)
+            .opacity(gone ? 0 : 1)
+    }
+}
+
+extension AnyTransition {
+    static var poof: AnyTransition {
+        .asymmetric(insertion: .scale(scale: 0.9).combined(with: .opacity),
+                    removal: .modifier(active: PoofModifier(gone: true), identity: PoofModifier(gone: false)))
     }
 }
 
@@ -412,6 +493,7 @@ struct TimerStrip: View {
                             .padding(.vertical, 10)
                             .frame(width: 210)
                             .card()
+                            .transition(.poof)
                     }
                 }
                 .padding(.horizontal, 16)

@@ -123,6 +123,7 @@ Phase C. How to run: `apps/ios/RUNBOOK.md` — add to its log after each session
 - `apps/ios/scripts/sim.sh` builds and launches against the local dev server
   (`DEVICE="iPad Pro 11-inch (M5)"` for the iPad); no Authelia needed in dev
 - Keep `MARKETING_VERSION` in `project.yml` equal to `apps/web/package.json`
+- `DishesWidgets` is the widget extension (Live Activities now); types it shares with the app go in `apps/ios/Shared/`, which both targets compile
 
 ## Keeping Docs Updated
 

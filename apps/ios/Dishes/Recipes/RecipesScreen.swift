@@ -1,6 +1,6 @@
-// The recipe library, from the local store: search on title, cuisine and tags,
-// a favourites filter, and a grid of cards that becomes a list at iPhone
-// width. The full filter set (difficulty, time, tags, sorts) is
+// The recipe library, as the web's /recipes: a header with the count, filter
+// chips, the search box and a grid of web recipe cards — all from the local
+// store. The full filter set (difficulty, time, tags, sorts) is
 // lib/recipe-filtering.ts, to be ported with shared fixtures (C2).
 
 import DishesCore
@@ -8,56 +8,79 @@ import SwiftUI
 
 struct RecipesScreen: View {
     @Environment(AppModel.self) private var app
+    @Environment(AppNav.self) private var nav
     @Environment(\.horizontalSizeClass) private var width
     @State private var recipes = Observed<[Recipe]>([])
-    @State private var search = ""
-    @State private var favouritesOnly = false
+    @State private var cuisine: String?
+    @State private var collectionId: String?
+    @State private var creating = false
+    @State private var path = NavigationPath()
 
     private var shown: [Recipe] {
-        let words = search.lowercased().split(separator: " ").map(String.init)
+        let words = nav.recipeSearch.lowercased().split(separator: " ").map(String.init)
         return recipes.value.filter { recipe in
-            if favouritesOnly && !recipe.isFavourite { return false }
+            if nav.favouritesOnly && !recipe.isFavourite { return false }
+            if let cuisine, recipe.cuisine != cuisine { return false }
+            if let collectionId, app.collections.first(where: { $0.id == collectionId })?.recipeIds.contains(recipe.id) != true {
+                return false
+            }
             guard !words.isEmpty else { return true }
-            let haystack = ([recipe.title, recipe.cuisine ?? ""] + recipe.tags).joined(separator: " ").lowercased()
+            let haystack = ([recipe.title, recipe.cuisine ?? ""] + recipe.tags + recipe.ingredients.map(\.name))
+                .joined(separator: " ").lowercased()
             return words.allSatisfy(haystack.contains)
         }
     }
 
+    /// Cuisines by how many recipes use them, as the web suggests the most used first.
+    private var cuisines: [(name: String, count: Int)] {
+        Dictionary(grouping: recipes.value.compactMap(\.cuisine), by: { $0 })
+            .map { ($0.key, $0.value.count) }
+            .sorted { ($0.count, $1.name) > ($1.count, $0.name) }
+    }
+
     var body: some View {
-        NavigationStack {
+        @Bindable var nav = nav
+        NavigationStack(path: $path) {
             ScrollView {
-                if width == .regular {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 18)], spacing: 18) {
-                        ForEach(shown) { recipe in
-                            NavigationLink(value: recipe.id) { RecipeCard(recipe: recipe) }
-                                .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 16) {
+                    PageHeader(title: nav.favouritesOnly ? "Favourites"
+                                   : app.collections.first(where: { $0.id == collectionId })?.name ?? "Recipes",
+                               subtitle: shown.count == recipes.value.count
+                                   ? "\(recipes.value.count) recipes in your collection"
+                                   : "\(shown.count) of \(recipes.value.count) recipes") {
+                        Button { creating = true } label: {
+                            Label("New Recipe", systemImage: "plus")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14)
+                                .frame(height: 38)
+                                .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                         }
+                        .buttonStyle(.plain)
                     }
-                    .padding(20)
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(shown) { recipe in
-                            NavigationLink(value: recipe.id) { RecipeRow(recipe: recipe) }
-                                .buttonStyle(.plain)
-                        }
+                    chips
+                    SearchField(prompt: "Search recipes or ingredients…", text: $nav.recipeSearch)
+                        .frame(maxWidth: width == .regular ? 520 : .infinity)
+                    if recipes.loaded && shown.isEmpty {
+                        EmptyBox(emoji: "🔎", message: nav.recipeSearch.isEmpty ? "No recipes here yet" : "No recipes match “\(nav.recipeSearch)”")
                     }
-                    .padding(16)
+                    RecipeGrid(recipes: shown) { recipe in
+                        NavigationLink(value: recipe.id) { RecipeCard(recipe: recipe) }
+                            .buttonStyle(.plain)
+                    }
                 }
+                .padding(.horizontal, width == .regular ? 32 : 16)
+                .padding(.vertical, 20)
             }
-            .background(Theme.background.ignoresSafeArea())
-            .overlay {
-                if recipes.loaded && shown.isEmpty {
-                    ContentUnavailableView.search(text: search)
-                }
-            }
-            .navigationTitle("Recipes")
-            .searchable(text: $search, prompt: "Title, cuisine or tag")
-            .toolbar {
-                Toggle(isOn: $favouritesOnly) { Label("Favourites", systemImage: favouritesOnly ? "heart.fill" : "heart") }
-                    .toggleStyle(.button)
-            }
+            .scrollDismissesKeyboard(.immediately)
+            .background(Theme.background)
             .refreshable { await app.syncNow() }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
+            .sheet(isPresented: $creating) {
+                // Opens the new recipe once it's synced down.
+                RecipeEditor(recipeId: nil) { id in path.append(id) }
+            }
         }
         .task {
             await recipes.follow(app.store) { r in
@@ -66,72 +89,46 @@ struct RecipesScreen: View {
             }
         }
     }
-}
 
-struct RecipeCard: View {
-    let recipe: Recipe
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            RecipeImage(recipe: recipe)
-                .frame(height: 150)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                .overlay(alignment: .topTrailing) {
-                    if recipe.isFavourite {
-                        Image(systemName: "heart.fill")
-                            .foregroundStyle(.white)
-                            .padding(8)
-                            .background(.red.opacity(0.85), in: Circle())
-                            .padding(10)
+    /// The web's chip row: outline pills with a count; the selected one in primary.
+    private var chips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                chip("Favourites", icon: "heart", count: recipes.value.filter(\.isFavourite).count,
+                     selected: nav.favouritesOnly) { nav.favouritesOnly.toggle() }
+                // The web's collection chips: icon, name, count.
+                ForEach(app.collections) { collection in
+                    chip("\(collection.icon.map { "\($0) " } ?? "")\(collection.name)", icon: nil,
+                         count: collection.recipeIds.count, selected: collectionId == collection.id) {
+                        collectionId = collectionId == collection.id ? nil : collection.id
                     }
                 }
-            VStack(alignment: .leading, spacing: 6) {
-                Text(recipe.title)
-                    .font(.headline)
-                    .lineLimit(2, reservesSpace: true)
-                RecipeMeta(recipe: recipe)
-            }
-            .padding(14)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .card(tint: Theme.tint(for: recipe.cuisine ?? recipe.title))
-    }
-}
-
-struct RecipeRow: View {
-    let recipe: Recipe
-
-    var body: some View {
-        HStack(spacing: 14) {
-            RecipeImage(recipe: recipe)
-                .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(recipe.title).font(.headline).lineLimit(2)
-                    if recipe.isFavourite { Image(systemName: "heart.fill").font(.caption).foregroundStyle(.red) }
+                if !app.collections.isEmpty {
+                    Rectangle().fill(Theme.border).frame(width: 1, height: 20)
                 }
-                RecipeMeta(recipe: recipe)
+                ForEach(cuisines.prefix(8), id: \.name) { item in
+                    chip(item.name, icon: nil, count: item.count, selected: cuisine == item.name) {
+                        cuisine = cuisine == item.name ? nil : item.name
+                    }
+                }
             }
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            .padding(.vertical, 2)
         }
-        .padding(12)
-        .card(tint: Theme.tint(for: recipe.cuisine ?? recipe.title))
     }
-}
 
-/// Cuisine · time · difficulty, in one quiet line.
-struct RecipeMeta: View {
-    let recipe: Recipe
-
-    var body: some View {
-        let parts = [recipe.cuisine, Format.minutes(recipe.totalMinutes), recipe.difficulty?.rawValue.capitalized]
-            .compactMap { $0 }
-        Text(parts.joined(separator: " · "))
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
+    private func chip(_ title: String, icon: String?, count: Int, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon { Image(systemName: selected ? "\(icon).fill" : icon).imageScale(.small) }
+                Text(title).font(.system(size: 13, weight: .medium))
+                Text("\(count)").font(.system(size: 12)).foregroundStyle(selected ? .white.opacity(0.8) : Theme.mutedForeground)
+            }
+            .foregroundStyle(selected ? .white : Theme.foreground)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(selected ? Theme.brand : Theme.background, in: Capsule())
+            .overlay(Capsule().strokeBorder(selected ? .clear : Theme.border))
+        }
+        .buttonStyle(.plain)
     }
 }

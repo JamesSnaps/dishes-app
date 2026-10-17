@@ -18,6 +18,10 @@ import {
   CookHistoryValidationError,
 } from "@/lib/services/cook-history";
 import {
+  CollectionNotFoundError,
+  CollectionValidationError,
+} from "@/lib/services/collections";
+import {
   UploadUnavailableError,
   UploadValidationError,
 } from "@/lib/services/upload";
@@ -69,7 +73,8 @@ export function withApiErrors<Args extends unknown[]>(
         err instanceof ShoppingItemNotFoundError ||
         err instanceof MealPlanNotFoundError ||
         err instanceof MealPlanEntryNotFoundError ||
-        err instanceof CookEntryNotFoundError
+        err instanceof CookEntryNotFoundError ||
+        err instanceof CollectionNotFoundError
       ) {
         return apiError("not_found", err.message, 404);
       }
@@ -79,7 +84,8 @@ export function withApiErrors<Args extends unknown[]>(
         err instanceof MealPlanValidationError ||
         err instanceof SyncCursorError ||
         err instanceof CookHistoryValidationError ||
-        err instanceof UploadValidationError
+        err instanceof UploadValidationError ||
+        err instanceof CollectionValidationError
       ) {
         return apiError("invalid_request", err.message, 400);
       }

@@ -154,6 +154,144 @@ public final class APIClient: SyncTransport, Sendable {
         return try await request("/sync", method: "POST", json: body)
     }
 
+    // MARK: Meal plan
+
+    public struct ShoppingAddResult: Decodable, Sendable {
+        public var added: Int
+        public var merged: Int
+        public var skipped: [String]
+    }
+
+    /// Puts every meal in a week that isn't on the list yet onto it. Server-side
+    /// on purpose (Phase B): the result depends on pantry stock and merging.
+    public func addWeekToShopping(mealPlanId: String) async throws -> ShoppingAddResult {
+        struct Body: Encodable { var mealPlanId: String }
+        return try await request("/meal-plan/generate-shopping", method: "POST", json: Body(mealPlanId: mealPlanId))
+    }
+
+    // MARK: Household
+
+    public struct Member: Codable, Hashable, Sendable, Identifiable {
+        public var id: String
+        public var displayName: String
+        public var role: String
+    }
+
+    /// Active members, for "who ate it" and per-person ratings.
+    public func members() async throws -> [Member] {
+        struct Reply: Decodable { var members: [Member] }
+        return try await request("/members", as: Reply.self).members
+    }
+
+    // MARK: Cook history
+
+    public struct LogCook: Encodable, Sendable {
+        public struct MemberRating: Encodable, Sendable {
+            public var name: String
+            public var rating: Double
+            public init(name: String, rating: Double) { self.name = name; self.rating = rating }
+        }
+        public var recipeId: String
+        public var rating: Double?
+        public var notes: String?
+        public var cookedFor: [String]?
+        public var memberRatings: [MemberRating]?
+
+        public init(recipeId: String, rating: Double?, notes: String?, cookedFor: [String]?, memberRatings: [MemberRating]?) {
+            self.recipeId = recipeId
+            self.rating = rating
+            self.notes = notes
+            self.cookedFor = cookedFor
+            self.memberRatings = memberRatings
+        }
+    }
+
+    /// Logs a cook. Not a sync mutation yet (cook history is read-only over
+    /// sync), so this needs a connection; the entry arrives in the next pull.
+    @discardableResult
+    public func logCook(_ cook: LogCook) async throws -> String {
+        struct Reply: Decodable { var id: String }
+        return try await request("/cook-history", method: "POST", json: cook, as: Reply.self).id
+    }
+
+    /// 204, no body — so not through `request`, which decodes one.
+    public func deleteCook(id: String) async throws {
+        _ = try await send { token in authorisedRequest(url("/cook-history/\(id)"), method: "DELETE", token: token) }
+    }
+
+    // MARK: Shopping
+
+    public struct GenerateResult: Decodable, Sendable { public var listId: String; public var changed: Bool }
+
+    /// Puts a recipe's ingredients on the active list at a number of servings,
+    /// skipping what the pantry covers and merging lines (server-side, as the web).
+    public func addRecipeToShopping(recipeId: String, servings: Double?) async throws -> GenerateResult {
+        struct Body: Encodable { var recipeId: String; var servings: Double? }
+        return try await request("/shopping/generate", method: "POST", json: Body(recipeId: recipeId, servings: servings))
+    }
+
+    // MARK: Collections
+
+    public struct Collection: Codable, Hashable, Sendable, Identifiable {
+        public var id: String
+        public var name: String
+        public var icon: String?
+        public var description: String?
+        public var recipeIds: [String]
+    }
+
+    public func collections() async throws -> [Collection] {
+        struct Reply: Decodable { var collections: [Collection] }
+        return try await request("/collections", as: Reply.self).collections
+    }
+
+    public func createCollection(name: String, icon: String?) async throws -> Collection {
+        struct Body: Encodable { var name: String; var icon: String? }
+        return try await request("/collections", method: "POST", json: Body(name: name, icon: icon))
+    }
+
+    /// 204, no body.
+    public func setRecipe(_ recipeId: String, inCollection collectionId: String, _ inside: Bool) async throws {
+        _ = try await send { token in
+            authorisedRequest(url("/collections/\(collectionId)/recipes/\(recipeId)"),
+                              method: inside ? "PUT" : "DELETE", token: token)
+        }
+    }
+
+    // MARK: Writing recipes
+
+    /// Creates (`id == nil`) or replaces a recipe. `payload` is the full
+    /// recipe in /api/v1's write format (lib/api/schemas/recipe.ts): a replace
+    /// sets every field, so anything left out is cleared. Answers the id.
+    @discardableResult
+    public func saveRecipe(id: String?, payload: JSONValue) async throws -> String {
+        struct Reply: Decodable { var recipe: JSONValue }
+        let reply = try await request(id.map { "/recipes/\($0)" } ?? "/recipes", method: id == nil ? "POST" : "PUT",
+                                      json: payload, as: Reply.self)
+        guard let saved = reply.recipe.id else { throw APIError.http(status: 500, code: "internal_error", message: "No id") }
+        return saved
+    }
+
+    public func deleteRecipe(id: String) async throws {
+        _ = try await send { token in authorisedRequest(url("/recipes/\(id)"), method: "DELETE", token: token) }
+    }
+
+    // MARK: Photos
+
+    /// A dish photo for a logged cook; the server resizes and thumbnails it.
+    @discardableResult
+    public func uploadCookPhoto(cookId: String, image: Data, mime: String = "image/jpeg") async throws -> String {
+        struct Reply: Decodable { var url: String }
+        let data = try await send { token in
+            var r = authorisedRequest(url("/cook-history/\(cookId)/photo"), method: "POST", token: token)
+            r.httpBody = image
+            r.setValue(mime, forHTTPHeaderField: "Content-Type")
+            r.timeoutInterval = 60
+            return r
+        }
+        return try JSONDecoder().decode(Reply.self, from: data).url
+    }
+
     // MARK: Recipes
 
     /// Flips a recipe's favourite flag; answers the new value. Not a sync

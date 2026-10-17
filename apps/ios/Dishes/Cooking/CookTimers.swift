@@ -53,11 +53,6 @@ struct CookTimer: Codable, Identifiable, Hashable {
     }
 }
 
-/// Shown on the alarm itself; AlarmKit requires a metadata type.
-struct CookTimerMetadata: AlarmMetadata {
-    var dish: String?
-}
-
 @MainActor @Observable
 final class CookTimers {
     static let shared = CookTimers()
@@ -177,6 +172,13 @@ final class CookTimers {
             ringing.removeAll { $0.id == timer.id }
             if ringing.isEmpty { AlarmSound.shared.stop() }
         }
+    }
+
+    /// Cancels every timer, running or not, and clears the finished ones.
+    func clearAll() {
+        stopRinging()
+        for timer in timers { unschedule(timer) }
+        timers = []
     }
 
     func dismissFinished() {
