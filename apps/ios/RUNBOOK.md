@@ -195,3 +195,21 @@ the web's design rather than stock iOS styling:
   down, so the app does nothing while locked; it updates on step changes and
   timer changes, and ends when cooking mode closes.
 
+### 17 Oct 2026 — James's iPad feedback
+
+- **Lock Screen card unreadable** on a light photo: a 90%-white background tint
+  with system text colours became see-through glass with white text. Now an
+  opaque card (white / slate-900 by appearance) with explicit text colours.
+- **No way to clear a timer**: tapping toggled pause (so a paused timer
+  "restarted") and cancel hid behind a long press. Each timer now shows
+  Pause/Resume, 1 min and Cancel (Clear when done); "Clear all" on the panel.
+- **Floating tab bar instead of the sidebar**: the native Liquid Glass tab bar
+  (`.sidebarAdaptable`) — across the top on iPad, at the bottom on iPhone —
+  with the shopping count as a badge and Settings as a tab. The web's orange
+  middle button became a "Cook tonight" pill above the tab bar
+  (`tabViewBottomAccessory`), shown only when something's planned tonight.
+- Checked: iPad top bar, timer controls and Clear all; iPhone tab bar; adding
+  tonight's dinner from the Add meal sheet shows the pill at once and reached
+  the server once the dev server was back (it had been stopped — the outbox
+  held it meanwhile).
+

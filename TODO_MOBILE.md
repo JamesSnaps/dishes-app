@@ -438,8 +438,9 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   camera (background `URLSession` upload, as Keepsake's `UploadManager`)
 - [ ] **Today** card on Plan: tonight's meal, serve-at time, start-cooking time
 - [x] **Design matches the web app (v1.27.0).** Shared tokens and components
-  in `Design/Theme.swift`; web sidebar on iPad, web bottom bar on iPhone; a Home
-  screen; web recipe cards, planner day strip and entry cards, shopping list
+  in `Design/Theme.swift`; the native floating tab bar (top on iPad, bottom on
+  iPhone — James preferred it to a web-style sidebar) with a "Cook tonight"
+  pill; a Home screen; web recipe cards, planner day strip and entry cards, shopping list
   layout. Adding a meal to the plan now works offline (Add meal sheet)
 - [ ] Shopping: "from <recipe>" under an item needs `shopping_item_recipes`
   (0022) in the sync log

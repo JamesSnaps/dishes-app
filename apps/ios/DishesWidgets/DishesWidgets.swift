@@ -31,14 +31,39 @@ private enum Palette {
     static let muted = Color(red: 0.580, green: 0.639, blue: 0.722) // slate-400, readable on the dark island
 }
 
+/// The Lock Screen card's colours. Everything is set explicitly on an opaque
+/// background: the first version used a 90%-white tint with system text
+/// colours, which the Lock Screen turned into see-through glass with white text
+/// — unreadable on a light photo (James's iPad, 17 Oct 2026).
+private struct CardColors {
+    let scheme: ColorScheme
+    /// The web's card: white / slate-900.
+    var background: Color { scheme == .dark ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white }
+    /// --foreground: slate-950 / slate-50.
+    var text: Color { scheme == .dark ? Color(red: 0.973, green: 0.980, blue: 0.988) : Color(red: 0.008, green: 0.031, blue: 0.090) }
+    /// --muted-foreground: slate-500 / slate-400.
+    var secondary: Color { scheme == .dark ? Palette.muted : Color(red: 0.392, green: 0.455, blue: 0.545) }
+}
+
+/// Applies the opaque card background for the current Lock Screen appearance.
+private struct LockScreenCard<Content: View>: View {
+    @Environment(\.colorScheme) private var scheme
+    @ViewBuilder let content: (CardColors) -> Content
+
+    var body: some View {
+        let colors = CardColors(scheme: scheme)
+        content(colors)
+            .activityBackgroundTint(colors.background)
+            .activitySystemActionForegroundColor(Palette.brand)
+    }
+}
+
 // MARK: Cooking
 
 struct CookingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CookingActivityAttributes.self) { context in
-            CookingLockScreen(context: context)
-                .activityBackgroundTint(Color(.systemBackground).opacity(0.9))
-                .activitySystemActionForegroundColor(Palette.brand)
+            LockScreenCard { CookingLockScreen(context: context, colors: $0) }
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -87,6 +112,7 @@ struct CookingLiveActivity: Widget {
 
 private struct CookingLockScreen: View {
     let context: ActivityViewContext<CookingActivityAttributes>
+    let colors: CardColors
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -94,12 +120,14 @@ private struct CookingLockScreen: View {
                 HStack(spacing: 6) {
                     Image(systemName: "frying.pan.fill").foregroundStyle(Palette.brand)
                     Text(context.attributes.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        .foregroundStyle(colors.text)
                 }
                 Text("Step \(context.state.step) of \(context.state.totalSteps)\(context.state.dish == context.attributes.title ? "" : " · \(context.state.dish)")")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.brand)
                 Text(context.state.instruction)
                     .font(.subheadline)
+                    .foregroundStyle(colors.text)
                     .lineLimit(3)
                 // The web's orange progress bar.
                 ProgressView(value: Double(context.state.step), total: Double(max(context.state.totalSteps, 1)))
@@ -113,10 +141,11 @@ private struct CookingLockScreen: View {
                         .foregroundStyle(Palette.brand)
                         .frame(width: 104, alignment: .trailing)
                     if let label = context.state.timerLabel {
-                        Text(label).font(.caption).lineLimit(2).multilineTextAlignment(.trailing)
+                        Text(label).font(.caption).foregroundStyle(colors.secondary)
+                            .lineLimit(2).multilineTextAlignment(.trailing)
                     }
                     if context.state.runningTimers > 1 {
-                        Text("+\(context.state.runningTimers - 1) more").font(.caption2).foregroundStyle(.secondary)
+                        Text("+\(context.state.runningTimers - 1) more").font(.caption2).foregroundStyle(colors.secondary)
                     }
                 }
             }
@@ -130,9 +159,7 @@ private struct CookingLockScreen: View {
 struct CookTimerAlarmActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: AlarmAttributes<CookTimerMetadata>.self) { context in
-            AlarmLockScreen(context: context)
-                .activityBackgroundTint(Color(.systemBackground).opacity(0.9))
-                .activitySystemActionForegroundColor(Palette.brand)
+            LockScreenCard { AlarmLockScreen(context: context, colors: $0) }
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -167,6 +194,7 @@ struct CookTimerAlarmActivity: Widget {
 
 private struct AlarmLockScreen: View {
     let context: ActivityViewContext<AlarmAttributes<CookTimerMetadata>>
+    let colors: CardColors
 
     var body: some View {
         HStack(spacing: 14) {
@@ -176,9 +204,10 @@ private struct AlarmLockScreen: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(context.attributes.presentation.countdown?.title ?? context.attributes.presentation.alert.title)
                     .font(.headline)
+                    .foregroundStyle(colors.text)
                     .lineLimit(1)
                 if let dish = context.attributes.metadata?.dish {
-                    Text(dish).font(.caption).foregroundStyle(.secondary)
+                    Text(dish).font(.caption).foregroundStyle(colors.secondary).lineLimit(2)
                 }
             }
             Spacer()

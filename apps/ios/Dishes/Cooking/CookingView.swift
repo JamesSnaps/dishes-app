@@ -364,8 +364,8 @@ struct TimersPanel: View {
                 HStack {
                     PanelLabel(text: "Timers")
                     Spacer()
-                    if timers.timers.contains(where: { $0.state == .finished }) {
-                        Button("Clear done") { timers.dismissFinished() }
+                    if !timers.timers.isEmpty {
+                        Button("Clear all") { timers.clearAll() }
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(Theme.brand)
                     }
@@ -386,6 +386,10 @@ struct TimersPanel: View {
     }
 }
 
+/// One timer: its label and countdown, with the controls in plain sight —
+/// pause or resume, one more minute, and ✕ to clear it. (A tap used to toggle
+/// pause and clearing hid behind a long press, so a paused timer looked like it
+/// couldn't be got rid of.)
 struct TimerRow: View {
     let timer: CookTimer
     var compact = false
@@ -394,48 +398,59 @@ struct TimerRow: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let left = timer.secondsLeft(at: context.date)
             let finished = timer.state == .finished || left <= 0
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(timer.label).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    if let dish = timer.dish, !compact {
-                        Text(dish).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(timer.label)
+                            .font(.system(size: compact ? 13 : 15, weight: .semibold))
+                            .foregroundStyle(Theme.foreground)
+                            .lineLimit(1)
+                        if let dish = timer.dish, !compact {
+                            Text(dish).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
+                        }
                     }
+                    Spacer(minLength: 4)
+                    Text(finished ? "Done" : timer.state == .paused ? "Paused" : "")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(finished ? Theme.emerald700 : Theme.mutedForeground)
+                    Text(finished ? "0:00" : Self.clock(left))
+                        .font(.system(size: compact ? 17 : 24, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(finished ? Theme.emerald700 : timer.state == .paused ? Theme.mutedForeground : Theme.brandDeep)
+                        .contentTransition(.numericText(countsDown: true))
                 }
-                Spacer(minLength: 4)
-                Text(finished ? "Done" : Self.clock(left))
-                    .font(.system(compact ? .headline : .title2, design: .rounded, weight: .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(finished ? Color.green : timer.state == .paused ? .secondary : Theme.brandDeep)
-                    .contentTransition(.numericText(countsDown: true))
+                HStack(spacing: 8) {
+                    if !finished {
+                        control(timer.state == .paused ? "play.fill" : "pause.fill",
+                                timer.state == .paused ? "Resume" : "Pause", filled: true) {
+                            if timer.state == .paused { CookTimers.shared.resume(timer) } else { CookTimers.shared.pause(timer) }
+                        }
+                        control("plus", "1 min") { Task { await CookTimers.shared.addMinute(timer) } }
+                    }
+                    Spacer(minLength: 0)
+                    control("xmark", finished ? "Clear" : "Cancel", destructive: true) { CookTimers.shared.cancel(timer) }
+                }
             }
             .onChange(of: finished) { _, now in if now { CookTimers.shared.refreshFinished() } }
         }
-        .swipeActions {
-            Button("Cancel", systemImage: "xmark", role: .destructive) { CookTimers.shared.cancel(timer) }
-        }
-        .contextMenu { actions }
-        .accessibilityActions { actions }
-        .onTapGesture { toggle() }
+        .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder private var actions: some View {
-        if timer.state == .running { Button("Pause", systemImage: "pause") { CookTimers.shared.pause(timer) } }
-        if timer.state == .paused { Button("Resume", systemImage: "play") { CookTimers.shared.resume(timer) } }
-        if timer.state != .finished {
-            Button("Add a minute", systemImage: "plus") { Task { await CookTimers.shared.addMinute(timer) } }
+    /// A small pill button. The label is spoken, and shown when there's room.
+    private func control(_ icon: String, _ label: String, filled: Bool = false, destructive: Bool = false,
+                         action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 11, weight: .bold))
+                if !compact { Text(label).font(.system(size: 12, weight: .semibold)) }
+            }
+            .foregroundStyle(filled ? .white : destructive ? Theme.destructive : Theme.foreground)
+            .padding(.horizontal, compact ? 9 : 11)
+            .frame(height: compact ? 26 : 30)
+            .background(filled ? Theme.brand : Theme.muted, in: Capsule())
         }
-        Button(timer.state == .finished ? "Clear" : "Cancel timer", systemImage: "xmark", role: .destructive) {
-            CookTimers.shared.cancel(timer)
-        }
-    }
-
-    /// Tap a timer to pause or resume it; a finished one clears.
-    private func toggle() {
-        switch timer.state {
-        case .running: CookTimers.shared.pause(timer)
-        case .paused: CookTimers.shared.resume(timer)
-        case .finished: CookTimers.shared.cancel(timer)
-        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     static func clock(_ seconds: TimeInterval) -> String {

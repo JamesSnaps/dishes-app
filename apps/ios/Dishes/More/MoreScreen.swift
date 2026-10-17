@@ -1,6 +1,6 @@
 // Settings, in the web's card style: who's signed in, sync, the way to the
-// website for everything that stays there, and sign out. On iPhone it's
-// reached from the avatar on Home, as on the web; on iPad from the sidebar.
+// website for everything that stays there, and sign out. A tab of its own,
+// and the avatar on Home (iPhone) opens it too, as on the web.
 
 import DishesCore
 import SwiftUI
@@ -16,17 +16,7 @@ struct MoreScreen: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack(spacing: 12) {
-                        if width != .regular {
-                            Button { nav.tab = .home } label: {
-                                Image(systemName: "chevron.left").font(.system(size: 17, weight: .medium))
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(Theme.foreground)
-                            .accessibilityLabel("Back to Home")
-                        }
-                        PageHeader(title: "Settings")
-                    }
+                    PageHeader(title: "Settings")
 
                     if let me = app.me {
                         HStack(spacing: 14) {

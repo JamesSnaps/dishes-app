@@ -174,6 +174,13 @@ final class CookTimers {
         }
     }
 
+    /// Cancels every timer, running or not, and clears the finished ones.
+    func clearAll() {
+        stopRinging()
+        for timer in timers { unschedule(timer) }
+        timers = []
+    }
+
     func dismissFinished() {
         stopRinging()
         timers.removeAll { $0.state == .finished }

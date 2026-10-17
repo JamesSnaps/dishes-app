@@ -1,13 +1,12 @@
-// Sign-in, or the app shell — laid out as the web app is:
+// Sign-in, or the app shell: the native floating tab bar — Liquid Glass,
+// across the top on iPad (its sidebar button turns it into a sidebar) and at
+// the bottom on iPhone. The screens themselves follow the web's design; the
+// chrome around them follows the platform's (James, 17 Oct 2026: "adopt the
+// design language of the iPad").
 //
-//   iPad (regular width)   the web's desktop sidebar: logo, Home, Recipes, Meal
-//                          Planner, Shopping List, a Personal section, then
-//                          settings and the signed-in person at the bottom
-//   iPhone (compact)       the web's mobile bottom bar: Home, Recipes, a raised
-//                          orange button in the middle, Planner, Shopping
-//
-// Every screen stays alive when you switch (a ZStack, not a rebuilt view), so
-// a recipe you opened is still open when you come back — as tabs behave.
+// The shopping count is a badge on its tab, as the web shows it in its sidebar.
+// When something is planned for tonight, a "Cook tonight" pill sits above the
+// tab bar (the tab bar's bottom accessory) — the web's orange middle button.
 //
 //   RootView()   // DishesApp's only scene content
 
@@ -58,104 +57,24 @@ struct RootView: View {
         .task { await app.start() }
     }
 
-    @ViewBuilder private var shell: some View {
-        if width == .regular {
-            HStack(spacing: 0) {
-                Sidebar()
-                Rectangle().fill(Theme.border).frame(width: 1).ignoresSafeArea()
-                screens
-            }
-            .background(Theme.background)
-        } else {
-            screens
-                .safeAreaInset(edge: .bottom, spacing: 0) { BottomBar() }
-        }
-    }
-
-    private var screens: some View {
-        ZStack {
-            screen(.home) { HomeScreen() }
-            screen(.recipes) { RecipesScreen() }
-            screen(.plan) { PlanScreen() }
-            screen(.shopping) { ShoppingScreen() }
-            screen(.more) { MoreScreen() }
-        }
-        .background(Theme.background)
-    }
-
-    private func screen(_ tab: AppNav.Tab, @ViewBuilder _ content: () -> some View) -> some View {
-        content()
-            .opacity(nav.tab == tab ? 1 : 0)
-            .allowsHitTesting(nav.tab == tab)
-            .accessibilityHidden(nav.tab != tab)
-    }
-}
-
-// MARK: iPad sidebar (components/nav, desktop)
-
-struct Sidebar: View {
-    @Environment(AppModel.self) private var app
-    @Environment(AppNav.self) private var nav
     @State private var shoppingCount = Observed(0)
+    @State private var tonight = Observed<CookRequest?>(nil)
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "fork.knife")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Theme.brand)
-                Text("Dishes").font(.system(size: 19, weight: .bold)).foregroundStyle(Theme.foreground)
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 18)
-
-            VStack(spacing: 2) {
-                item("Home", icon: "house", tab: .home)
-                item("Recipes", icon: "book", tab: .recipes)
-                item("Meal Planner", icon: "calendar", tab: .plan)
-                item("Shopping List", icon: "cart", tab: .shopping, count: shoppingCount.value)
-            }
-            .padding(.horizontal, 10)
-
-            Text("PERSONAL")
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.6)
-                .foregroundStyle(Theme.mutedForeground)
-                .padding(.horizontal, 22)
-                .padding(.top, 22)
-                .padding(.bottom, 6)
-            VStack(spacing: 2) {
-                row("Favourites", icon: "heart", active: nav.tab == .recipes && nav.favouritesOnly) {
-                    nav.showRecipes(favourites: true)
-                }
-            }
-            .padding(.horizontal, 10)
-
-            Spacer()
-
-            Rectangle().fill(Theme.border).frame(height: 1)
-            SyncLine().padding(.horizontal, 18).padding(.vertical, 10)
-            Rectangle().fill(Theme.border).frame(height: 1)
-            VStack(spacing: 2) {
-                item("Settings", icon: "gearshape", tab: .more)
-            }
-            .padding(10)
-            if let me = app.me {
-                Rectangle().fill(Theme.border).frame(height: 1)
-                HStack(spacing: 10) {
-                    Avatar(name: me.user.displayName, size: 34)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(me.user.displayName).font(.system(size: 14, weight: .semibold))
-                        Text(me.household.role.capitalized).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
-                    }
-                    Spacer()
-                }
-                .padding(14)
-            }
+    private var shell: some View {
+        @Bindable var nav = nav
+        return TabView(selection: $nav.tab) {
+            Tab("Home", systemImage: "house", value: AppNav.Tab.home) { HomeScreen() }
+            Tab("Recipes", systemImage: "book", value: AppNav.Tab.recipes) { RecipesScreen() }
+            Tab("Planner", systemImage: "calendar", value: AppNav.Tab.plan) { PlanScreen() }
+            Tab("Shopping", systemImage: "cart", value: AppNav.Tab.shopping) { ShoppingScreen() }
+                .badge(shoppingCount.value)
+            Tab("Settings", systemImage: "gearshape", value: AppNav.Tab.more) { MoreScreen() }
         }
-        .frame(width: 250)
-        .background(Theme.background)
+        .tabViewStyle(.sidebarAdaptable)
+        .tint(Theme.brand)
+        .tabViewBottomAccessory(isEnabled: tonight.value != nil) {
+            if let request = tonight.value { CookTonightPill(request: request) }
+        }
         .task {
             await shoppingCount.follow(app.store) { r in
                 let lists = try r.records(.shoppingLists).compactMap(ShoppingList.init)
@@ -164,35 +83,31 @@ struct Sidebar: View {
                     .filter { $0.listId == active.id && !$0.isChecked }.count
             }
         }
+        .task { await tonight.follow(app.store, TonightMeal.load) }
     }
+}
 
-    private func item(_ title: String, icon: String, tab: AppNav.Tab, count: Int = 0) -> some View {
-        row(title, icon: icon, count: count, active: nav.tab == tab && !(tab == .recipes && nav.favouritesOnly)) {
-            if tab == .recipes { nav.favouritesOnly = false }
-            nav.tab = tab
-        }
-    }
+/// "🍳 Cook tonight · Greek Salad" above the tab bar; opens cooking mode.
+struct CookTonightPill: View {
+    @Environment(AppNav.self) private var nav
+    let request: CookRequest
 
-    /// Active: text-primary on bg-orange-50, rounded-lg — as the web's nav link.
-    private func row(_ title: String, icon: String, count: Int = 0, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon).font(.system(size: 15)).frame(width: 20)
-                Text(title).font(.system(size: 15, weight: active ? .medium : .regular))
-                Spacer()
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 12, weight: .semibold))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(Theme.muted, in: Capsule())
-                        .foregroundStyle(Theme.mutedForeground)
-                }
+    var body: some View {
+        Button { nav.cooking = request } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "frying.pan.fill")
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Theme.brand, in: Circle())
+                Text("Cook tonight").font(.system(size: 14, weight: .semibold))
+                Text(request.title ?? request.dishes.first?.recipe.title ?? "")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.mutedForeground)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.mutedForeground)
             }
-            .foregroundStyle(active ? Theme.brand : Theme.foreground.opacity(0.8))
             .padding(.horizontal, 12)
-            .frame(height: 40)
-            .background(active ? Theme.orange50 : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -244,64 +159,6 @@ struct Avatar: View {
     }
 }
 
-// MARK: iPhone bottom bar (components/nav, mobile)
-
-struct BottomBar: View {
-    @Environment(AppModel.self) private var app
-    @Environment(AppNav.self) private var nav
-    @State private var tonight = Observed<CookRequest?>(nil)
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 0) {
-            item("Home", icon: "house", tab: .home)
-            item("Recipes", icon: "book", tab: .recipes)
-            // The raised middle button. On the web it opens the AI concierge;
-            // here it starts cooking tonight's meal, or opens the planner when
-            // nothing is planned.
-            Button {
-                if let request = tonight.value { nav.cooking = request } else { nav.tab = .plan }
-            } label: {
-                Image(systemName: "frying.pan.fill")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 58, height: 58)
-                    .background(Theme.brand, in: Circle())
-                    .shadow(color: Theme.brand.opacity(0.35), radius: 8, y: 4)
-            }
-            .buttonStyle(.plain)
-            .offset(y: -14)
-            .frame(maxWidth: .infinity)
-            .accessibilityLabel(tonight.value == nil ? "Plan a meal" : "Cook tonight’s meal")
-            item("Planner", icon: "calendar", tab: .plan)
-            item("Shopping", icon: "cart", tab: .shopping)
-        }
-        .padding(.top, 6)
-        .background(alignment: .top) {
-            Theme.background
-                .overlay(alignment: .top) { Rectangle().fill(Theme.border).frame(height: 1) }
-                .ignoresSafeArea(edges: .bottom)
-        }
-        .task { await tonight.follow(app.store, TonightMeal.load) }
-    }
-
-    private func item(_ title: String, icon: String, tab: AppNav.Tab) -> some View {
-        let active = nav.tab == tab || (tab == .home && nav.tab == .more)
-        return Button {
-            if tab == .recipes { nav.favouritesOnly = false }
-            nav.tab = tab
-        } label: {
-            VStack(spacing: 3) {
-                Image(systemName: icon).font(.system(size: 19))
-                Text(title).font(.system(size: 11, weight: .medium))
-            }
-            .foregroundStyle(active ? Theme.brand : Theme.mutedForeground)
-            .frame(maxWidth: .infinity, minHeight: 46)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// Tonight's meal, ready to cook: today's dinner (or the latest meal planned
 /// for today), every dish of a combined meal together.
 enum TonightMeal {
@@ -329,7 +186,7 @@ struct ToastView: View {
                 .padding(.vertical, 12)
                 .card()
                 .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-                .padding(.bottom, 96)
+                .padding(.bottom, 150) // clear of the tab bar and the Cook tonight pill
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .task(id: message) {
                     try? await Task.sleep(for: .seconds(4))
