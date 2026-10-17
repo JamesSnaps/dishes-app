@@ -578,7 +578,7 @@ don't exist there.
 - [ ] **On-device Foundation Models** — free, private, offline help for small
   jobs: tidy pasted recipe text, "what can I swap for crème fraîche?", unit
   questions. The concierge and meal-plan generation stay on OpenAI server-side
-- [ ] Cook-assist chat and AI recipe generation once the A2 AI endpoints exist
+- [x] Cook-assist chat and AI recipe generation (v1.34.0: concierge, photo → recipe, plan generation, Ask about this step) once the A2 AI endpoints exist
   (they must stream; `URLSession.bytes` reads SSE directly)
 
 #### Tier 4 — later

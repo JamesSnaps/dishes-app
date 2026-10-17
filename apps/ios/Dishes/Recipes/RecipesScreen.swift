@@ -14,6 +14,7 @@ struct RecipesScreen: View {
     @State private var cuisine: String?
     @State private var collectionId: String?
     @State private var creating = false
+    @State private var askingAI = false
     @State private var path = NavigationPath()
 
     private var shown: [Recipe] {
@@ -48,15 +49,26 @@ struct RecipesScreen: View {
                                subtitle: shown.count == recipes.value.count
                                    ? "\(recipes.value.count) recipes in your collection"
                                    : "\(shown.count) of \(recipes.value.count) recipes") {
-                        Button { creating = true } label: {
-                            Label("New Recipe", systemImage: "plus")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14)
-                                .frame(height: 38)
-                                .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        HStack(spacing: 8) {
+                            Button { askingAI = true } label: {
+                                Label(width == .regular ? "Create with AI" : "AI", systemImage: "sparkles")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14)
+                                    .frame(height: 38)
+                                    .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            Button { creating = true } label: {
+                                Label("New Recipe", systemImage: "plus")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14)
+                                    .frame(height: 38)
+                                    .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                     chips
                     SearchField(prompt: "Search recipes or ingredients…", text: $nav.recipeSearch)
@@ -77,6 +89,10 @@ struct RecipesScreen: View {
             .refreshable { await app.syncNow() }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
+            .sheet(isPresented: $askingAI) {
+                ConciergeSheet { id in path.append(id) }
+                    .presentationSizing(.page)
+            }
             .sheet(isPresented: $creating) {
                 // Opens the new recipe once it's synced down.
                 RecipeEditor(recipeId: nil) { id in path.append(id) }

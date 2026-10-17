@@ -60,7 +60,7 @@ struct RecipeDetailView: View {
             await extras.follow(app.store) { r in try RecipeExtras.load(r, recipeId: id) }
         }
         .sheet(isPresented: $logging) {
-            if let recipe = recipe.value { LogCookSheet(recipe: recipe) }
+            if let recipe = recipe.value { CookReviewSheet(recipe: recipe).presentationSizing(.page) }
         }
         .sheet(isPresented: $editing) { RecipeEditor(recipeId: recipeId) }
         .toolbar {
@@ -527,12 +527,15 @@ struct RecipeExtras: Sendable {
 }
 
 /// One logged cook: when, the stars, who ate it and what they thought, notes,
-/// and the photo if there is one. Long-press to delete.
+/// and the photo if there is one. Edit and Delete in its menu (⋯, or a long
+/// press), as the web's history entry.
 struct CookEntryCard: View {
     @Environment(AppModel.self) private var app
     let entry: CookEntry
     var recipeTitle: String?
     @State private var confirmDelete = false
+    /// The recipe, loaded when Edit is chosen (the review form needs it).
+    @State private var editing: Recipe?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -552,6 +555,10 @@ struct CookEntryCard: View {
                         .font(.system(size: 14, weight: recipeTitle == nil ? .semibold : .regular))
                         .foregroundStyle(recipeTitle == nil ? Theme.foreground : Theme.mutedForeground)
                     if entry.rating != nil { StarRating(value: entry.rating, size: 12) }
+                    if let minutes = entry.actualDuration, let text = Format.minutes(minutes) {
+                        Label(text, systemImage: "clock").labelStyle(TightLabel())
+                            .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                    }
                     if let occasion = entry.occasion, !occasion.isEmpty { BadgeView(text: occasion) }
                 }
                 if !entry.cookedFor.isEmpty {
@@ -576,16 +583,40 @@ struct CookEntryCard: View {
                 }
             }
             Spacer(minLength: 0)
+            Menu { menu } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.mutedForeground)
+                    .frame(width: 34, height: 34)
+                    .background(Theme.muted, in: Circle())
+            }
+            .accessibilityLabel("Cook actions")
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
-        .contextMenu {
-            Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
-        }
+        .contentShape(Rectangle())
+        .onTapGesture { Task { await edit() } }
+        .contextMenu { menu }
         .confirmationDialog("Delete this cook?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { Task { await app.deleteCook(entry) } }
+        } message: {
+            Text("It’s taken out of the recipe’s history and ratings.")
         }
+        .sheet(item: $editing) { recipe in
+            CookReviewSheet(recipe: recipe, mode: .edit(entry)).presentationSizing(.page)
+        }
+    }
+
+    @ViewBuilder private var menu: some View {
+        Button(entry.rating == nil && entry.isCook ? "Review" : "Edit", systemImage: "pencil") { Task { await edit() } }
+        Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
+    }
+
+    private func edit() async {
+        let id = entry.recipeId
+        editing = try? await app.store.read { r in try r.record(.recipes, id: id).flatMap(Recipe.init) }
+        if editing == nil { app.toast = "That recipe isn’t on this device." }
     }
 }
 

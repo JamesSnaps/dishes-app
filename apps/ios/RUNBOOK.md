@@ -327,3 +327,71 @@ the web's design rather than stock iOS styling:
   (`[live-activities] … sent=true`). Not yet seen arriving on a locked iPad.
 - Dev-only oddity: after the dev server restarted mid-session the simulator app
   came up signed out once; relaunching with `-DishesDevServer` fixed it.
+
+### 17 Oct 2026 — AI in the app (v1.34.0)
+
+- Server: thin `/api/v1/ai/*` routes over the web's own AI actions, and
+  `/api/v1/cook-assist` re-exporting the web route. The actions found the user
+  from the proxy headers only (`getAutheliaUser`); they now use
+  `resolveIdentity`, which takes the app's bearer token and falls back to the
+  headers, so the web is unchanged.
+- App: Create with AI (Recipes), Generate plan (Planner, no longer opens the
+  website), Ask about this step (cooking mode, streamed). AI calls get their own
+  long timeouts (90 s to 10 min) instead of the client's usual 10 s.
+- Checked: the screens, validation errors, and the "AI isn't set up" path. **Not
+  checked: a real generation** — the dev household has no OpenAI key. Try each
+  on the iPad against production.
+- The dev database had drifted again (0033 recorded but `web_grounding`
+  missing); applied the file's SQL directly.
+- The simulator "signed out" quirk: a cold dev server takes more than 10 s to
+  compile `/auth/whoami`, so the dev launch path gives up. Hit the route once
+  (`curl localhost:3000/api/v1/auth/whoami`) before launching.
+
+### 17 Oct 2026 — cooking mode catch-up with the web (v1.35.0)
+
+James: no ingredient highlighting, no scaling, no section ingredients, no
+image, no keyboard, no custom timer, and Exit was the only way out.
+
+- `StepMatch` (Cooking/StepText.swift) ports the web's StepText matcher:
+  names in the step text are highlighted and their ingredients picked out in
+  the list, on top of any stored step→ingredient links. Candidates follow the
+  step's section ("For the sauce") when the ingredients are grouped the same
+  way; other sections fade in the list, with a NOW tag on the current one.
+- Ingredients rail: the dish photo and a Serves stepper (scale per dish).
+- Add timer (timers rail / iPhone strip): a label and a duration, joining
+  the cook's AlarmKit timers.
+- Minimise (⌄ top right, or Esc): the cook becomes a `CookSession` kept on
+  `AppNav`; a resume bar sits at the bottom (iPad) or in the tab bar's
+  accessory (iPhone) with the dish, step and next timer. Tapping Cook on the
+  same dishes resumes rather than restarts. Exit ends the session.
+- Keyboard: ← → steps, space starts the step's timer (or goes on), Esc
+  minimises — via onKeyPress on a focused view, since button shortcuts didn't
+  reach the full-screen cover.
+- Checked on the 13-inch simulator: highlighting (Greek Salad, Chocolate Chip
+  Cookies), Serves 4→5 rescaled every amount, a custom 3-minute timer,
+  Minimise → resume bar with the countdown → back in at the same step and
+  scale, Exit with a running timer ended it. **Not checked:** the keyboard
+  (the simulator tool can't type keys) — try it on the iPad's keyboard case.
+
+### 17 Oct 2026 — the post-cook review and editing cooks (v1.36.0)
+
+James: cook history couldn't be edited, the web's post-cook flow was missing,
+and finishing should clear timers.
+
+- `CookReviewSheet` (Cooking/LogCookSheet.swift) is the web's cook-review form
+  in three modes: Log a cook, the "All done!" debrief after Finish, and Edit.
+  Duration (−/+ 5; after cooking the real time, and the recipe's cook time is
+  updated when it's 5+ minutes out), your rating, who ate + their ratings,
+  occasion chips or free text, notes, photo (replace or remove), then the AI's
+  photo feedback when there's a new photo. After cooking: Mark ingredients as
+  used from pantry, and Review later (logs time/who/occasion only).
+- Server: `/cook-history/{id}/feedback`, `/recipes/{id}/cook-time`,
+  `/recipes/{id}/use-pantry`; pantry actions use `resolveIdentity` for bearer auth.
+- History cards: ⋯ menu (Edit/Review, Delete) and tap to edit; they show the
+  duration now.
+- Finishing a dish cancels its timers; in a meal the next unfinished dish
+  comes up (✓ on finished tabs) and the cook ends after the last.
+- Checked on the 13-inch simulator: edited a cook (25 min, Date night) and it
+  showed in the history; started cooking, ran a step timer, Finish → debrief →
+  4 stars, Save & finish → logged, cooking closed, no timers left. **Not
+  checked:** AI photo feedback (no key in dev) and the pantry button.

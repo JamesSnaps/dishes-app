@@ -29,7 +29,25 @@ final class AppNav {
     }
     var favouritesOnly = false
     var recipeSearch = ""
-    var cooking: CookRequest?
+    /// The cook in progress, kept while minimised (CookingView, CookingBar).
+    private(set) var session: CookSession?
+    /// Whether cooking mode is on screen; false while minimised.
+    var cookingShown = false
+
+    /// Setting a request starts cooking it and shows cooking mode — or, for the
+    /// dishes already cooking, brings that cook back. nil ends the cook.
+    var cooking: CookRequest? {
+        get { session?.request }
+        set {
+            if let newValue {
+                if session?.isCooking(newValue) != true { session = CookSession(request: newValue) }
+                cookingShown = true
+            } else {
+                cookingShown = false
+                session = nil
+            }
+        }
+    }
 
     func showRecipes(favourites: Bool = false, search: String = "") {
         favouritesOnly = favourites
@@ -58,7 +76,9 @@ struct RootView: View {
         .overlay(alignment: .bottom) { ToastView() }
         // A finished timer rings wherever you are in the app, not only in cooking mode.
         .overlay(alignment: .top) { RingingBanner() }
-        .fullScreenCover(item: $nav.cooking) { CookingView(request: $0) }
+        .fullScreenCover(isPresented: $nav.cookingShown) {
+            if let session = nav.session { CookingView(session: session).environment(nav) }
+        }
         .task { await app.start() }
     }
 
@@ -78,8 +98,21 @@ struct RootView: View {
         .tabViewStyle(.sidebarAdaptable)
         .defaultAdaptableTabBarPlacement(.tabBar)
         .tint(Theme.brand)
-        .tabViewBottomAccessory(isEnabled: tonight.value != nil && width == .compact) {
-            if let request = tonight.value { CookTonightPill(request: request) }
+        .tabViewBottomAccessory(isEnabled: (nav.session != nil || tonight.value != nil) && width == .compact) {
+            if let session = nav.session { CookingBar(session: session) }
+            else if let request = tonight.value { CookTonightPill(request: request) }
+        }
+        // On iPad the tabs are at the top, so the minimised cook floats at the bottom.
+        .overlay(alignment: .bottom) {
+            if width == .regular, let session = nav.session, !nav.cookingShown {
+                CookingBar(session: session)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: 560)
+                    .background(.regularMaterial, in: Capsule())
+                    .shadow(color: .black.opacity(0.15), radius: 14, y: 6)
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .task {
             await shoppingCount.follow(app.store) { r in
@@ -100,6 +133,70 @@ struct RootView: View {
                 nav.tab = tab
             }
         }
+    }
+}
+
+/// A minimised cook, as the web's mini bar: the dish and step, the next timer,
+/// tap to go back to it, × to end it.
+struct CookingBar: View {
+    @Environment(AppNav.self) private var nav
+    let session: CookSession
+    private var timers = CookTimers.shared
+    @State private var confirmEnd = false
+
+    init(session: CookSession) { self.session = session }
+
+    var body: some View {
+        let dish = session.dish
+        let count = max(dish.recipe.steps.count, 1)
+        let next = timers.timers.filter { $0.state == .running }.min { ($0.endsAt ?? .distantFuture) < ($1.endsAt ?? .distantFuture) }
+        HStack(spacing: 10) {
+            Button { nav.cookingShown = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "frying.pan.fill")
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Theme.brandGradient, in: Circle())
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(session.title).font(.system(size: 14, weight: .bold)).foregroundStyle(Theme.foreground).lineLimit(1)
+                        Text("\(dish.recipe.title == session.title ? "" : "\(dish.recipe.title) · ")Step \(min(session.stepIndex + 1, count)) of \(count)")
+                            .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    if let end = next?.endsAt, end > .now {
+                        Label { Text(timerInterval: Date.now...end, countsDown: true).monospacedDigit() } icon: { Image(systemName: "timer") }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Theme.brandDeep)
+                    }
+                    Image(systemName: "chevron.up").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.mutedForeground)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to cooking \(session.title)")
+            Button { confirmEnd = true } label: {
+                Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
+                    .frame(width: 28, height: 28)
+                    .background(Theme.muted, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.foreground)
+            .accessibilityLabel("End cooking")
+            .confirmationDialog("Stop cooking \(session.title)?", isPresented: $confirmEnd, titleVisibility: .visible) {
+                Button("End cooking and cancel timers", role: .destructive) { end(cancelTimers: true) }
+                Button("End cooking, keep timers") { end(cancelTimers: false) }
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+
+    private func end(cancelTimers: Bool) {
+        if cancelTimers {
+            let dishes = Set(session.request.dishes.map(\.recipe.title))
+            for timer in timers.timers where timer.dish.map(dishes.contains) == true { timers.cancel(timer) }
+        }
+        CookingActivity.shared.end()
+        nav.cooking = nil
     }
 }
 
