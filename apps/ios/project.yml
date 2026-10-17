@@ -18,7 +18,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     # Keep in step with "version" in apps/web/package.json (one version for the product).
-    MARKETING_VERSION: "1.30.0"
+    MARKETING_VERSION: "1.31.0"
     CURRENT_PROJECT_VERSION: "1"
     # James Collard's individual membership, as Keepsake: a personal app, kept off
     # the Snapdragons company team.
@@ -83,6 +83,7 @@ targets:
         BGTaskSchedulerPermittedIdentifiers: [uk.collco.dishes.refresh]
         # The cooking Live Activity and AlarmKit's timer countdowns (DishesWidgets).
         NSSupportsLiveActivities: true
+        NSCameraUsageDescription: Dishes takes a photo of what you cooked when you log a cook.
 
   # Live Activities for now: cooking mode and AlarmKit timer countdowns. Home
   # Screen widgets join it later (they'll need the App Group to read the store).

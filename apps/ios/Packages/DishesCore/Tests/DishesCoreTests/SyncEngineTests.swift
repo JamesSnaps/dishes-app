@@ -65,6 +65,10 @@ func items(_ store: LocalStore) async throws -> [ShoppingItem] {
         #expect(page.changes(in: .shoppingItems).compactMap(ShoppingItem.init).count == page.changes(in: .shoppingItems).count)
         #expect(page.changes(in: .mealPlanEntries).compactMap(MealPlanEntry.init).count == page.changes(in: .mealPlanEntries).count)
         #expect(page.changes(in: .mealPlanGroups).compactMap(MealPlanGroup.init).count == page.changes(in: .mealPlanGroups).count)
+        let meals = page.changes(in: .meals).compactMap(SavedMeal.init)
+        #expect(!meals.isEmpty && meals.count == page.changes(in: .meals).count)
+        #expect(meals.allSatisfy { !$0.slots.isEmpty && $0.slots.allSatisfy { !$0.options.isEmpty } })
+        #expect(page.changes(in: .cookHistory).compactMap(CookEntry.init).count == page.changes(in: .cookHistory).count)
     }
 
     @Test func pullsEveryPageAndSavesTheCursor() async throws {

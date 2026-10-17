@@ -25,6 +25,8 @@ struct PlanScreen: View {
     @State private var adding = false
     @State private var sending = false
     @State private var pageWidth: CGFloat = 0
+    /// The day column a dragged meal is over.
+    @State private var dropTarget: Int?
 
     private var wholeWeek: Bool { pageWidth >= 1000 }
 
@@ -52,6 +54,7 @@ struct PlanScreen: View {
             .refreshable { await app.syncNow() }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
+            .environment(\.planActions, planActions)
             .sheet(isPresented: $adding) {
                 AddMealSheet(week: week, day: selectedDay, plan: data.value.plan(for: week))
             }
@@ -248,6 +251,7 @@ struct PlanScreen: View {
 
                     ForEach(data.value.meals(on: day, in: week)) { meal in
                         WeekMealCard(meal: meal, delete: delete, cook: cook)
+                            .draggable((meal.title == nil ? "entry:" : "group:") + meal.id)
                     }
 
                     Button {
@@ -268,11 +272,115 @@ struct PlanScreen: View {
                 .padding(10)
                 // A week reads as a week even when it's mostly empty.
                 .frame(maxWidth: .infinity, minHeight: 420, alignment: .top)
+                .dropDestination(for: String.self) { items, _ in
+                    drop(items, on: day)
+                } isTargeted: { over in
+                    dropTarget = over ? day : (dropTarget == day ? nil : dropTarget)
+                }
+                .overlay {
+                    if dropTarget == day {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Theme.brand, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                    }
+                }
                 .background(isToday ? Theme.orange50.opacity(0.5) : Theme.muted.opacity(0.3),
                             in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(isToday ? Color(hex: 0xFDBA74).opacity(0.7) : .clear, lineWidth: 1.5))
             }
+        }
+    }
+
+    /// A meal card dropped on a day column ("entry:<id>" or "group:<id>").
+    private func drop(_ items: [String], on day: Int) -> Bool {
+        dropTarget = nil
+        guard let item = items.first else { return false }
+        if item.hasPrefix("entry:"), let entry = data.value.entries.first(where: { $0.id == String(item.dropFirst(6)) }) {
+            guard entry.dayOfWeek != day else { return false }
+            moveEntry(entry, to: day, in: week)
+            return true
+        }
+        if item.hasPrefix("group:") {
+            let id = String(item.dropFirst(6))
+            guard let meal = (0..<7).flatMap({ data.value.meals(on: $0, in: week) }).first(where: { $0.id == id }) else { return false }
+            moveGroup(meal, to: day)
+            return true
+        }
+        return false
+    }
+
+    // MARK: Changes (sync mutations, so they work offline)
+
+    private var planActions: PlanActions {
+        PlanActions(week: week, move: moveEntry, setMealType: setMealType, setServings: setServings, moveGroup: moveGroup)
+    }
+
+    /// An entry made offline has a placeholder id until it syncs; the server
+    /// can't change what it hasn't seen yet.
+    private func ready(_ id: String) -> Bool {
+        if id.hasPrefix("temp-") { app.toast = "Still saving that one — try again in a moment."; return false }
+        return true
+    }
+
+    private func moveEntry(_ entry: MealPlanEntry, to day: Int, in target: Week) {
+        guard ready(entry.id) else { return }
+        let sameWeek = target == week
+        var payload: [String: JSONValue] = ["entryId": .string(entry.id), "dayOfWeek": .number(Double(day))]
+        if !sameWeek { payload["weekStartDate"] = .string(target.key) }
+        Task {
+            let current = try? await app.store.read { try $0.record(.mealPlanEntries, id: entry.id) }
+            var optimistic: [OptimisticChange] = []
+            if let current {
+                if sameWeek {
+                    optimistic = [.put(.mealPlanEntries, current.merging(.object(["dayOfWeek": .number(Double(day))])))]
+                } else if let plan = data.value.plan(for: target) {
+                    optimistic = [.put(.mealPlanEntries, current.merging(.object([
+                        "dayOfWeek": .number(Double(day)), "mealPlanId": .string(plan.id), "groupId": .null])))]
+                } else {
+                    // No plan for that week on the device yet: it appears there after the sync.
+                    optimistic = [.remove(.mealPlanEntries, id: entry.id)]
+                }
+            }
+            await app.mutate("meal_plan_entry.update", payload: .object(payload), optimistic: optimistic)
+            if !sameWeek { app.toast = "Moved to \(target.day(day).formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))." }
+        }
+    }
+
+    private func setMealType(_ entry: MealPlanEntry, _ type: String) {
+        guard ready(entry.id) else { return }
+        patch(entry, ["mealType": .string(type)])
+    }
+
+    private func setServings(_ entry: MealPlanEntry, _ servings: Double?) {
+        guard ready(entry.id) else { return }
+        patch(entry, ["servings": servings.map { .number($0) } ?? .null])
+    }
+
+    private func patch(_ entry: MealPlanEntry, _ fields: [String: JSONValue]) {
+        Task {
+            let current = try? await app.store.read { try $0.record(.mealPlanEntries, id: entry.id) }
+            await app.mutate("meal_plan_entry.update",
+                             payload: JSONValue.object(["entryId": .string(entry.id)]).merging(.object(fields)),
+                             optimistic: current.map { [.put(.mealPlanEntries, $0.merging(.object(fields)))] } ?? [])
+        }
+    }
+
+    /// A combined meal moves as one; its dishes follow on the server.
+    private func moveGroup(_ meal: PlannedMeal, to day: Int) {
+        guard ready(meal.id) else { return }
+        Task {
+            var optimistic: [OptimisticChange] = []
+            if let group = try? await app.store.read({ try $0.record(.mealPlanGroups, id: meal.id) }) {
+                optimistic.append(.put(.mealPlanGroups, group.merging(.object(["dayOfWeek": .number(Double(day))]))))
+            }
+            for dish in meal.dishes {
+                if let row = try? await app.store.read({ try $0.record(.mealPlanEntries, id: dish.entry.id) }) {
+                    optimistic.append(.put(.mealPlanEntries, row.merging(.object(["dayOfWeek": .number(Double(day))]))))
+                }
+            }
+            await app.mutate("meal_plan_group.update",
+                             payload: .object(["groupId": .string(meal.id), "dayOfWeek": .number(Double(day))]),
+                             optimistic: optimistic)
         }
     }
 
@@ -291,18 +399,93 @@ struct PlanScreen: View {
     }
 }
 
+// MARK: Actions shared by every card
+
+/// What a card can do to the plan, passed down by PlanScreen.
+struct PlanActions {
+    var week: Week
+    var move: (MealPlanEntry, Int, Week) -> Void
+    var setMealType: (MealPlanEntry, String) -> Void
+    var setServings: (MealPlanEntry, Double?) -> Void
+    var moveGroup: (PlannedMeal, Int) -> Void
+}
+
+extension EnvironmentValues {
+    @Entry var planActions: PlanActions?
+}
+
+/// Move to another day (this week or the next), change the meal, set servings —
+/// the web entry card's menu.
+struct EntryMenuItems: View {
+    @Environment(\.planActions) private var actions
+    let entry: MealPlanEntry
+    var recipeServings: Double?
+
+    var body: some View {
+        if let actions {
+            Menu("Move to", systemImage: "arrow.right.circle") {
+                Section("This week") {
+                    ForEach(0..<7, id: \.self) { day in
+                        Button(actions.week.day(day).formatted(.dateTime.weekday(.wide))) { actions.move(entry, day, actions.week) }
+                            .disabled(day == entry.dayOfWeek)
+                    }
+                }
+                Section("Next week") {
+                    ForEach(0..<7, id: \.self) { day in
+                        let next = actions.week.adding(1)
+                        Button(next.day(day).formatted(.dateTime.weekday(.wide).day().month(.abbreviated))) { actions.move(entry, day, next) }
+                    }
+                }
+            }
+            Menu("Meal", systemImage: Theme.mealIcon(entry.mealType)) {
+                ForEach(mealTypeOrder, id: \.self) { type in
+                    Button(type.capitalized, systemImage: entry.mealType == type ? "checkmark" : Theme.mealIcon(type)) {
+                        actions.setMealType(entry, type)
+                    }
+                }
+            }
+            Menu("Servings", systemImage: "person.2") {
+                Button("Recipe’s own" + (recipeServings.map { " (\(Format.amount(String($0)) ?? ""))" } ?? ""),
+                       systemImage: entry.servings == nil ? "checkmark" : "arrow.uturn.backward") {
+                    actions.setServings(entry, nil)
+                }
+                ForEach([1, 2, 3, 4, 5, 6, 8, 10], id: \.self) { n in
+                    Button("\(n)", systemImage: entry.servings == Double(n) ? "checkmark" : "") { actions.setServings(entry, Double(n)) }
+                }
+            }
+        }
+    }
+}
+
 // MARK: Cards (meal-plan/_components/entry-card.tsx, meal-group-card.tsx)
 
 /// A meal in a week column: the photo on top, then the meal-type pill, the
 /// title and the time — the entry card stood upright for a narrow column.
 /// A combined meal lists its dishes. Long-press for Cook and Remove.
 struct WeekMealCard: View {
+    @Environment(\.planActions) private var actions
     let meal: PlannedMeal
     let delete: (MealPlanEntry) -> Void
     let cook: (PlannedMeal) -> Void
 
+    private var lead: Recipe? {
+        meal.dishes.first(where: { $0.recipe?.imageUrl != nil })?.recipe ?? meal.dishes.first?.recipe
+    }
+
+    /// The card is the link's own label (not a link laid over it), so a long
+    /// press can lift it for dragging between days.
     var body: some View {
-        let lead = meal.dishes.first(where: { $0.recipe?.imageUrl != nil })?.recipe ?? meal.dishes.first?.recipe
+        Group {
+            if let lead {
+                NavigationLink(value: lead.id) { content }.buttonStyle(.plain)
+            } else {
+                content
+            }
+        }
+        .contextMenu { menu }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let lead {
                 Color.clear
@@ -337,21 +520,25 @@ struct WeekMealCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(radius: 10)
-        .overlay {
-            // Tapping a single dish opens its recipe; a combined meal opens its first.
-            if let lead {
-                NavigationLink(value: lead.id) { Color.clear.contentShape(Rectangle()) }
-                    .buttonStyle(.plain)
-            }
-        }
-        .contextMenu {
+    }
+
+    @ViewBuilder private var menu: some View {
             if meal.dishes.contains(where: { $0.recipe?.steps.isEmpty == false }) {
                 Button("Cook", systemImage: "frying.pan") { cook(meal) }
             }
+            if meal.title == nil, let dish = meal.dishes.first {
+                EntryMenuItems(entry: dish.entry, recipeServings: dish.recipe?.servings)
+            } else if let actions {
+                Menu("Move to", systemImage: "arrow.right.circle") {
+                    ForEach(0..<7, id: \.self) { day in
+                        Button(actions.week.day(day).formatted(.dateTime.weekday(.wide))) { actions.moveGroup(meal, day) }
+                    }
+                }
+            }
+            Divider()
             ForEach(meal.dishes, id: \.entry.id) { dish in
                 Button("Remove \(dish.recipe?.title ?? "dish")", systemImage: "trash", role: .destructive) { delete(dish.entry) }
             }
-        }
     }
 }
 
@@ -419,6 +606,8 @@ struct EntryCard: View {
                 if recipe?.steps.isEmpty == false {
                     Button("Cook", systemImage: "frying.pan", action: cook)
                 }
+                EntryMenuItems(entry: entry, recipeServings: recipe?.servings)
+                Divider()
                 Button("Remove from plan", systemImage: "trash", role: .destructive) { delete(entry) }
             } label: {
                 Image(systemName: "ellipsis")
@@ -501,6 +690,11 @@ struct AddMealSheet: View {
     @State private var recipes = Observed<[Recipe]>([])
     @State private var search = ""
     @State private var mealType = "dinner"
+    @State private var source = Source.recipes
+    @State private var savedMeals = Observed<[SavedMeal]>([])
+    @State private var choosing: SavedMeal?
+
+    enum Source { case recipes, saved }
 
     private var shown: [Recipe] {
         let words = search.lowercased().split(separator: " ").map(String.init)
@@ -516,6 +710,14 @@ struct AddMealSheet: View {
                     ForEach(mealTypeOrder, id: \.self) { Text($0.capitalized).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                Picker("From", selection: $source) {
+                    Text("Recipes").tag(Source.recipes)
+                    Text("Saved meals").tag(Source.saved)
+                }
+                .pickerStyle(.segmented)
+                if source == .saved {
+                    savedList
+                } else {
                 SearchField(prompt: "Search recipes…", text: $search)
                 List(shown) { recipe in
                     Button { add(recipe) } label: {
@@ -537,18 +739,94 @@ struct AddMealSheet: View {
                     .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                 }
                 .listStyle(.plain)
+                }
             }
             .padding(16)
             .background(Theme.background)
             .navigationTitle("Add to \(week.day(day).formatted(.dateTime.weekday(.wide)))")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("Done") { dismiss() } }
+            .navigationDestination(item: $choosing) { meal in
+                SavedMealChooser(meal: meal) { optionIds in add(meal, optionIds: optionIds) }
+            }
+        }
+        .task {
+            await savedMeals.follow(app.store) { r in
+                try r.records(.meals).compactMap(SavedMeal.init)
+                    .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            }
         }
         .task {
             await recipes.follow(app.store) { r in
                 try r.records(.recipes).compactMap(Recipe.init)
                     .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
             }
+        }
+    }
+
+    @ViewBuilder private var savedList: some View {
+        if savedMeals.loaded && savedMeals.value.isEmpty {
+            EmptyBox(emoji: "🍽", message: "No saved meals yet — save one from a combined meal on the web")
+            Spacer()
+        } else {
+            List(savedMeals.value) { meal in
+                Button {
+                    mealType = meal.defaultMealType
+                    choosing = meal
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .foregroundStyle(Theme.brand)
+                            .frame(width: 52, height: 52)
+                            .background(Theme.orange50, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(meal.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.foreground)
+                            Text(meal.slots.map { $0.label ?? $0.role?.capitalized ?? "Dish" }.joined(separator: " · "))
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.mutedForeground)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(Theme.mutedForeground)
+                    }
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+            }
+            .listStyle(.plain)
+        }
+    }
+
+    /// Plans a saved meal with the chosen options: a temporary group and one
+    /// temporary entry per dish until the sync brings the server's.
+    private func add(_ meal: SavedMeal, optionIds: [String]) {
+        let planId = plan?.id ?? "temp-plan-\(UUID().uuidString.lowercased())"
+        let groupId = "temp-group-\(UUID().uuidString.lowercased())"
+        var optimistic: [OptimisticChange] = []
+        if plan == nil {
+            optimistic.append(.put(.mealPlans, .object(["id": .string(planId), "weekStartDate": .string(week.key)]),
+                                   temporary: true))
+        }
+        optimistic.append(.put(.mealPlanGroups, .object([
+            "id": .string(groupId), "mealPlanId": .string(planId), "title": .string(meal.title),
+            "dayOfWeek": .number(Double(day)), "mealType": .string(mealType),
+        ]), temporary: true))
+        let options = meal.slots.flatMap(\.options).filter { optionIds.contains($0.id) }
+        for option in options {
+            optimistic.append(.put(.mealPlanEntries, .object([
+                "id": .string("temp-entry-\(UUID().uuidString.lowercased())"), "mealPlanId": .string(planId),
+                "recipeId": .string(option.recipeId), "dayOfWeek": .number(Double(day)),
+                "mealType": .string(mealType), "groupId": .string(groupId),
+            ]), temporary: true))
+        }
+        Task {
+            await app.mutate("meal_plan_group.add_from_meal",
+                             payload: .object(["mealId": .string(meal.id), "weekStartDate": .string(week.key),
+                                               "dayOfWeek": .number(Double(day)), "mealType": .string(mealType),
+                                               "optionIds": .array(optionIds.map { .string($0) })]),
+                             optimistic: optimistic)
+            app.toast = "Added \(meal.title)."
+            dismiss()
         }
     }
 
@@ -571,6 +849,65 @@ struct AddMealSheet: View {
                              optimistic: optimistic)
             app.toast = "Added \(recipe.title)."
             dismiss()
+        }
+    }
+}
+
+/// Choose a dish for each slot of a saved meal — defaults ticked — then add it.
+struct SavedMealChooser: View {
+    let meal: SavedMeal
+    let add: ([String]) -> Void
+    @State private var chosen: Set<String> = []
+
+    var body: some View {
+        List {
+            ForEach(meal.slots) { slot in
+                Section {
+                    ForEach(slot.options) { option in
+                        Button { toggle(option, in: slot) } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: chosen.contains(option.id)
+                                      ? (slot.allowMultiple ? "checkmark.square.fill" : "largecircle.fill.circle")
+                                      : (slot.allowMultiple ? "square" : "circle"))
+                                    .foregroundStyle(chosen.contains(option.id) ? Theme.brand : Theme.mutedForeground)
+                                    .font(.system(size: 19))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.title).font(.system(size: 15, weight: .medium)).foregroundStyle(Theme.foreground)
+                                    if let time = Format.shortMinutes(option.totalMinutes) {
+                                        Text(time).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                                    }
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text(slot.label ?? slot.role?.capitalized ?? "Dish")
+                } footer: {
+                    if slot.allowMultiple { Text("Pick any") }
+                }
+            }
+        }
+        .navigationTitle(meal.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Button { add(Array(chosen)) } label: {
+                Label("Add \(meal.title)", systemImage: "plus")
+            }
+            .buttonStyle(.brand)
+            .disabled(chosen.isEmpty)
+            .padding(16)
+            .background(.bar)
+        }
+        .onAppear { chosen = Set(meal.slots.flatMap { $0.defaults.isEmpty ? Array($0.options.prefix(1)) : $0.defaults }.map(\.id)) }
+    }
+
+    private func toggle(_ option: SavedMeal.Option, in slot: SavedMeal.Slot) {
+        if slot.allowMultiple {
+            if chosen.contains(option.id) { chosen.remove(option.id) } else { chosen.insert(option.id) }
+        } else {
+            for other in slot.options { chosen.remove(other.id) }
+            chosen.insert(option.id)
         }
     }
 }

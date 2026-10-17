@@ -425,6 +425,12 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
 - [ ] Shopping: edit an item (amount, notes, category)
 - [x] Meal plan week, read-only: week paging with no network, entries and
   combined meal groups (iPad: a grid of day cards), remove a dish
+- [x] Meal plan: move a dish to another day or next week, change meal type
+  and servings (menu on every card), drag between days on the week grid,
+  move a combined meal, and plan a saved meal with a choice per slot (Add
+  meal → Saved meals). All sync mutations, so offline too
+- [ ] Drag between days: built but not confirmed — simulated drags don't lift
+  the card; check on the iPad
 - [ ] **Meal plan week** — move/change type/servings, add from the recipe library or
   a saved meal (needs C0), "add week to shopping" (online — stays a server call,
   see Phase B)
@@ -438,9 +444,11 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   of them thought, notes; from the recipe page and offered on Finish in
   cooking mode. Online (`POST /api/v1/cook-history`); the entry syncs back.
   Members come from the new `GET /api/v1/members`, cached for offline
-- [ ] Log a cook: dish photo from the camera (background `URLSession` upload,
-  as Keepsake's `UploadManager`); occasion; logging offline (needs a sync
-  mutation for cook history)
+- [x] Log a cook: dish photo from the camera or library, resized to 2048px and
+  uploaded after the cook saves. Not seen succeeding locally — the dev server
+  has no storage configured ("Storage not configured.") — check on the device
+- [ ] Log a cook: occasion; logging offline (needs a sync mutation for cook
+  history); background upload for big photos
 - [x] Recipe page: full nutrition panel with heart-healthy badge, the
   household's rating and how often it's been cooked and planned, Add to
   shopping list, cook history, "You might also like"
@@ -463,6 +471,14 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   Developer menu (Debug). Devices still to do (needs the server's device list)
 - [ ] More → Settings: server, signed-in member, devices, sign out. Everything
   else in Settings links to the web app — it remains the admin surface
+- [x] Recipe create/edit (v1.31.0): tabbed editor (Details / Ingredients /
+  Method), sections, reorder, a timer per step, which ingredients each step
+  uses; edit and delete from the recipe's ⋯ menu; New Recipe on Recipes.
+  Online. Fields the editor doesn't show (photo, nutrition, notes, source)
+  are carried over. Server now keeps step → ingredient links across writes
+  (`ingredientIndexes`), which the web editor drops too — worth adopting there
+- [x] Collections: chips on Recipes, Add to collection / New collection on a
+  recipe; `/api/v1/collections` (not in sync yet — fetched after each sync)
 - [ ] Recipe create/edit — last in C3; the web editor is large and editing on
   a phone is rare. Recipe edits are also not in the sync schema (A3), so this
   is online-only via `/api/v1/recipes`

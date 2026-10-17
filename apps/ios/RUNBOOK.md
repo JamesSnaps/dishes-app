@@ -254,3 +254,25 @@ the web's design rather than stock iOS styling:
   are wider than their point size, so the control measures its real width.
 - Server: `GET /api/v1/members` (API.md).
 
+### 17 Oct 2026 — planner editing, collections, recipe editor, cook photos
+
+- Planner: every card's menu has Move to (this week / next week), Meal and
+  Servings; combined meals move as one. Add meal → Saved meals → pick a dish
+  per slot. Checked on the 13-inch: Move to → Wednesday and a Sunday roast
+  with four dishes both reached Postgres. **Drag between days not confirmed**:
+  simulated drags never lift the card (a plain long-press opens the menu fine).
+- Collections: `/api/v1/collections` (list, create, add, remove), chips on
+  Recipes, Add to collection on a recipe. Filtering checked.
+- Recipe editor: page-sized sheet with Details / Ingredients / Method tabs; a
+  Timer row per step; "Uses N ingredients" per step. Saving Chocolate Chip
+  Cookies unchanged left every column identical (nutrition source became
+  "manual", as the web editor does).
+- Found and fixed: saving dropped every step's ingredient links (cooking-mode
+  chips) — the server re-creates ingredients with new ids and the write format
+  had no way to say which a step uses. Steps now send `ingredientIndexes`;
+  checked on Fish Tacos (links point at the right new ingredients). Also: the
+  editor would have wiped nutrition on rows marked "none" but holding numbers.
+- Cook photo: picker and resize work; upload got a 400 "Storage not
+  configured." because the dev server has no S3 settings. Production has
+  storage — confirm there.
+

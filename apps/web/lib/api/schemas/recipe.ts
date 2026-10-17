@@ -25,6 +25,8 @@ const stepSchema = z.object({
   durationMinutes: z.string().default(""),
   timerLabel: z.string().default(""),
   groupLabel: z.string().default(""),
+  /** The ingredients this step uses, by position in `ingredients`. */
+  ingredientIndexes: z.array(z.number().int().nonnegative()).default([]),
 });
 
 const nutritionSchema = z.object({

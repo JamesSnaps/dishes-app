@@ -282,6 +282,57 @@ public struct MealPlanGroup: Hashable, Sendable, Identifiable {
     }
 }
 
+// MARK: Saved meals
+
+/// A saved meal (the `meals` sync collection): named slots — "Meat", "Veg" —
+/// each with recipe options and a default. Planning one picks an option per
+/// slot (`meal_plan_group.add_from_meal`).
+public struct SavedMeal: Hashable, Sendable, Identifiable {
+    public struct Option: Hashable, Sendable, Identifiable {
+        public var id: String
+        public var isDefault: Bool
+        public var recipeId: String
+        public var title: String
+        public var imageUrl: String?
+        public var totalMinutes: Int?
+    }
+
+    public struct Slot: Hashable, Sendable, Identifiable {
+        public var id: String
+        public var label: String?
+        public var role: String?
+        public var allowMultiple: Bool
+        public var options: [Option]
+        public var defaults: [Option] { options.filter(\.isDefault) }
+    }
+
+    public var id: String
+    public var title: String
+    public var defaultMealType: String
+    public var slots: [Slot]
+
+    public init?(_ json: JSONValue) {
+        guard let id = json.id else { return nil }
+        self.id = id
+        title = json.string("title") ?? "Meal"
+        defaultMealType = json.string("defaultMealType") ?? "dinner"
+        slots = json.array("slots").compactMap { slot in
+            guard let sid = slot.id else { return nil }
+            let options: [Option] = slot.array("options").compactMap { o in
+                let recipe = o["recipe"] ?? .null
+                guard let oid = o.id, let rid = recipe.id else { return nil }
+                let total = (recipe.int("prepTimeMinutes") ?? 0) + (recipe.int("cookTimeMinutes") ?? 0)
+                return Option(id: oid, isDefault: o.bool("isDefault") ?? false, recipeId: rid,
+                              title: recipe.string("title") ?? "A recipe",
+                              imageUrl: recipe.string("thumbnailUrl") ?? recipe.string("imageUrl"),
+                              totalMinutes: total > 0 ? total : nil)
+            }
+            return Slot(id: sid, label: slot.string("label"), role: slot.string("role"),
+                        allowMultiple: slot.bool("allowMultiple") ?? false, options: options)
+        }
+    }
+}
+
 // MARK: Cook history
 
 /// One logged cook (or a rating without cooking: `source == "rating"`).

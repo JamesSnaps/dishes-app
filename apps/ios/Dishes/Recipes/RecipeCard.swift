@@ -86,8 +86,8 @@ struct RecipeCard: View {
         .contentShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    /// MEAL_ROLE_LABELS in @dishes/shared.
-    static let roleLabels = ["main": "Main", "side": "Side", "sauce": "Sauce", "extra": "Extra"]
+    /// MEAL_ROLE_LABELS in @dishes/shared ("other" shows as Extra).
+    static let roleLabels = ["main": "Main", "side": "Side", "sauce": "Sauce", "other": "Extra"]
 }
 
 /// Icon and text 4pt apart, icon slightly smaller — lucide's h-3 w-3 next to text-xs.

@@ -24,6 +24,11 @@ struct RecipeDetailView: View {
     @State private var recipe = Observed<Recipe?>(nil)
     @State private var extras = Observed(RecipeExtras())
     @State private var logging = false
+    @State private var editing = false
+    @State private var confirmDelete = false
+    @State private var naming = false
+    @State private var newCollection = ""
+    @Environment(\.dismiss) private var dismissPage
     @State private var servings: Double?
     @State private var tab = Tab.ingredients
     @State private var pageWidth: CGFloat = 0
@@ -56,6 +61,26 @@ struct RecipeDetailView: View {
         }
         .sheet(isPresented: $logging) {
             if let recipe = recipe.value { LogCookSheet(recipe: recipe) }
+        }
+        .sheet(isPresented: $editing) { RecipeEditor(recipeId: recipeId) }
+        .toolbar {
+            if let recipe = recipe.value {
+                ToolbarItem(placement: .primaryAction) { actionsMenu(recipe) }
+            }
+        }
+        .confirmationDialog("Delete this recipe?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { Task { await delete() } }
+        } message: {
+            Text("It’s removed for the whole household, with its cook history.")
+        }
+        .alert("New collection", isPresented: $naming) {
+            TextField("Name", text: $newCollection)
+            Button("Create") {
+                let name = newCollection
+                newCollection = ""
+                Task { await app.createCollection(named: name, adding: recipe.value) }
+            }
+            Button("Cancel", role: .cancel) { newCollection = "" }
         }
     }
 
@@ -187,6 +212,43 @@ struct RecipeDetailView: View {
             .buttonStyle(.brand)
             .disabled(recipe.steps.isEmpty)
             .frame(maxWidth: width == .regular ? 360 : .infinity)
+        }
+    }
+
+    // MARK: Menu
+
+    private func actionsMenu(_ recipe: Recipe) -> some View {
+        Menu {
+            Menu("Add to collection", systemImage: "folder.badge.plus") {
+                ForEach(app.collections) { collection in
+                    Button("\(collection.icon.map { "\($0) " } ?? "")\(collection.name)",
+                           systemImage: collection.recipeIds.contains(recipe.id) ? "checkmark" : "") {
+                        Task { await app.toggle(recipe, in: collection) }
+                    }
+                }
+                Divider()
+                Button("New collection…", systemImage: "plus") { naming = true }
+            }
+            Button("Add to shopping list", systemImage: "cart.badge.plus") {
+                Task { await app.addToShopping(recipe, servings: servings ?? recipe.servings) }
+            }
+            Button("Log a cook", systemImage: "square.and.pencil") { logging = true }
+            Divider()
+            Button("Edit recipe", systemImage: "pencil") { editing = true }
+            Button("Delete recipe", systemImage: "trash", role: .destructive) { confirmDelete = true }
+        } label: {
+            Label("More", systemImage: "ellipsis")
+        }
+    }
+
+    private func delete() async {
+        do {
+            try await app.api.deleteRecipe(id: recipeId)
+            app.toast = "Recipe deleted."
+            await app.syncNow()
+            dismissPage()
+        } catch {
+            app.toast = app.online ? "Couldn’t delete the recipe." : "You’re offline — try again with a connection."
         }
     }
 

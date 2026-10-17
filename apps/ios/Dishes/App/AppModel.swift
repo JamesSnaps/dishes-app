@@ -32,6 +32,9 @@ final class AppModel {
     /// The household's members, for "who ate it". Kept on the device so the
     /// log-a-cook sheet opens offline with the last known names.
     private(set) var members: [APIClient.Member] = []
+    /// Collections aren't in the sync log yet, so they're fetched after each
+    /// sync and kept on the device for offline browsing.
+    private(set) var collections: [APIClient.Collection] = []
     private(set) var status = SyncStatus()
     private(set) var online = true
     var signInError: String?
@@ -100,6 +103,9 @@ final class AppModel {
         me = try? await store.read { r in try r.meta("me").flatMap { try JSONDecoder().decode(WhoAmI.self, from: Data($0.utf8)) } }
         members = (try? await store.read { r in
             try r.meta("members").flatMap { try JSONDecoder().decode([APIClient.Member].self, from: Data($0.utf8)) }
+        }) ?? []
+        collections = (try? await store.read { r in
+            try r.meta("collections").flatMap { try JSONDecoder().decode([APIClient.Collection].self, from: Data($0.utf8)) }
         }) ?? []
         if me != nil {
             phase = .ready
@@ -179,7 +185,50 @@ final class AppModel {
             }
         }
         status.pending = (try? await store.read { try $0.pendingCount() }) ?? 0
-        if status.state == .idle { await refreshMembers() }
+        if status.state == .idle {
+            await refreshMembers()
+            await refreshCollections()
+        }
+    }
+
+    func refreshCollections() async {
+        guard let fresh = try? await api.collections() else { return }
+        setCollections(fresh)
+    }
+
+    private func setCollections(_ fresh: [APIClient.Collection]) {
+        guard fresh != collections else { return }
+        collections = fresh
+        let json = String(decoding: (try? JSONEncoder().encode(fresh)) ?? Data(), as: UTF8.self)
+        Task { try? await store.write { try $0.setMeta("collections", json) } }
+    }
+
+    /// Puts a recipe in a collection or takes it out (online), updating the
+    /// device's copy straight away.
+    func toggle(_ recipe: Recipe, in collection: APIClient.Collection) async {
+        let inside = !collection.recipeIds.contains(recipe.id)
+        do {
+            try await api.setRecipe(recipe.id, inCollection: collection.id, inside)
+            setCollections(collections.map { c in
+                guard c.id == collection.id else { return c }
+                var c = c
+                if inside { c.recipeIds.append(recipe.id) } else { c.recipeIds.removeAll { $0 == recipe.id } }
+                return c
+            })
+            toast = inside ? "Added to \(collection.name)." : "Removed from \(collection.name)."
+        } catch {
+            toast = online ? "Couldn’t change that collection." : "You’re offline — collections need a connection for now."
+        }
+    }
+
+    func createCollection(named name: String, adding recipe: Recipe?) async {
+        do {
+            let created = try await api.createCollection(name: name, icon: nil)
+            setCollections((collections + [created]).sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending })
+            if let recipe { await toggle(recipe, in: created) }
+        } catch {
+            toast = online ? "Couldn’t create that collection." : "You’re offline — collections need a connection for now."
+        }
     }
 
     private func refreshMembers() async {
@@ -242,18 +291,29 @@ final class AppModel {
         }
     }
 
-    /// Logs a cook; the entry arrives on the device with the next sync.
-    /// Answers whether it was saved (the toast says why not).
-    func logCook(_ cook: APIClient.LogCook) async -> Bool {
+    /// Logs a cook, then its photo if there is one; the entry arrives on the
+    /// device with the next sync. Answers whether the cook was saved (the
+    /// toast says why not). A photo that fails doesn't undo the cook.
+    func logCook(_ cook: APIClient.LogCook, photo: Data? = nil) async -> Bool {
+        let id: String
         do {
-            try await api.logCook(cook)
-            toast = "Cook logged."
-            await syncNow()
-            return true
+            id = try await api.logCook(cook)
         } catch {
             toast = online ? "Couldn’t log that cook." : "You’re offline — logging a cook needs a connection for now."
             return false
         }
+        if let photo {
+            do {
+                try await api.uploadCookPhoto(cookId: id, image: photo)
+                toast = "Cook logged, with its photo."
+            } catch {
+                toast = "Cook logged, but the photo didn’t upload."
+            }
+        } else {
+            toast = "Cook logged."
+        }
+        await syncNow()
+        return true
     }
 
     func deleteCook(_ entry: CookEntry) async {

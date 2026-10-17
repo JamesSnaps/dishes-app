@@ -702,6 +702,23 @@ client needs these to offer them.
 { "members": [ { "id": "uuid", "displayName": "James", "role": "admin" } ] }
 ```
 
+### `GET /api/v1/collections`
+
+Every collection with the ids of its recipes.
+
+```json
+{ "collections": [ { "id": "uuid", "name": "Baking", "icon": "🧁", "description": null, "recipeIds": ["uuid"] } ] }
+```
+
+### `POST /api/v1/collections`
+
+`{ "name": "Weeknight", "icon": "🍝" }` → the new collection (201).
+
+### `PUT /api/v1/collections/{id}/recipes/{recipeId}` · `DELETE …`
+
+Add a recipe to a collection (idempotent) or take it out. 204, no body; 404 for
+a collection or recipe outside the household.
+
 ### The browser door: `/api/web/*`
 
 Because of that, the same API is also reachable at **`/api/web/*`**, which is
@@ -797,6 +814,11 @@ steps and tags.
 Only `title` is required. `mealTypes` entries that aren't valid meal types are
 dropped. `collectionId` is ignored unless it names one of this household's
 collections.
+
+Each step may carry `ingredientIndexes`: the ingredients it uses, by position in
+the same request's `ingredients` array. Ingredients get new ids on every write,
+so this is how a step keeps its links (cooking mode's ingredient chips); the
+server maps positions to the new ids. Omitted, the step has no links.
 
 ### `GET /api/v1/recipes/{id}`
 

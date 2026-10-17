@@ -6,7 +6,9 @@
 // so the names come from the household's members.
 
 import DishesCore
+import PhotosUI
 import SwiftUI
+import UIKit
 
 struct LogCookSheet: View {
     @Environment(AppModel.self) private var app
@@ -21,6 +23,9 @@ struct LogCookSheet: View {
     @State private var ratings: [String: Double] = [:]
     @State private var notes = ""
     @State private var saving = false
+    @State private var photo: UIImage?
+    @State private var picked: PhotosPickerItem?
+    @State private var usingCamera = false
 
     var body: some View {
         NavigationStack {
@@ -88,6 +93,38 @@ struct LogCookSheet: View {
                         }
                     }
 
+                    field("Photo") {
+                        HStack(spacing: 12) {
+                            if let photo {
+                                Image(uiImage: photo)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 96, height: 96)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .overlay(alignment: .topTrailing) {
+                                        Button { self.photo = nil; picked = nil } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 20))
+                                                .foregroundStyle(.white, .black.opacity(0.5))
+                                        }
+                                        .padding(4)
+                                        .accessibilityLabel("Remove photo")
+                                    }
+                            }
+                            VStack(alignment: .leading, spacing: 8) {
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    Button { usingCamera = true } label: { Label("Take a photo", systemImage: "camera") }
+                                        .buttonStyle(.outline)
+                                }
+                                let pickLabel = photo == nil ? "Choose a photo" : "Choose another"
+                                PhotosPicker(selection: $picked, matching: .images) {
+                                    Label(pickLabel, systemImage: "photo")
+                                }
+                                .buttonStyle(.outline)
+                            }
+                        }
+                    }
+
                     field("Notes") {
                         TextField("What would you change next time?", text: $notes, axis: .vertical)
                             .lineLimit(3...8)
@@ -110,6 +147,17 @@ struct LogCookSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(afterCooking ? "Skip" : "Cancel") { finish() }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $usingCamera) {
+            CameraPicker { photo = $0 }.ignoresSafeArea()
+        }
+        .onChange(of: picked) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                    photo = image
                 }
             }
         }
@@ -139,7 +187,17 @@ struct LogCookSheet: View {
         let cook = APIClient.LogCook(
             recipeId: recipe.id, rating: rating, notes: trimmed.isEmpty ? nil : trimmed,
             cookedFor: ate.isEmpty ? nil : ate.sorted(), memberRatings: memberRatings.isEmpty ? nil : memberRatings)
-        if await app.logCook(cook) { finish() }
+        if await app.logCook(cook, photo: photo.flatMap(Self.jpeg)) { finish() }
+    }
+
+    /// At most 2048px on the long side — the server resizes anyway, so there's
+    /// no point sending a 12MP original over a kitchen's Wi-Fi.
+    static func jpeg(_ image: UIImage) -> Data? {
+        let longest = max(image.size.width, image.size.height)
+        let scale = min(1, 2048 / max(longest, 1))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let resized = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+        return resized.jpegData(compressionQuality: 0.82)
     }
 
     private func finish() {
@@ -147,3 +205,34 @@ struct LogCookSheet: View {
         onDone?()
     }
 }
+
+/// The camera, for a photo of the dish.
+struct CameraPicker: UIViewControllerRepresentable {
+    let onPhoto: (UIImage) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ picker: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraPicker
+        init(_ parent: CameraPicker) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.originalImage] as? UIImage { parent.onPhoto(image) }
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { parent.dismiss() }
+    }
+}
+

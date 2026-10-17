@@ -63,6 +63,13 @@ export type StepInput = {
   durationMinutes: string;
   timerLabel: string;
   groupLabel: string;
+  /**
+   * The ingredients this step uses, by position in the same write's
+   * ingredients array. Ingredients get new ids on every write, so positions
+   * are the only stable way to say "this step uses the onions" — mapped to the
+   * new ids in insertSteps. Omitted: no links (cooking mode then shows none).
+   */
+  ingredientIndexes?: number[];
 };
 
 export type NutritionInput = {
@@ -253,13 +260,14 @@ async function assertOwned(recipeId: string, householdId: string): Promise<void>
  */
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0] | typeof db;
 
+/** Answers the new ingredient ids in input order, for insertSteps' links. */
 async function insertIngredients(
   tx: Tx,
   recipeId: string,
   ingredients: IngredientInput[]
-) {
-  if (!ingredients.length) return;
-  await tx.insert(recipeIngredients).values(
+): Promise<string[]> {
+  if (!ingredients.length) return [];
+  const rows = await tx.insert(recipeIngredients).values(
     ingredients.map((ing, i) => ({
       recipeId,
       position: i,
@@ -270,10 +278,16 @@ async function insertIngredients(
       isOptional: ing.isOptional,
       groupLabel: ing.groupLabel || null,
     }))
-  );
+  ).returning({ id: recipeIngredients.id, position: recipeIngredients.position });
+  return rows.sort((a, b) => a.position - b.position).map((r) => r.id);
 }
 
-async function insertSteps(tx: Tx, recipeId: string, steps: StepInput[]) {
+async function insertSteps(
+  tx: Tx,
+  recipeId: string,
+  steps: StepInput[],
+  ingredientIds: string[] = []
+) {
   if (!steps.length) return;
   await tx.insert(recipeSteps).values(
     steps.map((step, i) => ({
@@ -283,6 +297,9 @@ async function insertSteps(tx: Tx, recipeId: string, steps: StepInput[]) {
       durationMinutes: step.durationMinutes ? parseInt(step.durationMinutes) : null,
       timerLabel: step.timerLabel || null,
       groupLabel: step.groupLabel || null,
+      ingredientIds: (step.ingredientIndexes ?? [])
+        .map((index) => ingredientIds[index])
+        .filter((id): id is string => !!id),
     }))
   );
 }
@@ -334,9 +351,10 @@ async function replaceChildren(
   await tx.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
   await tx.delete(recipeTags).where(eq(recipeTags.recipeId, recipeId));
 
+  // Ingredients first: steps link to their new ids.
+  const ingredientIds = await insertIngredients(tx, recipeId, input.ingredients);
   await Promise.all([
-    insertIngredients(tx, recipeId, input.ingredients),
-    insertSteps(tx, recipeId, input.steps),
+    insertSteps(tx, recipeId, input.steps, ingredientIds),
     insertTags(tx, recipeId, input.tags),
   ]);
 }
@@ -494,9 +512,9 @@ export async function createRecipe(
 
   const recipeId = recipe!.id;
 
-  const [, , , linkedCollectionId] = await Promise.all([
-    insertIngredients(tx, recipeId, input.ingredients),
-    insertSteps(tx, recipeId, input.steps),
+  const ingredientIds = await insertIngredients(tx, recipeId, input.ingredients);
+  const [, , linkedCollectionId] = await Promise.all([
+    insertSteps(tx, recipeId, input.steps, ingredientIds),
     insertTags(tx, recipeId, input.tags),
     linkCollection(tx, recipeId, ctx.householdId, input.collectionId),
   ]);
