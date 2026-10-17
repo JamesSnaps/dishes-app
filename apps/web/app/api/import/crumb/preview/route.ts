@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import JSZip from "jszip";
 import sharp from "sharp";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getRedis } from "@/lib/redis";
 import { parseCrumbFile, type ParsedCrumbRecipe } from "@/lib/crumb-parser";
@@ -65,7 +65,7 @@ async function parseCrumbs(content: ArrayBuffer, filename: string): Promise<Pars
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   await requireHousehold(user);
 
   const formData = await req.formData();

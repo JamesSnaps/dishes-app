@@ -164,6 +164,8 @@ export const actions: Record<string, Handler> = {
     return { ingredients, steps };
   },
   "ai.improve": async (s, [recipeId, instruction]) => ai.improveRecipe(await asGenerated(s, str(recipeId)), str(instruction)),
+  /** Improve a draft already tweaked (the web's "Refine"), not the stored recipe. */
+  "ai.refine": (_s, [draft, instruction]) => ai.improveRecipe(obj(draft) as never, str(instruction)),
   "ai.heartHealthy": async (s, [recipeId]) => ai.makeRecipeHeartHealthy(await asGenerated(s, str(recipeId))),
   "ai.applyTweak": (_s, [recipeId, tweaked]) => recipeActions.applyTweakToRecipe(str(recipeId), obj(tweaked) as never),
   "ai.saveTweakAsCopy": (_s, [recipeId, tweaked]) => recipeActions.saveRecipeAsCopy(str(recipeId), obj(tweaked) as never),

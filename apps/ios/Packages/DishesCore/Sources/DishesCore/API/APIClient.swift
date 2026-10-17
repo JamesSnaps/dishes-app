@@ -658,6 +658,40 @@ public final class APIClient: SyncTransport, Sendable {
         }
     }
 
+    // MARK: Crumb import
+
+    /// Crumb export files (.crumb or a .zip of them) read into a preview:
+    /// `{ sessionId, recipes: [{ index, title, … }], fullData? }` as raw JSON.
+    public func crumbPreview(files: [(name: String, data: Data)]) async throws -> JSONValue {
+        let boundary = "dishes-\(UUID().uuidString)"
+        var body = Data()
+        for file in files {
+            body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"files\"; filename=\"\(file.name)\"\r\nContent-Type: application/octet-stream\r\n\r\n".utf8))
+            body.append(file.data)
+            body.append(Data("\r\n".utf8))
+        }
+        body.append(Data("--\(boundary)--\r\n".utf8))
+        let data = try await send { token in
+            var r = authorisedRequest(url("/import/crumb/preview"), method: "POST", token: token)
+            r.httpBody = body
+            r.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            r.timeoutInterval = 180
+            return r
+        }
+        return try JSONDecoder().decode(JSONValue.self, from: data)
+    }
+
+    /// Imports the chosen recipes from a preview; answers how many were saved.
+    public func crumbImport(sessionId: String?, indices: [Int], fullData: JSONValue?) async throws -> Int {
+        struct Reply: Decodable { struct Item: Decodable { var id: String }; var imported: [Item] }
+        let body: JSONValue = .object([
+            "sessionId": sessionId.map { .string($0) } ?? .null,
+            "selectedIndices": .array(indices.map { .number(Double($0)) }),
+            "fullData": fullData ?? .null,
+        ])
+        return try await slowPost("/import/crumb", json: body, timeout: 300, as: Reply.self).imported.count
+    }
+
     // MARK: The website's features (POST /api/v1/actions/{name})
 
     /// One of the web's actions by name (apps/web/lib/api/v1-actions.ts),

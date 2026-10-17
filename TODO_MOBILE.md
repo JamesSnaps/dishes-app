@@ -441,8 +441,9 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   favourites filter; detail with ingredients beside the method on iPad,
   serving scaling with kitchen fractions, favourite toggle (online — not a
   sync mutation)
-- [ ] **Recipes** — the web's full filter set and sorts (port
-  `lib/recipe-filtering.ts`), cook history and per-person ratings on the detail
+- [x] **Recipes** — the web's filters and sorts (v1.37.0: dish role,
+  difficulty, ready-in time, tags, heart-healthy; A–Z, newest, rating), cook
+  history and per-person ratings on the detail
 - [x] **Log a cook (v1.30.0)** — half-star rating, who ate it and what each
   of them thought, notes; from the recipe page and offered on Finish in
   cooking mode. Online (`POST /api/v1/cook-history`); the entry syncs back.
@@ -472,8 +473,18 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   `shopping_item_recipes` (0022) — items with a direct recipeId already show it
 - [x] More: signed-in member, sync status and pending count, sign out,
   Developer menu (Debug). Devices still to do (needs the server's device list)
-- [ ] More → Settings: server, signed-in member, devices, sign out. Everything
-  else in Settings links to the web app — it remains the admin surface
+- [x] **The rest of the website (v1.37.0)** — through the action bridge
+  (`POST /api/v1/actions/{name}`, `lib/api/v1-actions.ts`), so each screen
+  runs the web's own server action: pantry, deliveries, saved meals (create
+  and edit), notes, Stats, Wrapped, taste profile, household and members,
+  recipe links and shared libraries, AI settings; on a recipe the AI tools
+  (improve, heart-healthy, similar, sides, photo, nutrition), share and note;
+  Crumb import, paste-to-parse in the editor, a meal's cooking schedule (incl.
+  Plan with AI) and Save as a saved meal; Add to pantry on Shopping. Stays on
+  the web: integrations tokens, email/SMTP settings, diagnostics, the welcome
+  wizard. Pantry, deliveries and the rest need a connection — only recipes,
+  plan, shopping and saved meals are on the device
+- [ ] More → Settings: devices (needs the server's device list)
 - [x] Recipe create/edit (v1.31.0): tabbed editor (Details / Ingredients /
   Method), sections, reorder, a timer per step, which ingredients each step
   uses; edit and delete from the recipe's ⋯ menu; New Recipe on Recipes.

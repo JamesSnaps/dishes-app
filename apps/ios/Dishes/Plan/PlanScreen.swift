@@ -9,7 +9,7 @@
 // Read from the local store, so paging weeks needs no network. Adding and
 // removing a dish are sync mutations (`meal_plan_entry.add` / `.delete`), so
 // they work offline too; "Add N meals to list" calls the server, as on the
-// web, because pantry stock decides what it adds. AI planning stays on the web.
+// web, because pantry stock decides what it adds; so does AI planning.
 
 import DishesCore
 import SwiftUI
@@ -728,6 +728,8 @@ struct MealDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 MealGroupCard(meal: meal, delete: delete, cook: cook)
+                MealScheduleSection(groupId: meal.id)
+                SaveAsMealButton(groupId: meal.id, title: meal.title ?? "Meal")
                 // Tonight's schedule, step by step on the Lock Screen.
                 // The serve-at time may come from the day's dinner time, which
                 // only the server knows, so it's asked for when tapped.
@@ -865,7 +867,7 @@ struct AddMealSheet: View {
 
     @ViewBuilder private var savedList: some View {
         if savedMeals.loaded && savedMeals.value.isEmpty {
-            EmptyBox(emoji: "🍽", message: "No saved meals yet — save one from a combined meal on the web")
+            EmptyBox(emoji: "🍽", message: "No saved meals yet — save one from a combined meal, or make one in Settings → Saved meals")
             Spacer()
         } else {
             List(savedMeals.value) { meal in

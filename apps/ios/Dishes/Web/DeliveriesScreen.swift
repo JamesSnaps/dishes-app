@@ -405,7 +405,7 @@ private struct DeliverySettingsSheet: View {
                 }
                 Section("Orders close") {
                     DatePicker("At", selection: $cutoff, displayedComponents: .hourAndMinute)
-                    Stepper("\(daysBefore) day\(daysBefore == 1 ? "" : "s") before", value: $daysBefore, in: 0...6)
+                    Stepper("\(daysBefore) day\(daysBefore == 1 ? "" : "s") before", value: $daysBefore, in: 0...3)
                 }
                 Section {
                     TextField("09:00, 19:00, 22:00", text: $reminders)

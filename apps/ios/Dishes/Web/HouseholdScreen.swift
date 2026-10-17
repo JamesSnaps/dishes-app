@@ -268,7 +268,9 @@ struct AISettingsScreen: View {
                 Picker("Chat", selection: $model) { ForEach(Self.chat, id: \.0) { Text($0.1).tag($0.0) } }
                 Picker("Images", selection: $imageModel) { ForEach(Self.images, id: \.0) { Text($0.1).tag($0.0) } }
                 Picker("Photo style", selection: $style) { ForEach(Self.styles, id: \.self) { Text($0.capitalized).tag($0) } }
-                TextField("Monthly limit (US$)", text: $limit).keyboardType(.decimalPad)
+                LabeledContent("Monthly limit (US$)") {
+                    TextField("20.00", text: $limit).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                }
             }
             Section("Cooking") {
                 Picker("Measurements", selection: $measurement) {
