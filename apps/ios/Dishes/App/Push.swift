@@ -162,7 +162,8 @@ final class Push {
         if link.hasPrefix("/meal-plan") || link.hasPrefix("/deliveries") { return .plan }
         if link.hasPrefix("/recipes") { return .recipes }
         if link.hasPrefix("/settings") { return .more }
-        if link == "/" { return .home }
+        if link.hasPrefix("/ai-concierge") { return .ai }
+        if link == "/" || link.hasPrefix("/home") { return .recipes }
         return nil
     }
 }

@@ -8,10 +8,14 @@
 // The top bar is the default on iPad (`.defaultAdaptableTabBarPlacement`); its
 // sidebar button is still there for anyone who wants one.
 //
-// Tonight's meal: a large card at the top of Home on every device, and on
-// iPhone also a "Cook tonight" pill above the tab bar (its bottom accessory).
-// The pill was too easy to miss on an iPad's wide screen (James, 17 Oct 2026),
-// so iPads get the card only.
+// The tabs: Recipes, Planner, AI, Shopping, Settings — the web's bottom nav,
+// whose AI button sits in the middle too. There's no Home tab: Recipes opens
+// on browse mode, which took over what Home showed (James, 17 Oct 2026).
+//
+// Tonight's meal: a large card at the top of Recipes' browse mode on every
+// device, and on iPhone also a "Cook tonight" pill above the tab bar (its
+// bottom accessory). The pill was too easy to miss on an iPad's wide screen
+// (James, 17 Oct 2026), so iPads get the card only.
 //
 //   RootView()   // DishesApp's only scene content
 
@@ -19,16 +23,18 @@ import DishesCore
 import SwiftUI
 
 /// Which screen is showing, plus the cross-screen jumps the web does with
-/// links ("See all" on Home opens Recipes filtered to favourites).
+/// links (a recipe the AI tab writes opens in Recipes).
 @MainActor @Observable
 final class AppNav {
-    enum Tab: String, CaseIterable { case home, recipes, plan, shopping, more }
+    enum Tab: String, CaseIterable { case recipes, plan, ai, shopping, more }
 
-    var tab: Tab = Tab(rawValue: UserDefaults.standard.string(forKey: "tab") ?? "") ?? .home {
+    var tab: Tab = Tab(rawValue: UserDefaults.standard.string(forKey: "tab") ?? "") ?? .recipes {
         didSet { UserDefaults.standard.set(tab.rawValue, forKey: "tab") }
     }
     var favouritesOnly = false
     var recipeSearch = ""
+    /// A recipe for Recipes to open, which it clears once shown.
+    var openedRecipe: String?
     /// The cook in progress, kept while minimised (CookingView, CookingBar).
     private(set) var session: CookSession?
     /// Whether cooking mode is on screen; false while minimised.
@@ -49,9 +55,8 @@ final class AppNav {
         }
     }
 
-    func showRecipes(favourites: Bool = false, search: String = "") {
-        favouritesOnly = favourites
-        recipeSearch = search
+    func openRecipe(_ id: String) {
+        openedRecipe = id
         tab = .recipes
     }
 }
@@ -89,9 +94,11 @@ struct RootView: View {
     private var shell: some View {
         @Bindable var nav = nav
         return TabView(selection: $nav.tab) {
-            Tab("Home", systemImage: "house", value: AppNav.Tab.home) { HomeScreen() }
             Tab("Recipes", systemImage: "book", value: AppNav.Tab.recipes) { RecipesScreen() }
             Tab("Planner", systemImage: "calendar", value: AppNav.Tab.plan) { PlanScreen() }
+            Tab("AI", systemImage: "sparkles", value: AppNav.Tab.ai) {
+                ConciergeSheet(inTab: true) { nav.openRecipe($0) }
+            }
             Tab("Shopping", systemImage: "cart", value: AppNav.Tab.shopping) { ShoppingScreen() }
                 .badge(shoppingCount.value)
             Tab("Settings", systemImage: "gearshape", value: AppNav.Tab.more) { MoreScreen() }

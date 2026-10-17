@@ -2,6 +2,11 @@
 // chips, the search box and a grid of web recipe cards — all from the local
 // store. Filters (dish role, difficulty, time, tags, heart-healthy) and sorts
 // follow the web's lib/recipe-filtering.ts.
+//
+// It's also the app's front door. With nothing searched or filtered it shows
+// browse mode (RecipesBrowse: tonight's meal and shelves of recipes) rather
+// than the grid; the All chip, a search or any filter switches to the grid,
+// and Clear goes back.
 
 import DishesCore
 import PhotosUI
@@ -24,8 +29,47 @@ struct RecipesScreen: View {
     @State private var path = NavigationPath()
     @State private var filters = RecipeFilters()
     @State private var filtering = false
-    /// Average rating (0–10) per recipe, from the synced cook history, for the rating sort.
-    @State private var ratings = Observed<[String: Double]>([:])
+    /// Average rating (0–10) and last cook per recipe, from the synced cook history.
+    @State private var cookStats = Observed(CookStats())
+    @State private var tonight = Observed<TonightCard.Meal?>(nil)
+    @State private var taste = Remote<TasteData>("taste.get")
+    /// The whole library as a grid, with nothing filtered (the All chip).
+    @State private var showAll = false
+    @State private var scroll = ScrollPosition(edge: .top)
+
+    struct CookStats: Sendable {
+        var ratings: [String: Double] = [:]
+        var lastCooked: [String: Date] = [:]
+    }
+
+    /// Browse mode: nothing searched, chosen or filtered.
+    private var browsing: Bool {
+        !showAll && nav.recipeSearch.isEmpty && !nav.favouritesOnly && cuisine == nil
+            && collectionId == nil && filters == RecipeFilters()
+    }
+
+    private func clear() {
+        showAll = false
+        nav.recipeSearch = ""
+        nav.favouritesOnly = false
+        cuisine = nil
+        collectionId = nil
+        filters = RecipeFilters()
+    }
+
+    private var title: String {
+        if nav.favouritesOnly { return "Favourites" }
+        if let name = app.collections.first(where: { $0.id == collectionId })?.name { return name }
+        if let cuisine { return cuisine }
+        if nav.recipeSearch.isEmpty && filters.activeCount == 0 {
+            switch filters.sort {
+            case .cooked: return "Cook again"
+            case .newest: return "Recently added"
+            default: if showAll { return "All recipes" }
+            }
+        }
+        return "Recipes"
+    }
 
     private var shown: [Recipe] {
         let words = nav.recipeSearch.lowercased().split(separator: " ").map(String.init)
@@ -41,7 +85,7 @@ struct RecipesScreen: View {
                 .joined(separator: " ").lowercased()
             return words.allSatisfy(haystack.contains)
         }
-        .sorted(by: filters.order(ratings.value))
+        .sorted(by: filters.order(cookStats.value))
     }
 
     /// Cuisines by how many recipes use them, as the web suggests the most used first.
@@ -56,9 +100,8 @@ struct RecipesScreen: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    PageHeader(title: nav.favouritesOnly ? "Favourites"
-                                   : app.collections.first(where: { $0.id == collectionId })?.name ?? "Recipes",
-                               subtitle: shown.count == recipes.value.count
+                    PageHeader(title: browsing ? "Recipes" : title,
+                               subtitle: browsing || shown.count == recipes.value.count
                                    ? "\(recipes.value.count) recipes in your collection"
                                    : "\(shown.count) of \(recipes.value.count) recipes") {
                         HStack(spacing: 8) {
@@ -96,22 +139,50 @@ struct RecipesScreen: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    if recipes.loaded && shown.isEmpty {
-                        EmptyBox(emoji: "🔎", message: nav.recipeSearch.isEmpty ? "No recipes here yet" : "No recipes match “\(nav.recipeSearch)”")
-                    }
-                    RecipeGrid(recipes: shown) { recipe in
-                        NavigationLink(value: recipe.id) { RecipeCard(recipe: recipe) }
-                            .buttonStyle(.plain)
+                    if recipes.loaded && recipes.value.isEmpty {
+                        EmptyBox(emoji: "🍳", message: "No recipes here yet")
+                    } else if browsing {
+                        RecipesBrowse(recipes: recipes.value, lastCooked: cookStats.value.lastCooked,
+                                      suggested: taste.value?.suggested ?? [], tonight: tonight.value,
+                                      cuisines: cuisines) { shelf in
+                            switch shelf {
+                            case .favourites: nav.favouritesOnly = true
+                            case .cookAgain: filters.sort = .cooked
+                            case .recent: filters.sort = .newest
+                            case .cuisine(let name): cuisine = name
+                            }
+                        }
+                        .padding(.top, 6)
+                    } else {
+                        if recipes.loaded && shown.isEmpty {
+                            EmptyBox(emoji: "🔎", message: nav.recipeSearch.isEmpty ? "No recipes match these filters" : "No recipes match “\(nav.recipeSearch)”")
+                        }
+                        RecipeGrid(recipes: shown) { recipe in
+                            NavigationLink(value: recipe.id) { RecipeCard(recipe: recipe) }
+                                .buttonStyle(.plain)
+                        }
                     }
                 }
                 .padding(.horizontal, width == .regular ? 32 : 16)
                 .padding(.vertical, 20)
             }
+            .scrollPosition($scroll)
+            // A shelf's See all is often far down the page: start the grid at its top, and the shelves again after Clear.
+            .onChange(of: browsing) { scroll.scrollTo(edge: .top) }
             .scrollDismissesKeyboard(.immediately)
             .background(Theme.background)
-            .refreshable { await app.syncNow() }
+            .refreshable {
+                await app.syncNow()
+                await taste.load()
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
+            // A recipe the AI tab just wrote, opened here.
+            .onChange(of: nav.openedRecipe, initial: true) { _, id in
+                guard let id else { return }
+                nav.openedRecipe = nil
+                path.append(id)
+            }
             .sheet(item: $photo) { photo in
                 ConciergeSheet(photo: photo.image) { id in path.append(id) }
                     .presentationSizing(.page)
@@ -143,16 +214,22 @@ struct RecipesScreen: View {
                               tagCounts: Dictionary(recipes.value.flatMap(\.tags).map { ($0, 1) }, uniquingKeysWith: +))
         }
         .task {
-            await ratings.follow(app.store) { r in
+            await cookStats.follow(app.store) { r in
                 var sums: [String: (Double, Int)] = [:]
+                var last: [String: Date] = [:]
                 for entry in try r.records(.cookHistory).compactMap(CookEntry.init) {
+                    if entry.isCook, entry.cookedAt > last[entry.recipeId] ?? .distantPast {
+                        last[entry.recipeId] = entry.cookedAt
+                    }
                     guard let rating = entry.rating else { continue }
                     let s = sums[entry.recipeId] ?? (0, 0)
                     sums[entry.recipeId] = (s.0 + rating, s.1 + 1)
                 }
-                return sums.mapValues { $0.0 / Double($0.1) }
+                return CookStats(ratings: sums.mapValues { $0.0 / Double($0.1) }, lastCooked: last)
             }
         }
+        .task { await tonight.follow(app.store, TonightCard.load) }
+        .task { await taste.load() }
         .task {
             await recipes.follow(app.store) { r in
                 try r.records(.recipes).compactMap(Recipe.init)
@@ -165,6 +242,20 @@ struct RecipesScreen: View {
     private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                if !browsing && !(showAll && filtersOff) {
+                    Button(action: clear) {
+                        Label("Clear", systemImage: "xmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.brandDeep)
+                            .padding(.horizontal, 12)
+                            .frame(height: 32)
+                            .background(Theme.orange50, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                chip("All", icon: "square.grid.2x2", count: recipes.value.count, selected: showAll) {
+                    if showAll { clear() } else { showAll = true }
+                }
                 chip("Favourites", icon: "heart", count: recipes.value.filter(\.isFavourite).count,
                      selected: nav.favouritesOnly) { nav.favouritesOnly.toggle() }
                 // The web's collection chips: icon, name, count.
@@ -187,6 +278,12 @@ struct RecipesScreen: View {
         }
     }
 
+    /// Nothing narrows the grid but (perhaps) the All chip.
+    private var filtersOff: Bool {
+        nav.recipeSearch.isEmpty && !nav.favouritesOnly && cuisine == nil && collectionId == nil
+            && filters == RecipeFilters()
+    }
+
     private func chip(_ title: String, icon: String?, count: Int, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
@@ -206,7 +303,7 @@ struct RecipesScreen: View {
 
 /// The web's recipe filters (lib/recipe-filtering.ts) and sorts.
 struct RecipeFilters: Equatable {
-    enum Sort: String, CaseIterable { case newest, az, rating }
+    enum Sort: String, CaseIterable { case newest, az, rating, cooked }
     var role: String?
     var difficulty: Difficulty?
     var maxMinutes: Int?
@@ -234,11 +331,13 @@ struct RecipeFilters: Equatable {
         return true
     }
 
-    func order(_ ratings: [String: Double]) -> (Recipe, Recipe) -> Bool {
+    func order(_ stats: RecipesScreen.CookStats) -> (Recipe, Recipe) -> Bool {
         switch sort {
         case .az: { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         case .newest: { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
-        case .rating: { (ratings[$0.id] ?? -1) > (ratings[$1.id] ?? -1) }
+        case .rating: { (stats.ratings[$0.id] ?? -1) > (stats.ratings[$1.id] ?? -1) }
+        // Never-cooked recipes last, as the web's "cooked" sort.
+        case .cooked: { (stats.lastCooked[$0.id] ?? .distantPast) > (stats.lastCooked[$1.id] ?? .distantPast) }
         }
     }
 }
@@ -293,6 +392,7 @@ private struct RecipeFilterSheet: View {
                     Text("A–Z").tag(RecipeFilters.Sort.az)
                     Text("Newest").tag(RecipeFilters.Sort.newest)
                     Text("Highest rated").tag(RecipeFilters.Sort.rating)
+                    Text("Recently cooked").tag(RecipeFilters.Sort.cooked)
                 }
                 Section("Show") {
                     Picker("Dish", selection: $filters.role) {

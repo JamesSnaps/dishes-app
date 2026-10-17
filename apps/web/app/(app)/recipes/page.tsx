@@ -3,7 +3,16 @@ import { Suspense } from "react";
 import { Plus, UtensilsCrossed } from "lucide-react";
 import { FolderOpen } from "lucide-react";
 import { db } from "@/lib/db";
-import { recipes, recipeTags, recipeIngredients, collections, recipeCollections } from "@dishes/db/schema";
+import {
+  recipes,
+  recipeTags,
+  recipeIngredients,
+  collections,
+  recipeCollections,
+  mealPlans,
+  mealPlanEntries,
+  mealPlanGroups,
+} from "@dishes/db/schema";
 import { getCookStatsByRecipe } from "@/lib/services/cook-history";
 import { heartHealthyCondition } from "@/lib/services/recipes";
 import { isHeartHealthy } from "@/lib/heart-healthy";
@@ -14,6 +23,9 @@ import { Button } from "@dishes/ui";
 import { RecipeFilters } from "./_components/recipe-filters";
 import { RecipesLocalGrid } from "./_components/recipes-local-grid";
 import { mergeCaseVariants, parseTags } from "@/lib/recipe-filtering";
+import { getSuggestedRecipes } from "@/lib/services/taste-profile";
+import { NotificationsBell } from "@/components/notifications/notifications-bell";
+import type { BrowseTonight } from "./_components/recipes-browse";
 
 export const metadata = { title: "Recipes" };
 
@@ -28,7 +40,81 @@ interface Props {
     maxTime?: string;
     tags?: string;
     sort?: string;
+    view?: string;
   }>;
+}
+
+/** Monday of this week (YYYY-MM-DD) and today's index from Monday — as the planner stores them. */
+function today(): { weekStartDate: string; dayOfWeek: number } {
+  const d = new Date();
+  const dayOfWeek = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dayOfWeek);
+  return { weekStartDate: d.toISOString().slice(0, 10), dayOfWeek };
+}
+
+const MEAL_ORDER = ["breakfast", "lunch", "dinner", "dessert", "snack"];
+
+/**
+ * Tonight's meal for browse mode, picked as the iOS app's TonightCard picks it
+ * (PlanData.meals): each meal group is one meal and each ungrouped dish its
+ * own, ordered by meal type then id; the first dinner, else the day's last
+ * meal. A grouped meal cooks all its dishes together (`?meal=`).
+ */
+async function getTonight(householdId: string): Promise<BrowseTonight> {
+  const { weekStartDate, dayOfWeek } = today();
+  const rows = await db
+    .select({
+      entryId: mealPlanEntries.id,
+      mealType: mealPlanEntries.mealType,
+      mealRole: mealPlanEntries.mealRole,
+      groupId: mealPlanGroups.id,
+      groupTitle: mealPlanGroups.title,
+      groupMealType: mealPlanGroups.mealType,
+      serveAt: mealPlanGroups.serveAt,
+      recipeId: recipes.id,
+      title: recipes.title,
+      imageUrl: recipes.imageUrl,
+      thumbnailUrl: recipes.thumbnailUrl,
+      prepTimeMinutes: recipes.prepTimeMinutes,
+      cookTimeMinutes: recipes.cookTimeMinutes,
+    })
+    .from(mealPlanEntries)
+    .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
+    .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
+    .leftJoin(mealPlanGroups, eq(mealPlanEntries.groupId, mealPlanGroups.id))
+    .where(
+      and(
+        eq(mealPlans.householdId, householdId),
+        eq(mealPlans.weekStartDate, weekStartDate),
+        eq(mealPlanEntries.dayOfWeek, dayOfWeek)
+      )
+    );
+
+  const meals = new Map<string, { id: string; mealType: string; dishes: typeof rows }>();
+  for (const row of rows) {
+    const id = row.groupId ?? row.entryId;
+    const meal = meals.get(id) ?? { id, mealType: row.groupMealType ?? row.mealType, dishes: [] };
+    meal.dishes.push(row);
+    meals.set(id, meal);
+  }
+  const order = (t: string) => (MEAL_ORDER.includes(t) ? MEAL_ORDER.indexOf(t) : 9);
+  const sorted = [...meals.values()].sort(
+    (a, b) => order(a.mealType) - order(b.mealType) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
+  const meal = sorted.find((m) => m.mealType === "dinner") ?? sorted.at(-1);
+  if (!meal) return null;
+
+  const main = meal.dishes.find((d) => d.mealRole === "main") ?? meal.dishes[0];
+  const pictured = meal.dishes.find((d) => d.imageUrl) ?? main;
+  return {
+    mealType: meal.mealType,
+    title: main.groupTitle ?? main.title,
+    serveAt: main.serveAt ?? null,
+    dishCount: meal.dishes.length,
+    cookHref: `/recipes/${main.recipeId}/cook${main.groupId ? `?meal=${main.groupId}` : ""}`,
+    imageUrl: pictured.thumbnailUrl ?? pictured.imageUrl,
+    totalMinutes: (main.prepTimeMinutes ?? 0) + (main.cookTimeMinutes ?? 0) || null,
+  };
 }
 
 export default async function RecipesPage({ searchParams }: Props) {
@@ -91,7 +177,11 @@ export default async function RecipesPage({ searchParams }: Props) {
     }
   }
 
-  const [allRecipes, totalCountRows, cuisineRows, cookStatsRows, tagRows, collectionRows] = await Promise.all([
+  const now = new Date();
+  // Wrapped is brought to the front in December and January (the year just gone).
+  const wrappedYear = now.getMonth() === 11 ? now.getFullYear() : now.getMonth() === 0 ? now.getFullYear() - 1 : null;
+
+  const [allRecipes, totalCountRows, cuisineRows, cookStatsRows, tagRows, collectionRows, tonight, suggested] = await Promise.all([
     db
       .select({
         id: recipes.id,
@@ -108,6 +198,7 @@ export default async function RecipesPage({ searchParams }: Props) {
         thumbnailUrl: recipes.thumbnailUrl,
         isFavourite: recipes.isFavourite,
         isAiGenerated: recipes.isAiGenerated,
+        createdAt: recipes.createdAt,
       })
       .from(recipes)
       .where(and(...conditions))
@@ -145,12 +236,14 @@ export default async function RecipesPage({ searchParams }: Props) {
       .where(eq(collections.householdId, householdId))
       .groupBy(collections.id, collections.icon)
       .orderBy(collections.name),
+    getTonight(householdId).catch(() => null),
+    getSuggestedRecipes(householdId).catch(() => []),
   ]);
 
   const cookStatsByRecipe = new Map(
     cookStatsRows.map((r) => [
       r.recipeId,
-      { averageRating: r.averageRating, cookCount: r.cookCount },
+      { averageRating: r.averageRating, cookCount: r.cookCount, lastCookedAt: r.lastCookedAt },
     ])
   );
 
@@ -183,20 +276,24 @@ export default async function RecipesPage({ searchParams }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* On a phone there's no side nav, so the bell lives here. */}
+          <div className="lg:hidden">
+            <NotificationsBell />
+          </div>
           <Button
             asChild
             size="sm"
             className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-sm"
           >
-            <Link href="/meals">
-              <UtensilsCrossed className="mr-1 h-4 w-4" />
-              Saved meals
+            <Link href="/meals" aria-label="Saved meals">
+              <UtensilsCrossed className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Saved meals</span>
             </Link>
           </Button>
           <Button asChild size="sm">
-            <Link href="/recipes/new">
-              <Plus className="mr-1 h-4 w-4" />
-              New Recipe
+            <Link href="/recipes/new" aria-label="New Recipe">
+              <Plus className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">New Recipe</span>
             </Link>
           </Button>
         </div>
@@ -257,19 +354,28 @@ export default async function RecipesPage({ searchParams }: Props) {
               const stats = cookStatsByRecipe.get(recipe.id);
               return {
                 ...recipe,
+                createdAt: recipe.createdAt?.toISOString() ?? null,
                 heartHealthy: isHeartHealthy(recipe),
                 averageRating: stats?.averageRating ?? null,
                 cookCount: stats?.cookCount ?? 0,
+                lastCookedAt: stats?.lastCookedAt ?? null,
               };
             })
             .sort((a, b) => {
               if (sort === "az") return a.title.localeCompare(b.title);
               if (sort === "rating") return (b.averageRating ?? -1) - (a.averageRating ?? -1);
+              if (sort === "cooked") return (b.lastCookedAt ?? "").localeCompare(a.lastCookedAt ?? "");
               return 0; // newest: DB already returns desc(createdAt)
             })}
           allTags={allTags}
+          browse={{
+            tonight,
+            suggested: suggested.map((s) => ({ id: s.id, whyText: s.whyText ?? null })),
+            wrappedYear,
+          }}
         />
       )}
     </div>
   );
 }
+

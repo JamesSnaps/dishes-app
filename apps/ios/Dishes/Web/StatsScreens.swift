@@ -215,11 +215,17 @@ struct WrappedData: Decodable, Sendable {
 }
 
 struct WrappedScreen: View {
-    @State private var data = Remote<WrappedData>("wrapped.report")
+    @State private var data: Remote<WrappedData>
     @State private var recap: String?
     @State private var writing = false
 
     private static let monthNames = Calendar.current.shortMonthSymbols
+
+    /// A year to open on (the Wrapped banner, in January, plays the year just
+    /// gone); otherwise the server's default.
+    init(year: Int? = nil) {
+        _data = State(initialValue: Remote("wrapped.report", year.map { [.number(Double($0))] } ?? []))
+    }
 
     var body: some View {
         WebPage(title: "Wrapped", data: data) { w in

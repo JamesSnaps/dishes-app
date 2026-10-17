@@ -5,10 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import {
   filterAndSortRecipes,
+  isBrowsing,
   type FilterableRecipe,
+  type RecipeFilters,
 } from "@/lib/recipe-filtering";
 import { isHeartHealthy } from "@/lib/heart-healthy";
 import { RecipesGrid } from "./recipes-grid";
+import { RecipesBrowse, type BrowseSuggestion, type BrowseTonight } from "./recipes-browse";
 
 /**
  * Recipes list, read from the local store when one is populated.
@@ -21,6 +24,10 @@ import { RecipesGrid } from "./recipes-grid";
  *
  * Filtering and sorting are applied here from the URL, using the same rules as
  * the server query (see lib/recipe-filtering.ts). The two must stay in step.
+ *
+ * With nothing in the URL it shows browse mode (recipes-browse.tsx) instead.
+ * The filters move between the two with pushState when there's a local store,
+ * so the switch is made here, from the URL, rather than by the server.
  */
 
 type GridRecipe = FilterableRecipe & {
@@ -42,19 +49,28 @@ type SyncedCook = Record<string, unknown> & { id: string };
  * move together.
  */
 function cookStatsFrom(cooks: SyncedCook[]) {
-  const acc = new Map<string, { sum: number; rated: number; cooks: number }>();
+  const acc = new Map<string, { sum: number; rated: number; cooks: number; last: string | null }>();
 
   for (const entry of cooks) {
     const recipeId = entry.recipeId as string | undefined;
     if (!recipeId) continue;
 
-    const a = acc.get(recipeId) ?? { sum: 0, rated: 0, cooks: 0 };
+    const a = acc.get(recipeId) ?? { sum: 0, rated: 0, cooks: 0, last: null };
     const rating = entry.rating == null ? null : Number(entry.rating);
     if (rating != null && !Number.isNaN(rating)) {
       a.sum += rating;
       a.rated += 1;
     }
-    if (entry.source === "cook") a.cooks += 1;
+    if (entry.source === "cook") {
+      a.cooks += 1;
+      const at =
+        typeof entry.cookedAt === "string"
+          ? entry.cookedAt
+          : entry.cookedAt instanceof Date
+            ? entry.cookedAt.toISOString()
+            : null;
+      if (at && (!a.last || at > a.last)) a.last = at;
+    }
     acc.set(recipeId, a);
   }
 
@@ -64,6 +80,7 @@ function cookStatsFrom(cooks: SyncedCook[]) {
       {
         averageRating: a.rated ? Math.round((a.sum / a.rated) * 10) / 10 : null,
         cookCount: a.cooks,
+        lastCookedAt: a.last,
       },
     ])
   );
@@ -108,6 +125,7 @@ function toGridRecipes(recipes: SyncedRecipe[], cooks: SyncedCook[]): GridRecipe
             : null,
       averageRating: s?.averageRating ?? null,
       cookCount: s?.cookCount ?? 0,
+      lastCookedAt: s?.lastCookedAt ?? null,
     };
   });
 }
@@ -115,9 +133,11 @@ function toGridRecipes(recipes: SyncedRecipe[], cooks: SyncedCook[]): GridRecipe
 export function RecipesLocalGrid({
   initial,
   allTags,
+  browse,
 }: {
   initial: GridRecipe[];
   allTags: string[];
+  browse: { tonight: BrowseTonight; suggested: BrowseSuggestion[]; wrappedYear: number | null };
 }) {
   const sync = useSync();
   const params = useSearchParams();
@@ -127,19 +147,24 @@ export function RecipesLocalGrid({
 
   const useLocal = Boolean(sync?.engine) && !loading && recipes.length > 0;
 
-  const list = useLocal
-    ? filterAndSortRecipes(toGridRecipes(recipes, cooks), {
-        q: params.get("q") ?? undefined,
-        role: params.get("role") ?? undefined,
-        cuisine: params.get("cuisine") ?? undefined,
-        favourites: params.get("favourites") ?? undefined,
-        heart: params.get("heart") ?? undefined,
-        difficulty: params.get("difficulty") ?? undefined,
-        maxTime: params.get("maxTime") ?? undefined,
-        tags: params.get("tags") ?? undefined,
-        sort: params.get("sort") ?? undefined,
-      })
-    : initial;
+  const filters: RecipeFilters = {
+    q: params.get("q") ?? undefined,
+    role: params.get("role") ?? undefined,
+    cuisine: params.get("cuisine") ?? undefined,
+    favourites: params.get("favourites") ?? undefined,
+    heart: params.get("heart") ?? undefined,
+    difficulty: params.get("difficulty") ?? undefined,
+    maxTime: params.get("maxTime") ?? undefined,
+    tags: params.get("tags") ?? undefined,
+    sort: params.get("sort") ?? undefined,
+    view: params.get("view") ?? undefined,
+  };
+
+  const list = useLocal ? filterAndSortRecipes(toGridRecipes(recipes, cooks), filters) : initial;
+
+  // Without a local store the server rendered this URL, so `initial` is the
+  // whole library whenever browse mode is showing.
+  if (isBrowsing(filters)) return <RecipesBrowse recipes={list} {...browse} />;
 
   // The server shows its own empty state, but a local re-filter that matches
   // nothing would otherwise leave a blank page.
