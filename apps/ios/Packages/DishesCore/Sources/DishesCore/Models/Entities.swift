@@ -118,7 +118,28 @@ public struct Recipe: Hashable, Sendable, Identifiable {
     public var ingredients: [Ingredient]
     public var steps: [RecipeStep]
     public var calories: Double?
+    public var proteinG: Double?
+    public var carbsG: Double?
+    public var fatG: Double?
+    public var saturatedFatG: Double?
+    public var fiberG: Double?
+    public var sugarG: Double?
+    public var sodiumMg: Double?
+    /// "none", "ai" or "manual".
+    public var nutritionSource: String
     public var createdAt: String?
+
+    /// Per serving, any figure at all.
+    public var hasNutrition: Bool {
+        [calories, proteinG, carbsG, fatG, saturatedFatG, fiberG, sugarG, sodiumMg].contains { $0 != nil }
+    }
+
+    /// lib/heart-healthy.ts: saturated fat ≤ 4 g and fibre ≥ 3 g per serving.
+    /// Unknown is not low, so either missing means no.
+    public var isHeartHealthy: Bool {
+        guard let sat = saturatedFatG, let fibre = fiberG else { return false }
+        return sat <= 4 && fibre >= 3
+    }
 
     public var totalMinutes: Int? {
         let total = (prepTimeMinutes ?? 0) + (cookTimeMinutes ?? 0)
@@ -144,6 +165,14 @@ public struct Recipe: Hashable, Sendable, Identifiable {
         ingredients = json.array("ingredients").compactMap(Ingredient.init).sorted { $0.position < $1.position }
         steps = json.array("steps").compactMap(RecipeStep.init).sorted { $0.position < $1.position }
         calories = json.number("calories")
+        proteinG = json.number("proteinG")
+        carbsG = json.number("carbsG")
+        fatG = json.number("fatG")
+        saturatedFatG = json.number("saturatedFatG")
+        fiberG = json.number("fiberG")
+        sugarG = json.number("sugarG")
+        sodiumMg = json.number("sodiumMg")
+        nutritionSource = json.string("nutritionSource") ?? "none"
         createdAt = json.string("createdAt")
     }
 }
@@ -250,6 +279,55 @@ public struct MealPlanGroup: Hashable, Sendable, Identifiable {
         dayOfWeek = json.int("dayOfWeek") ?? 0
         mealType = json.string("mealType") ?? "dinner"
         serveAt = json.string("serveAt")
+    }
+}
+
+// MARK: Cook history
+
+/// One logged cook (or a rating without cooking: `source == "rating"`).
+/// Ratings are 0–10, shown as five stars with halves.
+public struct CookEntry: Hashable, Sendable, Identifiable {
+    public struct MemberRating: Hashable, Sendable {
+        public var name: String
+        public var rating: Double
+    }
+
+    public var id: String
+    public var recipeId: String
+    public var cookedAt: Date
+    public var rating: Double?
+    public var actualDuration: Int?
+    public var notes: String?
+    public var photoUrl: String?
+    public var occasion: String?
+    public var cookedFor: [String]
+    public var memberRatings: [MemberRating]
+    public var source: String
+
+    public var isCook: Bool { source != "rating" }
+
+    public init?(_ json: JSONValue) {
+        guard let id = json.id, let recipeId = json.string("recipeId") else { return nil }
+        self.id = id
+        self.recipeId = recipeId
+        cookedAt = json.string("cookedAt").flatMap(Self.parseDate) ?? .distantPast
+        rating = json.number("rating")
+        actualDuration = json.int("actualDuration")
+        notes = json.string("notes")
+        photoUrl = json.string("photoUrl")
+        occasion = json.string("occasion")
+        cookedFor = json.strings("cookedFor")
+        memberRatings = json.array("memberRatings").compactMap { item in
+            guard let name = item.string("name"), let rating = item.number("rating") else { return nil }
+            return MemberRating(name: name, rating: rating)
+        }
+        source = json.string("source") ?? "cook"
+    }
+
+    /// Server timestamps: "2026-06-03T08:02:05.349Z", with or without fractions.
+    static func parseDate(_ s: String) -> Date? {
+        let withFraction = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        return (try? withFraction.parse(s)) ?? (try? Date.ISO8601FormatStyle().parse(s))
     }
 }
 

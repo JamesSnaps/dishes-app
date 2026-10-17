@@ -15,6 +15,8 @@ struct HomeScreen: View {
     @Environment(\.openURL) private var openURL
     @State private var recipes = Observed<[Recipe]>([])
     @State private var tonight = Observed<TonightCard.Meal?>(nil)
+    @State private var history = Observed(CookHistoryData())
+    @State private var showHistory = false
     @State private var pageWidth: CGFloat = 0
 
     private var firstName: String {
@@ -55,6 +57,8 @@ struct HomeScreen: View {
 
                     if pageWidth < 900 { statsBanner }
 
+                    recentlyCooked
+
                     let recent = recipes.value.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
                     if !recent.isEmpty {
                         section("Recently Added", icon: nil, recipes: recent) {
@@ -70,11 +74,13 @@ struct HomeScreen: View {
             .refreshable { await app.syncNow() }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
+            .navigationDestination(isPresented: $showHistory) { CookHistoryScreen() }
         }
         .task {
             await recipes.follow(app.store) { r in try r.records(.recipes).compactMap(Recipe.init) }
         }
         .task { await tonight.follow(app.store, TonightCard.load) }
+        .task { await history.follow(app.store, CookHistoryData.load) }
     }
 
     private var header: some View {
@@ -93,6 +99,27 @@ struct HomeScreen: View {
                 Button { nav.tab = .more } label: { Avatar(name: me.user.displayName, size: 42) }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Settings")
+            }
+        }
+    }
+
+    /// The last few cooks, with their stars; "See all" opens the full history.
+    @ViewBuilder
+    private var recentlyCooked: some View {
+        let cooks = Array(history.value.entries.filter(\.isCook).prefix(width == .regular ? 3 : 2))
+        if !cooks.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "Recently cooked", icon: "clock.arrow.circlepath", iconColor: Theme.brand) {
+                    showHistory = true
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 12, alignment: .top)], spacing: 12) {
+                    ForEach(cooks) { entry in
+                        NavigationLink(value: entry.recipeId) {
+                            CookEntryCard(entry: entry, recipeTitle: history.value.titles[entry.recipeId] ?? "A recipe")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
     }

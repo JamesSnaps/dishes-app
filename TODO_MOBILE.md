@@ -434,8 +434,18 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   sync mutation)
 - [ ] **Recipes** — the web's full filter set and sorts (port
   `lib/recipe-filtering.ts`), cook history and per-person ratings on the detail
-- [ ] **Log a cook** — rating, per-person ratings, notes, dish photo from the
-  camera (background `URLSession` upload, as Keepsake's `UploadManager`)
+- [x] **Log a cook (v1.30.0)** — half-star rating, who ate it and what each
+  of them thought, notes; from the recipe page and offered on Finish in
+  cooking mode. Online (`POST /api/v1/cook-history`); the entry syncs back.
+  Members come from the new `GET /api/v1/members`, cached for offline
+- [ ] Log a cook: dish photo from the camera (background `URLSession` upload,
+  as Keepsake's `UploadManager`); occasion; logging offline (needs a sync
+  mutation for cook history)
+- [x] Recipe page: full nutrition panel with heart-healthy badge, the
+  household's rating and how often it's been cooked and planned, Add to
+  shopping list, cook history, "You might also like"
+- [x] Cook history screen (from "Recently cooked" on Home), grouped by month,
+  photos-only filter
 - [ ] **Today** card on Plan: tonight's meal, serve-at time, start-cooking time
 - [x] **Design matches the web app (v1.27.0).** Shared tokens and components
   in `Design/Theme.swift`; the native floating tab bar (top on iPad, bottom on

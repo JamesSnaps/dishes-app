@@ -39,6 +39,8 @@ struct CookingView: View {
     @State private var used: Set<String> = []
     @State private var showIngredients = false
     @State private var stepChanges = 0
+    /// Finish offers to log the cook (the dish on screen), then closes.
+    @State private var logging: Recipe?
     @Environment(\.horizontalSizeClass) private var width
 
     private var dish: CookDish { request.dishes[min(dishIndex, request.dishes.count - 1)] }
@@ -94,6 +96,9 @@ struct CookingView: View {
             }
         }
         .overlay(alignment: .top) { RingingBanner() }
+        .sheet(item: $logging) { recipe in
+            LogCookSheet(recipe: recipe, afterCooking: true) { dismiss() }
+        }
         .sensoryFeedback(.impact(weight: .light), trigger: stepChanges)
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
@@ -251,7 +256,7 @@ struct CookingView: View {
             .keyboardShortcut(.leftArrow, modifiers: [])
 
             Button {
-                if isLast { dismiss() } else { move(1) }
+                if isLast { logging = dish.recipe } else { move(1) }
             } label: {
                 Label(isLast ? "Finish" : "Next", systemImage: isLast ? "checkmark" : "chevron.right")
                     .labelStyle(TrailingIconLabelStyle())

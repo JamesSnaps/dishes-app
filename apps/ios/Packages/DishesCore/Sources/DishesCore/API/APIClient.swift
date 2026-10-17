@@ -169,6 +169,67 @@ public final class APIClient: SyncTransport, Sendable {
         return try await request("/meal-plan/generate-shopping", method: "POST", json: Body(mealPlanId: mealPlanId))
     }
 
+    // MARK: Household
+
+    public struct Member: Codable, Hashable, Sendable, Identifiable {
+        public var id: String
+        public var displayName: String
+        public var role: String
+    }
+
+    /// Active members, for "who ate it" and per-person ratings.
+    public func members() async throws -> [Member] {
+        struct Reply: Decodable { var members: [Member] }
+        return try await request("/members", as: Reply.self).members
+    }
+
+    // MARK: Cook history
+
+    public struct LogCook: Encodable, Sendable {
+        public struct MemberRating: Encodable, Sendable {
+            public var name: String
+            public var rating: Double
+            public init(name: String, rating: Double) { self.name = name; self.rating = rating }
+        }
+        public var recipeId: String
+        public var rating: Double?
+        public var notes: String?
+        public var cookedFor: [String]?
+        public var memberRatings: [MemberRating]?
+
+        public init(recipeId: String, rating: Double?, notes: String?, cookedFor: [String]?, memberRatings: [MemberRating]?) {
+            self.recipeId = recipeId
+            self.rating = rating
+            self.notes = notes
+            self.cookedFor = cookedFor
+            self.memberRatings = memberRatings
+        }
+    }
+
+    /// Logs a cook. Not a sync mutation yet (cook history is read-only over
+    /// sync), so this needs a connection; the entry arrives in the next pull.
+    @discardableResult
+    public func logCook(_ cook: LogCook) async throws -> String {
+        struct Reply: Decodable { var id: String }
+        return try await request("/cook-history", method: "POST", json: cook, as: Reply.self).id
+    }
+
+    /// 204, no body — so not through `request`, which decodes one.
+    public func deleteCook(id: String) async throws {
+        _ = try await send { token in authorisedRequest(url("/cook-history/\(id)"), method: "DELETE", token: token) }
+    }
+
+    // MARK: Shopping
+
+    public struct GenerateResult: Decodable, Sendable { public var listId: String; public var changed: Bool }
+
+    /// Puts a recipe's ingredients on the active list at a number of servings,
+    /// skipping what the pantry covers and merging lines (server-side, as the web).
+    public func addRecipeToShopping(recipeId: String, servings: Double?) async throws -> GenerateResult {
+        struct Body: Encodable { var recipeId: String; var servings: Double? }
+        return try await request("/shopping/generate", method: "POST", json: Body(recipeId: recipeId, servings: servings))
+    }
+
     // MARK: Recipes
 
     /// Flips a recipe's favourite flag; answers the new value. Not a sync

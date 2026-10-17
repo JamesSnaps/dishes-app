@@ -177,6 +177,30 @@ func items(_ store: LocalStore) async throws -> [ShoppingItem] {
         await #expect(throws: APIError.signedOut) { try await SyncEngine(store: store, transport: server).sync() }
     }
 
+    @Test func cookEntryReadsTheServerRow() throws {
+        // As cook_history arrives over sync: rating is a Postgres decimal (a string).
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data("""
+        {"id":"c1","recipeId":"r1","cookedAt":"2026-10-12T18:30:00.123Z","rating":"8.5",
+         "notes":"Crispy","cookedFor":["James","Louis"],
+         "memberRatings":[{"name":"Louis","rating":6}],"source":"cook"}
+        """.utf8))
+        let entry = try #require(CookEntry(json))
+        #expect(entry.rating == 8.5)
+        #expect(entry.cookedFor == ["James", "Louis"])
+        #expect(entry.memberRatings.first?.rating == 6)
+        #expect(entry.isCook)
+        #expect(entry.cookedAt.timeIntervalSince1970 > 1_791_000_000)
+    }
+
+    @Test func heartHealthyNeedsBothFigures() throws {
+        let recipe = { (fields: [String: JSONValue]) in
+            Recipe(.object(["id": .string("r")].merging(fields) { $1 }))!
+        }
+        #expect(recipe(["saturatedFatG": .string("2.0"), "fiberG": .string("5.0")]).isHeartHealthy)
+        #expect(!recipe(["saturatedFatG": .string("6.0"), "fiberG": .string("5.0")]).isHeartHealthy)
+        #expect(!recipe(["saturatedFatG": .string("2.0")]).isHeartHealthy)   // unknown is not low
+    }
+
     @Test func mutateWritesTheChangeAndQueuesItTogether() async throws {
         let engine = SyncEngine(store: store, transport: server)
         try await store.write { try $0.put(.shoppingItems, item("a", "Milk")) }

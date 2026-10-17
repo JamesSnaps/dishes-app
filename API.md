@@ -692,6 +692,16 @@ Note that a deployment which bypasses `/api/v1` at the reverse proxy (the
 recommended Authelia setup, since a native client has no session) also strips
 the proxy headers, making `/api/v1` bearer-only in practice.
 
+### `GET /api/v1/members`
+
+The household's active members, by name. Cook history keys "who ate it"
+(`cookedFor`) and per-person ratings (`memberRatings`) on display names, so a
+client needs these to offer them.
+
+```json
+{ "members": [ { "id": "uuid", "displayName": "James", "role": "admin" } ] }
+```
+
 ### The browser door: `/api/web/*`
 
 Because of that, the same API is also reachable at **`/api/web/*`**, which is

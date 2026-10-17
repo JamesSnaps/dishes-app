@@ -5,6 +5,11 @@
 // portrait without the sidebar) the ingredients sit beside the method instead
 // of behind a tab — decided by the space, not the device.
 //
+// Below the header: the household's rating and how often it's been cooked and
+// planned, with Log a cook; the full nutrition panel; Add to shopping list on
+// the ingredients; and, after the method, every logged cook and a few
+// recipes like this one — all from the device's copy.
+//
 // Scaling multiplies amounts and shows kitchen fractions; unit promotion
 // (1000 g → 1 kg) comes with the lib/scale-ingredient.ts port (C2).
 
@@ -17,6 +22,8 @@ struct RecipeDetailView: View {
     @Environment(\.horizontalSizeClass) private var width
     let recipeId: String
     @State private var recipe = Observed<Recipe?>(nil)
+    @State private var extras = Observed(RecipeExtras())
+    @State private var logging = false
     @State private var servings: Double?
     @State private var tab = Tab.ingredients
     @State private var pageWidth: CGFloat = 0
@@ -43,6 +50,13 @@ struct RecipeDetailView: View {
             let id = recipeId
             await recipe.follow(app.store) { r in try r.record(.recipes, id: id).flatMap(Recipe.init) }
         }
+        .task {
+            let id = recipeId
+            await extras.follow(app.store) { r in try RecipeExtras.load(r, recipeId: id) }
+        }
+        .sheet(isPresented: $logging) {
+            if let recipe = recipe.value { LogCookSheet(recipe: recipe) }
+        }
     }
 
     private func scale(_ recipe: Recipe) -> Double {
@@ -60,14 +74,19 @@ struct RecipeDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 header(recipe)
+                ratingRow(recipe)
                 controls(recipe)
-                if recipe.calories != nil { nutrition(recipe) }
+                NutritionPanel(recipe: recipe)
 
                 if sideBySide {
                     overview(recipe)
                     HStack(alignment: .top, spacing: 28) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Ingredients").font(.system(size: 19, weight: .bold))
+                            HStack {
+                                Text("Ingredients").font(.system(size: 19, weight: .bold))
+                                Spacer()
+                                addToListButton(recipe)
+                            }
                             ingredients(recipe)
                         }
                         .frame(width: 330, alignment: .leading)
@@ -80,10 +99,19 @@ struct RecipeDetailView: View {
                     tabs(recipe)
                     switch tab {
                     case .overview: overview(recipe)
-                    case .ingredients: ingredients(recipe)
+                    case .ingredients:
+                        HStack {
+                            Text("\(recipe.ingredients.count) ingredients").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
+                            Spacer()
+                            addToListButton(recipe)
+                        }
+                        ingredients(recipe)
                     case .steps: steps(recipe)
                     }
                 }
+
+                history(recipe)
+                related
             }
             .padding(.horizontal, width == .regular ? 28 : 16)
             .padding(.vertical, 16)
@@ -162,18 +190,103 @@ struct RecipeDetailView: View {
         }
     }
 
-    /// The amber nutrition callout.
-    private func nutrition(_ recipe: Recipe) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "flame").foregroundStyle(Color(hex: 0xEA580C))
-            Text("Nutrition").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color(hex: 0x9A3412))
-            Spacer()
-            Text("\(Int(recipe.calories ?? 0)) kcal per serving")
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.foreground.opacity(0.8))
+    // MARK: Rating, history, related
+
+    /// ★★★★½ 4.5/5 · Cooked 3 times · On the menu twice — and Log a cook.
+    private func ratingRow(_ recipe: Recipe) -> some View {
+        let e = extras.value
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                StarRating(value: e.averageRating, size: 16)
+                if let avg = e.averageRating {
+                    Text("\(Format.amount(String((avg / 2 * 10).rounded() / 10)) ?? "")/5")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.mutedForeground)
+                }
+                Button { logging = true } label: {
+                    Label("Log a cook", systemImage: "square.and.pencil")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.foreground)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 6)
+            }
+            let parts = [
+                e.cookCount > 0 ? "Cooked \(Self.times(e.cookCount))" + (e.lastCooked.map { " · last \(Self.relative($0))" } ?? "") : nil,
+                e.plannedCount > 0 ? "On the menu \(Self.times(e.plannedCount))" + (e.lastPlannedWeek.map { " · last planned week of \($0)" } ?? "") : nil,
+            ].compactMap { $0 }
+            if !parts.isEmpty {
+                Label(parts.joined(separator: " · "), systemImage: "calendar")
+                    .labelStyle(TightLabel())
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.mutedForeground)
+            }
         }
-        .padding(14)
-        .callout(Theme.amber50, Theme.orange50, border: Color(hex: 0xFDE68A))
+    }
+
+    private func addToListButton(_ recipe: Recipe) -> some View {
+        Button {
+            Task { await app.addToShopping(recipe, servings: servings ?? recipe.servings) }
+        } label: {
+            Label("Add to shopping list", systemImage: "cart.badge.plus")
+        }
+        .buttonStyle(.outline)
+    }
+
+    /// Every logged cook, newest first, as the web's cook-history entries.
+    @ViewBuilder
+    private func history(_ recipe: Recipe) -> some View {
+        let entries = extras.value.entries
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Cook history").font(.system(size: 19, weight: .bold))
+                if !entries.isEmpty {
+                    Text("\(entries.count)").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
+                }
+                Spacer()
+                Button { logging = true } label: { Label("Log a cook", systemImage: "plus") }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Theme.brand)
+            }
+            if entries.isEmpty {
+                EmptyBox(emoji: "📖", message: "Not cooked yet — log it after you make it")
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 12, alignment: .top)], spacing: 12) {
+                    ForEach(entries) { CookEntryCard(entry: $0) }
+                }
+            }
+        }
+        .padding(.top, 10)
+    }
+
+    @ViewBuilder
+    private var related: some View {
+        let similar = extras.value.related
+        if !similar.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("You might also like").font(.system(size: 19, weight: .bold))
+                RecipeGrid(recipes: similar, maxRows: 1) { recipe in
+                    NavigationLink(value: recipe.id) { RecipeCard(recipe: recipe) }
+                        .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 10)
+        }
+    }
+
+    static func times(_ n: Int) -> String { n == 1 ? "once" : n == 2 ? "twice" : "\(n) times" }
+
+    static func relative(_ date: Date) -> String {
+        let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: date),
+                                                   to: Calendar.current.startOfDay(for: .now)).day ?? 0
+        switch days {
+        case ..<1: return "today"
+        case 1: return "yesterday"
+        case 2..<7: return "\(days) days ago"
+        case 7..<14: return "last week"
+        case 14..<31: return "\(days / 7) weeks ago"
+        default: return date.formatted(.dateTime.day().month(.abbreviated).year())
+        }
     }
 
     // MARK: Tabs
@@ -302,3 +415,119 @@ private func grouped<T>(_ items: [T], label: KeyPath<T, String?>) -> [(label: St
     }
     return out
 }
+
+/// What the recipe page shows besides the recipe, read from the device:
+/// its cooks and ratings, how often it's been planned, and similar recipes
+/// (same cuisine or shared tags).
+struct RecipeExtras: Sendable {
+    var entries: [CookEntry] = []
+    var cookCount = 0
+    var lastCooked: Date?
+    var averageRating: Double?
+    var plannedCount = 0
+    var lastPlannedWeek: String?
+    var related: [Recipe] = []
+
+    static func load(_ r: StoreReader, recipeId: String) throws -> RecipeExtras {
+        var x = RecipeExtras()
+        x.entries = try r.records(.cookHistory).compactMap(CookEntry.init)
+            .filter { $0.recipeId == recipeId }
+            .sorted { $0.cookedAt > $1.cookedAt }
+        let cooks = x.entries.filter(\.isCook)
+        x.cookCount = cooks.count
+        x.lastCooked = cooks.first?.cookedAt
+        let ratings = x.entries.compactMap(\.rating)
+        x.averageRating = ratings.isEmpty ? nil : ratings.reduce(0, +) / Double(ratings.count)
+
+        let plans = Dictionary(try r.records(.mealPlans).compactMap(MealPlan.init).map { ($0.id, $0.weekStartDate) },
+                               uniquingKeysWith: { a, _ in a })
+        let weeks = try r.records(.mealPlanEntries).compactMap(MealPlanEntry.init)
+            .filter { $0.recipeId == recipeId }
+            .compactMap { plans[$0.mealPlanId] }
+        x.plannedCount = weeks.count
+        if let last = weeks.max(), let date = try? Date.ISO8601FormatStyle().year().month().day().parse(last) {
+            x.lastPlannedWeek = date.formatted(.dateTime.day().month(.abbreviated))
+        }
+
+        let all = try r.records(.recipes).compactMap(Recipe.init)
+        if let this = all.first(where: { $0.id == recipeId }) {
+            let tags = Set(this.tags)
+            x.related = all
+                .filter { $0.id != recipeId }
+                .map { other in (other, (other.cuisine != nil && other.cuisine == this.cuisine ? 2 : 0) + tags.intersection(other.tags).count) }
+                .filter { $0.1 > 0 }
+                .sorted { ($0.1, $0.0.title) > ($1.1, $1.0.title) }
+                .prefix(8)
+                .map(\.0)
+        }
+        return x
+    }
+}
+
+/// One logged cook: when, the stars, who ate it and what they thought, notes,
+/// and the photo if there is one. Long-press to delete.
+struct CookEntryCard: View {
+    @Environment(AppModel.self) private var app
+    let entry: CookEntry
+    var recipeTitle: String?
+    @State private var confirmDelete = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            if let url = app.imageURL(entry.photoUrl) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() } else { Theme.muted }
+                }
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                if let recipeTitle {
+                    Text(recipeTitle).font(.system(size: 15, weight: .semibold)).lineLimit(2)
+                }
+                HStack(spacing: 8) {
+                    Text(entry.isCook ? RecipeDetailView.relative(entry.cookedAt).capitalizedFirst : "Rated")
+                        .font(.system(size: 14, weight: recipeTitle == nil ? .semibold : .regular))
+                        .foregroundStyle(recipeTitle == nil ? Theme.foreground : Theme.mutedForeground)
+                    if entry.rating != nil { StarRating(value: entry.rating, size: 12) }
+                    if let occasion = entry.occasion, !occasion.isEmpty { BadgeView(text: occasion) }
+                }
+                if !entry.cookedFor.isEmpty {
+                    let byName = Dictionary(entry.memberRatings.map { ($0.name, $0.rating) }, uniquingKeysWith: { a, _ in a })
+                    FlowLayout(spacing: 6) {
+                        ForEach(entry.cookedFor, id: \.self) { name in
+                            HStack(spacing: 4) {
+                                Text(name).font(.system(size: 12, weight: .medium))
+                                if let r = byName[name] {
+                                    Image(systemName: "star.fill").font(.system(size: 9)).foregroundStyle(Color(hex: 0xF59E0B))
+                                    Text(Format.amount(String(r / 2)) ?? "").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Theme.muted, in: Capsule())
+                        }
+                    }
+                }
+                if let notes = entry.notes, !notes.isEmpty {
+                    Text(notes).font(.system(size: 13)).foregroundStyle(Theme.foreground.opacity(0.8)).lineLimit(4)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .contextMenu {
+            Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
+        }
+        .confirmationDialog("Delete this cook?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { Task { await app.deleteCook(entry) } }
+        }
+    }
+}
+
+extension String {
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
+}
+

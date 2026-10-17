@@ -238,3 +238,19 @@ the web's design rather than stock iOS styling:
   cancel checked on the 13-inch simulator; the animation is too quick to
   capture in a screenshot, so judge it on the device.
 
+### 17 Oct 2026 — recipe page filled out, cook history
+
+- Recipe page now has: the household's stars, "Cooked N times · last …" and
+  "On the menu N times · last planned week of …" (from synced cook history
+  and plans), the full nutrition panel (kcal, macros, sat fat in red over 4 g,
+  heart-healthy badge, AI-estimate tag; "Estimate on the website" when empty),
+  Add to shopping list (server, at the servings shown), Cook history cards,
+  and "You might also like" (same cuisine, shared tags).
+- Log a cook sheet: half-star rating, who ate it (household members, you
+  pre-ticked), per-person stars, notes. Logged one on the 13-inch simulator:
+  saved to Postgres, synced back, showed on the recipe, Home ("Recently
+  cooked") and the Cook history screen.
+- Fixed on the way: half-star taps landed a half too high — SF Symbols' stars
+  are wider than their point size, so the control measures its real width.
+- Server: `GET /api/v1/members` (API.md).
+

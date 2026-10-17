@@ -29,6 +29,9 @@ final class AppModel {
 
     private(set) var phase: Phase = .starting
     private(set) var me: WhoAmI?
+    /// The household's members, for "who ate it". Kept on the device so the
+    /// log-a-cook sheet opens offline with the last known names.
+    private(set) var members: [APIClient.Member] = []
     private(set) var status = SyncStatus()
     private(set) var online = true
     var signInError: String?
@@ -95,6 +98,9 @@ final class AppModel {
         watchNetwork()
         await forgetOtherServer()
         me = try? await store.read { r in try r.meta("me").flatMap { try JSONDecoder().decode(WhoAmI.self, from: Data($0.utf8)) } }
+        members = (try? await store.read { r in
+            try r.meta("members").flatMap { try JSONDecoder().decode([APIClient.Member].self, from: Data($0.utf8)) }
+        }) ?? []
         if me != nil {
             phase = .ready
             await syncNow()
@@ -173,6 +179,14 @@ final class AppModel {
             }
         }
         status.pending = (try? await store.read { try $0.pendingCount() }) ?? 0
+        if status.state == .idle { await refreshMembers() }
+    }
+
+    private func refreshMembers() async {
+        guard let fresh = try? await api.members(), fresh != members else { return }
+        members = fresh
+        let json = String(decoding: (try? JSONEncoder().encode(fresh)) ?? Data(), as: UTF8.self)
+        try? await store.write { try $0.setMeta("members", json) }
     }
 
     /// Debounced: a run of changes (ticking off five items) goes in one push.
@@ -225,6 +239,40 @@ final class AppModel {
             try await engine.patchLocal(.recipes, id: recipe.id, ["isFavourite": .bool(now)])
         } catch {
             toast = online ? "Couldn’t change that favourite." : "You’re offline — favourites need a connection for now."
+        }
+    }
+
+    /// Logs a cook; the entry arrives on the device with the next sync.
+    /// Answers whether it was saved (the toast says why not).
+    func logCook(_ cook: APIClient.LogCook) async -> Bool {
+        do {
+            try await api.logCook(cook)
+            toast = "Cook logged."
+            await syncNow()
+            return true
+        } catch {
+            toast = online ? "Couldn’t log that cook." : "You’re offline — logging a cook needs a connection for now."
+            return false
+        }
+    }
+
+    func deleteCook(_ entry: CookEntry) async {
+        do {
+            try await api.deleteCook(id: entry.id)
+            await syncNow()
+        } catch {
+            toast = online ? "Couldn’t delete that cook." : "You’re offline — try again with a connection."
+        }
+    }
+
+    /// The recipe's ingredients onto the shopping list, at the servings shown.
+    func addToShopping(_ recipe: Recipe, servings: Double?) async {
+        do {
+            let result = try await api.addRecipeToShopping(recipeId: recipe.id, servings: servings)
+            toast = result.changed ? "Added \(recipe.title) to the shopping list." : "Everything’s already on the list (or in the pantry)."
+            await syncNow()
+        } catch {
+            toast = online ? "Couldn’t add to the list." : "You’re offline — adding a recipe to the list needs a connection."
         }
     }
 
