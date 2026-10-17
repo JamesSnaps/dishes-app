@@ -8,7 +8,7 @@ import { eq, and, count, max, avg, desc, inArray, isNull, isNotNull, sql } from 
 import { MEAL_TYPES } from "@dishes/shared";
 import { CHOLESTEROL_DIETARY_FLAG, isHeartHealthy } from "@/lib/heart-healthy";
 import { decrypt } from "@/lib/crypto";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { uploadFile, isStorageAvailable, keyFromUrl } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
@@ -214,7 +214,7 @@ export async function generateConcepts(
     return { error: "Please describe what you'd like to cook." };
 
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),
@@ -282,7 +282,7 @@ export async function generateSimilarConcepts(
   userNote?: string
 ): Promise<{ concepts?: ConceptCard[]; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
 
     const [recipe] = await db
@@ -349,7 +349,7 @@ export async function generateSideConcepts(
   userNote?: string
 ): Promise<{ concepts?: ConceptCard[]; accompanies?: string; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const ids = [...new Set(recipeIds)].filter(Boolean).slice(0, 8);
     if (!ids.length) return { error: "Pick a dish first." };
@@ -450,7 +450,7 @@ export async function improveRecipe(
     return { error: "Please describe how you'd like to improve the recipe." };
 
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = await getOpenAiClient(householdId);
 
@@ -528,7 +528,7 @@ export async function makeRecipeHeartHealthy(
   current: GeneratedRecipe
 ): Promise<{ recipe?: GeneratedRecipe; heartHealthy?: boolean; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } =
       await getOpenAiClient(householdId);
@@ -635,7 +635,7 @@ export async function estimateNutrition(
   recipeId: string
 ): Promise<{ nutrition?: RecipeNutrition; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
 
     const [recipe] = await db
@@ -689,7 +689,7 @@ export async function backfillSaturatedFat(): Promise<{
   error?: string;
 }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId, role } = await requireHousehold(user);
     if (role !== "admin") return { error: "Admin only." };
 
@@ -781,7 +781,7 @@ export async function suggestCollectionForRecipe(input: {
   try {
     if (!input.title?.trim()) return {};
 
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
 
     const existing = await db
@@ -859,7 +859,7 @@ export async function generateFullRecipe(
   }
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem, webGrounding }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),
@@ -923,7 +923,7 @@ export async function generateRecipeImageUrl(
   style?: string | null
 ): Promise<{ url?: string; thumbnailUrl?: string; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const { client, imageModel } = await getOpenAiClient(householdId);
 
@@ -1023,7 +1023,7 @@ export async function generateMealPlanConcepts(params: {
     return { error: "Please select at least one slot to plan." };
 
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const safePreferences = preferences.slice(0, 500);
     const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints, tasteAddendum] = await Promise.all([
@@ -1582,7 +1582,7 @@ export async function analyzeRecipePhoto(
   mimeType: string
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } =
       await getOpenAiClient(householdId);
@@ -1669,7 +1669,7 @@ export async function reviewDishPhoto(
   photoUrl: string
 ): Promise<{ feedback?: string; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const { client, model } = await getOpenAiClient(householdId);
 
@@ -1717,7 +1717,7 @@ export async function generateAndSaveRecipeImage(
   recipeId: string
 ): Promise<{ imageUrl?: string; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
 
     const [recipe] = await db
@@ -1752,7 +1752,7 @@ export async function backfillRecipeMealTypes(): Promise<{
   error?: string;
 }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId, role } = await requireHousehold(user);
     if (role !== "admin") return { error: "Admin only." };
 
@@ -1828,7 +1828,7 @@ export async function generateWrappedRecap(
   regenerate = false
 ): Promise<{ recap?: string; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
 
     if (!regenerate) {
@@ -1881,7 +1881,7 @@ export async function suggestMealComponents(input: {
   mealTitle?: string;
 }): Promise<{ suggestions?: Array<{ recipeId: string; title: string; role: import("@dishes/shared").MealRole; reason: string }>; error?: string }> {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
     const { z } = await import("zod");
     const { zodResponseFormat } = await import("openai/helpers/zod");

@@ -413,4 +413,172 @@ public final class APIClient: SyncTransport, Sendable {
             return r
         }
     }
+
+    // MARK: AI (the household's own OpenAI key, server-side)
+
+    public struct AIStatus: Decodable, Sendable { public var configured: Bool }
+
+    public func aiStatus() async throws -> AIStatus { try await request("/ai/status") }
+
+    /// AI calls take tens of seconds: a POST with its own timeout, decoding the reply.
+    func slowPost<T: Decodable>(_ path: String, json body: some Encodable, timeout seconds: TimeInterval = 150,
+                                as type: T.Type = T.self) async throws -> T {
+        let encoded = try JSONEncoder().encode(body)
+        let data = try await send { token in
+            var r = authorisedRequest(url(path), method: "POST", token: token)
+            r.timeoutInterval = seconds
+            r.httpBody = encoded
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    public struct Concept: Codable, Hashable, Sendable, Identifiable {
+        public var title: String
+        public var description: String
+        public var cuisine: String
+        public var tags: [String]
+        public var difficulty: String
+        public var id: String { title }
+    }
+
+    public struct ConceptRequest: Encodable, Sendable {
+        public var prompt: String
+        public var memberIds: [String]?
+        public var mealType: String?
+        public var heartHealthy: Bool?
+        public init(prompt: String, memberIds: [String]? = nil, mealType: String? = nil, heartHealthy: Bool? = nil) {
+            self.prompt = prompt; self.memberIds = memberIds; self.mealType = mealType; self.heartHealthy = heartHealthy
+        }
+    }
+
+    /// Step one of the concierge: five ideas.
+    public func recipeConcepts(_ ask: ConceptRequest) async throws -> [Concept] {
+        struct Reply: Decodable { var concepts: [Concept] }
+        return try await slowPost("/ai/concepts", json: ask, timeout: 90, as: Reply.self).concepts
+    }
+
+    public struct CreatedRecipe: Decodable, Sendable {
+        public var recipeId: String
+        public var title: String
+        public var collectionName: String?
+    }
+
+    /// Step two: the chosen idea written out in full and saved; it syncs down next.
+    public func createRecipe(from concept: Concept, memberIds: [String]?, mealType: String?, heartHealthy: Bool?) async throws -> CreatedRecipe {
+        struct Body: Encodable { var concept: Concept; var memberIds: [String]?; var mealType: String?; var heartHealthy: Bool? }
+        return try await slowPost("/ai/recipes", json: Body(concept: concept, memberIds: memberIds, mealType: mealType, heartHealthy: heartHealthy))
+    }
+
+    /// A photo of a cookbook page or recipe card, read and saved as a recipe.
+    public func recipeFromPhoto(_ image: Data, mime: String = "image/jpeg") async throws -> CreatedRecipe {
+        struct Body: Encodable { var image: String; var mimeType: String }
+        return try await slowPost("/ai/photo-recipe", json: Body(image: image.base64EncodedString(), mimeType: mime))
+    }
+
+    public struct PlanSlot: Codable, Hashable, Sendable, Identifiable {
+        public var dayOfWeek: Int
+        public var mealType: String
+        public var title: String
+        public var description: String
+        public var cuisine: String
+        public var difficulty: String
+        public var recipeId: String?
+        public var id: String { "\(dayOfWeek)-\(mealType)" }
+    }
+
+    public struct PlanRequest: Encodable, Sendable {
+        public struct Slot: Encodable, Sendable { public var dayOfWeek: Int; public var mealType: String }
+        public var weekStartDate: String
+        public var slots: [Slot]
+        public var preferences: String
+        public var memberIds: [String]?
+        public var favouritesOnly: Bool?
+        public init(weekStartDate: String, slots: [(Int, String)], preferences: String, memberIds: [String]?, favouritesOnly: Bool?) {
+            self.weekStartDate = weekStartDate
+            self.slots = slots.map { Slot(dayOfWeek: $0.0, mealType: $0.1) }
+            self.preferences = preferences
+            self.memberIds = memberIds
+            self.favouritesOnly = favouritesOnly
+        }
+    }
+
+    /// A draft week; nothing is saved until `applyMealPlan`.
+    public func draftMealPlan(_ ask: PlanRequest) async throws -> [PlanSlot] {
+        struct Reply: Decodable { var slots: [PlanSlot] }
+        return try await slowPost("/ai/meal-plan", json: ask, timeout: 120, as: Reply.self).slots
+    }
+
+    /// Adds the draft; new ideas are written out as recipes first, so it's slow.
+    public func applyMealPlan(weekStartDate: String, slots: [PlanSlot], memberIds: [String]?) async throws {
+        struct Body: Encodable { var weekStartDate: String; var slots: [PlanSlot]; var memberIds: [String]? }
+        struct Reply: Decodable { var success: Bool? }
+        _ = try await slowPost("/ai/meal-plan/apply", json: Body(weekStartDate: weekStartDate, slots: slots, memberIds: memberIds),
+                               timeout: 600, as: Reply.self)
+    }
+
+    public struct AssistMessage: Codable, Hashable, Sendable {
+        public var role: String
+        public var content: String
+        public init(role: String, content: String) { self.role = role; self.content = content }
+    }
+
+    public struct CookAssistContext: Encodable, Sendable {
+        public struct Ingredient: Encodable, Sendable { public var amount: String?; public var unit: String?; public var name: String
+            public init(amount: String?, unit: String?, name: String) { self.amount = amount; self.unit = unit; self.name = name } }
+        public struct Step: Encodable, Sendable { public var number: Int; public var instruction: String
+            public init(number: Int, instruction: String) { self.number = number; self.instruction = instruction } }
+        public var recipeTitle: String
+        public var stepNumber: Int
+        public var stepInstruction: String
+        public var stepIngredients: [Ingredient]
+        public var allIngredients: [Ingredient]
+        public var allSteps: [Step]
+        public var servingsSummary: String?
+        public var messages: [AssistMessage]
+        public init(recipeTitle: String, stepNumber: Int, stepInstruction: String, stepIngredients: [Ingredient],
+                    allIngredients: [Ingredient], allSteps: [Step], servingsSummary: String?, messages: [AssistMessage]) {
+            self.recipeTitle = recipeTitle; self.stepNumber = stepNumber; self.stepInstruction = stepInstruction
+            self.stepIngredients = stepIngredients; self.allIngredients = allIngredients; self.allSteps = allSteps
+            self.servingsSummary = servingsSummary; self.messages = messages
+        }
+    }
+
+    /// "Ask about this step": the answer as it's written, chunk by chunk.
+    public func cookAssist(_ context: CookAssistContext) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let token = try await tokens?.accessToken()
+                    if tokens != nil && token == nil { throw APIError.signedOut }
+                    var r = authorisedRequest(url("/cook-assist"), method: "POST", token: token)
+                    r.timeoutInterval = 120
+                    r.setValue("text/plain", forHTTPHeaderField: "Accept")
+                    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    r.httpBody = try JSONEncoder().encode(context)
+                    let (bytes, response) = try await session.bytes(for: r)
+                    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                        var text = ""
+                        for try await line in bytes.lines { text += line }
+                        throw APIError.http(status: http.statusCode, code: "http_error", message: text.isEmpty ? "HTTP \(http.statusCode)" : text)
+                    }
+                    var buffer = [UInt8]()
+                    for try await byte in bytes {
+                        buffer.append(byte)
+                        // A word at a time (and only whole UTF-8 characters), not a redraw per byte.
+                        guard byte == 0x20 || byte == 0x0A || buffer.count >= 24,
+                              let text = String(bytes: buffer, encoding: .utf8) else { continue }
+                        continuation.yield(text)
+                        buffer.removeAll(keepingCapacity: true)
+                    }
+                    if let rest = String(bytes: buffer, encoding: .utf8), !rest.isEmpty { continuation.yield(rest) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
 }

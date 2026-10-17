@@ -4,12 +4,12 @@ import { db } from "@/lib/db";
 import { aiConfigurations } from "@dishes/db/schema";
 import { eq } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAutheliaUser();
+    const user = await resolveIdentity();
     const household = await requireHousehold(user);
 
     const {

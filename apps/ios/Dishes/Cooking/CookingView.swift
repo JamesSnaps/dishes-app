@@ -42,6 +42,7 @@ struct CookingView: View {
     /// Finish offers to log the cook (the dish on screen), then closes.
     @State private var logging: Recipe?
     @State private var confirmExit = false
+    @State private var asking = false
     @Environment(\.horizontalSizeClass) private var width
 
     private var dish: CookDish { request.dishes[min(dishIndex, request.dishes.count - 1)] }
@@ -97,6 +98,10 @@ struct CookingView: View {
             }
         }
         .overlay(alignment: .top) { RingingBanner() }
+        .sheet(isPresented: $asking) {
+            CookAssistSheet(dish: dish, stepIndex: stepIndex)
+                .presentationDetents([.medium, .large])
+        }
         .sheet(item: $logging) { recipe in
             LogCookSheet(recipe: recipe, afterCooking: true) { dismiss() }
         }
@@ -184,6 +189,13 @@ struct CookingView: View {
                         // Tap the words to go on: no aiming needed.
                         .onTapGesture { move(1) }
                     if let step { stepIngredients(step, size: size) }
+                    if step != nil {
+                        Button { asking = true } label: {
+                            Label("Ask about this step", systemImage: "bubble.left.and.text.bubble.right")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .buttonStyle(.outline)
+                    }
                 }
                 .padding(.vertical, 8)
             }

@@ -18,11 +18,11 @@ struct PlanScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(AppNav.self) private var nav
     @Environment(\.horizontalSizeClass) private var width
-    @Environment(\.openURL) private var openURL
     @State private var week = Week.containing(Date())
     @State private var selectedDay = Week.todayIndex
     @State private var data = Observed(PlanData())
     @State private var adding = false
+    @State private var generating = false
     @State private var sending = false
     @State private var pageWidth: CGFloat = 0
     /// The day column a dragged meal is over.
@@ -63,6 +63,12 @@ struct PlanScreen: View {
                 }
             }
             .environment(\.planActions, planActions)
+            .sheet(isPresented: $generating) {
+                PlanGeneratorSheet(week: week, planned: Set((0..<7).filter { day in
+                    data.value.meals(on: day, in: week).contains { $0.mealType == "dinner" }
+                }))
+                .presentationSizing(.page)
+            }
             .sheet(isPresented: $adding) {
                 AddMealSheet(week: week, day: selectedDay, plan: data.value.plan(for: week))
             }
@@ -157,9 +163,7 @@ struct PlanScreen: View {
         let plan = data.value.plan(for: week)
         let notOnList = data.value.entries(in: week).filter { $0.addedToShoppingListAt == nil }.count
         return HStack(spacing: 10) {
-            Button {
-                openURL(AppModel.serverURL.appendingPathComponent("meal-plan"))
-            } label: {
+            Button { generating = true } label: {
                 Label("Generate plan", systemImage: "sparkles")
             }
             .buttonStyle(.gradient(.violetOrange))

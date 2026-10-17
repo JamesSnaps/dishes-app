@@ -763,6 +763,23 @@ Hand over a meal-schedule Live Activity's push token:
 The server updates the activity over APNs as each step comes due and ends it
 half an hour after serving. `DELETE` with `{ "token" }` stops it.
 
+### AI — `/api/v1/ai/*` and `/api/v1/cook-assist`
+
+All use the household's own AI key (Settings → AI on the web) and answer a
+422 with the reason when it isn't set up or the call fails. They take tens of
+seconds, so clients should allow a long timeout.
+
+- `GET /api/v1/ai/status` → `{ configured }`
+- `POST /api/v1/ai/concepts` `{ prompt, mealType?, memberIds?, heartHealthy?, mealRole? }`
+  → `{ concepts: [{ title, description, cuisine, tags, difficulty }] }` — five ideas
+- `POST /api/v1/ai/recipes` `{ concept, mealType?, memberIds?, heartHealthy? }` → 201
+  `{ recipeId, title, collectionName? }` — written out in full and saved (it syncs down)
+- `POST /api/v1/ai/photo-recipe` `{ image: <base64>, mimeType }` → 201 `{ recipeId, title }`
+- `POST /api/v1/ai/meal-plan` `{ weekStartDate, slots: [{ dayOfWeek, mealType }], preferences, memberIds?, favouritesOnly?, heartHealthy? }`
+  → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId? }] }` — a draft, nothing saved
+- `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
+- `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text
+
 ### `POST /api/v1/push/test`
 
 `{ "token": "<hex>" }` sends a test notification to that device (yours only).

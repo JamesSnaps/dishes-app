@@ -327,3 +327,22 @@ the web's design rather than stock iOS styling:
   (`[live-activities] … sent=true`). Not yet seen arriving on a locked iPad.
 - Dev-only oddity: after the dev server restarted mid-session the simulator app
   came up signed out once; relaunching with `-DishesDevServer` fixed it.
+
+### 17 Oct 2026 — AI in the app (v1.34.0)
+
+- Server: thin `/api/v1/ai/*` routes over the web's own AI actions, and
+  `/api/v1/cook-assist` re-exporting the web route. The actions found the user
+  from the proxy headers only (`getAutheliaUser`); they now use
+  `resolveIdentity`, which takes the app's bearer token and falls back to the
+  headers, so the web is unchanged.
+- App: Create with AI (Recipes), Generate plan (Planner, no longer opens the
+  website), Ask about this step (cooking mode, streamed). AI calls get their own
+  long timeouts (90 s to 10 min) instead of the client's usual 10 s.
+- Checked: the screens, validation errors, and the "AI isn't set up" path. **Not
+  checked: a real generation** — the dev household has no OpenAI key. Try each
+  on the iPad against production.
+- The dev database had drifted again (0033 recorded but `web_grounding`
+  missing); applied the file's SQL directly.
+- The simulator "signed out" quirk: a cold dev server takes more than 10 s to
+  compile `/auth/whoami`, so the dev launch path gives up. Hit the route once
+  (`curl localhost:3000/api/v1/auth/whoami`) before launching.
