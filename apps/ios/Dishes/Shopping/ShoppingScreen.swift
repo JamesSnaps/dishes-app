@@ -37,9 +37,9 @@ struct ShoppingScreen: View {
             .listStyle(.insetGrouped)
             .scrollDismissesKeyboard(.interactively)
             .scrollContentBackground(.hidden)
-            .background(Theme.background.ignoresSafeArea())
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
+            .background(Theme.background.ignoresSafeArea())
             .overlay {
                 if data.loaded && data.value.groups.isEmpty && data.value.checked.isEmpty {
                     ContentUnavailableView("Nothing on the list", systemImage: "cart",

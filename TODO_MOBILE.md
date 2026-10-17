@@ -377,8 +377,9 @@ Port, don't redesign. Each piece has a TS original that stays the reference.
   (`ASWebAuthenticationSession` + PKCE), `Keychain.swift`, `AuthSession.swift`.
   Client id is `dishes-mobile` (already configured in Authelia). Refresh-token
   handling is the open A1 item, and it lands here — `AuthSession` refreshes
-  once however many requests find the token expired. **Not yet exercised
-  from the app against the real Authelia**
+  once however many requests find the token expired. Sign-in against the real
+  Authelia verified on James's iPad (17 Oct 2026); a refresh after expiry not
+  yet observed
 - [x] **API client** — `URLSession` + async/await, the `/api/v1` error envelope
   decoded into a typed error
 - [x] **Store** — GRDB: one `records` table keyed by (collection, id) holding
@@ -464,9 +465,13 @@ don't exist there.
 
 #### Tier 1 — cooking, done properly
 
-- [ ] **Cooking mode, designed iPad-first.** One recipe or a combined meal
-  (as v1.17), `isIdleTimerDisabled`, ingredient highlighting from step →
-  ingredient references, haptics on step change (iPhone).
+- [x] **Cooking mode, designed iPad-first (v1.26.0, `Dishes/Cooking/`).** One
+  recipe (from the recipe page, at its chosen scale) or a combined meal (Cook
+  on the plan), screen kept on, the step's ingredients shown as scaled chips
+  from its ingredient references, haptics on step change. Portrait iPad and
+  iPhone checked in the simulator, landscape on James's iPad Pro. Not yet: inline highlighting of
+  ingredient names in the step text (the web's matcher), one column per dish
+  in landscape (tabs for now), logging the cook at the end
   - iPad landscape: the current step large in the centre, ingredients in one
     rail and running timers in another — no scrolling to find a timer with wet
     hands. Portrait: step above, ingredients and timers in a bottom tray
@@ -479,11 +484,14 @@ don't exist there.
 - [ ] **Hands-free cooking.** On-device `SpeechAnalyzer` for "next step",
   "previous step", "start the timer", "how much butter?"; `AVSpeechSynthesizer`
   to read a step aloud. Most useful on the iPad, propped up out of reach
-- [ ] **Timers as real alarms (AlarmKit, iOS 26).** They sound through silent
-  mode and Focus, which a notification doesn't. Fall back to local
-  notifications if AlarmKit isn't available. Either way they fire with no
-  server and no signal, replacing the v1.19 server push on iOS.
-  **Check AlarmKit availability on the iPad** before relying on it there
+- [x] **Timers that alarm with no signal (`CookTimers`).** AlarmKit when
+  allowed, else a time-sensitive local notification; either way the system
+  owns the countdown, so it fires with no server, no signal and the app
+  closed. Pause, resume, +1 minute, cancel; kept across relaunches. While
+  Dishes is open a finished notification timer also rings in the app — a
+  looping chime that ignores silent mode, with a big Stop banner on every
+  screen. **AlarmKit works on a real iPad** (asked for permission, went off —
+  17 Oct 2026); only the simulators refuse it, where the fallback runs
 - [ ] **Live Activity — timers and next step** on the Lock Screen and Dynamic
   Island (iPhone). On iPad, verify Live Activity support on the actual device;
   the in-app timer rail and alarms carry the iPad either way

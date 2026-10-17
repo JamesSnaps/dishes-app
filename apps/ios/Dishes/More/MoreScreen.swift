@@ -48,9 +48,9 @@ struct MoreScreen: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.background.ignoresSafeArea())
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
+            .background(Theme.background.ignoresSafeArea())
             .navigationTitle("More")
             .confirmationDialog("Sign out of Dishes on this device?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) { Task { await app.signOut() } }

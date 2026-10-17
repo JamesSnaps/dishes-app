@@ -115,7 +115,38 @@ Xcode 27.1, iOS 27 simulators.
   the method. Serving stepper scales 4 → 5 correctly (200 g → 250 g, 1 tsp → 1¼ tsp).
 - Fixed on the way: the week key bug above; the shopping keyboard had no way
   to close (now dismissed by dragging the list, or Done on an empty field).
-- Not yet checked: sign-in against the real Authelia from the app (the flow is
-  Keepsake's, already proven there with the same Authelia), a device build,
-  delete and clear-ticked from the UI (the mutations are covered by the engine
-  tests and are the ones the web already sends).
+- Not yet checked: delete and clear-ticked from the UI (the mutations are
+  covered by the engine tests and are the ones the web already sends).
+
+### 17 Oct 2026 — first device build, real server
+
+- Device build signed with `C729B84RYG` and installed on James's iPad Pro
+  13-inch (M4) with `devicectl` (commands above), v1.25.0 on the server.
+- Sign-in through the real Authelia (`dishes-mobile`, PKCE) works from the
+  app, and the first sync brought down the household's real recipes, meal
+  plan and shopping list.
+- Still to see on a device: a token refresh after the 1-hour access token
+  expires (`AuthSession` handles it; not yet observed).
+
+### 17 Oct 2026 — cooking mode (branch `feat/ios-cooking-mode`)
+
+- iPad portrait (11-inch simulator): step large on top with Back/Next and the
+  step's timer pinned below it, ingredients and timers side by side
+  underneath. Starting "Soften soffritto · 15 min" counted down in the timers
+  panel.
+- **AlarmKit is refused in the simulator** — iPhone and iPad alike, instantly
+  and with no prompt (`mobiletimerd`: "Denial for uk.collco.dishes"), though
+  `NSAlarmKitUsageDescription` is in the built Info.plist. The notification
+  fallback asked for permission and took over, as designed.
+- In-app ring: More → Developer → "Start a 10-second test timer" (Debug only).
+  At zero the chime played (audio session `.playback`, so silent mode doesn't
+  mute it) and the Stop banner appeared over whatever screen was showing; Stop
+  silenced it.
+- **The simulator can't rotate here** (no Simulator.app in this Xcode, and
+  the control tool has no rotation), so the landscape three-column layout is
+  unchecked — check it on the iPad.
+- Launching takes several seconds on the simulator before the first screen;
+  not seen on the real iPad. Worth timing if it shows up there.
+- **On James's iPad Pro (device build):** the landscape three-column layout
+  looks right, and a step timer asked for alarm permission and went off as an
+  AlarmKit alarm. So AlarmKit works on iPad; only the simulators refuse it.
