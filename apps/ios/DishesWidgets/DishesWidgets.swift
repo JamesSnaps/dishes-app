@@ -1,4 +1,5 @@
-// The widget extension. For now it draws two Live Activities:
+// The widget extension: the Live Activities below, and the "Add to Shopping"
+// control for Control Center and the Lock Screen (AddToShoppingControl).
 //
 //   CookingLiveActivity   while cooking mode is open: the dish, "Step 3 of 8",
 //                         the step's instruction and the soonest timer
@@ -15,6 +16,7 @@
 
 import ActivityKit
 import AlarmKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -24,6 +26,21 @@ struct DishesWidgets: WidgetBundle {
         CookingLiveActivity()
         CookTimerAlarmActivity()
         MealScheduleLiveActivity()
+        AddToShoppingControl()
+    }
+}
+
+/// Control Center, the Lock Screen and the Action button: opens the shopping
+/// list with the add field focused (OpenShoppingAddIntent, in Shared/).
+struct AddToShoppingControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "uk.collco.dishes.add-to-shopping") {
+            ControlWidgetButton(action: OpenShoppingAddIntent()) {
+                Label("Add to Shopping", systemImage: "cart.badge.plus")
+            }
+        }
+        .displayName("Add to Shopping")
+        .description("Opens the shopping list, ready to add an item.")
     }
 }
 

@@ -69,7 +69,7 @@ struct ShoppingScreen: View {
                     let checked = data.value.checked.count
                     PageHeader(title: "Shopping List",
                                subtitle: "\(data.value.list?.name ?? "No list yet") · \(open + checked) items, \(checked) checked")
-                    AddItemCard(list: data.value.list, nextPosition: (data.value.all.map(\.position).max() ?? 0) + 1)
+                    AddItemCard()
 
                     if checked > 0 {
                         HStack {
@@ -238,10 +238,10 @@ let shoppingCategories = ["Produce", "Dairy", "Meat", "Fish", "Bakery", "Pantry"
 // MARK: Add
 
 /// The add card: name and a + on the first row, quantity, unit and category on the second.
+/// The Control Center control opens here with the item field focused.
 struct AddItemCard: View {
     @Environment(AppModel.self) private var app
-    let list: ShoppingList?
-    let nextPosition: Int
+    @Environment(AppNav.self) private var nav
     @State private var name = ""
     @State private var amount = ""
     @State private var unit = ""
@@ -289,6 +289,15 @@ struct AddItemCard: View {
         }
         .padding(14)
         .card()
+        .onChange(of: nav.focusShoppingAdd, initial: true) { _, wanted in
+            guard wanted else { return }
+            nav.focusShoppingAdd = false
+            // Straight after a tab switch the field isn't ready to take focus.
+            Task {
+                try? await Task.sleep(for: .milliseconds(350))
+                focused = true
+            }
+        }
     }
 
     private func field(_ prompt: String, text: Binding<String>) -> some View {
@@ -308,24 +317,9 @@ struct AddItemCard: View {
         name = ""; amount = ""; unit = ""
         // Stay in the field: items usually come in a run.
         focused = true
-        // The server keeps a client-made id (AddItemInput.id), so the row
-        // written here is the row the server will have.
-        let id = UUID().uuidString.lowercased()
-        let record = JSONValue.fields([
-            "id": .string(id), "listId": .string(list?.id ?? "pending"), "ingredientName": .string(trimmed),
-            "isChecked": .bool(false), "position": .number(Double(nextPosition)),
-            "amount": qty.isEmpty ? nil : .string(qty), "unit": u.isEmpty ? nil : .string(u),
-            "category": category.isEmpty ? nil : .string(category),
-        ])
         Task {
-            await app.mutate("shopping_item.add",
-                             payload: .fields(["id": .string(id), "ingredientName": .string(trimmed),
-                                               "listId": list.map { .string($0.id) },
-                                               "amount": qty.isEmpty ? nil : .string(qty),
-                                               "unit": u.isEmpty ? nil : .string(u),
-                                               "category": category.isEmpty ? nil : .string(category)]),
-                             // With no list yet the server makes one, so the row's listId is a guess: temporary.
-                             optimistic: [.put(.shoppingItems, record, temporary: list == nil)])
+            await app.addShoppingItem(trimmed, amount: qty.isEmpty ? nil : qty, unit: u.isEmpty ? nil : u,
+                                      category: category.isEmpty ? nil : category)
         }
     }
 }
