@@ -498,9 +498,16 @@ don't exist there.
   looping chime that ignores silent mode, with a big Stop banner on every
   screen. **AlarmKit works on a real iPad** (asked for permission, went off —
   17 Oct 2026); only the simulators refuse it, where the fallback runs
-- [ ] **Live Activity — timers and next step** on the Lock Screen and Dynamic
-  Island (iPhone). On iPad, verify Live Activity support on the actual device;
-  the in-app timer rail and alarms carry the iPad either way
+- [x] **Live Activity — timers and next step (v1.28.0).** `DishesWidgets`
+  extension: the cooking activity (dish, "Step 3 of 8", the instruction, the
+  soonest timer counting down, a progress bar) on the Lock Screen and in the
+  Dynamic Island while cooking mode is open, started/updated/ended by
+  `CookingActivity`; plus each AlarmKit timer's own countdown, paused and
+  "Done" states (AlarmKit only shows a timer on the Lock Screen through an
+  extension). Cooking activity checked in the iPhone simulator (compact,
+  expanded, Lock Screen). The AlarmKit countdown needs a real device — the
+  simulator refuses AlarmKit. No App Group needed yet: ActivityKit carries the
+  state; Home Screen widgets will need one
 - [ ] **Live Activity — meal schedule.** The serve-at timeline (v1.18) as a
   countdown across the whole meal: "Potatoes in at 18:05 · serve 18:45".
   Started remotely by the dinner-reminder push (ActivityKit push-to-start

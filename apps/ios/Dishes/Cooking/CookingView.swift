@@ -95,8 +95,18 @@ struct CookingView: View {
         }
         .overlay(alignment: .top) { RingingBanner() }
         .sensoryFeedback(.impact(weight: .light), trigger: stepChanges)
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            showActivity()
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            CookingActivity.shared.end()
+        }
+        // The Live Activity follows the step, the dish tab and the timers.
+        .onChange(of: stepIndex) { showActivity() }
+        .onChange(of: dishIndex) { showActivity() }
+        .onChange(of: CookTimers.shared.timers) { showActivity() }
     }
 
     @ToolbarContentBuilder
@@ -250,6 +260,13 @@ struct CookingView: View {
             .buttonStyle(GradientButtonStyle(gradient: .brand, height: 60))
             .keyboardShortcut(.rightArrow, modifiers: [])
         }
+    }
+
+    private func showActivity() {
+        CookingActivity.shared.show(
+            title: request.title ?? dish.recipe.title, dish: dish.recipe.title,
+            step: min(stepIndex + 1, max(dish.recipe.steps.count, 1)), of: max(dish.recipe.steps.count, 1),
+            instruction: step?.instruction ?? "")
     }
 
     private func move(_ by: Int) {

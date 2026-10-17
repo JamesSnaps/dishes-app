@@ -53,11 +53,6 @@ struct CookTimer: Codable, Identifiable, Hashable {
     }
 }
 
-/// Shown on the alarm itself; AlarmKit requires a metadata type.
-struct CookTimerMetadata: AlarmMetadata {
-    var dish: String?
-}
-
 @MainActor @Observable
 final class CookTimers {
     static let shared = CookTimers()

@@ -179,3 +179,19 @@ the web's design rather than stock iOS styling:
 - Checked on iPhone 18 Pro and iPad Pro 11-inch simulators in light mode, side
   by side with the web at the same widths.
 
+### 17 Oct 2026 — Live Activities (branch `feat/ios-live-activity`)
+
+- New `DishesWidgets` extension (bundle `uk.collco.dishes.widgets`) and a
+  `Shared/` folder compiled into both targets for the types they share
+  (`CookingActivityAttributes`, `CookTimerMetadata`).
+- iPhone 18 Pro simulator: starting a step timer in cooking mode and going to
+  the Home Screen shows the pan and the countdown in the Dynamic Island; a
+  long press shows step 1/5, the dish, the instruction and the timer; the Lock
+  Screen shows the full card with a progress bar. iOS asks "Allow Live
+  Activities from Dishes?" the first time.
+- The AlarmKit countdown activity can't be seen in the simulator (AlarmKit is
+  refused there) — check on the iPad: start a timer, lock it.
+- The activity's state carries the timer's end date and the system counts it
+  down, so the app does nothing while locked; it updates on step changes and
+  timer changes, and ends when cooking mode closes.
+
