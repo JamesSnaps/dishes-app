@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { recipeAssistThreads, recipes } from "@dishes/db/schema";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { and, desc, eq } from "drizzle-orm";
 
@@ -22,7 +22,7 @@ export async function saveRecipeAssistThread(
   messages: RecipeAssistMessage[],
   threadId?: string | null
 ): Promise<{ id: string }> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   if (!messages.length) throw new Error("Nothing to save");
@@ -74,7 +74,7 @@ export async function saveRecipeAssistThread(
 export async function getRecipeAssistThreads(
   recipeId: string
 ): Promise<RecipeAssistThread[]> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const rows = await db
@@ -97,7 +97,7 @@ export async function getRecipeAssistThreads(
 }
 
 export async function deleteRecipeAssistThread(threadId: string): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db

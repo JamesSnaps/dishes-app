@@ -151,10 +151,10 @@ struct HomeScreen: View {
         }
     }
 
-    /// bg-gradient-to-r from-orange-500 to-rose-500, linking to the web's stats.
+    /// bg-gradient-to-r from-orange-500 to-rose-500, opening Stats.
     private var statsBanner: some View {
-        Button {
-            openURL(AppModel.serverURL.appendingPathComponent("stats"))
+        NavigationLink {
+            StatsScreen()
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {

@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { cookAssistThreads } from "@dishes/db/schema";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { and, asc, count, eq } from "drizzle-orm";
 
@@ -11,7 +11,7 @@ export async function saveCookAssistThread(
   stepNumber: number,
   messages: Array<{ role: "user" | "assistant"; content: string }>
 ) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db.insert(cookAssistThreads).values({
@@ -23,7 +23,7 @@ export async function saveCookAssistThread(
 }
 
 export async function getCookAssistThreads(recipeId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   return db
@@ -43,7 +43,7 @@ export async function getCookAssistThreads(recipeId: string) {
 }
 
 export async function countCookAssistThreads(recipeId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const [row] = await db
@@ -59,7 +59,7 @@ export async function countCookAssistThreads(recipeId: string) {
 }
 
 export async function deleteCookAssistThread(threadId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db
@@ -73,7 +73,7 @@ export async function deleteCookAssistThread(threadId: string) {
 }
 
 export async function deleteAllCookAssistThreadsForRecipe(recipeId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db

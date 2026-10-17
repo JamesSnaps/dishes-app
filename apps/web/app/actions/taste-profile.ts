@@ -10,7 +10,7 @@ import {
 } from "@dishes/db/schema";
 import { and, desc, eq, inArray, isNotNull, notExists } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -203,7 +203,7 @@ export async function getTasteProfile(
 // ── clearTasteProfile (admin only) ────────────────────────────────────────────
 
 export async function clearTasteProfile(): Promise<{ error?: string }> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
   if (role !== "admin") return { error: "Only admins can reset the taste profile." };
 

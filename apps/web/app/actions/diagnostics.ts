@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { clientErrors } from "@dishes/db/schema";
 import { desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 
 export interface ClientErrorRow {
@@ -21,7 +21,7 @@ export interface ClientErrorRow {
 }
 
 async function requireAdmin() {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { role } = await requireHousehold(user);
   if (role !== "admin") throw new Error("Only admins can view diagnostics");
 }

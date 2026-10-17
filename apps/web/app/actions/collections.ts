@@ -4,11 +4,11 @@ import { db } from "@/lib/db";
 import { collections, recipeCollections, recipes } from "@dishes/db/schema";
 import { eq, and, ilike, inArray, sql as drizzleSql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 
 export async function createCollection(formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const name = (formData.get("name") as string)?.trim();
@@ -22,7 +22,7 @@ export async function createCollection(formData: FormData) {
 }
 
 export async function updateCollection(collectionId: string, formData: FormData) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const name = (formData.get("name") as string)?.trim();
@@ -43,7 +43,7 @@ export async function updateCollection(collectionId: string, formData: FormData)
 }
 
 export async function updateCollectionIcon(collectionId: string, icon: string | null) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db
@@ -58,7 +58,7 @@ export async function updateCollectionIcon(collectionId: string, icon: string | 
 }
 
 export async function deleteCollection(collectionId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db
@@ -71,7 +71,7 @@ export async function deleteCollection(collectionId: string) {
 }
 
 export async function addRecipeToCollection(collectionId: string, recipeId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   // Verify the collection belongs to this household
@@ -100,7 +100,7 @@ export async function addRecipeToCollection(collectionId: string, recipeId: stri
 }
 
 export async function removeRecipeFromCollection(collectionId: string, recipeId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   // Verify the collection belongs to this household
@@ -126,7 +126,7 @@ export async function removeRecipeFromCollection(collectionId: string, recipeId:
 }
 
 export async function searchRecipesForCollection(collectionId: string, query: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const rows = await db
@@ -155,7 +155,7 @@ export async function searchRecipesForCollection(collectionId: string, query: st
 }
 
 export async function getHouseholdCollections() {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   return db
@@ -171,7 +171,7 @@ export async function createCollectionNamed(
   name: string,
   icon?: string | null
 ): Promise<{ id: string; name: string; icon: string | null }> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const trimmed = name.trim();
@@ -195,7 +195,7 @@ export async function bulkAddToCollection(
   collectionId: string,
   options?: { move?: boolean }
 ): Promise<{ added: number }> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   if (!recipeIds.length || !collectionId) return { added: 0 };

@@ -12,7 +12,7 @@ import {
 } from "@dishes/db/schema";
 import { eq, and, or, gt, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAutheliaUser } from "@/lib/auth";
+import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { encrypt, decrypt } from "@/lib/crypto";
 import { env } from "@/lib/env";
@@ -38,7 +38,7 @@ function isTokenActive(token: { revoked: boolean; expiresAt: Date | null }): boo
 // ─── Share tokens ─────────────────────────────────────────────────────────────
 
 export async function createShareToken(recipeId: string): Promise<string> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, memberId } = await requireHousehold(user);
 
   // Confirm recipe belongs to household
@@ -66,7 +66,7 @@ export async function createShareToken(recipeId: string): Promise<string> {
 }
 
 export async function revokeShareToken(tokenId: string): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   await db
@@ -80,7 +80,7 @@ export async function revokeShareToken(tokenId: string): Promise<void> {
 }
 
 export async function getRecipeShareTokens(recipeId: string) {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const tokens = await db
@@ -110,7 +110,7 @@ export async function getRecipeShareTokens(recipeId: string) {
 }
 
 export async function getAllShareTokens() {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   const tokens = await db
@@ -215,7 +215,7 @@ export async function getSharedRecipe(token: string) {
 // ─── SMTP config ──────────────────────────────────────────────────────────────
 
 export async function saveSmtpConfig(formData: FormData): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can configure email settings");
@@ -295,7 +295,7 @@ export async function getSmtpConfig(householdId: string) {
 }
 
 export async function deleteSmtpConfig(): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId, role } = await requireHousehold(user);
 
   if (role !== "admin") throw new Error("Only admins can remove email settings");
@@ -310,7 +310,7 @@ export async function deleteSmtpConfig(): Promise<void> {
 // ─── Email sending ────────────────────────────────────────────────────────────
 
 export async function sendRecipeEmail(recipeId: string, toAddress: string): Promise<void> {
-  const user = await getAutheliaUser();
+  const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
   if (!toAddress || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toAddress)) throw new Error("Valid email address required");

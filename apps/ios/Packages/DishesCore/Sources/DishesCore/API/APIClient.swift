@@ -657,4 +657,23 @@ public final class APIClient: SyncTransport, Sendable {
             continuation.onTermination = { _ in task.cancel() }
         }
     }
+
+    // MARK: The website's features (POST /api/v1/actions/{name})
+
+    /// One of the web's actions by name (apps/web/lib/api/v1-actions.ts),
+    /// answering its result decoded as `T`. `args` are the action's arguments,
+    /// in order. AI actions (`ai.*`, `timeline.planWithAi`, `wrapped.recap`)
+    /// get a long timeout.
+    public func action<T: Decodable & Sendable>(_ name: String, _ args: [JSONValue] = [], as type: T.Type = T.self) async throws -> T {
+        let slow = name.hasPrefix("ai.") || name == "timeline.planWithAi" || name == "wrapped.recap" || name == "library.import"
+        return try await slowPost("/actions/\(name)", json: ActionBody(args: args), timeout: slow ? 150 : 20, as: ActionReply<T>.self).result
+    }
+
+    /// An action whose answer doesn't matter.
+    public func run(_ name: String, _ args: [JSONValue] = []) async throws {
+        _ = try await action(name, args, as: JSONValue.self)
+    }
 }
+
+struct ActionBody: Encodable { var args: [JSONValue] }
+struct ActionReply<R: Decodable>: Decodable { var result: R }
