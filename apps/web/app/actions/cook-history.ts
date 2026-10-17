@@ -9,7 +9,7 @@ import { requireHousehold } from "@/lib/household";
 import { uploadFile, isStorageAvailable } from "@/lib/storage";
 import { makeThumbnail } from "@/lib/thumbnail";
 import sharp from "sharp";
-import { refreshTasteProfile } from "./taste-profile";
+import { refreshTasteProfile } from "@/lib/services/taste-profile";
 import * as cookService from "@/lib/services/cook-history";
 
 

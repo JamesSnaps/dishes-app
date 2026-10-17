@@ -266,33 +266,8 @@ export async function saveSmtpConfig(formData: FormData): Promise<void> {
   revalidatePath("/settings/email");
 }
 
-export async function getSmtpConfig(householdId: string) {
-  const [config] = await db
-    .select({
-      id: smtpConfigurations.id,
-      host: smtpConfigurations.host,
-      port: smtpConfigurations.port,
-      username: smtpConfigurations.username,
-      fromAddress: smtpConfigurations.fromAddress,
-      fromName: smtpConfigurations.fromName,
-      encryptedPassword: smtpConfigurations.encryptedPassword,
-    })
-    .from(smtpConfigurations)
-    .where(eq(smtpConfigurations.householdId, householdId))
-    .limit(1);
-
-  if (!config) return null;
-
-  return {
-    id: config.id,
-    host: config.host,
-    port: config.port,
-    username: config.username,
-    fromAddress: config.fromAddress,
-    fromName: config.fromName,
-    hasPassword: true,
-  };
-}
+// getSmtpConfig lives in lib/services/smtp.ts (admin-only, takes the session's
+// context) — not here, where any browser could call it with another household's id.
 
 export async function deleteSmtpConfig(): Promise<void> {
   const user = await resolveIdentity();

@@ -4,7 +4,7 @@ import { Bot, ChevronLeft, Plug } from "lucide-react";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { publicOrigin } from "@/lib/public-origin";
-import { listIntegrationTokens } from "@/app/actions/integrations";
+import { listIntegrationTokens } from "@/lib/services/integration-tokens";
 import { TokenList } from "./_components/token-list";
 import { CreateTokenForm } from "./_components/create-token-form";
 import { EndpointReference } from "./_components/endpoint-reference";
@@ -35,7 +35,10 @@ export default async function IntegrationsPage() {
   const { householdId, role } = await requireHousehold(user);
   const isAdmin = role === "admin";
 
-  const [tokens, headerList] = await Promise.all([listIntegrationTokens(householdId), headers()]);
+  const [tokens, headerList] = await Promise.all([
+    isAdmin ? listIntegrationTokens({ householdId, role }) : [],
+    headers(),
+  ]);
   const origin = publicOrigin(headerList);
   const specUrl = `${origin}/api/integrations/openapi.json`;
 
@@ -72,16 +75,17 @@ export default async function IntegrationsPage() {
       {/* Tokens */}
       <section className="mb-8">
         <SectionHeading>Tokens</SectionHeading>
-        {!isAdmin && (
+        {isAdmin ? (
+          <>
+            <TokenList tokens={tokens} />
+            <div className="mt-3">
+              <CreateTokenForm />
+            </div>
+          </>
+        ) : (
           <p className="mb-3 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-            Only admins can create or revoke integration tokens.
+            Only admins can view, create or revoke integration tokens.
           </p>
-        )}
-        <TokenList tokens={tokens} />
-        {isAdmin && (
-          <div className="mt-3">
-            <CreateTokenForm />
-          </div>
         )}
       </section>
 

@@ -24,6 +24,8 @@ import * as deliveries from "@/app/actions/deliveries";
 import * as meals from "@/app/actions/meals";
 import * as notesActions from "@/app/actions/notes";
 import * as taste from "@/app/actions/taste-profile";
+import * as tasteService from "@/lib/services/taste-profile";
+import * as householdSettings from "@/lib/services/household-settings";
 import * as library from "@/app/actions/library-shares";
 import * as sharing from "@/app/actions/sharing";
 import * as settings from "@/app/actions/settings";
@@ -184,10 +186,10 @@ export const actions: Record<string, Handler> = {
   "wrapped.report": (s, [year]) => getWrappedReport(s.householdId, z.number().int().optional().parse(year ?? undefined)),
   "wrapped.recap": (_s, [year, regenerate]) => ai.generateWrappedRecap(z.number().int().parse(year), regenerate === true),
   "taste.get": async (s) => ({
-    profile: await taste.getTasteProfile(s.householdId).catch(() => null),
-    suggested: await taste.getSuggestedRecipes(s.householdId).catch(() => []),
+    profile: await tasteService.getTasteProfile(s.householdId).catch(() => null),
+    suggested: await tasteService.getSuggestedRecipes(s.householdId).catch(() => []),
   }),
-  "taste.refresh": (s) => taste.refreshTasteProfile(s.householdId),
+  "taste.refresh": (s) => tasteService.refreshTasteProfile(s.householdId),
   "taste.clear": () => taste.clearTasteProfile(),
   "notes.list": (s) =>
     db.select({ id: notes.id, title: notes.title, body: notes.body, updatedAt: notes.updatedAt,
@@ -228,7 +230,7 @@ export const actions: Record<string, Handler> = {
 
   // ── Household and settings ────────────────────────────────────────────────
   "household.get": async (s) => ({
-    ...(await settings.getHouseholdWithMembers(s.householdId)),
+    ...(await householdSettings.getHouseholdWithMembers(s.householdId)),
     me: { memberId: s.memberId, role: s.role },
   }),
   "household.rename": (_s, [name]) => settings.updateHouseholdName(form({ name: str(name) })),
@@ -237,6 +239,6 @@ export const actions: Record<string, Handler> = {
     settings.updateMemberRole(str(memberId), z.enum(["admin", "adult", "child"]).parse(role)),
   "household.removeMember": (_s, [memberId]) => settings.removeMember(str(memberId)),
   "household.setPreferences": (_s, [memberId, data]) => settings.updateMemberPreferences(str(memberId), obj(data) as never),
-  "ai.config": (s) => settings.getAiConfig(s.householdId),
+  "ai.config": (s) => householdSettings.getAiConfig(s),
   "ai.saveConfig": (_s, [fields]) => settings.saveAiConfig(form(obj(fields))),
 };

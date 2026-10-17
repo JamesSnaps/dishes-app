@@ -12,7 +12,7 @@ import {
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { updateRecipe } from "@/app/actions/recipes";
-import { getAiConfig } from "@/app/actions/settings";
+import { getAiConfig } from "@/lib/services/household-settings";
 import { countCookAssistThreads } from "@/app/actions/cook-assist-threads";
 import { RecipeForm } from "../../_components/recipe-form";
 import type { ImageStyleValue } from "@/lib/image-styles";
@@ -28,7 +28,7 @@ export async function generateMetadata(_props: Props) {
 export default async function EditRecipePage({ params }: Props) {
   const { id } = await params;
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const { householdId, role } = await requireHousehold(user);
 
   const [recipe, ingredients, steps, tags, allTagRows, aiConfig, assistThreadCount] = await Promise.all([
     db
@@ -57,7 +57,7 @@ export default async function EditRecipePage({ params }: Props) {
       .innerJoin(recipes, eq(recipeTags.recipeId, recipes.id))
       .where(eq(recipes.householdId, householdId))
       .orderBy(recipeTags.tag),
-    getAiConfig(householdId),
+    getAiConfig({ householdId, role }),
     countCookAssistThreads(id),
   ]);
 

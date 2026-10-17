@@ -18,7 +18,7 @@ type Props = {
     measurementSystem: string;
     webGrounding: boolean;
     hasKey: boolean;
-    keyHint: string;
+    keyHint: string | null;
   } | null;
   isAdmin: boolean;
 };

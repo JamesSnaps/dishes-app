@@ -4,7 +4,7 @@ import { Sparkles } from "lucide-react";
 import { Button } from "@dishes/ui";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getAiConfig } from "@/app/actions/settings";
+import { getAiConfig } from "@/lib/services/household-settings";
 import { db } from "@/lib/db";
 import { recipes, recipeTags, householdMembers } from "@dishes/db/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
@@ -16,9 +16,9 @@ export const metadata = { title: "AI Concierge" };
 
 export default async function AiConciergePage() {
   const user = await getAutheliaUser();
-  const { householdId } = await requireHousehold(user);
+  const { householdId, role } = await requireHousehold(user);
   const [aiConfig, styleBreakdown, cuisineRows, tagRows, memberRows] = await Promise.all([
-    getAiConfig(householdId),
+    getAiConfig({ householdId, role }),
     getStyleBreakdown(householdId),
     db
       .selectDistinct({ cuisine: recipes.cuisine })

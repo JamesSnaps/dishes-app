@@ -1,6 +1,6 @@
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getTasteProfile } from "@/app/actions/taste-profile";
+import { getTasteProfile } from "@/lib/services/taste-profile";
 import { ResetTasteProfileButton } from "./_components/reset-taste-profile-button";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
