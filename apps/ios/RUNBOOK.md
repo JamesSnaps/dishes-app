@@ -497,3 +497,26 @@ a phone. Done on both the app and the web so they match:
   **Not checked:** the iPad (simulator was signed out), writing a recipe
   from the AI tab and landing on it (no AI key in dev), the Wrapped banner
   (it's October).
+
+### 17 Oct 2026 — Siri / Shortcuts and a Control Center control for shopping (v1.40.0)
+
+James wanted adding to the shopping list to be quick, especially from the Watch.
+
+- `AddToShoppingListIntent` (`Dishes/Shopping/ShoppingIntents.swift`): an
+  App Shortcut — "Add to my Dishes shopping list", Siri asks what. Runs in
+  the background via `AppModel.addShoppingItem` (now shared with the add
+  card), an outbox mutation, then a `syncNow` so it goes before iOS suspends
+  the app. The item is stored as spoken, like the integrations quick-add.
+  Also in Shortcuts and assignable to the Action button.
+- `AddToShoppingControl` in DishesWidgets: Control Center / Lock Screen
+  button. Its `OpenShoppingAddIntent` is in `Shared/` (both targets) with
+  `openAppWhenRun`, sets `AppRequests.shared.shoppingAdd`; RootView switches
+  to Shopping and `AddItemCard` focuses its field.
+- Watch: not possible from the iPhone app (watchOS only runs intents from an
+  app installed on the Watch). The quick-add Shortcut in API.md runs on the
+  Watch today; a Watch app is the proper fix (TODO_MOBILE.md tier 4).
+- Written in a cloud session with no Swift toolchain: **not compiled or run.**
+  To check: build; "Hey Siri, add to my Dishes shopping list" with the app
+  closed, online and in Airplane Mode; the item appears and syncs; the
+  Shortcuts app lists the action; add the control in Control Center and tap
+  it from the Lock Screen (cold and warm) — the field should be focused.

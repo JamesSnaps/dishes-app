@@ -574,11 +574,13 @@ don't exist there.
   current step and timers while cooking
 - [ ] **Live Activity — shopping trip.** "9 items left", updated by push as
   someone at home adds or ticks things
-- [ ] **Control Center control** — "Add to shopping"
-- [ ] **App Intents / Siri / Shortcuts** — "add milk to the shopping list",
-  "what's for dinner", "start cooking tonight's meal". Queues an outbox
-  mutation, so it works offline. Also makes an NFC tag on the fridge (via a
-  Shortcuts automation) free
+- [x] **Control Center control** — "Add to shopping" (v1.40.0: opens the
+  shopping list with the add field focused; a control can't take text)
+- [x] **App Intents / Siri / Shortcuts** — "add milk to the shopping list"
+  (v1.40.0: `AddToShoppingListIntent`, runs in the background, queues an
+  outbox mutation so it works offline; Action button and NFC automations too)
+- [ ] **App Intents, the rest** — "what's for dinner", "start cooking
+  tonight's meal"
 - [ ] **Spotlight** — recipes indexed with `CoreSpotlight`, searchable from the
   Home Screen, offline
 
@@ -599,7 +601,9 @@ don't exist there.
 #### Tier 4 — later
 
 - [ ] **Apple Watch app** — the shopping list on the wrist, timers and step
-  cues as taps while cooking. Strongest second-wave feature
+  cues as taps while cooking. Strongest second-wave feature. Also what puts
+  "add to shopping" on the Watch: watchOS won't run an iPhone app's intents
+  (until then the quick-add Shortcut in API.md does it)
 - [ ] **Handoff + universal links** — a Dishes URL opens in the app; a recipe
   open on the Mac continues on the iPad (`NSUserActivity` with `webpageURL`)
 - [ ] **Supermarket geofence** — "You're at Tesco: 12 items on the list"
