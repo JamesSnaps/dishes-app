@@ -248,14 +248,42 @@ struct CookingView: View {
         }
         ToolbarItem(placement: .principal) {
             if request.dishes.count > 1 {
-                Picker("Dish", selection: $session.dishIndex) {
+                let picker = Picker("Dish", selection: $session.dishIndex) {
                     ForEach(request.dishes.indices, id: \.self) { i in
                         let done = session.finished.contains(request.dishes[i].recipe.id)
                         Text((done ? "✓ " : "") + request.dishes[i].recipe.title).tag(i)
                     }
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 520)
+                // Tabs while the titles fit (a few dishes on iPad); otherwise a
+                // menu headed by the current dish, so a big meal stays readable.
+                if width == .regular && request.dishes.count <= 4 {
+                    picker.pickerStyle(.segmented).frame(maxWidth: 520)
+                } else {
+                    Menu {
+                        ForEach(request.dishes.indices, id: \.self) { i in
+                            let title = request.dishes[i].recipe.title
+                            Button { session.dishIndex = i } label: {
+                                if i == session.dishIndex {
+                                    Label(title, systemImage: "checkmark")
+                                } else if session.finished.contains(request.dishes[i].recipe.id) {
+                                    Label(title, systemImage: "checkmark.circle")
+                                } else {
+                                    Text(title)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            VStack(spacing: 0) {
+                                Text(dish.recipe.title).font(.headline).lineLimit(1)
+                                Text("Dish \(session.dishIndex + 1) of \(request.dishes.count)")
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
+                            Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold))
+                        }
+                        .foregroundStyle(Theme.foreground)
+                    }
+                }
             } else {
                 Text(dish.recipe.title).font(.headline).lineLimit(1)
             }

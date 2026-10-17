@@ -27,6 +27,7 @@ struct PlanScreen: View {
     @State private var pageWidth: CGFloat = 0
     /// The day column a dragged meal is over.
     @State private var dropTarget: Int?
+    @State private var extras = PlanWeekExtras()
 
     private var wholeWeek: Bool { pageWidth >= 1000 }
 
@@ -74,6 +75,33 @@ struct PlanScreen: View {
             }
         }
         .task { await data.follow(app.store, PlanData.load) }
+        // Dinner times and deliveries for the week, reloaded when its dinners change.
+        .task(id: extrasKey) { await extras.load(week: week.key, dinnerRecipeIds: dinnerRecipes.flatMap { $0 }.map(\.id)) }
+    }
+
+    /// Each day's dinner dishes, Monday first.
+    private var dinnerRecipes: [[Recipe]] {
+        (0..<7).map { day in
+            data.value.meals(on: day, in: week).filter { $0.mealType == "dinner" }.flatMap { $0.dishes.compactMap(\.recipe) }
+        }
+    }
+
+    private var extrasKey: String {
+        week.key + dinnerRecipes.map { $0.map(\.id).joined(separator: ",") }.joined(separator: "|")
+            + "#\(data.value.entries(in: week).filter { $0.addedToShoppingListAt == nil }.count)"
+    }
+
+    /// The dinner-time and delivery chips for a day, when the server has them.
+    @ViewBuilder private func dayChips(_ day: Int, compact: Bool = false) -> some View {
+        if let dinner = extras.dinner?.days.first(where: { $0.dayOfWeek == day }) {
+            DinnerTimeChip(date: week.day(day), day: dinner, dishes: dinnerRecipes[day],
+                           estimates: extras.dinner?.estimates ?? [:], compact: compact) { extras.update($0) }
+        }
+        if let panel = extras.deliveries, let delivery = panel.days.first(where: { $0.date == localDateKey(week.day(day)) }) {
+            DeliveryDayChip(day: delivery, canEdit: panel.canEdit) {
+                await extras.load(week: week.key, dinnerRecipeIds: dinnerRecipes.flatMap { $0 }.map(\.id))
+            }
+        }
     }
 
     // MARK: Header
@@ -218,6 +246,7 @@ struct PlanScreen: View {
                 }
             }
             .padding(.top, 6)
+            FlowLayout(spacing: 8) { dayChips(selectedDay) }
 
             if meals.isEmpty {
                 EmptyBox(message: "No meals planned for this day")
@@ -262,6 +291,7 @@ struct PlanScreen: View {
                                     .foregroundStyle(Theme.brandDeep)
                             }
                         }
+                        VStack(alignment: .leading, spacing: 6) { dayChips(day, compact: true) }
                     }
                     .padding(.horizontal, 4)
 

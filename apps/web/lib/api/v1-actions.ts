@@ -21,6 +21,7 @@ import { getSharedLibrary, getSharedRecipeDetail } from "@/lib/services/library-
 import { splitIngredientsText, parseStepsText } from "@/lib/recipe-parser";
 import * as pantry from "@/app/actions/pantry";
 import * as deliveries from "@/app/actions/deliveries";
+import * as dinner from "@/app/actions/dinner-reminders";
 import * as meals from "@/app/actions/meals";
 import * as notesActions from "@/app/actions/notes";
 import * as taste from "@/app/actions/taste-profile";
@@ -137,6 +138,11 @@ export const actions: Record<string, Handler> = {
   // ── Deliveries ────────────────────────────────────────────────────────────
   "deliveries.overview": () => deliveries.getDeliveryOverview(),
   "deliveries.weekPanel": (_s, [week]) => deliveries.getWeekDeliveryPanel(str(week)),
+
+  // ── Dinner times on the planner (dinner-time-chip.tsx) ────────────────────
+  "dinner.week": (_s, [week, recipeIds]) => dinner.getWeekDinnerSchedule(str(week), ids(recipeIds ?? [])),
+  "dinner.setTime": (_s, [date, time]) => dinner.setDayDinnerTime(str(date), optStr(time) ?? null),
+  "dinner.setReminder": (_s, [date, on]) => dinner.setDayDinnerReminder(str(date), z.boolean().parse(on)),
   "deliveries.setReminders": (_s, [on]) => deliveries.setMyDeliveryReminders(z.boolean().parse(on)),
   "deliveries.saveSettings": (_s, [input]) => deliveries.saveDeliverySettings(obj(input) as never),
   "deliveries.addAway": (_s, [input]) => deliveries.addAwayPeriod(obj(input) as never),

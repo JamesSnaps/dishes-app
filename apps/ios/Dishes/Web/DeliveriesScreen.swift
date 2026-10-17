@@ -264,7 +264,7 @@ struct DeliveriesScreen: View {
 }
 
 /// Slot, total and reference for an order — saving marks it ordered.
-private struct OrderSheet: View {
+struct OrderSheet: View {
     @Environment(\.dismiss) private var dismiss
     let day: DeliveryOverview.Day
     var saved: () async -> Void

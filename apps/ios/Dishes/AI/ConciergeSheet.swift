@@ -5,6 +5,7 @@
 // AI key, so this needs a connection.
 //
 //   .sheet { ConciergeSheet { recipeId in path.append(recipeId) } }
+//   .sheet { ConciergeSheet(photo: image) { … } }   // straight to reading a photo
 
 import DishesCore
 import PhotosUI
@@ -14,6 +15,8 @@ import UIKit
 struct ConciergeSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    /// A photo of a recipe to read in at once (New Recipe → From a photo).
+    var photo: UIImage? = nil
     /// The new recipe, once it has synced down.
     var created: (String) -> Void
 
@@ -79,7 +82,10 @@ struct ConciergeSheet: View {
                 picked = nil
             }
         }
-        .task { configured = (try? await app.api.aiStatus())?.configured }
+        .task {
+            configured = (try? await app.api.aiStatus())?.configured
+            if configured != false, let photo, stage == .asking { await readPhoto(photo) }
+        }
     }
 
     private var isBusy: Bool {

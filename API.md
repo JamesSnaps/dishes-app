@@ -694,7 +694,7 @@ the proxy headers, making `/api/v1` bearer-only in practice.
 
 ### `GET /api/v1/members`
 
-The household's active members, by name. Cook history keys "who ate it"
+The household's active members, by name, with each one's `avatarUrl` (or null). Cook history keys "who ate it"
 (`cookedFor`) and per-person ratings (`memberRatings`) on display names, so a
 client needs these to offer them.
 
@@ -809,6 +809,7 @@ The per-action adapters are in `apps/web/lib/api/v1-actions.ts`.
 |---|---|
 | `pantry` | `list`, `addStaple`, `removeStaples`, `addStock`, `removeStock`, `updateStock`, `addCheckedFromList` |
 | `deliveries` | `overview`, `weekPanel`, `setReminders`, `saveSettings`, `addAway`, `updateAway`, `removeAway`, `set`, `saveOrder` |
+| `dinner` (the planner's dinner-time chip) | `week` — `[weekStartDate, recipeIds]` → each day's dinner time and per-recipe start estimates; `setTime` — `[date, "HH:MM" \| null]`; `setReminder` — `[date, on]` |
 | `meals` (saved meals) | `list`, `create`, `update`, `delete`, `saveFromGroup`, `updateFromGroup` |
 | `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear` |
 | `ai` | `improve`, `refine`, `heartHealthy`, `applyTweak`, `saveTweakAsCopy`, `estimateNutrition`, `similar`, `sides`, `recipeImage`, `suggestMealComponents`, `config`, `saveConfig` |
@@ -817,12 +818,6 @@ The per-action adapters are in `apps/web/lib/api/v1-actions.ts`.
 | `notes` | `list`, `create`, `update`, `delete` |
 | `share` · `library` | recipe links (`tokens`, `recipeTokens`, `create`, `revoke`, `email`) and shared libraries (`list`, `browse`, `recipe`, `create`, `updateScope`, `rotate`, `revoke`, `leave`, `redeem`, `import`) |
 | `household` | `get`, `rename`, `addMember`, `setRole`, `removeMember`, `setPreferences` |
-
-### `POST /api/v1/import/crumb/preview` · `POST /api/v1/import/crumb`
-
-The Crumb importer with a bearer token: multipart `files` (`.crumb` or a
-`.zip`) → the recipes found; then `{ sessionId | fullData, indices }` imports
-the chosen ones. Same handlers as `/api/import/crumb/*`.
 
 ### The browser door: `/api/web/*`
 
