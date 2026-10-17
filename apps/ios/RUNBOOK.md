@@ -83,6 +83,11 @@ xcodebuild -project Dishes.xcodeproj -scheme Dishes -destination 'platform=iOS,n
 xcrun devicectl device install app --device '<device name>' build/device/Build/Products/Debug-iphoneos/Dishes.app
 ```
 
+When an entitlement is added (Push Notifications in v1.32.0), the cached
+profile lacks it, and `xcodebuild` started outside Xcode fails with "No
+Accounts" even though Xcode is signed in. Press Run once in Xcode with the
+device selected; it regenerates the profile, and command-line builds work again.
+
 ## Things worth knowing
 
 - **Week keys are local dates.** Meal plans are keyed `yyyy-MM-dd` on the
@@ -297,3 +302,5 @@ the web's design rather than stock iOS styling:
   changes" off, the next change arrived with no banner.
 - **Tapping a notification to open its tab not confirmed**: the banner is gone
   before a simulated tap lands. Try it on the iPad.
+- **On James's iPad Pro (device build, production server):** notifications
+  work: permission, the test send and household notifications all arrive.
