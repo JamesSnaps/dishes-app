@@ -219,3 +219,45 @@ export async function apnsDevicesFor(householdId: string, users?: string[]): Pro
   const rows = await db.select().from(apnsDevices).where(eq(apnsDevices.householdId, householdId));
   return users ? rows.filter((d) => users.includes(d.autheliaUser)) : rows;
 }
+
+/**
+ * Update or end a Live Activity started on a device, by its activity push
+ * token. `contentState` must match the activity's ContentState in the app
+ * (apps/ios/Shared). Answers false when Apple says the token is gone.
+ */
+export async function sendLiveActivity(
+  token: string,
+  environment: string,
+  event: "update" | "end",
+  contentState: Record<string, unknown>,
+  options: { staleDate?: number; dismissalDate?: number } = {}
+): Promise<boolean> {
+  if (!apnsConfigured()) return false;
+  const env: Environment = environment === "sandbox" ? "sandbox" : "production";
+  try {
+    const jwt = await providerToken();
+    const now = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      aps: {
+        timestamp: now,
+        event,
+        "content-state": contentState,
+        ...(options.staleDate ? { "stale-date": Math.floor(options.staleDate / 1000) } : {}),
+        ...(options.dismissalDate ? { "dismissal-date": Math.floor(options.dismissalDate / 1000) } : {}),
+      },
+    });
+    const res = await post(env, token, {
+      authorization: `bearer ${jwt}`,
+      "apns-topic": `${topic()}.push-type.liveactivity`,
+      "apns-push-type": "liveactivity",
+      "apns-priority": "10",
+    }, body);
+    if (res.status === 200) return true;
+    if (res.status === 410 || (res.reason && GONE_REASONS.has(res.reason))) return false;
+    console.error(`[apns] live activity ${event} failed: status=${res.status} reason=${res.reason ?? "?"}`);
+    return true;
+  } catch (err) {
+    console.error("[apns] live activity error:", err instanceof Error ? err.message : err);
+    return true;
+  }
+}

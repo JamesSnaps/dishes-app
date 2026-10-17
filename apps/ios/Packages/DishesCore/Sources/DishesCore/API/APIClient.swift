@@ -380,4 +380,37 @@ public final class APIClient: SyncTransport, Sendable {
         struct Reply: Decodable { var date: String }
         _ = try await request("/deliveries/ordered", method: "POST", json: Body(date: date), as: Reply.self)
     }
+
+    // MARK: Meal schedule
+
+    /// A planned meal's schedule as clock times (epoch ms), for the Live Activity.
+    public struct MealClock: Decodable, Sendable {
+        public struct Cue: Decodable, Sendable {
+            public var id: String
+            public var at: Double
+            public var dish: String?
+            public var text: String
+        }
+        public var groupId: String
+        public var title: String
+        public var serveAt: Double
+        public var cues: [Cue]
+    }
+
+    public func mealClock(groupId: String) async throws -> MealClock {
+        try await request("/meal-plan/groups/\(groupId)/clock")
+    }
+
+    /// Hands a meal-schedule Live Activity's push token to the server, which
+    /// then keeps it current. 204, no body.
+    public func registerLiveActivity(groupId: String, token: String, sandbox: Bool) async throws {
+        struct Body: Encodable { var groupId: String; var token: String; var environment: String }
+        let body = try JSONEncoder().encode(Body(groupId: groupId, token: token, environment: sandbox ? "sandbox" : "production"))
+        _ = try await send { bearer in
+            var r = authorisedRequest(url("/live-activities"), method: "POST", token: bearer)
+            r.httpBody = body
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+    }
 }

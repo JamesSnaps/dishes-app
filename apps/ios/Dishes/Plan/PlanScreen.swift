@@ -56,7 +56,8 @@ struct PlanScreen: View {
             .navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }
             .navigationDestination(for: MealLink.self) { link in
                 if let meal = data.value.meals(on: link.day, in: link.week).first(where: { $0.id == link.id }) {
-                    MealDetailView(meal: meal, delete: delete, cook: cook)
+                    MealDetailView(meal: meal, isToday: Calendar.current.isDateInToday(link.week.day(link.day)),
+                                   delete: delete, cook: cook)
                 } else {
                     EmptyBox(message: "This meal isn’t on the plan any more")
                 }
@@ -710,14 +711,38 @@ struct MealGroupCard: View {
 /// A combined meal's page, from the whole-week grid: the meal card as the day
 /// view shows it, with Cook starting every dish together.
 struct MealDetailView: View {
+    @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var width
     let meal: PlannedMeal
+    let isToday: Bool
     let delete: (MealPlanEntry) -> Void
     let cook: (PlannedMeal) -> Void
+    @State private var onLockScreen = false
+    @State private var starting = false
 
     var body: some View {
         ScrollView {
-            MealGroupCard(meal: meal, delete: delete, cook: cook)
+            VStack(alignment: .leading, spacing: 14) {
+                MealGroupCard(meal: meal, delete: delete, cook: cook)
+                // Tonight's schedule, step by step on the Lock Screen.
+                // The serve-at time may come from the day's dinner time, which
+                // only the server knows, so it's asked for when tapped.
+                if isToday {
+                    if onLockScreen {
+                        Button { Task { await toggleLockScreen() } } label: {
+                            Label("Remove from Lock Screen", systemImage: "lock.slash")
+                        }
+                        .buttonStyle(.outline)
+                    } else {
+                        Button { Task { await toggleLockScreen() } } label: {
+                            Label(meal.serveAt.map { "Show schedule on Lock Screen · ready \($0)" } ?? "Show schedule on Lock Screen",
+                                  systemImage: "lock.iphone")
+                        }
+                        .buttonStyle(.gradient(.orangeRose))
+                        .disabled(starting)
+                    }
+                }
+            }
                 .padding(.horizontal, width == .regular ? 32 : 16)
                 .padding(.vertical, 18)
                 .frame(maxWidth: 760)
@@ -726,6 +751,23 @@ struct MealDetailView: View {
         .background(Theme.background)
         .navigationTitle(meal.title ?? "Meal")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { onLockScreen = MealScheduleActivity.shared.isShowing(meal.id) }
+    }
+
+    private func toggleLockScreen() async {
+        if onLockScreen {
+            MealScheduleActivity.shared.end(meal.id)
+            onLockScreen = false
+            return
+        }
+        starting = true
+        defer { starting = false }
+        if let problem = await MealScheduleActivity.shared.start(groupId: meal.id) {
+            app.toast = problem
+        } else {
+            onLockScreen = true
+            app.toast = "On the Lock Screen until it’s served."
+        }
     }
 }
 

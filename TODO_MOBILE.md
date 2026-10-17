@@ -543,7 +543,7 @@ don't exist there.
   expanded, Lock Screen). The AlarmKit countdown needs a real device — the
   simulator refuses AlarmKit. No App Group needed yet: ActivityKit carries the
   state; Home Screen widgets will need one
-- [ ] **Live Activity — meal schedule.** The serve-at timeline (v1.18) as a
+- [x] **Live Activity — meal schedule.** (v1.33.0: started from the meal page; the server keeps it current over APNs. Push-to-start from the dinner reminder is still to do.) The serve-at timeline (v1.18) as a
   countdown across the whole meal: "Potatoes in at 18:05 · serve 18:45".
   Started remotely by the dinner-reminder push (ActivityKit push-to-start
   tokens, via C5), so it's on the Lock Screen before the app is opened
@@ -634,7 +634,7 @@ numbers worth having in Health.
   Settings → Notifications on the web and in the app)
 - [x] Silent "sync now" push: every alert carries `content-available`, and
   members who've turned a kind off get a background push instead
-- [ ] Notification actions: snooze a dinner reminder, open cooking mode
+- [x] Notification actions: Push back 30 min and Start cooking on a dinner reminder, Mark as ordered on a delivery reminder (v1.33.0)
 
 ### C6. Distribution
 

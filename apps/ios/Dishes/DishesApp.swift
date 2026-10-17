@@ -23,7 +23,9 @@ struct DishesApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: AppModel.shared.syncSoon(after: .zero)
+            case .active:
+                AppModel.shared.syncSoon(after: .zero)
+                Task { await MealScheduleActivity.shared.refresh() }
             case .background: BackgroundRefresh.schedule()
             default: break
             }
