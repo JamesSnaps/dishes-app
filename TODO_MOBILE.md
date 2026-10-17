@@ -638,7 +638,7 @@ numbers worth having in Health.
 
 ### C6. Distribution
 
-- [ ] Development installs on family phones first (`devicectl`, as Keepsake's
+- [x] TestFlight: `apps/ios/scripts/testflight.sh` (first build 1.36.0, 17 Oct 2026). Development installs on family phones first (`devicectl`, as Keepsake's
   runbook), then TestFlight for anyone not plugged into the Mac
 - [ ] App icon from `setup_guide/dishes-icon.png`, launch colour matching the
   web theme

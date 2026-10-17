@@ -88,6 +88,28 @@ profile lacks it, and `xcodebuild` started outside Xcode fails with "No
 Accounts" even though Xcode is signed in. Press Run once in Xcode with the
 device selected; it regenerates the profile, and command-line builds work again.
 
+## TestFlight
+
+```bash
+apps/ios/scripts/testflight.sh            # archive (Release, app + widgets) and upload
+UPLOAD=0 apps/ios/scripts/testflight.sh   # archive and export an .ipa only
+```
+
+- Run it from your own terminal: it signs with the Apple account in Xcode
+  (team C729B84RYG, automatic signing), which a sandboxed shell can't see.
+- The build number is the UTC time (`yyyymmddHHMM`); the version is
+  `MARKETING_VERSION` in `project.yml`.
+- Needs the app in App Store Connect once: Apps → ＋ → New App, iOS, bundle id
+  `uk.collco.dishes`. Export compliance is answered in Info.plist
+  (`ITSAppUsesNonExemptEncryption` false).
+- **Internal testing** (people on the team in App Store Connect): no review.
+  **External** testers need Beta App Review the first time, with a sign-in
+  they can use (an Authelia account).
+- TestFlight builds are Release: the real server only, no Developer menu, push
+  in APNs production (the device reports which, so the server copes with both).
+- Privacy manifest: `Dishes/Resources/PrivacyInfo.xcprivacy` (no tracking;
+  UserDefaults, CA92.1).
+
 ## Things worth knowing
 
 - **Week keys are local dates.** Meal plans are keyed `yyyy-MM-dd` on the
