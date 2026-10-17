@@ -30,6 +30,7 @@ class DishesSyncDB extends Dexie {
   mealPlanEntries!: Table<SyncRecord, string>;
   mealPlanGroups!: Table<SyncRecord, string>;
   cookHistory!: Table<SyncRecord, string>;
+  meals!: Table<SyncRecord, string>;
   meta!: Table<{ key: string; value: string }, string>;
   queue!: Table<QueuedMutation, string>;
 
@@ -53,8 +54,28 @@ class DishesSyncDB extends Dexie {
     this.version(2)
       .stores({ mealPlanGroups: "id, mealPlanId" })
       .upgrade(async (tx) => {
+        // The collections as of v1 — later tables don't exist yet here.
+        for (const collection of [
+          "recipes",
+          "shoppingLists",
+          "shoppingItems",
+          "mealPlans",
+          "mealPlanEntries",
+          "cookHistory",
+        ]) {
+          await tx.table(collection).clear();
+        }
+        await tx.table("meta").delete(CURSOR_KEY);
+      });
+
+    // v3 adds saved meals. The server logs every existing meal once when the
+    // trigger migration lands, but a store that pulled past that point before
+    // it had a table to put them in skipped them — so resnapshot, as for v2.
+    this.version(3)
+      .stores({ meals: "id, title" })
+      .upgrade(async (tx) => {
         for (const collection of SYNC_COLLECTIONS) {
-          if (collection === "mealPlanGroups") continue;
+          if (collection === "meals") continue;
           await tx.table(collection).clear();
         }
         await tx.table("meta").delete(CURSOR_KEY);

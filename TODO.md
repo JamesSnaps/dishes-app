@@ -207,9 +207,11 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 
 ---
 
-## Future — Mobile App (Expo / React Native)
+## Mobile App
 
-Pre-work required before starting `/apps/mobile`:
+Superseded by `TODO_MOBILE.md`, which tracks the native app (SwiftUI, in
+`apps/ios`, started 16 Oct 2026). The items below are the original pre-work
+list, kept for history:
 
 - [ ] **Auth for native**: `getAutheliaUser()` reads reverse-proxy headers — won't work for a native app hitting the server directly. Design a mobile auth flow, likely extending the existing household-scoped integration token system (see `lib/integration-auth.ts`). Authelia OIDC is an option too.
 - [ ] **Complete the shopping REST API**: `clearChecked`, `archiveList`, and `generateFromRecipe` are still server actions with no JSON endpoint. A native app needs these as proper REST routes alongside the existing `/api/shopping/*` routes added in v0.21.0.

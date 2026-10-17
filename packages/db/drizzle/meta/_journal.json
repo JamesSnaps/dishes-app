@@ -43,6 +43,13 @@
       "when": 1792281600000,
       "tag": "0041_delivery_min_order",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792368000000,
+      "tag": "0042_sync_saved_meals",
+      "breakpoints": true
     }
   ]
 }

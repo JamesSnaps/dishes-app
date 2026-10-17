@@ -1124,9 +1124,14 @@ Query: `cursor` (opaque, from a previous response), `limit` (default 200, max 10
   "changes": {
     "recipes": [ { "id": "…", "title": "…", "ingredients": [], "steps": [], "tags": [] } ],
     "shoppingLists": [], "shoppingItems": [],
-    "mealPlans": [], "mealPlanEntries": [], "cookHistory": []
+    "mealPlans": [], "mealPlanEntries": [], "mealPlanGroups": [], "cookHistory": [],
+    "meals": [ { "id": "…", "title": "Sunday roast", "notes": null, "defaultMealType": "dinner",
+                 "slots": [ { "id": "…", "role": "main", "label": "Meat", "position": 0, "allowMultiple": false,
+                              "options": [ { "id": "…", "position": 0, "isDefault": true,
+                                             "recipe": { "id": "…", "title": "Roast chicken", "thumbnailUrl": null,
+                                                         "imageUrl": null, "prepTimeMinutes": 15, "cookTimeMinutes": 90 } } ] } ] } ]
   },
-  "deleted": { "recipes": ["uuid"], "shoppingLists": [], "shoppingItems": [], "mealPlans": [], "mealPlanEntries": [], "cookHistory": [] }
+  "deleted": { "recipes": ["uuid"], "shoppingLists": [], "shoppingItems": [], "mealPlans": [], "mealPlanEntries": [], "mealPlanGroups": [], "cookHistory": [], "meals": [] }
 }
 ```
 
@@ -1142,7 +1147,10 @@ Notes on semantics:
 
 - **Granularity is the aggregate root.** Editing an ingredient, step or tag
   produces a `recipe` change carrying the whole recipe. Clients replace the
-  recipe rather than reconciling child rows.
+  recipe rather than reconciling child rows. Saved meals (`meals`) work the
+  same way: a change to any slot or option arrives as the whole meal. A slot
+  whose recipes were all deleted is left out. The embedded `recipe` summary is
+  for display; look the recipe up in `recipes` for anything more.
 - **Deleting a parent does not list its children.** Deleting a shopping list
   emits one `shoppingLists` tombstone, not one per item; same for a meal plan
   and its entries, and a recipe and its ingredients. Cascade locally.
@@ -1196,8 +1204,12 @@ Supported `type` values:
 | `meal_plan_entry.add` | `weekStartDate`, `recipeId`, `dayOfWeek`, `mealType` |
 | `meal_plan_entry.update` | `entryId` + any of `dayOfWeek`, `mealType`, `servings`; `weekStartDate` (with `dayOfWeek`) moves it to another week |
 | `meal_plan_entry.delete` | `entryId` |
+| `meal_plan_group.add` | `weekStartDate`, `title`, `dayOfWeek`, `mealType`, plus `components` (`{recipeId, role}[]`) and/or `entries` (`{entryId, role}[]`); optional `sourceMealId`, `servings`, `rememberChoices` |
+| `meal_plan_group.add_from_meal` | `mealId`, `weekStartDate`, `dayOfWeek`; optional `mealType` (default: the meal's own), `optionIds` (chosen options across all slots — omit for each slot's defaults; a slot with none listed is left out), `servings`. Returns the new group's `id`; the group and its entries arrive in the next pull. The choices become the saved meal's next defaults, as on the web |
+| `meal_plan_group.update` | `groupId` + any of `title`, `dayOfWeek`, `mealType`, `servings` |
+| `meal_plan_group.delete` | `groupId`; `keepRecipes` leaves its recipes on the plan as separate meals |
 
-Recipe edits are deliberately absent: they are rare offline and much larger to
+Recipe and saved-meal edits are deliberately absent: they are rare offline and much larger to
 merge. Create and edit recipes through `/api/v1/recipes` while connected.
 
 Conflict policy is last-write-wins at whole-entity granularity — the shape that

@@ -1,0 +1,78 @@
+# XcodeGen spec for the Dishes iOS app. The .xcodeproj is generated from this
+# file and not committed:
+#
+#   brew install xcodegen
+#   cd apps/ios && xcodegen generate && open Dishes.xcodeproj
+#
+# Targets, capabilities and Info.plist keys live here so they show up in diffs.
+# Layout and habits follow Keepsake's iOS app (~/Github/keepsake/apps/ios).
+name: Dishes
+options:
+  bundleIdPrefix: uk.collco
+  deploymentTarget:
+    iOS: "26.1"
+  createIntermediateGroups: true
+  developmentLanguage: en-GB
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # Keep in step with "version" in apps/web/package.json (one version for the product).
+    MARKETING_VERSION: "1.25.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # James Collard's individual membership, as Keepsake: a personal app, kept off
+    # the Snapdragons company team.
+    DEVELOPMENT_TEAM: C729B84RYG
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+
+packages:
+  DishesCore:
+    path: Packages/DishesCore
+
+targets:
+  Dishes:
+    type: application
+    platform: iOS
+    sources:
+      - path: Dishes
+    dependencies:
+      - package: DishesCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.collco.dishes
+        # iPhone and iPad from the first commit: most cooking happens on the iPad
+        # (TODO_MOBILE.md, C1).
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: Dishes/Info.plist
+      properties:
+        CFBundleDisplayName: Dishes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        ITSAppUsesNonExemptEncryption: false
+        # OIDC redirect: dishes://auth/callback (Authelia client dishes-mobile).
+        CFBundleURLTypes:
+          - CFBundleURLName: uk.collco.dishes.auth
+            CFBundleURLSchemes: [dishes]
+        # Server for this build. Debug builds can override it in the Developer menu.
+        DishesAPIBase: https://dishes.collardserver.co.uk
+        # Plain http to the Mac's dev server (Debug builds' Developer menu). Doesn't
+        # loosen anything for internet hosts.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # fetch: BGAppRefreshTask. remote-notification: silent "sync now" pushes (C5).
+        UIBackgroundModes: [fetch, remote-notification]
+        BGTaskSchedulerPermittedIdentifiers: [uk.collco.dishes.refresh]

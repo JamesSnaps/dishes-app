@@ -52,6 +52,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Client API** — a separate `/api/v1` JSON API for Dishes' own clients, authenticated as a specific household member rather than as an anonymous household token. Recipes, the full shopping list, and the meal planner (week view, assigning and moving meals, per-meal and whole-week shopping generation) are covered today; it is the groundwork for a native iOS app and for offline writes beyond the shopping list
 - **Delta sync** — `/api/v1/sync` gives a client everything that changed since its last cursor, and accepts a batch of queued offline mutations back. Backed by a database-trigger change log, so every write is captured — including deletes, and anything done outside the app — and the cursor is a sequence number rather than a timestamp, so there is no clock skew to reason about. This is the foundation for local-first reads on both the PWA and a native app
 - **PWA & offline** — installable on mobile; a service worker (Serwist) precaches the app shell and caches pages as you visit them, so the app launches and switches between sections even on poor or no signal instead of hanging. The shopping list works fully offline — changes queue locally and sync automatically when you reconnect. Unconfirmed local changes always win over a server refresh, so ticking items off in a shop and switching between apps can't revert them. Shopping and meal plan refresh on resume (reopening the app re-fetches when online), and the shopping cache also refreshes via Periodic Background Sync where the browser supports it (Chrome/Android & desktop; iOS has no PWA background execution). A global offline indicator shows when you lose signal, opening an unvisited route offline lands on a friendly offline page instead of hanging, and the app auto-recovers from stale-chunk errors after a redeploy. Home-screen shortcuts jump straight to Shopping, Meal Plan, or the AI concierge, and recipe photos are cached for ~30 days so recipes stay readable (with images) offline
+- **iPhone and iPad app (in development)** — a native SwiftUI app in `apps/ios` that keeps the household's recipes, meal plan and shopping list on the device and syncs through `/api/v1/sync`, so it works with no signal. Tick off and add shopping items offline, page through weeks without a network, and read recipes with serving scaling; on iPad, recipes show ingredients beside the method. Signs in with the same Authelia account through the `dishes-mobile` OIDC client. See [apps/ios/RUNBOOK.md](apps/ios/RUNBOOK.md) to build and run it, and [TODO_MOBILE.md](TODO_MOBILE.md) for what's next
 
 ---
 
@@ -77,7 +78,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 ```
 /apps
   /web          Next.js web application
-  /mobile       future — Expo / React Native
+  /ios          native iPhone + iPad app (SwiftUI) — see apps/ios/RUNBOOK.md
 
 /packages
   /ui           shared shadcn/ui components
@@ -311,7 +312,7 @@ mc anonymous set download dishes/dishes   # for public image URLs
 
 The app exposes a JSON API for external tools. Full documentation: [API.md](API.md).
 
-> Dishes has two APIs. `/api/integrations` (below) is for external automation and authenticates with household-scoped tokens. `/api/v1` is the **client API** used by Dishes' own clients — it resolves a specific household member, via Authelia proxy headers in the browser or an OIDC access token from a native app, and is the foundation for the planned native iOS app. See [API.md](API.md), [Authelia OIDC](#authelia-oidc-for-native-clients) and [TODO_MOBILE.md](TODO_MOBILE.md).
+> Dishes has two APIs. `/api/integrations` (below) is for external automation and authenticates with household-scoped tokens. `/api/v1` is the **client API** used by Dishes' own clients — it resolves a specific household member, via Authelia proxy headers in the browser or an OIDC access token from a native app, and is what the native iOS app (`apps/ios`) uses. See [API.md](API.md), [Authelia OIDC](#authelia-oidc-for-native-clients) and [TODO_MOBILE.md](TODO_MOBILE.md).
 
 Tokens are created at **Settings → Integrations** (admin only). Each token carries granular scopes and is rate-limited at 100 requests/minute via Redis. The same page documents every endpoint with examples and has a Try-it console.
 
