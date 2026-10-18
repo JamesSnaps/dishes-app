@@ -267,15 +267,45 @@ final class AppModel {
     }
 
     /// A local change, queued for the server. The screen updates at once from
-    /// the optimistic write; the push follows shortly.
-    func mutate(_ type: String, payload: JSONValue, optimistic: [OptimisticChange] = []) async {
+    /// the optimistic write; the push follows shortly. False if it couldn't be
+    /// saved on the device.
+    @discardableResult
+    func mutate(_ type: String, payload: JSONValue, optimistic: [OptimisticChange] = []) async -> Bool {
         do {
             try await engine.mutate(type, payload: payload, optimistic: optimistic)
             status.pending = (try? await store.read { try $0.pendingCount() }) ?? status.pending
             syncSoon()
+            return true
         } catch {
             toast = "Couldn’t save that change on this device."
+            return false
         }
+    }
+
+    /// One item onto the active shopping list, offline-first: the shopping
+    /// screen's add card and the Siri / Shortcuts intent both come here.
+    @discardableResult
+    func addShoppingItem(_ name: String, amount: String? = nil, unit: String? = nil, category: String? = nil) async -> Bool {
+        let data = try? await store.read(ShoppingData.load)
+        let list = data?.list
+        let position = (data?.all.map(\.position).max() ?? 0) + 1
+        // The server keeps a client-made id (AddItemInput.id), so the row
+        // written here is the row the server will have.
+        let id = UUID().uuidString.lowercased()
+        let record = JSONValue.fields([
+            "id": .string(id), "listId": .string(list?.id ?? "pending"), "ingredientName": .string(name),
+            "isChecked": .bool(false), "position": .number(Double(position)),
+            "amount": amount.map(JSONValue.string), "unit": unit.map(JSONValue.string),
+            "category": category.map(JSONValue.string),
+        ])
+        return await mutate("shopping_item.add",
+                            payload: .fields(["id": .string(id), "ingredientName": .string(name),
+                                              "listId": list.map { .string($0.id) },
+                                              "amount": amount.map(JSONValue.string),
+                                              "unit": unit.map(JSONValue.string),
+                                              "category": category.map(JSONValue.string)]),
+                            // With no list yet the server makes one, so the row's listId is a guess: temporary.
+                            optimistic: [.put(.shoppingItems, record, temporary: list == nil)])
     }
 
     private func explain(_ failures: [FailedMutation]) {

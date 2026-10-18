@@ -35,6 +35,9 @@ final class AppNav {
     var recipeSearch = ""
     /// A recipe for Recipes to open, which it clears once shown.
     var openedRecipe: String?
+    /// Focus the shopping list's add field, which it clears once done (the
+    /// Control Center control).
+    var focusShoppingAdd = false
     /// The cook in progress, kept while minimised (CookingView, CookingBar).
     private(set) var session: CookSession?
     /// Whether cooking mode is on screen; false while minimised.
@@ -131,6 +134,13 @@ struct RootView: View {
             }
         }
         .task { await tonight.follow(app.store, TonightMeal.load) }
+        // The Control Center control: the shopping list, ready to type.
+        .onChange(of: AppRequests.shared.shoppingAdd, initial: true) { _, wanted in
+            guard wanted else { return }
+            AppRequests.shared.shoppingAdd = false
+            nav.tab = .shopping
+            nav.focusShoppingAdd = true
+        }
         // A tapped notification opens the tab its web path belongs to.
         .onChange(of: Push.shared.openedLink, initial: true) { _, link in
             guard let link else { return }
