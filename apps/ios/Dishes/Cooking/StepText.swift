@@ -88,6 +88,25 @@ struct StepMatch {
         return text
     }
 
+    /// The instruction as one Text, each name bold and dotted-underlined (the
+    /// web's tooltip chips) and tagged with `IngredientTag`, so a tap can be
+    /// traced back to its ingredient through the text's layout.
+    func text(color: Color) -> Text {
+        var pieces: [Text] = []
+        var cursor = instruction.startIndex
+        for span in spans where span.range.lowerBound >= cursor {
+            if cursor < span.range.lowerBound { pieces.append(Text(instruction[cursor..<span.range.lowerBound])) }
+            pieces.append(Text(instruction[span.range])
+                .bold()
+                .foregroundStyle(color)
+                .underline(pattern: .dot, color: color.opacity(0.7))
+                .customAttribute(IngredientTag(id: span.id)))
+            cursor = span.range.upperBound
+        }
+        if cursor < instruction.endIndex { pieces.append(Text(instruction[cursor...])) }
+        return pieces.reduce(Text(verbatim: "")) { Text("\($0)\($1)") }
+    }
+
     private static let modifiers: Set<String> = [
         "long", "grain", "short", "fresh", "frozen", "dried", "raw", "cooked", "large", "small", "medium",
         "fine", "coarse", "chopped", "diced", "sliced", "minced", "grated", "beaten", "rinsed", "thawed",
@@ -117,5 +136,24 @@ struct StepMatch {
             forms.append(w + "s")
         }
         return Array(Set(forms))
+    }
+}
+
+/// Marks an ingredient's name in a step's Text (see `StepMatch.text`).
+struct IngredientTag: TextAttribute {
+    let id: String
+}
+
+extension Text.Layout {
+    /// The ingredient whose name is under `point`, and that name's frame.
+    func ingredient(at point: CGPoint) -> (id: String, frame: CGRect)? {
+        for line in self {
+            for run in line {
+                guard let tag = run[IngredientTag.self] else { continue }
+                let rect = run.typographicBounds.rect.insetBy(dx: -6, dy: -6)
+                if rect.contains(point) { return (tag.id, run.typographicBounds.rect) }
+            }
+        }
+        return nil
     }
 }
