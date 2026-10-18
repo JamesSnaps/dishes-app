@@ -1,9 +1,10 @@
 {
   "name": "@dishes/web",
-  "version": "1.46.2",
+  "version": "1.46.3",
   "private": true,
   "scripts": {
     "check:share-scope": "tsx scripts/check-share-scope.ts",
+    "check:meal-timeline": "tsx scripts/check-meal-timeline.ts",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

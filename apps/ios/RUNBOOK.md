@@ -761,3 +761,24 @@ the iPhone. Checked on the iPhone 18 Pro simulator: step 3's timer from
 step 4 and step 1's from step 3 both jump back with the timer still
 running. **Not checked:** Go to step inside a meal sequence, the iPad
 timers rail, the banner with two timers at once.
+
+### 18 Oct 2026 — every dish's serving at the one Serve (v1.46.3)
+
+The rest of the lamb problem: nothing made a dish's finishing steps sit at the
+end, and four dishes each ending "Serve" gave four serve cues before the one
+"Serve". Server-side now (lib/meal-timeline.ts): a dish's last step that is
+only serving it (`isServingStep` — "Serve", "Carve and serve", "Garnish with
+…", "Spoon the sauce over … and serve"; anything with cooking, a timer or
+over 10 min keeps its own cue) is folded into the serve cue's `covers`, in
+both the simple schedule and the AI's (whatever time the AI gave it). A dish's
+other finishing last step (carve, slice, plate) can't start until the step
+before it has finished, unless it starts "Meanwhile". The AI prompt says the
+same. The app needed no model change — `MealSequence.steps(of:)` already reads
+the serve cue's covers — only the label: the Serve card read "Prep for 4
+dishes" because covers was checked first (fixed in `CookSession.label` and
+the web's `cueLabel`). Its card lists each dish's serving step under
+"Everything should be ready". Unit-tested (MealSequenceTests
+`serveCueDoesEachDishsServingStep`; web: `pnpm --filter @dishes/web
+check:meal-timeline`). **Not checked** in the simulator or a browser; stored
+and frozen schedules keep their old separate cues until replanned.
+

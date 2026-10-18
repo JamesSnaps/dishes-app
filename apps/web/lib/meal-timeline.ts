@@ -42,6 +42,7 @@ export type TimelineCue = {
    * A combined prep step (AI schedules only): one cue doing the same job for
    * several dishes at once — "Chop 3 onions (2 gravy, 1 stuffing)". The steps
    * it covers have no cue of their own; cooking mode shows each one's text.
+   * The serve cue covers each dish's last step when that is only serving it.
    */
   covers?: CueStep[];
 };
@@ -114,6 +115,63 @@ export function cueText(step: TimelineStepInput): string {
   return first.length > 90 ? `${first.slice(0, 87).trimEnd()}…` : first;
 }
 
+/**
+ * A step whose whole job is bringing the dish to the table — "Serve",
+ * "Garnish with parsley", "Carve and serve", "Spoon the sauce over and serve".
+ * When it's a dish's last step it happens at serving, so it's folded into the
+ * one serve cue rather than being a cue of its own. Deliberately narrow: a
+ * step with any cooking (or a timer) in it keeps its own cue.
+ */
+const SERVING_STEP =
+  /^(?:to serve,?\s+)?(?:serve|plate(?: up)?|dish up|garnish|(?:carve|slice)(?: the [\w -]{1,30})? (?:and|&) serve|spoon .{1,60}\bover\b.*\bserve)\b/i;
+const COOKING_WORDS = /\b(?:bake|roast|cook|simmer|boil|fry|grill|oven|heat|minutes?|mins?|hours?)\b/i;
+
+export function isServingStep(step: TimelineStepInput): boolean {
+  const text = step.instruction.trim();
+  return (
+    SERVING_STEP.test(text) &&
+    !COOKING_WORDS.test(text) &&
+    !step.timerLabel &&
+    (step.durationMinutes ?? 0) <= 10
+  );
+}
+
+/**
+ * A finishing step (carving, slicing, plating, serving) needs what came
+ * before it done: it can't start until the step ahead has finished.
+ */
+const FINISHING_STEP = /\b(?:carve|carving|slice|plate|garnish|serve|serving)\b/i;
+const ALONGSIDE = /^(?:meanwhile|while)\b/i;
+
+function isFinishing(step: TimelineStepInput): boolean {
+  const text = step.instruction.trim();
+  return FINISHING_STEP.test(text) && !ALONGSIDE.test(text);
+}
+
+/** The dishes' last steps that are only serving, in serve-cue order. */
+function servingSteps(dishes: TimelineDishInput[]): CueStep[] {
+  return dishes
+    .map((d, i) => ({ d, i }))
+    .filter(({ d }) => d.steps.length > 0 && isServingStep(d.steps[d.steps.length - 1]!))
+    .sort(
+      (a, b) =>
+        MEAL_ROLES.indexOf(a.d.role) - MEAL_ROLES.indexOf(b.d.role) || a.i - b.i
+    )
+    .map(({ d }) => ({ recipeId: d.recipeId, stepIndex: d.steps.length - 1 }));
+}
+
+/** The one serve cue, doing each dish's serving step. */
+function serveCue(covers: CueStep[]): TimelineCue {
+  return {
+    id: SERVE_CUE_ID,
+    offsetMinutes: 0,
+    recipeId: null,
+    stepIndex: null,
+    text: "Serve",
+    ...(covers.length ? { covers } : {}),
+  };
+}
+
 function stepMinutes(step: TimelineStepInput): number {
   return step.durationMinutes && step.durationMinutes > 0
     ? step.durationMinutes
@@ -134,7 +192,8 @@ export function sortCues(cues: TimelineCue[], dishes: TimelineDishInput[]): Time
 
 /**
  * The simple schedule: each dish's steps back to back, ending as the meal is
- * served, so the longest dish starts first. No AI, always available.
+ * served, so the longest dish starts first. No AI, always available. A dish's
+ * last step that is only serving it is done at the serve cue.
  *
  * It can't know that a two-hour roast needs you for two minutes, so it never
  * overlaps a dish's own steps. It does flag the one clash that ruins a roast:
@@ -143,11 +202,14 @@ export function sortCues(cues: TimelineCue[], dishes: TimelineDishInput[]): Time
 export function autoTimeline(dishes: TimelineDishInput[]): MealTimeline {
   const cues: TimelineCue[] = [];
   const ovenUse: { title: string; temp: number; from: number; to: number }[] = [];
+  const serving = servingSteps(dishes);
 
   for (const dish of dishes) {
-    const total = dish.steps.reduce((n, s) => n + stepMinutes(s), 0);
+    const folded = serving.some((s) => s.recipeId === dish.recipeId);
+    const steps = folded ? dish.steps.slice(0, -1) : dish.steps;
+    const total = steps.reduce((n, s) => n + stepMinutes(s), 0);
     let at = -Math.min(total, MAX_LEAD_MINUTES);
-    dish.steps.forEach((step, i) => {
+    steps.forEach((step, i) => {
       cues.push({
         id: `${dish.recipeId}:${i}`,
         offsetMinutes: at,
@@ -163,7 +225,7 @@ export function autoTimeline(dishes: TimelineDishInput[]): MealTimeline {
     });
   }
 
-  cues.push({ id: SERVE_CUE_ID, offsetMinutes: 0, recipeId: null, stepIndex: null, text: "Serve" });
+  cues.push(serveCue(serving));
 
   const warnings: string[] = [];
   for (let i = 0; i < ovenUse.length; i++) {
@@ -193,6 +255,11 @@ export function autoTimeline(dishes: TimelineDishInput[]): MealTimeline {
  * unknown dishes and steps become plain notes or are dropped, offsets are
  * clamped to before serving, any step the planner forgot is put back where the
  * simple schedule would have it, and there is always exactly one serve cue.
+ *
+ * Each dish's last step, when it's only serving, is part of that serve cue
+ * whatever time the planner gave it; and a dish's other finishing step
+ * (carving, plating) can't start before the step ahead of it has finished —
+ * the lamb isn't carved while it's still in the slow cooker.
  */
 export function reconcileTimeline(
   proposed: {
@@ -206,7 +273,11 @@ export function reconcileTimeline(
   dishes: TimelineDishInput[]
 ): MealTimeline {
   const byId = new Map(dishes.map((d) => [d.recipeId, d]));
-  const seen = new Set<string>();
+  const serving = servingSteps(dishes);
+  const isServing = (recipeId: string | null, stepIndex: number | null) =>
+    serving.some((s) => s.recipeId === recipeId && s.stepIndex === stepIndex);
+  // Serving steps are the serve cue's: never a cue (or part of a combined one) of their own.
+  const seen = new Set<string>(serving.map((s) => `${s.recipeId}:${s.stepIndex}`));
   const cues: TimelineCue[] = [];
   let notes = 0;
   let combos = 0;
@@ -217,6 +288,8 @@ export function reconcileTimeline(
     // A combined prep step: kept only when it really covers two or more real
     // steps not already scheduled; those steps then have no cue of their own.
     if (p.covers?.length) {
+      // Only serving steps (the planner's "plate everything up"): the serve cue does those.
+      if (p.covers.every((c) => isServing(c.recipeId, c.stepIndex))) continue;
       const covers = p.covers
         .filter((c) => {
           const d = byId.get(c.recipeId);
@@ -224,7 +297,8 @@ export function reconcileTimeline(
         })
         .filter((c, i, all) => all.findIndex((o) => o.recipeId === c.recipeId && o.stepIndex === c.stepIndex) === i);
       const text = p.text.trim().slice(0, 140);
-      if (covers.length >= 2 && text) {
+      // A "Serve" that also does real steps isn't a second serve cue: those steps go back in.
+      if (covers.length >= 2 && text && !/^serve\b/i.test(text)) {
         for (const c of covers) seen.add(`${c.recipeId}:${c.stepIndex}`);
         cues.push({ id: `combo:${combos++}`, offsetMinutes: offset, recipeId: null, stepIndex: null, text, covers });
         continue;
@@ -242,6 +316,7 @@ export function reconcileTimeline(
     if (!text) continue;
 
     if (validStep) {
+      if (isServing(recipeId, p.stepIndex)) continue;
       const id = `${recipeId}:${p.stepIndex}`;
       if (seen.has(id)) continue;
       seen.add(id);
@@ -259,20 +334,36 @@ export function reconcileTimeline(
   // A dish's steps happen in order: a step scheduled before the one ahead of it
   // starts with it instead, never before (a combined prep step counts as each
   // step it covers).
+  const cueOf = (recipeId: string, i: number) =>
+    cues.find(
+      (c) =>
+        (c.recipeId === recipeId && c.stepIndex === i) ||
+        c.covers?.some((o) => o.recipeId === recipeId && o.stepIndex === i)
+    );
   for (const dish of dishes) {
     let floor = -Infinity;
     for (let i = 0; i < dish.steps.length; i++) {
-      const cue = cues.find(
-        (c) =>
-          (c.recipeId === dish.recipeId && c.stepIndex === i) ||
-          c.covers?.some((o) => o.recipeId === dish.recipeId && o.stepIndex === i)
-      );
+      const cue = cueOf(dish.recipeId, i);
       if (!cue) continue;
       if (cue.offsetMinutes < floor) cue.offsetMinutes = floor;
       floor = cue.offsetMinutes;
     }
+
+    // Its last step finishes the dish (carve, plate): not until the one before is done.
+    const last = dish.steps.length - 1;
+    const prev = dish.steps[last - 1];
+    if (last >= 1 && prev?.durationMinutes && isFinishing(dish.steps[last]!)) {
+      const cue = cueOf(dish.recipeId, last);
+      const before = cueOf(dish.recipeId, last - 1);
+      if (cue && before && !cue.covers?.length) {
+        cue.offsetMinutes = Math.max(
+          cue.offsetMinutes,
+          Math.min(0, before.offsetMinutes + prev.durationMinutes)
+        );
+      }
+    }
   }
-  cues.push({ id: SERVE_CUE_ID, offsetMinutes: 0, recipeId: null, stepIndex: null, text: "Serve" });
+  cues.push(serveCue(serving));
 
   return {
     cues: sortCues(cues, dishes),
