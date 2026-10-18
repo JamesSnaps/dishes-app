@@ -89,7 +89,7 @@ final class CookSession: Identifiable {
     var cues: [APIClient.MealClock.Cue] {
         guard let clock else { return [] }
         guard let shift = startShift else { return clock.cues }
-        return MealStart.shifted(clock.cues, by: shift.minutes, recipeId: shift.recipeId)
+        return MealStart.kept(clock.cues, by: shift.minutes, recipeId: shift.recipeId, serveAt: clock.serveAt)
     }
 
     /// The same planned meal, or the same dishes in any order: tapping Cook
