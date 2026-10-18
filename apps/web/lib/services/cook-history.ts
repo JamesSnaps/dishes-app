@@ -36,7 +36,7 @@ export class CookHistoryValidationError extends Error {
 const RATING_MIN = 0;
 const RATING_MAX = 10;
 
-function assertRating(rating: number | null | undefined): void {
+export function assertRating(rating: number | null | undefined): void {
   if (rating == null) return;
   if (!Number.isFinite(rating) || rating < RATING_MIN || rating > RATING_MAX) {
     throw new CookHistoryValidationError(
@@ -58,7 +58,7 @@ async function assertEntryOwned(cookId: string, householdId: string): Promise<st
 }
 
 /** Drop blank names and unrated entries; one rating per person (last wins). */
-function cleanMemberRatings(list: MemberRating[] | null | undefined): MemberRating[] | null {
+export function cleanMemberRatings(list: MemberRating[] | null | undefined): MemberRating[] | null {
   if (!list) return null;
   const byName = new Map<string, MemberRating>();
   for (const r of list) {
@@ -80,7 +80,7 @@ function cleanMemberRatings(list: MemberRating[] | null | undefined): MemberRati
  * the taste profile (which all average `rating`) weigh everyone, not just
  * whoever logged the cook. Old entries with no voices keep their single rating.
  */
-function combineVoices(
+export function combineVoices(
   ownName: string | null,
   own: number | null | undefined,
   others: MemberRating[] | null
@@ -97,7 +97,7 @@ function combineVoices(
 }
 
 /** The saving member's display name — their rating is recorded under it. */
-async function memberName(ctx: HouseholdContext): Promise<string | null> {
+export async function memberName(ctx: HouseholdContext): Promise<string | null> {
   const [m] = await db
     .select({ displayName: householdMembers.displayName })
     .from(householdMembers)

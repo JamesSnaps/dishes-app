@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlarmClock, ChefHat, Clock, Pause, Play, RotateCcw, Timer, UtensilsCrossed } from "lucide-react";
 import { Button } from "@dishes/ui";
+import { useMealCook } from "./meal-cooking";
 import {
   formatTimer,
   mealCues,
@@ -14,7 +15,7 @@ import {
 } from "@/components/providers/cook-session-provider";
 
 /** The clock, refreshed every half minute — enough for schedule cues. */
-function useNow(): number {
+export function useNow(): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
@@ -28,7 +29,7 @@ function useNow(): number {
   return now;
 }
 
-function clockOf(epoch: number): string {
+export function clockOf(epoch: number): string {
   return new Date(epoch).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -48,11 +49,16 @@ function useMealSessions(groupId: string): CookSession[] {
   }, [sessions, groupId]);
 }
 
-/** Bring another dish of the meal to the front — no minimising, one tap. */
+/**
+ * Bring another dish of the meal to the front — no minimising, one tap. With
+ * the whole meal loaded (MealCooking) it's instant; otherwise a page change.
+ */
 function useSwitchDish() {
   const router = useRouter();
+  const ctx = useMealCook();
   const { activateSession, setStepIndex } = useCookSession();
   return (recipeId: string, stepIndex?: number | null) => {
+    if (ctx) return ctx.showDish(recipeId, stepIndex);
     activateSession(recipeId);
     if (stepIndex != null) setStepIndex(stepIndex, recipeId);
     router.push(`/recipes/${recipeId}/cook`);
@@ -223,13 +229,20 @@ export function MealTimelinePanel({
 }) {
   const dishes = useMealSessions(groupId);
   const switchTo = useSwitchDish();
+  const ctx = useMealCook();
   const now = useNow();
   const meal = dishes[0]?.meal;
-  const cues: CookCue[] = mealCues(meal);
+  const cues: CookCue[] = ctx?.sequence?.cues ?? mealCues(meal);
   if (!cues.length) return null;
 
   const dishTitle = new Map(dishes.map((d) => [d.recipeId, d.recipeTitle]));
-  const currentId = [...cues].reverse().find((c) => c.at <= now && c.at + CUE_NOW_MS > now)?.id;
+  // Walking the meal as one sequence: your place in it. Otherwise: the clock.
+  const currentId =
+    ctx?.sequence?.cue.id ?? [...cues].reverse().find((c) => c.at <= now && c.at + CUE_NOW_MS > now)?.id;
+  const pick = (cue: CookCue, i: number) => {
+    if (ctx?.sequence) return ctx.goTo(i);
+    if (cue.recipeId) switchTo(cue.recipeId, cue.stepIndex);
+  };
 
   return (
     <div className="shrink-0 px-6 py-5 border-t">
@@ -248,15 +261,15 @@ export function MealTimelinePanel({
         </button>
       </div>
       <ol className="space-y-1">
-        {cues.map((cue) => {
-          const past = cue.at + CUE_NOW_MS <= now;
+        {cues.map((cue, i) => {
+          const past = ctx?.sequence ? i < ctx.sequence.index : cue.at + CUE_NOW_MS <= now;
           const current = cue.id === currentId;
           return (
             <li key={cue.id}>
               <button
                 type="button"
-                disabled={!cue.recipeId}
-                onClick={() => cue.recipeId && switchTo(cue.recipeId, cue.stepIndex)}
+                disabled={!ctx?.sequence && !cue.recipeId}
+                onClick={() => pick(cue, i)}
                 className={`flex w-full items-start gap-2 rounded-lg px-2 py-1 text-left text-xs transition-colors ${
                   current
                     ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"

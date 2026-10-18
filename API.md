@@ -758,6 +758,8 @@ A planned meal's cooking schedule as clock times (epoch ms), in the household's
 timezone: `{ groupId, title, serveAt, cues: [{ id, at, recipeId, stepIndex, dish, text }] }`.
 404 when the meal has no serve-at time (neither its own nor the day's dinner time).
 
+Cues may carry `covers: [{ recipeId, stepIndex }]` — a combined prep step doing several dishes' steps at once — and the reply has `frozen` while a cook is in progress.
+
 ### `POST /api/v1/live-activities` · `DELETE`
 
 Hand over a meal-schedule Live Activity's push token:
@@ -813,8 +815,9 @@ The per-action adapters are in `apps/web/lib/api/v1-actions.ts`.
 | `deliveries` | `overview`, `weekPanel`, `setReminders`, `saveSettings`, `addAway`, `updateAway`, `removeAway`, `set`, `saveOrder` |
 | `planner` | `nutrition` — `[weekStartDate]` → the week's heart-healthy summary, protein targets (heart focus only) and swap suggestions; `swap` — `[entryId, recipeId]`; `groupToShopping` — `[groupId, forceInclude?]` → `{ added, merged, skipped }` |
 | `dinner` (the planner's dinner-time chip) | `week` — `[weekStartDate, recipeIds]` → each day's dinner time and per-recipe start estimates; `setTime` — `[date, "HH:MM" \| null]`; `setReminder` — `[date, on]` |
-| `meals` (saved meals) | `list`, `create`, `update`, `delete`, `saveFromGroup`, `updateFromGroup` |
-| `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear`; `shift` — `[groupId, minutes]` moves the meal's serve time by whole minutes (its own, or that date's dinner time when it follows it), marks cues already due at the new time as sent, and answers the new schedule — cooking mode's "I started earlier, move dinner" |
+| `meals` (saved meals) | `list` (each with `rating`: average, cook count and rated combinations), `create`, `update`, `delete`, `saveFromGroup`, `updateFromGroup` |
+| `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear`; `shift` — `[groupId, minutes]` moves the meal's serve time by whole minutes (its own, or that date's dinner time when it follows it), marks cues already due at the new time as sent, and answers the new schedule — cooking mode's "I started earlier, move dinner" ; `freeze` — `[groupId]` keeps the schedule in use fixed for a cook in progress (24 h), so recipe edits mid-cook don't move cues, pushes or the Live Activity |
+| `mealCooks` | `log` — `[{ groupId, rating?, memberRatings?, cookedFor?, occasion?, notes?, actualDuration?, dishes?: [{ recipeId, rating?, notes? }] }]` → `{ id, cookIds }`: the whole-meal review, one cook entry per dish |
 | `ai` | `improve`, `refine`, `heartHealthy`, `applyTweak`, `saveTweakAsCopy`, `estimateNutrition`, `similar`, `sides`, `recipeImage`, `recipeImageJob` (`[recipeId, style?, instructions?]` → `{ jobId }`, made in the background like the web's Generate image), `suggestMealComponents`, `config`, `saveConfig` |
 | `import` | `parse` — `[ingredientText, methodText]` → `{ ingredients, steps }` |
 | `stats` · `wrapped` · `taste` | `stats.report`, `wrapped.report`, `wrapped.recap`, `taste.get`, `taste.refresh`, `taste.clear` |

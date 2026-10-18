@@ -1,4 +1,5 @@
 import { getMealSchedule } from "@/lib/services/meal-timeline";
+import { isFrozen } from "@/lib/meal-timeline";
 import { getReminderSettings } from "@/lib/dinner-reminders/schedule";
 import { zonedEpoch } from "@/lib/dinner-reminders/time";
 import type { HouseholdContext } from "@/lib/session";
@@ -15,7 +16,11 @@ export interface MealClock {
     stepIndex: number | null;
     dish: string | null;
     text: string;
+    /** A combined prep step: the dishes' steps it does. */
+    covers?: { recipeId: string; stepIndex: number }[];
   }[];
+  /** The schedule is frozen for a cook in progress. */
+  frozen: boolean;
 }
 
 /**
@@ -42,6 +47,8 @@ export async function getMealClock(ctx: HouseholdContext, groupId: string): Prom
       stepIndex: c.stepIndex,
       dish: c.recipeId ? dish.get(c.recipeId) ?? null : null,
       text: c.text,
+      ...(c.covers?.length ? { covers: c.covers } : {}),
     })),
+    frozen: isFrozen(schedule.timeline),
   };
 }

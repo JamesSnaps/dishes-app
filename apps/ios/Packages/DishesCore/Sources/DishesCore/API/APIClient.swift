@@ -472,15 +472,26 @@ public final class APIClient: SyncTransport, Sendable {
             public var stepIndex: Int?
             public var dish: String?
             public var text: String
+            /// A combined prep step (AI schedules): the dishes' steps it does at once.
+            public var covers: [CueStep]?
 
-            public init(id: String, at: Double, recipeId: String?, stepIndex: Int?, dish: String?, text: String) {
+            public init(id: String, at: Double, recipeId: String?, stepIndex: Int?, dish: String?, text: String,
+                        covers: [CueStep]? = nil) {
                 self.id = id; self.at = at; self.recipeId = recipeId; self.stepIndex = stepIndex; self.dish = dish; self.text = text
+                self.covers = covers
             }
+        }
+        public struct CueStep: Codable, Sendable, Hashable {
+            public var recipeId: String
+            public var stepIndex: Int
+            public init(recipeId: String, stepIndex: Int) { self.recipeId = recipeId; self.stepIndex = stepIndex }
         }
         public var groupId: String
         public var title: String
         public var serveAt: Double
         public var cues: [Cue]
+        /// Frozen for a cook in progress (timeline.freeze).
+        public var frozen: Bool?
     }
 
     public func mealClock(groupId: String) async throws -> MealClock {

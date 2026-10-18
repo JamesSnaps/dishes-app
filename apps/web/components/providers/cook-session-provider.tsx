@@ -71,6 +71,14 @@ export interface CookMeal {
    * `mealCues`, which applies it.
    */
   startShift?: { recipeId: string; minutes: number };
+  /**
+   * Where the cook is in the meal's sequence: the id of the cue on screen.
+   * A scheduled meal is cooked as one list of steps across its dishes, in
+   * schedule order; this is the place in it (see meal-sequence.ts).
+   */
+  position?: string;
+  /** "dish" while looking at one dish's whole recipe; the sequence otherwise. */
+  view?: "meal" | "dish";
 }
 
 /** The meal's cues as cooking mode should show them, a kept-dinner start applied. */
@@ -90,6 +98,8 @@ export interface CookCue {
   recipeId: string | null;
   stepIndex: number | null;
   text: string;
+  /** A combined prep step: the dishes' steps it does at once. */
+  covers?: { recipeId: string; stepIndex: number }[];
 }
 
 export interface CookSession {
@@ -278,7 +288,7 @@ function runningTimers(sessions: CookSession[]) {
         endsAt: t.endsAt!,
         title: `${s.recipeTitle} — timer done`,
         body: `Step ${t.stepNumber}${t.label ? ` · ${t.label}` : ""}: ${t.preview}`.slice(0, 200),
-        url: `/recipes/${s.recipeId}/cook`,
+        url: `/recipes/${s.recipeId}/cook${s.meal ? `?meal=${s.meal.groupId}` : ""}`,
       }))
   );
 }
@@ -339,15 +349,18 @@ function mergeStarts(prev: CookSession[], inits: CookSessionInit[]): CookSession
   const byId = new Map(inits.map((i) => [i.recipeId, i]));
   const existing = prev.map((s) => {
     const init = byId.get(s.recipeId);
-    // Re-tag on every meal start: the meal's schedule may have been replanned.
-    // A start kept on this device stays with it.
     if (!init?.meal) return s;
-    const startShift = s.meal?.groupId === init.meal.groupId ? s.meal.startShift : undefined;
-    return { ...s, meal: { ...init.meal, ...(startShift ? { startShift } : {}) } };
+    // Already cooking this meal: keep the meal as it was when the cook began —
+    // its frozen sequence and clock, a kept start, and the place in it — so
+    // opening another dish or coming back from minimised doesn't reshuffle it.
+    if (s.meal?.groupId === init.meal.groupId) return s;
+    return { ...s, meal: init.meal };
   });
+  // A dish joining a meal already cooking takes that meal's tag, not a fresh one.
+  const running = (groupId: string) => prev.find((s) => s.meal?.groupId === groupId)?.meal;
   const fresh = inits
     .filter((i) => !prev.some((s) => s.recipeId === i.recipeId))
-    .map((i) => newSession(i, startedAt));
+    .map((i) => newSession(i.meal ? { ...i, meal: running(i.meal.groupId) ?? i.meal } : i, startedAt));
   return [...fresh, ...existing];
 }
 

@@ -34,6 +34,7 @@ import {
 import { claimReminder } from "@/lib/reminder-claim";
 import {
   autoTimeline,
+  isFrozen,
   parseStoredTimeline,
   reconcileTimeline,
   timelineInputsKey,
@@ -103,6 +104,8 @@ async function resolveServeAt(
  */
 function chooseTimeline(stored: unknown, dishes: TimelineDishInput[]) {
   const saved = parseStoredTimeline(stored);
+  // A cook in progress keeps the schedule it started with, whatever changed since.
+  if (saved && isFrozen(saved)) return { timeline: saved, aiStale: false };
   const current = timelineInputsKey(dishes);
   if (saved && saved.inputsKey === current) return { timeline: saved, aiStale: false };
   return { timeline: autoTimeline(dishes), aiStale: saved?.source === "ai" };
@@ -203,6 +206,25 @@ async function markPassedCuesSent(householdId: string, schedule: MealSchedule): 
   }
 }
 
+/**
+ * Freeze the meal's schedule as a cook of it starts: the one in use now
+ * (simple or AI) is stored with `frozenAt`, so the steps, pushes, Live
+ * Activity and planner all keep to it for this cook. Already frozen today:
+ * kept as it is, so a second device joining the cook gets the same sequence.
+ */
+export async function freezeMealTimeline(ctx: HouseholdContext, groupId: string): Promise<MealSchedule> {
+  const group = await loadGroup(ctx, groupId);
+  const stored = parseStoredTimeline(group.timeline);
+  if (!stored || !isFrozen(stored)) {
+    const schedule = await getMealSchedule(ctx, groupId);
+    await db
+      .update(mealPlanGroups)
+      .set({ timeline: { ...schedule.timeline, frozenAt: Date.now() } })
+      .where(eq(mealPlanGroups.id, groupId));
+  }
+  return getMealSchedule(ctx, groupId);
+}
+
 /** Drop a stored AI schedule; the simple one takes over. */
 export async function clearMealTimeline(ctx: HouseholdContext, groupId: string): Promise<void> {
   await loadGroup(ctx, groupId);
@@ -218,6 +240,7 @@ const aiScheduleSchema = z.object({
       recipeId: z.string().nullable(),
       stepIndex: z.number().int().nullable(),
       text: z.string(),
+      covers: z.array(z.object({ recipeId: z.string(), stepIndex: z.number().int() })).nullable(),
     })
   ),
   warnings: z.array(z.string()),
@@ -232,7 +255,8 @@ Rules:
 - A step may start before the previous step of the same dish has finished only when that previous step is hands-off (roasting, baking, simmering, resting, marinating), and only for preparation that doesn't need it finished.
 - There is one cook and one oven. Avoid two hands-on tasks at the same time where you can. If dishes need different oven temperatures, sequence them or adjust the temperature and add a short note cue when it changes ("Oven up to 220°C").
 - Put food that must rest (roast meat) out of the oven early enough to rest, and use resting time for other work. Keep hot things hot: finish quick vegetables and gravy close to serving.
-- Note cues are extra coordination only: recipeId may be a dish or null, stepIndex null.
+- Note cues are extra coordination only: recipeId may be a dish or null, stepIndex null, covers null.
+- Batch prep where it saves work: when two or more dishes have the same simple preparation (chopping onions, peeling potatoes, crushing garlic, zesting), you may replace those steps with ONE combined cue: recipeId null, stepIndex null, covers listing each { recipeId, stepIndex } it does. Its text says the whole job with amounts per dish, e.g. "Chop 3 onions — 2 for the gravy, 1 for the stuffing". Only combine steps that are purely the same prep; a covered step must not also appear as its own cue. Otherwise covers is null.
 - Cue text is short and imperative, under 80 characters, in the cook's words: "Potatoes in — oven up to 200°C", "Chicken out to rest".
 - warnings: one sentence each for real problems you could not avoid (an oven clash, a dish that can't be held). Empty if none.`;
 

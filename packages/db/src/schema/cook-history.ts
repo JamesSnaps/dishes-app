@@ -11,6 +11,7 @@ import {
 import { relations } from "drizzle-orm";
 import { households } from "./households";
 import { recipes } from "./recipes";
+import { mealCooks } from "./meal-cooks";
 
 export type MemberRating = { name: string; rating: number };
 
@@ -36,6 +37,8 @@ export const cookHistory = pgTable("cook_history", {
   // 0–10 like `rating`, which stays the cook's own overall rating.
   memberRatings: jsonb("member_ratings").$type<MemberRating[]>(),
   source: varchar("source", { length: 20 }).notNull().default("cook"),
+  /** Cooked as part of a whole meal (meal_cooks): its whole-meal review. */
+  mealCookId: uuid("meal_cook_id").references(() => mealCooks.id, { onDelete: "set null" }),
 });
 
 export const cookHistoryRelations = relations(cookHistory, ({ one }) => ({

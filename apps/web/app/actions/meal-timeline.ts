@@ -58,3 +58,9 @@ export async function clearMealTimeline(groupId: string) {
     return timelineService.getMealSchedule(session, groupId);
   }, true);
 }
+
+/** Freeze the schedule for a cook that's starting (see the service). */
+export async function freezeMealTimeline(groupId: string) {
+  const session = await requireSession();
+  return run(() => timelineService.freezeMealTimeline(session, groupId));
+}

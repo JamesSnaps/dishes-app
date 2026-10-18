@@ -3,6 +3,8 @@
 import { ComponentSuggestions } from "@/components/meals/component-suggestions";
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { StarRating } from "@/app/(app)/recipes/[id]/_components/star-rating";
+import type { SavedMealRating } from "@/lib/services/meal-cooks";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -310,6 +312,8 @@ export function MealsManager({
                   </div>
                 </div>
 
+                {meal.rating && <MealRatingSummary rating={meal.rating} />}
+
                 <ul className="mt-3 flex-1 rounded-xl bg-white/70 dark:bg-black/20 divide-y divide-orange-100 dark:divide-orange-950/60 shadow-sm">
                   {meal.slots.map((slot) => (
                     <li key={slot.id} className="flex items-start gap-2 px-2.5 py-2">
@@ -611,6 +615,46 @@ export function MealsManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * How the meal has gone down when cooked as a whole (the meal review): its
+ * average, and — once it's been made more than one way — which combination
+ * of options rated best and worst.
+ */
+function MealRatingSummary({ rating }: { rating: SavedMealRating }) {
+  const combos = rating.combinations;
+  const best = combos[0];
+  const worst = combos.length > 1 ? combos[combos.length - 1] : null;
+  return (
+    <div className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs shadow-sm dark:bg-black/20">
+      <div className="flex items-center gap-2">
+        {rating.average != null ? (
+          <>
+            <StarRating value={rating.average * 2} readonly size="sm" />
+            <span className="font-semibold">{rating.average.toFixed(1)}</span>
+          </>
+        ) : (
+          <span className="text-muted-foreground">Not rated yet</span>
+        )}
+        <span className="text-muted-foreground">
+          · cooked {rating.cookCount} time{rating.cookCount === 1 ? "" : "s"}
+        </span>
+      </div>
+      {best && combos.length > 1 && (
+        <p className="mt-1 text-muted-foreground">
+          <span className="font-semibold text-emerald-700 dark:text-emerald-400">Best {best.average.toFixed(1)}★</span>{" "}
+          {best.titles.join(" + ")}
+        </p>
+      )}
+      {worst && (
+        <p className="mt-0.5 text-muted-foreground">
+          <span className="font-semibold text-amber-700 dark:text-amber-400">Lowest {worst.average.toFixed(1)}★</span>{" "}
+          {worst.titles.join(" + ")}
+        </p>
+      )}
     </div>
   );
 }

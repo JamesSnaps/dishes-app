@@ -5,6 +5,7 @@ export * from "./meal-plans";
 export * from "./integrations";
 export * from "./pantry";
 export * from "./cook-history";
+export * from "./meal-cooks";
 export * from "./collections";
 export * from "./notes";
 export * from "./notifications";
