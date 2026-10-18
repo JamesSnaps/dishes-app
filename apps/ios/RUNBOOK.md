@@ -730,3 +730,11 @@ request replaced it (only the timers survived, being global).
   is drawn at that moment; wait ~1.5 s after opening the fan before tapping
   a card.
 
+### 18 Oct 2026 — one + on the iPhone's Recipes header (v1.46.2)
+
+James found three filled buttons beside "Recipes" untidy on the phone. On
+iPhone it's now one round orange + (as the planner's) with a menu: Write a
+recipe, Photograph a recipe, From a photo…, Create with AI, then Open the
+cookbook. iPad keeps the labelled Cookbook / Create with AI / New Recipe
+buttons. Checked the header on the iPhone 18 Pro Max simulator (the 18 Pro
+was in use by another session); the menu's items weren't tapped through.
