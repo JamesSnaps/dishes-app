@@ -12,6 +12,8 @@ struct NoteRow: Decodable, Sendable, Identifiable, Hashable {
     var updatedAt: String
     var recipeId: String?
     var recipeTitle: String?
+    /// The member who wrote it (nil from servers before v1.45.0).
+    var authorId: String?
 }
 
 struct NotesScreen: View {

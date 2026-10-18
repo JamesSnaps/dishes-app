@@ -620,3 +620,41 @@ job (`lib/services/recipe-image-job.ts`, now shared with
 `/api/recipes/[id]/generate-image`) through `ai.recipeImageJob`; the sheet
 closes at once and the app syncs at ~30/50/80 s to pull the photo down.
 **Not checked:** an actual image (no AI key or storage in dev).
+
+### 18 Oct 2026 — the cookbook, and the iPhone Duo's hinge (v1.45.0)
+
+James wanted a "book mode" for the iPhone Duo: half-folded like a book,
+recipes on one side and photos on the other, page turns, a used family
+cookbook look — stains, and handwriting in several hands and inks.
+
+- `Book/Hinge.swift`: `UIHingeInteraction` (iOS 27.1) reports the hinge's
+  status and angle, not which way it's turned, so the posture comes from the
+  screen's shape: partly open and wider than tall = book, taller = stand.
+  `RootView` opens the cookbook on `.book` and closes it again when the phone
+  is opened flat (only if the hinge opened it).
+- `Book/Cookbook.swift` lays the book out (cover, contents, chapter per
+  cuisine, recipes, notes pages, index), measuring text with UIKit fonts to
+  decide one page or two per recipe. `CookbookPages.swift` draws the pages —
+  its sizes must match the measuring. `Ink.swift`: paper, pens, stains, all
+  seeded from the recipe id so a page always looks the same.
+- Handwriting is iOS's own hands (Bradley Hand, Noteworthy, Snell Roundhand,
+  Marker Felt, Chalkboard) in six inks. Each member's notes are in their own
+  pen — `notes.list` now returns `authorId` — and unsigned cook-review notes
+  get a pen of their own.
+- `PageCurl` wraps `UIPageViewController` (.pageCurl; .scroll with Reduce
+  Motion). A rebuild (new data, folding) keeps your page: the controller is
+  redrawn per `edition`, not per layout key — the key changed before the new
+  book existed, which left the old pages on screen.
+- Recreated the iPhone Duo simulator (iOS 27.1). It boots on a 466×678pt
+  screen; there's no Simulator.app in this Xcode, so it can't be folded from
+  here. **Checked**: cover with the household name, chapter, one-page recipe,
+  photo page with a note in blue felt-tip and "First made" in green
+  copperplate, tallies, heart, stars, flour stains, the long layout (forced
+  for the test) with its drop cap, and — once James unfolded the simulator to
+  its wide inner screen — the two-page spread with the curl over the spine.
+  **Not checked**: the hinge opening the book by itself (half-folded), Reduce
+  Motion, "Cook this" from the book.
+- The status bar stays visible in the book: `.statusBarHidden()` on the Duo
+  gave up the side column the time and signal are drawn in, and the pages
+  slid under them. Hosted pages have `safeAreaRegions = []` so their measured
+  size is exact.

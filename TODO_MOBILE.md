@@ -510,6 +510,13 @@ Standard SwiftUI: `TabView`, `NavigationStack`, sheets, `.searchable`,
   meal, shelves, All/Clear chips) and the tabs are Recipes, Planner, AI
   (the concierge as a tab), Shopping, Settings; Wrapped is a banner on
   Recipes in December and January (v1.39.0, mirrors the web)
+- [x] Cookbook / book mode (`Book/`): the recipes as a page-curl book with
+  stains and handwritten notes, opened from Recipes or by half-folding an
+  iPhone Duo like a book (`UIHingeInteraction`, iOS 27.1) (v1.45.0)
+- [ ] iPhone Duo: unfolded layouts (iPad-style two columns), stand mode for
+  cooking (half-folded with the hinge level), drag a recipe onto a planner day
+- [ ] Cookbook second pass: circled servings, underlined ingredients a note
+  mentions; check a real spread on the Duo
 - [ ] `BGAppRefreshTask` for periodic sync; sync on foreground and on
   reachability change (no polling — the same rule as the web `SyncProvider`)
 

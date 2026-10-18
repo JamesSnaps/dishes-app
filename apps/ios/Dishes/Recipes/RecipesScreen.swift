@@ -105,7 +105,13 @@ struct RecipesScreen: View {
                                    ? "\(recipes.value.count) recipes in your collection"
                                    : "\(shown.count) of \(recipes.value.count) recipes") {
                         HStack(spacing: 8) {
-                            // On iPhone the three buttons are icons, so they fit beside the title.
+                            // On iPhone the buttons are icons, so they fit beside the title.
+                            Button { nav.book = BookRequest(recipeIds: browsing ? nil : shown.map(\.id)) } label: {
+                                headerLabel("Cookbook", "book.closed")
+                                    .background(Color(hex: 0x8B5A2B), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Open as a cookbook")
                             Button { askingAI = true } label: {
                                 headerLabel("Create with AI", "sparkles")
                                     .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))

@@ -223,7 +223,9 @@ export const actions: Record<string, Handler> = {
   "taste.clear": () => taste.clearTasteProfile(),
   "notes.list": (s) =>
     db.select({ id: notes.id, title: notes.title, body: notes.body, updatedAt: notes.updatedAt,
-                recipeId: notes.recipeId, recipeTitle: recipes.title })
+                recipeId: notes.recipeId, recipeTitle: recipes.title,
+                // Who wrote it: the iOS cookbook writes each person's notes in their own pen.
+                authorId: notes.authorId })
       .from(notes).leftJoin(recipes, eq(notes.recipeId, recipes.id))
       .where(eq(notes.householdId, s.householdId)).orderBy(desc(notes.updatedAt)),
   "notes.create": (_s, [fields]) => notesActions.createNote(form(obj(fields))),
