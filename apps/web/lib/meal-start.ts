@@ -62,6 +62,38 @@ export function shiftCues<C extends StartCue>(cues: C[], minutes: number, recipe
   );
 }
 
+/**
+ * "Started early (or late), keep dinner at the same time" for one dish: the
+ * steps already under way move with the start, the ones that finish the dish
+ * stay anchored to serving. The dish's longest stretch — the slow-cooker's
+ * eight hours, the roast in the oven — absorbs the difference, so carving the
+ * lamb still comes just before dinner rather than 40 minutes early.
+ *
+ * The longest stretch is the biggest gap from one of the dish's cues to its
+ * next (the last to `serveAt`); that cue and every one before it are moved.
+ */
+export function keepShift<C extends StartCue>(cues: C[], minutes: number, recipeId: string, serveAt?: number): C[] {
+  if (!minutes) return cues;
+  const own = cues.filter((c) => c.recipeId === recipeId).sort((a, b) => a.at - b.at);
+  if (!own.length) return cues;
+  let split = own.length - 1;
+  let widest = -1;
+  own.forEach((c, i) => {
+    const next = own[i + 1]?.at ?? serveAt ?? c.at;
+    if (next - c.at > widest) {
+      widest = next - c.at;
+      split = i;
+    }
+  });
+  // Starting late can't squeeze the long stretch below nothing.
+  const room = Math.max(0, widest) / 60_000;
+  const move = minutes > 0 ? Math.min(minutes, room) : minutes;
+  const moved = new Set(own.slice(0, split + 1).map((c) => c.id));
+  return cues
+    .map((c) => (moved.has(c.id) ? { ...c, at: c.at + move * 60_000 } : c))
+    .sort((a, b) => a.at - b.at);
+}
+
 /** "HH:MM" in the device's clock for an epoch. */
 export function clockOf(epoch: number): string {
   return new Date(epoch).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });

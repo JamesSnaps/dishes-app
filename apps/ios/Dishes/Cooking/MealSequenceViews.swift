@@ -40,8 +40,8 @@ extension CookSession {
 
     /// "Lamb · step 3 of 6", "Prep for 2 dishes", "Note", "Serve".
     func label(of cue: Cue) -> String {
-        if let covers = cue.covers, !covers.isEmpty { return "Prep for \(Set(covers.map(\.recipeId)).count) dishes" }
         if cue.id == "serve" { return "Serve" }
+        if let covers = cue.covers, !covers.isEmpty { return "Prep for \(Set(covers.map(\.recipeId)).count) dishes" }
         if let dish = request.dishes.first(where: { $0.recipe.id == cue.recipeId })?.recipe {
             if let step = cue.stepIndex { return "\(dish.title) · step \(step + 1) of \(dish.steps.count)" }
             return "\(dish.title) · note"

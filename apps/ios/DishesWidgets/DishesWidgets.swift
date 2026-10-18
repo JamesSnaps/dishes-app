@@ -2,7 +2,8 @@
 // control for Control Center and the Lock Screen (AddToShoppingControl).
 //
 //   CookingLiveActivity   while cooking mode is open: the dish, "Step 3 of 8",
-//                         the step's instruction and the soonest timer
+//                         the step's instruction and the soonest timer; a tap
+//                         opens that cook at that step (CookLink, in Shared/)
 //   CookTimerAlarmActivity  each AlarmKit timer's own countdown, paused state
 //                         and "Time's up" — AlarmKit shows a timer on the Lock
 //                         Screen only through an ActivityConfiguration for its
@@ -82,6 +83,7 @@ struct CookingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CookingActivityAttributes.self) { context in
             LockScreenCard { CookingLockScreen(context: context, colors: $0) }
+                .widgetURL(context.state.link)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -123,6 +125,8 @@ struct CookingLiveActivity: Widget {
                 Image(systemName: context.state.timerEndsAt == nil ? "frying.pan.fill" : "timer")
                     .foregroundStyle(Palette.brand)
             }
+            // Compact, minimal and expanded alike.
+            .widgetURL(context.state.link)
             .keylineTint(Palette.brand)
         }
     }
@@ -137,10 +141,10 @@ private struct CookingLockScreen: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: "frying.pan.fill").foregroundStyle(Palette.brand)
-                    Text(context.attributes.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(context.state.title ?? context.attributes.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                         .foregroundStyle(colors.text)
                 }
-                Text("Step \(context.state.step) of \(context.state.totalSteps)\(context.state.dish == context.attributes.title ? "" : " · \(context.state.dish)")")
+                Text("Step \(context.state.step) of \(context.state.totalSteps)\(context.state.dish == (context.state.title ?? context.attributes.title) ? "" : " · \(context.state.dish)")")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.brand)
                 Text(context.state.instruction)
@@ -178,6 +182,7 @@ struct MealScheduleLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MealScheduleAttributes.self) { context in
             LockScreenCard { MealScheduleLockScreen(context: context, colors: $0) }
+                .widgetURL(CookLink(groupId: context.attributes.groupId).url)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -212,6 +217,8 @@ struct MealScheduleLiveActivity: Widget {
             } minimal: {
                 Image(systemName: "fork.knife").foregroundStyle(Palette.brand)
             }
+            // The meal's cook if it's going, else the Planner.
+            .widgetURL(CookLink(groupId: context.attributes.groupId).url)
             .keylineTint(Palette.brand)
         }
     }

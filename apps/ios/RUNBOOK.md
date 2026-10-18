@@ -735,7 +735,49 @@ review of the whole meal (rating combinations) at the end.
 - Simulator tip: screenshots at 0.2 scale on the iPhone are 920 px wide for
   402 pt — multiply by 0.437, not the iPad's 0.688.
 
-### 18 Oct 2026 — one + on the iPhone's Recipes header (v1.46.1)
+### 18 Oct 2026 — several cooks at once (v1.46.1)
+
+James minimised a saved-meal cook, started and minimised a dessert, and
+couldn't get back to the meal: `AppNav` held one `CookSession`, and a new
+request replaced it (only the timers survived, being global).
+
+- `AppNav.sessions` is a list, the cook in front first. A request matching a
+  live cook (`isCooking`, which now also matches a planned meal by
+  `groupId`) brings it forward; a new one is added. `nav.end(_:)` ends one
+  cook; `nav.cooking = nil` still ends the one in front.
+- `Cooking/CookStack.swift`: `CookingBar` (one cook as before; with more, a
+  count and the others' card edges peeking above it), `CookStackFan` (tap
+  the bar: every cook as a card — title, "Step n of m" or "n of 15 in the
+  meal", next timer or due time, ×; tap outside to put them back),
+  `CookSwitcher` (iPad toolbar; on iPhone the same list is in the title's
+  menu — there's no room beside the title for a separate button).
+- The iPhone's tab-bar accessory clips anything drawn outside it, so the
+  card edges are drawn over the app (`CookStackEdges`) from the accessory's
+  measured frame; the fan lines its front card up with the same frame.
+- A `confirmationDialog` from inside that overlay is presented invisibly and
+  swallows the next taps (it ended a cook in testing), so the fan's × asks
+  inline in the card, and only when the cook has timers running.
+- Live Activity: the cook's name moved into `ContentState.title` (optional,
+  old activities fall back to the attributes' title), so switching cooks
+  updates the activity. Restarting it called `Activity.request`, which held
+  the main thread for 1–2 s per switch, and taps landed on a stale layout.
+- `SavedCooks`: cooks are saved (recipe ids, steps, scales, finished dishes,
+  start shift, sequence position, started-at) on minimise, on any change to
+  the list and when the app leaves the foreground, and restored minimised
+  for 12 h; a meal's frozen schedule is fetched again on restore.
+- Checked on the iPhone 18 Pro simulator: Sunday roast (scheduled meal) →
+  minimise → Chocolate Chip Cookies → minimise: bar shows the stack, fan
+  shows both, each opens at its own place (roast at 2 of 15, cookies at its
+  step); Cook tonight resumes the roast; the title menu switches both ways;
+  relaunch keeps both; × with a running timer asks inline. iPad Pro 11":
+  toolbar "2 cooks" switcher, floating bar with the edge peeking, fan.
+  **Not checked:** the Live Activity on a Lock Screen with two cooks, a
+  device.
+- Simulator tip: scripted taps that land mid-animation hit where the card
+  is drawn at that moment; wait ~1.5 s after opening the fan before tapping
+  a card.
+
+### 18 Oct 2026 — one + on the iPhone's Recipes header (v1.46.2)
 
 James found three filled buttons beside "Recipes" untidy on the phone. On
 iPhone it's now one round orange + (as the planner's) with a menu: Write a
@@ -743,6 +785,90 @@ recipe, Photograph a recipe, From a photo…, Create with AI, then Open the
 cookbook. iPad keeps the labelled Cookbook / Create with AI / New Recipe
 buttons. Checked the header on the iPhone 18 Pro Max simulator (the 18 Pro
 was in use by another session); the menu's items weren't tapped through.
+
+Also in 1.46.2 — "Keep 17:00" anchors a dish's last steps to serving. James
+started a slow-cooker lamb early, chose Keep, and its "carve and serve" step
+came up at 16:15 for a 17:00 dinner: Keep shifted every one of the lamb's
+cues. Now (`MealStart.kept` / `keepShift` in lib/meal-start.ts) only the
+cues up to the dish's longest stretch move; that stretch absorbs the
+difference and the finishing steps stay put. Unit-tested (KeptStartTests).
+
+Also in 1.46.2 — timers say what they're for. James couldn't tell which
+step a running timer belonged to, or get back to it, as the web lets you.
+A step's timer now keeps its dish and step (`CookTimer.recipeId` /
+`stepIndex`): the card reads "Chill dough · Step 3 · Chocolate Chip
+Cookies" (the step first, so a narrow iPhone card keeps it), and its menu is
+headed with the full source and starts with **Go to step N** — in a meal
+sequence it goes to that step's place in the schedule, otherwise to the
+dish at that step. Found on the way: the step was read inside the async
+start task, so tapping Next straight after Timer labelled it with the next
+step; it's now taken on tap. The alarm banner also names the dish under
+"Time’s up" and its Stop no longer wraps to "Sto / p" on
+the iPhone. Checked on the iPhone 18 Pro simulator: step 3's timer from
+step 4 and step 1's from step 3 both jump back with the timer still
+running. **Not checked:** Go to step inside a meal sequence, the iPad
+timers rail, the banner with two timers at once.
+
+### 18 Oct 2026 — every dish's serving at the one Serve (v1.46.3)
+
+The rest of the lamb problem: nothing made a dish's finishing steps sit at the
+end, and four dishes each ending "Serve" gave four serve cues before the one
+"Serve". Server-side now (lib/meal-timeline.ts): a dish's last step that is
+only serving it (`isServingStep` — "Serve", "Carve and serve", "Garnish with
+…", "Spoon the sauce over … and serve"; anything with cooking, a timer or
+over 10 min keeps its own cue) is folded into the serve cue's `covers`, in
+both the simple schedule and the AI's (whatever time the AI gave it). A dish's
+other finishing last step (carve, slice, plate) can't start until the step
+before it has finished, unless it starts "Meanwhile". The AI prompt says the
+same. The app needed no model change — `MealSequence.steps(of:)` already reads
+the serve cue's covers — only the label: the Serve card read "Prep for 4
+dishes" because covers was checked first (fixed in `CookSession.label` and
+the web's `cueLabel`). Its card lists each dish's serving step under
+"Everything should be ready". Unit-tested (MealSequenceTests
+`serveCueDoesEachDishsServingStep`; web: `pnpm --filter @dishes/web
+check:meal-timeline`). **Not checked** in the simulator or a browser; stored
+and frozen schedules keep their old separate cues until replanned.
+
+### 18 Oct 2026 — tapping the Live Activity opens that cook (v1.46.4)
+
+James tapped the cooking Live Activity on step 4 of a recipe and the app
+opened wherever it was, not at the cook. The activity now carries a link,
+`dishes://cook?dish=<id>…&group=<id>&recipe=<id>&step=4&cue=<id>`
+(`Shared/CookLink.swift`; the `dishes` scheme was already registered for the
+sign-in callback), set as `widgetURL` on the Lock Screen view and the whole
+Dynamic Island (compact, minimal and expanded). It's in the activity's
+`ContentState` because the activity follows whichever cook is in front, so
+the link changes with it. `CookLinkHandler` (`.onOpenURL` on RootView) finds
+the cook — the same meal by group id, else the same dishes — brings it to the
+front, opens cooking mode and goes to the step, or in a meal sequence to the
+cue (on a cold launch the schedule isn't back yet, so the cue is stored as the
+position and lands once it is). With the cook ended since, it opens the
+recipe. From a cold launch the link waits for `restoreCooks`
+(`AppNav.cooksRestored`). The meal-schedule activity links to `group=<id>`
+only: that meal's cook if one's going, else the Planner. Cooking mode also
+refreshes the activity when the sequence position or dish view changes (a
+prep step or note can move on without the step changing).
+
+Checked on the iPhone 18 Pro Max simulator, with cooks seeded through
+SavedCooks (the `cooks` key in the app container's
+`Library/Preferences/uk.collco.dishes.plist` — `simctl spawn defaults write
+uk.collco.dishes` writes the device-wide domain instead, which the app never
+reads) and the link opened by the app itself through `UIApplication.open`
+via a temporary debug hook (`simctl openurl` puts up "Open in Dishes?", which
+needs a tap, and the simulator panel wasn't attached):
+- cold launch, one cook saved at step 1, link for step 4 → cooking mode on
+  Bolognese step 4 of 5
+- two cooks minimised (Bolognese in front), link for the cookies at step 3 →
+  cookies in front at step 3 of 4, "2 cooks"; the activity's link followed
+  (logged `…recipe=b82d…&step=3`); then a Bolognese step-2 link from inside
+  cooking mode switched back
+- a link for a dish with no cook → its recipe page, cooks left minimised
+- a meal-schedule link with no cook → the Planner
+
+**Not checked:** an actual tap on the Lock Screen or Dynamic Island (needs
+the panel or a device), the app coming from the background rather than
+already in front, a meal sequence's cue (no dev server running, so no meal
+clock), the iPad, and opening over the cookbook cover.
 
 ### 18 Oct 2026 — the Apple Watch app (v1.47.0, branch `feat/watch-app`)
 

@@ -544,6 +544,14 @@ don't exist there.
     precise needed with floury fingers
   - Hardware keyboard shortcuts (→ / ← steps, space starts the step's timer)
     for an iPad on a keyboard case
+- [x] **Several cooks at once (v1.46.1, `Cooking/CookStack.swift`).** `AppNav`
+  keeps a list of cooks, the one in front first; starting another (a dessert
+  while the roast is minimised) adds it, starting one already going resumes
+  it (a planned meal matches by its group). The resume bar stacks the others
+  behind the front cook and fans them out on a tap; cooking mode switches
+  between them (toolbar on iPad, title menu on iPhone). The Live Activity
+  follows the cook in front, updated rather than restarted. Cooks are kept
+  across a relaunch for 12 h (`SavedCooks`, as the web)
 - [ ] **Hands-free cooking.** On-device `SpeechAnalyzer` for "next step",
   "previous step", "start the timer", "how much butter?"; `AVSpeechSynthesizer`
   to read a step aloud. Most useful on the iPad, propped up out of reach
@@ -565,6 +573,12 @@ don't exist there.
   expanded, Lock Screen). The AlarmKit countdown needs a real device — the
   simulator refuses AlarmKit. No App Group needed yet: ActivityKit carries the
   state; Home Screen widgets will need one
+- [x] **Tapping a Live Activity opens that cook (v1.46.4).** `dishes://cook?…`
+  (`Shared/CookLink.swift`) as the cooking activity's `widgetURL` (Lock Screen
+  and every Dynamic Island size): cooking mode for that cook, in front of any
+  others, at the step (or place in a meal's sequence) it showed; the recipe if
+  the cook has ended. The meal-schedule activity opens the meal's cook, else
+  the Planner. Works from a cold launch (held until saved cooks are back)
 - [x] **Live Activity — meal schedule.** (v1.33.0: started from the meal page; the server keeps it current over APNs. Push-to-start from the dinner reminder is still to do.) The serve-at timeline (v1.18) as a
   countdown across the whole meal: "Potatoes in at 18:05 · serve 18:45".
   Started remotely by the dinner-reminder push (ActivityKit push-to-start

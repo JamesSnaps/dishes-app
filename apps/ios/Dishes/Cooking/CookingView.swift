@@ -13,6 +13,7 @@
 //
 // A cook is a CookSession that outlives the screen: Minimise goes back to the
 // app with a resume bar (CookingBar), as the web's mini bar; Exit ends it.
+// Several can go at once (CookStack.swift); this screen shows the one in front.
 //
 //   nav.cooking = CookRequest(…)   // starts (or resumes) and shows it
 
@@ -44,7 +45,7 @@ struct CookRequest: Identifiable {
 
 /// Where a cook has got to: kept while it's minimised, gone on Exit.
 @MainActor @Observable
-final class CookSession {
+final class CookSession: Identifiable {
     let request: CookRequest
     var dishIndex = 0
     /// Current step per dish, by recipe id, so switching tabs keeps your place.
@@ -56,7 +57,7 @@ final class CookSession {
     /// Dishes finished (Finish, then the debrief), by recipe id.
     var finished: Set<String> = []
     /// For "How long did it take?" in the debrief; minimised time counts.
-    let startedAt = Date()
+    var startedAt = Date()
     /// The meal's cooking schedule as clock times, once fetched (scheduled meals only).
     var clock: APIClient.MealClock?
     /// "I started earlier, keep dinner at 17:00": that dish's cues shown this
@@ -88,12 +89,14 @@ final class CookSession {
     var cues: [APIClient.MealClock.Cue] {
         guard let clock else { return [] }
         guard let shift = startShift else { return clock.cues }
-        return MealStart.shifted(clock.cues, by: shift.minutes, recipeId: shift.recipeId)
+        return MealStart.kept(clock.cues, by: shift.minutes, recipeId: shift.recipeId, serveAt: clock.serveAt)
     }
 
-    /// The same dishes, in any order: tapping Cook again resumes rather than restarts.
+    /// The same planned meal, or the same dishes in any order: tapping Cook
+    /// again resumes rather than restarts.
     func isCooking(_ other: CookRequest) -> Bool {
-        Set(request.dishes.map(\.recipe.id)) == Set(other.dishes.map(\.recipe.id))
+        if let group = other.groupId, group == request.groupId { return true }
+        return Set(request.dishes.map(\.recipe.id)) == Set(other.dishes.map(\.recipe.id))
     }
 }
 
@@ -190,6 +193,7 @@ struct CookingView: View {
                 }
             }
             .background(Theme.background.ignoresSafeArea())
+            .environment(\.goToStep, goToStep)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
             .sheet(isPresented: $showIngredients) {
@@ -248,14 +252,15 @@ struct CookingView: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: stepChanges)
         .onAppear {
-            UIApplication.shared.isIdleTimerDisabled = true
             keys = true
             showActivity()
         }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         // The Live Activity follows the step, the dish tab and the timers.
         .onChange(of: stepIndex) { showActivity() }
         .onChange(of: session.dishIndex) { showActivity() }
+        // A meal's place moves on without the step changing at a prep step or a note.
+        .onChange(of: session.position) { showActivity() }
+        .onChange(of: session.dishView) { showActivity() }
         .onChange(of: CookTimers.shared.timers) { showActivity() }
         // A sheet takes the keyboard; have it back when they close.
         .onChange(of: asking || addingTimer || logging != nil || showIngredients || startPrompt != nil || showSchedule || reviewingMeal) { _, open in if !open { keys = true } }
@@ -304,15 +309,20 @@ struct CookingView: View {
     /// Back to the app, the cook kept: the resume bar brings it back.
     private func minimise() { nav.cookingShown = false }
 
-    /// The cook is over: every dish of a meal at once.
-    private func end() {
-        CookingActivity.shared.end()
-        nav.cooking = nil
-    }
+    /// The cook is over: every dish of a meal at once. Any other cooks carry on.
+    private func end() { nav.end(session) }
 
     /// Exit ends the cook; only running timers make it ask, since they'd ring after you've gone.
     private func exit() {
         if mealTimers.isEmpty { end() } else { confirmExit = true }
+    }
+
+    /// iPhone, more than one cook: the title's menu switches between them.
+    private var switchInTitle: Bool { width == .compact && nav.sessions.count > 1 }
+
+    /// " · ▤ 2" after the title's subtitle, when the title switches cooks.
+    private var cooksNote: Text {
+        switchInTitle ? Text(" · \(Image(systemName: "rectangle.stack.fill")) \(nav.sessions.count)").foregroundStyle(Theme.brandDeep) : Text("")
     }
 
     @ToolbarContentBuilder
@@ -330,9 +340,15 @@ struct CookingView: View {
                     Text(mealTimers.count == 1 ? "A timer is still running." : "\(mealTimers.count) timers are still running.")
                 }
         }
+        // Another cook going too (dessert with dinner): straight across to it.
+        // On iPhone there's no room beside the title, so it's in the title's menu.
+        ToolbarItem(placement: .topBarLeading) {
+            if nav.sessions.count > 1 && width == .regular { CookSwitcher() }
+        }
         ToolbarItem(placement: .principal) {
             if session.inSequence, let cue = session.cue {
                 Menu {
+                    if switchInTitle { CookSwitcherItems() }
                     Section("Read one recipe in full — your place is kept") {
                         ForEach(request.dishes.indices, id: \.self) { i in
                             Button(request.dishes[i].recipe.title, systemImage: "book") { withAnimation { session.showDish(i) } }
@@ -342,7 +358,7 @@ struct CookingView: View {
                     HStack(spacing: 6) {
                         VStack(spacing: 0) {
                             Text(session.label(of: cue)).font(width == .compact ? .subheadline.weight(.semibold) : .headline).lineLimit(1)
-                            Text("\(session.title) · \(session.seqIndex + 1) of \(session.cues.count)")
+                            (Text("\(session.title) · \(session.seqIndex + 1) of \(session.cues.count)") + cooksNote)
                                 .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold))
@@ -363,6 +379,7 @@ struct CookingView: View {
                     picker.pickerStyle(.segmented).frame(maxWidth: 520)
                 } else {
                     Menu {
+                        if switchInTitle { CookSwitcherItems() }
                         ForEach(request.dishes.indices, id: \.self) { i in
                             let title = request.dishes[i].recipe.title
                             Button { session.dishIndex = i } label: {
@@ -379,13 +396,26 @@ struct CookingView: View {
                         HStack(spacing: 6) {
                             VStack(spacing: 0) {
                                 Text(dish.recipe.title).font(.headline).lineLimit(1)
-                                Text("Dish \(session.dishIndex + 1) of \(request.dishes.count)")
+                                (Text("Dish \(session.dishIndex + 1) of \(request.dishes.count)") + cooksNote)
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
                             Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold))
                         }
                         .foregroundStyle(Theme.foreground)
                     }
+                }
+            } else if switchInTitle {
+                Menu { CookSwitcherItems() } label: {
+                    HStack(spacing: 6) {
+                        VStack(spacing: 0) {
+                            Text(dish.recipe.title).font(.headline).lineLimit(1)
+                            Text("\(Image(systemName: "rectangle.stack.fill")) \(nav.sessions.count) cooks")
+                                .font(.caption2).foregroundStyle(Theme.brandDeep)
+                        }
+                        Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.foreground)
+                    .frame(maxWidth: 170)
                 }
             } else {
                 Text(dish.recipe.title).font(.headline).lineLimit(1)
@@ -541,9 +571,12 @@ struct CookingView: View {
     }
 
     private func startTimer(_ step: RecipeStep, minutes: Int) {
+        // Taken now: by the time the task runs, Next may have moved the step on.
+        let (index, recipe) = (stepIndex, dish.recipe)
         Task {
-            await CookTimers.shared.start(label: step.timerLabel ?? "Step \(stepIndex + 1)",
-                                          dish: dish.recipe.title, seconds: TimeInterval(minutes * 60))
+            await CookTimers.shared.start(label: step.timerLabel ?? "Step \(index + 1)",
+                                          dish: recipe.title, seconds: TimeInterval(minutes * 60),
+                                          recipeId: recipe.id, stepIndex: index)
         }
     }
 
@@ -592,11 +625,19 @@ struct CookingView: View {
         }
     }
 
-    private func showActivity() {
-        CookingActivity.shared.show(
-            title: session.title, dish: dish.recipe.title,
-            step: min(stepIndex + 1, max(dish.recipe.steps.count, 1)), of: max(dish.recipe.steps.count, 1),
-            instruction: step?.instruction ?? "")
+    private func showActivity() { session.showActivity() }
+
+    /// A timer's step: its place in the meal's sequence, or that dish at that step.
+    private func goToStep(_ recipeId: String, _ step: Int) {
+        withAnimation(.snappy) {
+            if session.inSequence, let index = MealSequence.index(ofStep: step, recipeId: recipeId, in: session.cues) {
+                session.goTo(index)
+            } else if let dish = request.dishes.firstIndex(where: { $0.recipe.id == recipeId }) {
+                session.steps[recipeId] = step
+                if session.cues.isEmpty { session.dishIndex = dish } else { session.showDish(dish) }
+            }
+        }
+        stepChanges += 1
     }
 
     private func move(_ by: Int) {
@@ -818,12 +859,26 @@ struct TimersPanel: View {
 /// itself were too cramped in a narrow column (James's iPad, 17 Oct 2026).
 /// Clearing animates it away with a "poof" (`.poof`).
 struct TimerRow: View {
+    @Environment(\.goToStep) private var goToStep
     let timer: CookTimer
     var compact = false
 
+    /// "Step 3 · Lamb": what it's for. The step leads so a narrow card keeps
+    /// it, and isn't repeated when the timer is already called "Step 3".
+    private var source: String? {
+        guard let step = timer.stepIndex, timer.label != "Step \(step + 1)" else { return timer.dish }
+        return ["Step \(step + 1)", timer.dish].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// The menu's header, never cut short: "Lamb · step 3".
+    private var fullSource: String? {
+        guard let step = timer.stepIndex else { return timer.dish }
+        return [timer.dish, "step \(step + 1)"].compactMap { $0 }.joined(separator: " · ")
+    }
+
     var body: some View {
         Menu {
-            actions
+            if let fullSource { Section(fullSource) { actions } } else { actions }
         } label: {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let left = timer.secondsLeft(at: context.date)
@@ -838,12 +893,11 @@ struct TimerRow: View {
                             .font(.system(size: compact ? 13 : 15, weight: .semibold))
                             .foregroundStyle(Theme.foreground)
                             .lineLimit(1)
-                        if !compact {
-                            Text(finished ? "Done" : timer.state == .paused ? "Paused" : (timer.dish ?? "Running"))
-                                .font(.system(size: 12))
-                                .foregroundStyle(Theme.mutedForeground)
-                                .lineLimit(1)
-                        }
+                        Text([finished ? "Done" : timer.state == .paused ? "Paused" : nil, source ?? (finished || timer.state == .paused ? nil : "Running")]
+                                .compactMap { $0 }.joined(separator: " · "))
+                            .font(.system(size: compact ? 11 : 12))
+                            .foregroundStyle(Theme.mutedForeground)
+                            .lineLimit(1)
                     }
                     Spacer(minLength: 4)
                     Text(finished ? "0:00" : Self.clock(left))
@@ -862,6 +916,10 @@ struct TimerRow: View {
     }
 
     @ViewBuilder private var actions: some View {
+        if let goToStep, let recipeId = timer.recipeId, let step = timer.stepIndex {
+            Button("Go to step \(step + 1)", systemImage: "arrow.uturn.backward") { goToStep(recipeId, step) }
+            Divider()
+        }
         if timer.state == .running {
             Button("Pause", systemImage: "pause.fill") { CookTimers.shared.pause(timer) }
         }
@@ -951,12 +1009,22 @@ struct RingingBanner: View {
                     Text(timers.ringing.map(\.label).joined(separator: ", "))
                         .font(.title2.bold())
                         .lineLimit(2)
+                    // Which dish, so "Step 1" isn't a mystery with two cooks going.
                     Text("Time’s up").font(.headline).opacity(0.85)
+                    let dishes = Set(timers.ringing.compactMap(\.dish)).sorted()
+                    if !dishes.isEmpty {
+                        Text(dishes.joined(separator: ", "))
+                            .font(.subheadline.weight(.medium)).opacity(0.85)
+                            .lineLimit(2)
+                    }
                 }
+                .layoutPriority(-1)
                 Spacer(minLength: 8)
                 Button("Stop") { timers.stopRinging() }
                     .font(.title2.bold())
-                    .padding(.horizontal, 28)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 24)
                     .padding(.vertical, 14)
                     .background(.white, in: Capsule())
                     .foregroundStyle(Theme.brandDeep)
@@ -1050,4 +1118,9 @@ struct MealCueLine: View {
             if let step = cue.stepIndex { session.steps[recipeId] = step }
         }
     }
+}
+
+extension EnvironmentValues {
+    /// Cooking mode's "go to this dish's step" — a timer's way back to what it's for.
+    @Entry var goToStep: ((String, Int) -> Void)? = nil
 }

@@ -13,6 +13,7 @@ import {
 } from "react";
 import { playChime, unlockAudio } from "@/lib/cook-audio";
 import { syncCookShares } from "@/lib/cooking-share";
+import { keepShift } from "@/lib/meal-start";
 
 // A cook session lives above the route tree so it survives navigation out of
 // cooking mode — that's what lets the mini bar "minimise" a cook instead of
@@ -87,9 +88,7 @@ export function mealCues(meal: CookMeal | undefined): CookCue[] {
   const cues = meal?.cues ?? [];
   const shift = meal?.startShift;
   if (!shift?.minutes) return cues;
-  return cues
-    .map((c) => (c.recipeId === shift.recipeId ? { ...c, at: c.at + shift.minutes * 60_000 } : c))
-    .sort((a, b) => a.at - b.at);
+  return keepShift(cues, shift.minutes, shift.recipeId, meal?.serveAt);
 }
 
 /** One schedule cue: start a dish's step (or a coordinating note) at `at`. */

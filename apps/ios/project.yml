@@ -71,6 +71,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         ITSAppUsesNonExemptEncryption: false
         # OIDC redirect: dishes://auth/callback (Authelia client dishes-mobile).
+        # Live Activity taps: dishes://cook?… (Shared/CookLink.swift).
         CFBundleURLTypes:
           - CFBundleURLName: uk.collco.dishes.auth
             CFBundleURLSchemes: [dishes]
