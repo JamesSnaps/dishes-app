@@ -755,8 +755,8 @@ headed with the full source and starts with **Go to step N** — in a meal
 sequence it goes to that step's place in the schedule, otherwise to the
 dish at that step. Found on the way: the step was read inside the async
 start task, so tapping Next straight after Timer labelled it with the next
-step; it's now taken on tap. The alarm banner also names the dish ("Time's
-up · Chocolate Chip Cookies") and its Stop no longer wraps to "Sto / p" on
+step; it's now taken on tap. The alarm banner also names the dish under
+"Time’s up" and its Stop no longer wraps to "Sto / p" on
 the iPhone. Checked on the iPhone 18 Pro simulator: step 3's timer from
 step 4 and step 1's from step 3 both jump back with the timer still
 running. **Not checked:** Go to step inside a meal sequence, the iPad
