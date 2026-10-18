@@ -75,6 +75,7 @@ struct RecipeDetailView: View {
                 case .sides: RecipeIdeasSheet(recipe: recipe, kind: .sides) { made = $0 }
                 case .share: ShareRecipeSheet(recipe: recipe)
                 case .note: NoteSheet(edit: NoteEdit(note: nil, recipeId: recipe.id, recipeTitle: recipe.title)) {}
+                case .photo: RecipePhotoSheet(recipe: recipe).presentationDetents([.medium, .large])
                 default: EmptyView()
                 }
             }
@@ -260,12 +261,9 @@ struct RecipeDetailView: View {
         }
     }
 
-    /// Photo and nutrition run straight away; the rest open their sheet.
+    /// Nutrition runs straight away; the rest open their sheet.
     private func run(_ picked: RecipeTool, _ recipe: Recipe) {
         switch picked {
-        case .photo:
-            app.toast = "Generating a photo… this takes about 30 seconds."
-            Task { if await WebAction.run("ai.recipeImage", [.string(recipe.id)], done: "New photo added.") { await app.syncNow() } }
         case .nutrition:
             app.toast = "Estimating nutrition…"
             Task { if await WebAction.run("ai.estimateNutrition", [.string(recipe.id)], done: "Nutrition estimated.") { await app.syncNow() } }

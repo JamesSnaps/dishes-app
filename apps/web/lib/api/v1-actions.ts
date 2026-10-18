@@ -24,6 +24,7 @@ import * as deliveries from "@/app/actions/deliveries";
 import * as dinner from "@/app/actions/dinner-reminders";
 import * as mealPlan from "@/app/actions/meal-plan";
 import { getWeekNutrition } from "@/lib/services/week-nutrition";
+import { startRecipeImageJob } from "@/lib/services/recipe-image-job";
 import * as meals from "@/app/actions/meals";
 import * as notesActions from "@/app/actions/notes";
 import * as taste from "@/app/actions/taste-profile";
@@ -194,6 +195,16 @@ export const actions: Record<string, Handler> = {
   "ai.similar": (_s, [recipeId, note]) => ai.generateSimilarConcepts(str(recipeId), optStr(note)),
   "ai.sides": (_s, [recipeIds, note]) => ai.generateSideConcepts(ids(recipeIds), optStr(note)),
   "ai.recipeImage": (_s, [recipeId]) => ai.generateAndSaveRecipeImage(str(recipeId)),
+  /** The web's Generate image: a style and optional instructions, made in the background. */
+  "ai.recipeImageJob": async (s, [recipeId, style, instructions]) => {
+    const job = await startRecipeImageJob(
+      s.householdId,
+      str(recipeId),
+      optStr(style) ?? null,
+      optStr(instructions)?.trim().slice(0, 500) || null
+    );
+    return job ?? { error: "Recipe not found." };
+  },
   "ai.suggestMealComponents": (_s, [input]) => ai.suggestMealComponents(obj(input) as never),
 
   // ── Stats, Wrapped, taste, notes ──────────────────────────────────────────

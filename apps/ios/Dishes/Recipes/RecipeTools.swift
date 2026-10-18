@@ -329,3 +329,79 @@ enum RecipeTool: String, Identifiable {
     case improve, heartHealthy, similar, sides, photo, nutrition, share, note
     var id: String { rawValue }
 }
+
+// MARK: AI photo
+
+/// "Generate a photo", as the web's Generate image button: a style (the
+/// household's default first) and optional instructions for the shot. It's
+/// made in the background on the server — about 30 seconds — and the photo
+/// arrives with the next sync; the sheet can be closed straight away.
+struct RecipePhotoSheet: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    let recipe: Recipe
+    @State private var style = "studio"
+    @State private var instructions = ""
+    @State private var starting = false
+
+    static let styles: [(value: String, label: String, about: String)] = [
+        ("studio", "Studio", "Clean background, natural lighting"),
+        ("moody", "Moody", "Dark, dramatic, cinematic"),
+        ("rustic", "Rustic", "Wooden surfaces, farmhouse feel"),
+        ("bright", "Bright & Fresh", "Light, airy, vibrant on white"),
+        ("overhead", "Flat-lay", "Shot directly overhead"),
+        ("cellphone", "Cellphone", "Casual, Instagram-style"),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Style", selection: $style) {
+                        ForEach(Self.styles, id: \.value) { Text($0.label).tag($0.value) }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(Theme.brandDeep)
+                } footer: { Text(Self.styles.first { $0.value == style }?.about ?? "") }
+                Section {
+                    TextField("e.g. a single slice on a plate with a fork, not the whole cake", text: $instructions, axis: .vertical)
+                        .lineLimit(2...5)
+                } header: { Text("Custom instructions (optional)") } footer: {
+                    Text("Added to the style. The photo takes about 30 seconds; you can close this and carry on.")
+                }
+            }
+            .navigationTitle(recipe.imageUrl == nil ? "Generate a photo" : "New photo").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(starting ? "Starting…" : "Generate") { Task { await start() } }.bold().disabled(starting)
+                }
+            }
+            .task {
+                struct Config: Decodable { var imageStyle: String? }
+                if let c = try? await app.api.action("ai.config", as: Config?.self), let s = c.imageStyle,
+                   Self.styles.contains(where: { $0.value == s }) {
+                    style = s
+                }
+            }
+        }
+    }
+
+    private func start() async {
+        starting = true
+        defer { starting = false }
+        let trimmed = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ok = await WebAction.run("ai.recipeImageJob",
+                                     [.string(recipe.id), .string(style), trimmed.isEmpty ? .null : .string(String(trimmed.prefix(500)))],
+                                     done: "Generating a photo — it’ll appear in about 30 seconds.")
+        guard ok else { return }
+        dismiss()
+        // The job finishes on the server; pull the new photo down when it's likely done.
+        Task {
+            for delay in [30, 20, 30] {
+                try? await Task.sleep(for: .seconds(delay))
+                await app.syncNow()
+            }
+        }
+    }
+}
