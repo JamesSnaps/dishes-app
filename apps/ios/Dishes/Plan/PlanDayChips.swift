@@ -23,6 +23,35 @@ struct WeekDeliveryPanel: Decodable, Sendable {
     var configured: Bool
     var canEdit: Bool
     var days: [DeliveryOverview.Day]
+    /// The next open order, when it's this week's or feeds this week's meals.
+    var next: DeliveryOverview.Next?
+}
+
+/// The planner's nutrition strip for the week (lib/services/week-nutrition.ts).
+struct WeekNutrition: Decodable, Sendable {
+    struct Summary: Decodable, Sendable {
+        var meals: Int
+        var withNutrition: Int
+        var heartHealthy: Int
+        var avgSaturatedFatG: Double?
+        var avgFiberG: Double?
+    }
+    struct Target: Decodable, Sendable, Identifiable {
+        var kind: String; var label: String; var count: Int; var ok: Bool; var target: String
+        var id: String { kind }
+    }
+    struct SwapRecipe: Decodable, Sendable, Identifiable { var id: String; var title: String; var cuisine: String? }
+    struct Suggestion: Decodable, Sendable, Identifiable {
+        var entryId: String; var dayOfWeek: Int; var mealType: String
+        var fromTitle: String; var reason: String
+        var toRecipe: SwapRecipe?
+        var alternatives: [SwapRecipe]
+        var id: String { entryId }
+    }
+    var summary: Summary
+    var heartFocus: Bool
+    var targets: [Target]
+    var suggestions: [Suggestion]
 }
 
 /// The week's dinner times and deliveries, reloaded when the week or its
@@ -31,16 +60,22 @@ struct WeekDeliveryPanel: Decodable, Sendable {
 final class PlanWeekExtras {
     private(set) var dinner: WeekDinnerSchedule?
     private(set) var deliveries: WeekDeliveryPanel?
+    private(set) var nutrition: WeekNutrition?
+    private var loadedWeek: String?
 
     func load(week: String, dinnerRecipeIds: [String]) async {
         let api = AppModel.shared.api
         async let d = try? api.action("dinner.week", [.string(week), .array(dinnerRecipeIds.map { .string($0) })],
                                       as: WeekDinnerSchedule.self)
         async let p = try? api.action("deliveries.weekPanel", [.string(week)], as: WeekDeliveryPanel.self)
-        let (dinner, deliveries) = await (d, p)
-        // Keep what's shown when a reload fails (offline).
+        async let n = try? api.action("planner.nutrition", [.string(week)], as: WeekNutrition.self)
+        let (dinner, deliveries, nutrition) = await (d, p, n)
+        // Another week's figures never stay up; a failed reload of the same
+        // week (offline) keeps what's shown.
+        if loadedWeek != week { self.dinner = nil; self.deliveries = nil; self.nutrition = nil; loadedWeek = week }
         if let dinner { self.dinner = dinner }
         if let deliveries { self.deliveries = deliveries }
+        if let nutrition { self.nutrition = nutrition }
     }
 
     func update(_ day: WeekDinnerSchedule.Day) {
@@ -278,4 +313,180 @@ struct DeliveryDayChip: View {
             if await WebAction.run("deliveries.set", [.string(day.date), .string(target)], done: done) { await changed() }
         }
     }
+}
+
+// MARK: The week's strips — heart-healthy and the next order
+
+/// Two small banners under the planner's buttons. Each is one line with what
+/// needs attention; tapping opens the detail.
+struct PlanWeekStrips: View {
+    let extras: PlanWeekExtras
+    var reload: () async -> Void
+    var swapped: () async -> Void
+    @State private var showing: Which?
+
+    private enum Which: String, Identifiable { case nutrition, delivery; var id: String { rawValue } }
+
+    var body: some View {
+        let next = extras.deliveries?.next
+        let nutrition = extras.nutrition.flatMap { $0.summary.meals > 0 ? $0 : nil }
+        VStack(alignment: .leading, spacing: 0) {
+            if next != nil || nutrition != nil {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { strips(next: next, nutrition: nutrition) }
+                    VStack(alignment: .leading, spacing: 8) { strips(next: next, nutrition: nutrition) }
+                }
+            }
+        }
+        .sheet(item: $showing) { which in
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            switch which {
+                            case .delivery:
+                                if let next, let panel = extras.deliveries {
+                                    NextDeliveryCard(next: next, canEdit: panel.canEdit) { await reload() }
+                                }
+                                NavigationLink { DeliveriesScreen() } label: {
+                                    Label("All deliveries", systemImage: "truck.box")
+                                }
+                                .buttonStyle(.outline)
+                            case .nutrition:
+                                if let nutrition { NutritionDetail(nutrition: nutrition) { await swapped() } }
+                            }
+                        }
+                        .padding(20)
+                    }
+                    .background(Theme.background)
+                    .navigationTitle(which == .delivery ? "Next order" : "This week’s nutrition")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showing = nil }.bold() } }
+                }
+                .presentationDetents([.medium, .large])
+            }
+    }
+
+    @ViewBuilder private func strips(next: DeliveryOverview.Next?, nutrition: WeekNutrition?) -> some View {
+        if let next {
+            let toDo = NextDeliveryCard.toDo(next)
+            strip(icon: "truck.box",
+                  text: next.status == "ordered" ? "Ordered for \(next.day)" : "Order for \(next.day) · \(next.cutoffLabel)",
+                  badge: toDo > 0 ? "\(toDo) to do" : nil,
+                  tint: Color(hex: 0x047857), fill: Theme.emerald100.opacity(0.7), border: Color(hex: 0xA7F3D0)) { showing = .delivery }
+        }
+        if let nutrition {
+            let s = nutrition.summary
+            let off = nutrition.targets.filter { !$0.ok }.count
+            strip(icon: "heart.text.square",
+                  text: s.withNutrition > 0 ? "\(s.heartHealthy)/\(s.withNutrition) heart-healthy" : "Nutrition",
+                  badge: nutrition.heartFocus ? (off > 0 ? "\(off) target\(off == 1 ? "" : "s") off" : "Targets met") : nil,
+                  badgeWarns: off > 0,
+                  extra: nutrition.suggestions.isEmpty ? nil : "\(nutrition.suggestions.count) swap\(nutrition.suggestions.count == 1 ? "" : "s")",
+                  tint: Color(hex: 0xBE123C), fill: Theme.rose50, border: Color(hex: 0xFECDD3)) { showing = .nutrition }
+        }
+    }
+
+    private func strip(icon: String, text: String, badge: String?, badgeWarns: Bool = true, extra: String? = nil,
+                       tint: Color, fill: Color, border: Color, tap: @escaping () -> Void) -> some View {
+        Button(action: tap) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).foregroundStyle(tint)
+                Text(text).foregroundStyle(Theme.foreground).lineLimit(1)
+                if let badge {
+                    Label(badge, systemImage: badgeWarns ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                        .labelStyle(TightLabel())
+                        .font(.system(size: 11, weight: .semibold))
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .foregroundStyle(badgeWarns ? Color(hex: 0x92400E) : Color(hex: 0x065F46))
+                        .background(badgeWarns ? Color(hex: 0xFEF3C7) : Color(hex: 0xD1FAE5), in: Capsule())
+                }
+                if let extra {
+                    Label(extra, systemImage: "lightbulb.fill")
+                        .labelStyle(TightLabel())
+                        .font(.system(size: 11, weight: .semibold))
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .foregroundStyle(.white)
+                        .background(Theme.Gradient.violetOrange.linear, in: Capsule())
+                }
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.mutedForeground)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .padding(.horizontal, 12).frame(minHeight: 36)
+            .background(fill, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(border))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The nutrition strip opened: the heart-healthy share, the weekly protein
+/// targets (when someone's on a cholesterol-lowering diet) and swaps that close the gaps.
+private struct NutritionDetail: View {
+    let nutrition: WeekNutrition
+    var swapped: () async -> Void
+    @State private var working: String?
+
+    private static let days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    var body: some View {
+        let s = nutrition.summary
+        HStack(spacing: 10) {
+            StatTile(value: s.withNutrition > 0 ? "\(s.heartHealthy)/\(s.withNutrition)" : "—", label: "Heart-healthy")
+            StatTile(value: s.avgSaturatedFatG.map { "\(Self.num($0))g" } ?? "—", label: "Sat. fat / meal")
+            StatTile(value: s.avgFiberG.map { "\(Self.num($0))g" } ?? "—", label: "Fibre / meal")
+        }
+        if !nutrition.targets.isEmpty {
+            WebSection(title: "Weekly targets") {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(nutrition.targets) { t in
+                        HStack {
+                            Label(t.label, systemImage: t.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                .foregroundStyle(t.ok ? Color(hex: 0x047857) : Color(hex: 0xB45309))
+                            Spacer()
+                            Text("\(t.count) · \(t.target)").foregroundStyle(Theme.mutedForeground)
+                        }
+                        .font(.system(size: 14))
+                    }
+                }
+                .padding(14).card()
+            }
+        }
+        if !nutrition.suggestions.isEmpty {
+            WebSection(title: "Suggested swaps") {
+                VStack(spacing: 10) {
+                    ForEach(nutrition.suggestions) { sg in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("\(Self.days[min(max(sg.dayOfWeek, 0), 6)]) \(sg.mealType) · \(sg.reason)")
+                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.mutedForeground)
+                            Text(sg.fromTitle).font(.system(size: 15, weight: .semibold)).strikethrough(working == sg.entryId)
+                            ForEach([sg.toRecipe].compactMap { $0 } + sg.alternatives.prefix(2), id: \.id) { r in
+                                Button { Task { await swap(sg, to: r) } } label: {
+                                    Label("Swap for \(r.title)", systemImage: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.outline)
+                                .disabled(working != nil)
+                            }
+                            if sg.toRecipe == nil && sg.alternatives.isEmpty {
+                                Text("Nothing in your recipes fits — try Create with AI.").font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                            }
+                        }
+                        .padding(14).frame(maxWidth: .infinity, alignment: .leading).card()
+                    }
+                }
+            }
+        }
+    }
+
+    private func swap(_ sg: WeekNutrition.Suggestion, to recipe: WeekNutrition.SwapRecipe) async {
+        working = sg.entryId
+        defer { working = nil }
+        if await WebAction.run("planner.swap", [.string(sg.entryId), .string(recipe.id)], done: "Swapped in \(recipe.title).") {
+            await AppModel.shared.syncNow()
+            await swapped()
+        }
+    }
+
+    private static func num(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) }
 }

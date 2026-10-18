@@ -24,6 +24,14 @@ import UIKit
 struct CookDish: Hashable {
     var recipe: Recipe
     var scale: Double = 1
+
+    /// A meal's dishes in the order to start them: the longest first, as the
+    /// simple cooking schedule does, so the first tab is the first job.
+    static func inStartOrder(_ recipes: [Recipe]) -> [CookDish] {
+        recipes.enumerated()
+            .sorted { ($0.element.totalMinutes ?? 0, -$0.offset) > ($1.element.totalMinutes ?? 0, -$1.offset) }
+            .map { CookDish(recipe: $0.element) }
+    }
 }
 
 struct CookRequest: Identifiable {

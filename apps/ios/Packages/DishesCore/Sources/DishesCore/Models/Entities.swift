@@ -270,6 +270,8 @@ public struct MealPlanGroup: Hashable, Sendable, Identifiable {
     public var mealType: String
     /// "HH:mm"
     public var serveAt: String?
+    /// The saved meal it was planned from, if any.
+    public var sourceMealId: String?
 
     public init?(_ json: JSONValue) {
         guard let id = json.id, let plan = json.string("mealPlanId") else { return nil }
@@ -279,6 +281,7 @@ public struct MealPlanGroup: Hashable, Sendable, Identifiable {
         dayOfWeek = json.int("dayOfWeek") ?? 0
         mealType = json.string("mealType") ?? "dinner"
         serveAt = json.string("serveAt")
+        sourceMealId = json.string("sourceMealId")
     }
 }
 

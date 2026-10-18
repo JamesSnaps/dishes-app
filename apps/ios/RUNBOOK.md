@@ -520,3 +520,26 @@ James wanted adding to the shopping list to be quick, especially from the Watch.
   closed, online and in Airplane Mode; the item appears and syncs; the
   Shortcuts app lists the action; add the control in Control Center and tap
   it from the Lock Screen (cold and warm) — the field should be focused.
+
+### 18 Oct 2026 — the planner's meal menu, warnings, cooking order (v1.41.0)
+
+James: a saved meal cooks in the wrong order; the planner lacks the web's
+meal menu; no heart-healthy or delivery warnings on mobile.
+
+- Cooking a combined meal starts with its longest dish (`CookDish.inStartOrder`),
+  the same rule as the simple cooking schedule — from the planner, Tonight and Home.
+- `MealMenu` (Plan/MealMenu.swift) on combined meals: the web's menu item for
+  item. Plan edits are sync mutations (`meal_plan_group.update` / `.delete`
+  with `keepRecipes`); shopping, schedule and saved-meal go online. Remove
+  asks first — a second tap on the ⋯ spot landed on Remove while testing.
+  `MealPlanGroup.sourceMealId` now decoded.
+- `PlanWeekStrips`: a delivery banner (next order, "n to do") and a nutrition
+  banner (heart-healthy share, targets off, swaps) under the buttons; each
+  opens a sheet. Server: `planner.nutrition` (lib/services/week-nutrition.ts,
+  the planner's own summariseMeals/suggestSwaps), `planner.swap`,
+  `planner.groupToShopping`. `NextDeliveryCard` is shared with Deliveries.
+- A `.sheet` on a `ViewThatFits` never presented — host it on a stable view.
+- Checked on the iPhone 18 Pro simulator with the dev user temporarily on a
+  cholesterol-lowering diet: both banners and sheets, the meal menu, the
+  remove confirmation, and Sunday roast cooking Mushroom Risotto first.
+  **Not checked:** a swap applied (no library match in dev), iPad layout.

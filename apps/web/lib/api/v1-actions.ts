@@ -22,6 +22,8 @@ import { splitIngredientsText, parseStepsText } from "@/lib/recipe-parser";
 import * as pantry from "@/app/actions/pantry";
 import * as deliveries from "@/app/actions/deliveries";
 import * as dinner from "@/app/actions/dinner-reminders";
+import * as mealPlan from "@/app/actions/meal-plan";
+import { getWeekNutrition } from "@/lib/services/week-nutrition";
 import * as meals from "@/app/actions/meals";
 import * as notesActions from "@/app/actions/notes";
 import * as taste from "@/app/actions/taste-profile";
@@ -138,6 +140,16 @@ export const actions: Record<string, Handler> = {
   // ── Deliveries ────────────────────────────────────────────────────────────
   "deliveries.overview": () => deliveries.getDeliveryOverview(),
   "deliveries.weekPanel": (_s, [week]) => deliveries.getWeekDeliveryPanel(str(week)),
+
+  // ── The planner's week strip and meal menu ─────────────────────────────────
+  "planner.nutrition": (s, [week]) => getWeekNutrition(s.householdId, str(week)),
+  "planner.swap": (_s, [entryId, recipeId]) =>
+    mealPlan.swapMealEntryRecipe(str(entryId), "", 0, "dinner", str(recipeId)),
+  "planner.groupToShopping": (_s, [groupId, forceInclude]) =>
+    mealPlan.addMealGroupToShoppingList(
+      str(groupId),
+      forceInclude ? { forceInclude: ids(forceInclude) } : undefined
+    ),
 
   // ── Dinner times on the planner (dinner-time-chip.tsx) ────────────────────
   "dinner.week": (_s, [week, recipeIds]) => dinner.getWeekDinnerSchedule(str(week), ids(recipeIds ?? [])),

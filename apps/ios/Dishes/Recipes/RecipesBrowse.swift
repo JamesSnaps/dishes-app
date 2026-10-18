@@ -167,7 +167,7 @@ struct TonightCard: View {
         let meals = data.meals(on: Week.todayIndex, in: Week.containing(Date()))
         guard let planned = meals.first(where: { $0.mealType == "dinner" }) ?? meals.last else { return nil }
         let recipes = planned.dishes.compactMap(\.recipe)
-        let cookable = recipes.filter { !$0.steps.isEmpty }.map { CookDish(recipe: $0) }
+        let cookable = CookDish.inStartOrder(recipes.filter { !$0.steps.isEmpty })
         return Meal(request: cookable.isEmpty ? nil : CookRequest(title: planned.title, dishes: cookable),
                     mealType: planned.mealType,
                     title: planned.title ?? recipes.first?.title ?? "Tonight’s meal",
