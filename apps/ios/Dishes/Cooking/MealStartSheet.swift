@@ -109,7 +109,7 @@ struct MealStartSheet: View {
         return VStack(alignment: .leading, spacing: 18) {
             Label("\(Self.minutes(delta)) \(delta < 0 ? "early" : "late") — move dinner?", systemImage: "arrow.left.arrow.right")
                 .font(.system(size: 22, weight: .bold))
-            Text("You started \(dishTitle) at \(Self.hhmm(startedAt)), not \(Self.hhmm(due)). Moving the meal shifts every dish’s times, the reminders and the planner. Keeping \(Self.hhmm(serve)) moves only \(dishTitle)’s steps, here.")
+            Text("You started \(dishTitle) at \(Self.hhmm(startedAt)), not \(Self.hhmm(due)). Moving the meal shifts every dish’s times, the reminders and the planner. Keeping \(Self.hhmm(serve)) moves \(dishTitle)’s early steps, here; its last steps still finish for \(Self.hhmm(serve)).")
                 .font(.system(size: 16))
                 .foregroundStyle(Theme.mutedForeground)
             Button { Task { await move() } } label: {

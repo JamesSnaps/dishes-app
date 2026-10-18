@@ -215,8 +215,8 @@ export function MealStartDialog({
               <DialogDescription>
                 You started {dishTitle} at <span className="tabular-nums">{clockOf(startedAt)}</span>, not{" "}
                 <span className="tabular-nums">{clockOf(first.at)}</span>. Moving the meal shifts every dish&apos;s
-                times, the reminders and the planner. Keeping {clockOf(serveAt)} moves only {dishTitle}&apos;s steps,
-                here.
+                times, the reminders and the planner. Keeping {clockOf(serveAt)} moves {dishTitle}&apos;s early steps, here; its last steps
+                still finish for {clockOf(serveAt)}.
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 sm:flex-row-reverse">

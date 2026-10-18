@@ -45,6 +45,37 @@ public enum MealStart {
         return step
     }
 
+    /// "Started early (or late), keep dinner at the same time" for one dish:
+    /// the steps already under way move with the start, the ones that finish
+    /// the dish stay anchored to serving. The dish's longest stretch (the
+    /// slow-cooker's hours, the roast in the oven) absorbs the difference —
+    /// its biggest gap from one cue to the next, the last to `serveAt`; that
+    /// cue and every one before it move. Same as keepShift in meal-start.ts.
+    public static func kept(_ cues: [Cue], by minutes: Int, recipeId: String, serveAt: Double?) -> [Cue] {
+        guard minutes != 0 else { return cues }
+        let own = cues.filter { $0.recipeId == recipeId }.sorted { $0.at < $1.at }
+        guard !own.isEmpty else { return cues }
+        var split = own.count - 1
+        var widest = -1.0
+        for (i, cue) in own.enumerated() {
+            let next = i + 1 < own.count ? own[i + 1].at : (serveAt ?? cue.at)
+            if next - cue.at > widest { widest = next - cue.at; split = i }
+        }
+        // Starting late can't squeeze the long stretch below nothing.
+        let room = max(0, widest) / 60_000
+        let move = minutes > 0 ? min(Double(minutes), room) : Double(minutes)
+        let moved = Set(own.prefix(split + 1).map(\.id))
+        return cues.map { cue in
+            guard moved.contains(cue.id) else { return cue }
+            var c = cue
+            c.at += move * 60_000
+            return c
+        }
+        .enumerated()
+        .sorted { ($0.element.at, $0.offset) < ($1.element.at, $1.offset) }
+        .map(\.element)
+    }
+
     /// The cues moved by `minutes` — all of them, or one dish's — in time order.
     public static func shifted(_ cues: [Cue], by minutes: Int, recipeId: String? = nil) -> [Cue] {
         guard minutes != 0 else { return cues }

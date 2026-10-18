@@ -40,3 +40,33 @@ struct MealSequenceTests {
         #expect(MealSequence.due(0, now: 70 * 60_000).text == "1 h 10 min late")
     }
 }
+
+struct KeptStartTests {
+    typealias Cue = APIClient.MealClock.Cue
+    let min = 60_000.0
+    // Lamb: season 08:20, slow-cook 08:30 (8 h), gravy 16:30, carve 16:55; serve 17:00.
+    var cues: [Cue] {
+        [Cue(id: "l0", at: 500 * min, recipeId: "lamb", stepIndex: 0, dish: "Lamb", text: "Season"),
+         Cue(id: "l1", at: 510 * min, recipeId: "lamb", stepIndex: 1, dish: "Lamb", text: "Slow cook"),
+         Cue(id: "c0", at: 960 * min, recipeId: "cauli", stepIndex: 0, dish: "Cauli", text: "Oven on"),
+         Cue(id: "l2", at: 990 * min, recipeId: "lamb", stepIndex: 2, dish: "Lamb", text: "Gravy"),
+         Cue(id: "l3", at: 1015 * min, recipeId: "lamb", stepIndex: 3, dish: "Lamb", text: "Carve")]
+    }
+
+    @Test func earlyStartMovesOnlyTheStepsBeforeTheLongStretch() {
+        let out = MealStart.kept(cues, by: -40, recipeId: "lamb", serveAt: 1020 * min)
+        let at = Dictionary(uniqueKeysWithValues: out.map { ($0.id, $0.at / min) })
+        #expect(at["l0"] == 460)
+        #expect(at["l1"] == 470)
+        #expect(at["l2"] == 990)   // still anchored to serving
+        #expect(at["l3"] == 1015)
+        #expect(at["c0"] == 960)   // other dishes untouched
+    }
+
+    @Test func lateStartCantSqueezeBelowNothing() {
+        let out = MealStart.kept(cues, by: 600, recipeId: "lamb", serveAt: 1020 * min)
+        let at = Dictionary(uniqueKeysWithValues: out.map { ($0.id, $0.at / min) })
+        #expect(at["l1"] == 990)
+        #expect(at["l3"] == 1015)
+    }
+}

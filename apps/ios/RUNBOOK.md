@@ -738,3 +738,10 @@ recipe, Photograph a recipe, From a photo…, Create with AI, then Open the
 cookbook. iPad keeps the labelled Cookbook / Create with AI / New Recipe
 buttons. Checked the header on the iPhone 18 Pro Max simulator (the 18 Pro
 was in use by another session); the menu's items weren't tapped through.
+
+Also in 1.46.2 — "Keep 17:00" anchors a dish's last steps to serving. James
+started a slow-cooker lamb early, chose Keep, and its "carve and serve" step
+came up at 16:15 for a 17:00 dinner: Keep shifted every one of the lamb's
+cues. Now (`MealStart.kept` / `keepShift` in lib/meal-start.ts) only the
+cues up to the dish's longest stretch move; that stretch absorbs the
+difference and the finishing steps stay put. Unit-tested (KeptStartTests).
