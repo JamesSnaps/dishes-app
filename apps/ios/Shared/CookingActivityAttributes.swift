@@ -22,9 +22,14 @@ struct CookingActivityAttributes: ActivityAttributes {
         var timerEndsAt: Date?
         /// How many timers are running, across every dish.
         var runningTimers: Int
+        /// The cook in front's name. Several cooks can go at once, and the
+        /// activity follows whichever is in front without being restarted;
+        /// nil from an app that predates that, so `title` is used.
+        var title: String? = nil
     }
 
-    /// The meal's name, or the recipe's when it's a single dish.
+    /// The name of the cook the activity was started for: the meal's, or the
+    /// recipe's when it's a single dish. `ContentState.title` takes over.
     var title: String
 }
 

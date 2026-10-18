@@ -687,3 +687,46 @@ review of the whole meal (rating combinations) at the end.
   in dev — covered by unit tests), iPad layout, the photo upload.
 - Simulator tip: screenshots at 0.2 scale on the iPhone are 920 px wide for
   402 pt — multiply by 0.437, not the iPad's 0.688.
+
+### 18 Oct 2026 — several cooks at once (v1.46.1)
+
+James minimised a saved-meal cook, started and minimised a dessert, and
+couldn't get back to the meal: `AppNav` held one `CookSession`, and a new
+request replaced it (only the timers survived, being global).
+
+- `AppNav.sessions` is a list, the cook in front first. A request matching a
+  live cook (`isCooking`, which now also matches a planned meal by
+  `groupId`) brings it forward; a new one is added. `nav.end(_:)` ends one
+  cook; `nav.cooking = nil` still ends the one in front.
+- `Cooking/CookStack.swift`: `CookingBar` (one cook as before; with more, a
+  count and the others' card edges peeking above it), `CookStackFan` (tap
+  the bar: every cook as a card — title, "Step n of m" or "n of 15 in the
+  meal", next timer or due time, ×; tap outside to put them back),
+  `CookSwitcher` (iPad toolbar; on iPhone the same list is in the title's
+  menu — there's no room beside the title for a separate button).
+- The iPhone's tab-bar accessory clips anything drawn outside it, so the
+  card edges are drawn over the app (`CookStackEdges`) from the accessory's
+  measured frame; the fan lines its front card up with the same frame.
+- A `confirmationDialog` from inside that overlay is presented invisibly and
+  swallows the next taps (it ended a cook in testing), so the fan's × asks
+  inline in the card, and only when the cook has timers running.
+- Live Activity: the cook's name moved into `ContentState.title` (optional,
+  old activities fall back to the attributes' title), so switching cooks
+  updates the activity. Restarting it called `Activity.request`, which held
+  the main thread for 1–2 s per switch, and taps landed on a stale layout.
+- `SavedCooks`: cooks are saved (recipe ids, steps, scales, finished dishes,
+  start shift, sequence position, started-at) on minimise, on any change to
+  the list and when the app leaves the foreground, and restored minimised
+  for 12 h; a meal's frozen schedule is fetched again on restore.
+- Checked on the iPhone 18 Pro simulator: Sunday roast (scheduled meal) →
+  minimise → Chocolate Chip Cookies → minimise: bar shows the stack, fan
+  shows both, each opens at its own place (roast at 2 of 15, cookies at its
+  step); Cook tonight resumes the roast; the title menu switches both ways;
+  relaunch keeps both; × with a running timer asks inline. iPad Pro 11":
+  toolbar "2 cooks" switcher, floating bar with the edge peeking, fan.
+  **Not checked:** the Live Activity on a Lock Screen with two cooks, a
+  device.
+- Simulator tip: scripted taps that land mid-animation hit where the card
+  is drawn at that moment; wait ~1.5 s after opening the fan before tapping
+  a card.
+

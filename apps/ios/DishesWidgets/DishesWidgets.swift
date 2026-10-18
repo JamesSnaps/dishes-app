@@ -137,10 +137,10 @@ private struct CookingLockScreen: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: "frying.pan.fill").foregroundStyle(Palette.brand)
-                    Text(context.attributes.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(context.state.title ?? context.attributes.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                         .foregroundStyle(colors.text)
                 }
-                Text("Step \(context.state.step) of \(context.state.totalSteps)\(context.state.dish == context.attributes.title ? "" : " · \(context.state.dish)")")
+                Text("Step \(context.state.step) of \(context.state.totalSteps)\(context.state.dish == (context.state.title ?? context.attributes.title) ? "" : " · \(context.state.dish)")")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.brand)
                 Text(context.state.instruction)
