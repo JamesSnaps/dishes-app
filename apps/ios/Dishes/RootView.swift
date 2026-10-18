@@ -35,6 +35,8 @@ final class AppNav {
     var recipeSearch = ""
     /// A recipe for Recipes to open, which it clears once shown.
     var openedRecipe: String?
+    /// The cookbook, when it's open (Book/CookbookView.swift).
+    var book: BookRequest?
     /// Focus the shopping list's add field, which it clears once done (the
     /// Control Center control).
     var focusShoppingAdd = false
@@ -92,6 +94,8 @@ struct RootView: View {
     }
 
     @State private var shoppingCount = Observed(0)
+    @State private var windowSize: CGSize = .zero
+    private var posture: FoldPosture { Hinge.shared.posture(for: windowSize) }
     @State private var tonight = Observed<CookRequest?>(nil)
 
     private var shell: some View {
@@ -134,6 +138,19 @@ struct RootView: View {
             }
         }
         .task { await tonight.follow(app.store, TonightMeal.load) }
+        // iPhone Duo: half-folded like a book opens the cookbook; opening it flat closes it again.
+        .background { HingeObserver() }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
+        .onChange(of: posture) { _, posture in
+            if posture == .book, nav.book == nil, !nav.cookingShown {
+                nav.book = BookRequest(recipeIds: nil, byHinge: true)
+            } else if posture != .book, nav.book?.byHinge == true {
+                nav.book = nil
+            }
+        }
+        .fullScreenCover(item: $nav.book) { request in
+            CookbookView(request: request).environment(nav)
+        }
         // The Control Center control: the shopping list, ready to type.
         .onChange(of: AppRequests.shared.shoppingAdd, initial: true) { _, wanted in
             guard wanted else { return }
