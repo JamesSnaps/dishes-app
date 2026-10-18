@@ -104,31 +104,45 @@ struct RecipesScreen: View {
                                subtitle: browsing || shown.count == recipes.value.count
                                    ? "\(recipes.value.count) recipes in your collection"
                                    : "\(shown.count) of \(recipes.value.count) recipes") {
-                        HStack(spacing: 8) {
-                            // On iPhone the buttons are icons, so they fit beside the title.
-                            Button { nav.book = BookRequest(recipeIds: browsing ? nil : shown.map(\.id)) } label: {
-                                headerLabel("Cookbook", "book.closed")
-                                    .background(Color(hex: 0x8B5A2B), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Open as a cookbook")
-                            Button { askingAI = true } label: {
-                                headerLabel("Create with AI", "sparkles")
-                                    .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Create with AI")
-                            Menu {
-                                Button("Write a recipe", systemImage: "square.and.pencil") { creating = true }
-                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                    Button("Photograph a recipe", systemImage: "camera") { usingCamera = true }
+                        Group {
+                            if width == .regular {
+                                // iPad: room for the labelled buttons.
+                                HStack(spacing: 8) {
+                                    Button { openBook() } label: {
+                                        headerLabel("Cookbook", "book.closed")
+                                            .background(Color(hex: 0x8B5A2B), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Open as a cookbook")
+                                    Button { askingAI = true } label: {
+                                        headerLabel("Create with AI", "sparkles")
+                                            .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Create with AI")
+                                    Menu { newRecipeItems } label: {
+                                        headerLabel("New Recipe", "plus")
+                                            .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                    }
+                                    .accessibilityLabel("New Recipe")
                                 }
-                                Button("From a photo…", systemImage: "photo") { choosingPhoto = true }
-                            } label: {
-                                headerLabel("New Recipe", "plus")
-                                    .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            } else {
+                                // iPhone: one round + (as the planner's), everything else in its menu.
+                                Menu {
+                                    newRecipeItems
+                                    Button("Create with AI", systemImage: "sparkles") { askingAI = true }
+                                    Divider()
+                                    Button("Open the cookbook", systemImage: "book.closed") { openBook() }
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 17, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 38, height: 38)
+                                        .background(Theme.brand, in: Circle())
+                                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                                }
+                                .accessibilityLabel("Add a recipe, or open the cookbook")
                             }
-                            .accessibilityLabel("New Recipe")
                         }
                         .fixedSize()
                     }
@@ -355,6 +369,18 @@ private struct RecipePhoto: Identifiable {
 }
 
 extension RecipesScreen {
+    /// The ways to add a recipe — the New Recipe menu on iPad, the top of the + menu on iPhone.
+    @ViewBuilder var newRecipeItems: some View {
+        Button("Write a recipe", systemImage: "square.and.pencil") { creating = true }
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            Button("Photograph a recipe", systemImage: "camera") { usingCamera = true }
+        }
+        Button("From a photo…", systemImage: "photo") { choosingPhoto = true }
+    }
+
+    /// The recipes on screen as a cookbook (every recipe while browsing).
+    func openBook() { nav.book = BookRequest(recipeIds: browsing ? nil : shown.map(\.id)) }
+
     /// A header button's label: words and icon on iPad, the icon alone on iPhone.
     @ViewBuilder func headerLabel(_ title: String, _ icon: String) -> some View {
         Group {
