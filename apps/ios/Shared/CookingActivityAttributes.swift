@@ -26,6 +26,9 @@ struct CookingActivityAttributes: ActivityAttributes {
         /// activity follows whichever is in front without being restarted;
         /// nil from an app that predates that, so `title` is used.
         var title: String? = nil
+        /// Where a tap opens: this cook at this step (CookLink). nil from an
+        /// app that predates it, and the tap just opens the app.
+        var link: URL? = nil
     }
 
     /// The name of the cook the activity was started for: the meal's, or the

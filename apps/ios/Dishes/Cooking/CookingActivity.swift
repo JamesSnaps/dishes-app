@@ -3,7 +3,7 @@
 // change, ended when the last cook does. Between updates the Lock Screen counts the next timer down by
 // itself, so nothing here runs while the device is locked.
 //
-//   CookingActivity.shared.show(title:dish:step:of:instruction:)
+//   CookingActivity.shared.show(title:dish:step:of:instruction:link:)
 //   CookingActivity.shared.end()
 
 import ActivityKit
@@ -17,7 +17,7 @@ final class CookingActivity {
 
     /// Starts the activity, or updates the running one. Quietly does nothing
     /// when Live Activities are turned off for Dishes in Settings.
-    func show(title: String, dish: String, step: Int, of total: Int, instruction: String) {
+    func show(title: String, dish: String, step: Int, of total: Int, instruction: String, link: URL? = nil) {
         let next = CookTimers.shared.timers
             .filter { $0.state == .running }
             .min { ($0.endsAt ?? .distantFuture) < ($1.endsAt ?? .distantFuture) }
@@ -25,7 +25,7 @@ final class CookingActivity {
             dish: dish, step: step, totalSteps: total, instruction: instruction,
             timerLabel: next?.label, timerEndsAt: next?.endsAt,
             runningTimers: CookTimers.shared.timers.filter { $0.state == .running }.count,
-            title: title)
+            title: title, link: link)
         guard state != last else { return }
         // Stale once the timer it shows has gone off, so the system greys it
         // rather than showing a frozen 0:00 as if current.

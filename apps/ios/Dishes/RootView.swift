@@ -54,6 +54,9 @@ final class AppNav {
     }
     /// The resume bar's stack fanned out into every cook (CookStackFan).
     var cooksFanned = false
+    /// The cooks saved at the last launch are back (or there were none), so a
+    /// Live Activity's tap can find its cook (CookLinkHandler).
+    private(set) var cooksRestored = false
 
     /// Setting a request starts cooking it and shows cooking mode — or, for
     /// dishes already cooking, brings that cook back. Other cooks keep going
@@ -111,9 +114,11 @@ final class AppNav {
     func restoreCooks(from store: LocalStore) async {
         guard sessions.isEmpty, let cooks = await SavedCooks.load(from: store), !cooks.isEmpty else {
             if sessions.isEmpty { CookingActivity.shared.endLeftovers() }
+            cooksRestored = true
             return
         }
         sessions = cooks
+        cooksRestored = true
         CookingActivity.shared.adoptLeftover()
         Task { @MainActor in cooks[0].showActivity() }
         // A meal's schedule, so the bar can say where in it each cook is.
@@ -155,6 +160,8 @@ struct RootView: View {
         .fullScreenCover(isPresented: $nav.cookingShown) {
             CookingCover().environment(nav)
         }
+        // A tapped cooking Live Activity: that cook, at its step.
+        .modifier(CookLinkHandler(nav: nav))
         .task { await app.start() }
     }
 

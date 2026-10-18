@@ -258,6 +258,9 @@ struct CookingView: View {
         // The Live Activity follows the step, the dish tab and the timers.
         .onChange(of: stepIndex) { showActivity() }
         .onChange(of: session.dishIndex) { showActivity() }
+        // A meal's place moves on without the step changing at a prep step or a note.
+        .onChange(of: session.position) { showActivity() }
+        .onChange(of: session.dishView) { showActivity() }
         .onChange(of: CookTimers.shared.timers) { showActivity() }
         // A sheet takes the keyboard; have it back when they close.
         .onChange(of: asking || addingTimer || logging != nil || showIngredients || startPrompt != nil || showSchedule || reviewingMeal) { _, open in if !open { keys = true } }

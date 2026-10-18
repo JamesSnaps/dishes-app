@@ -41,7 +41,40 @@ extension CookSession {
         let total = max(dish.recipe.steps.count, 1)
         let step = dish.recipe.steps.indices.contains(stepIndex) ? dish.recipe.steps[stepIndex] : nil
         CookingActivity.shared.show(title: title, dish: dish.recipe.title,
-                                    step: min(stepIndex + 1, total), of: total, instruction: step?.instruction ?? "")
+                                    step: min(stepIndex + 1, total), of: total, instruction: step?.instruction ?? "",
+                                    link: link.url)
+    }
+
+    /// Back to this cook where it is now, for the Live Activity's tap.
+    var link: CookLink {
+        CookLink(groupId: request.groupId, recipeIds: request.dishes.map(\.recipe.id),
+                 recipeId: dish.recipe.id, stepIndex: stepIndex, cue: inSequence ? cue?.id : nil)
+    }
+
+    /// Whether a CookLink is for this cook: the same meal, else the same dishes.
+    func matches(_ link: CookLink) -> Bool {
+        if let group = link.groupId, group == request.groupId { return true }
+        return !link.recipeIds.isEmpty && Set(link.recipeIds) == Set(request.dishes.map(\.recipe.id))
+    }
+
+    /// Where a CookLink says: its place in the meal's sequence, else that dish at that step.
+    func go(to link: CookLink) {
+        if let id = link.cue, let index = cues.firstIndex(where: { $0.id == id }) {
+            goTo(index)
+            return
+        }
+        guard let id = link.recipeId, let dish = request.dishes.firstIndex(where: { $0.recipe.id == id }) else { return }
+        if let step = link.stepIndex, request.dishes[dish].recipe.steps.indices.contains(step) { steps[id] = step }
+        if let cue = link.cue {
+            // The schedule isn't back yet (just relaunched): it lands there once it is.
+            position = cue
+            dishView = false
+            dishIndex = dish
+        } else if cues.isEmpty {
+            dishIndex = dish
+        } else {
+            showDish(dish)
+        }
     }
 }
 
