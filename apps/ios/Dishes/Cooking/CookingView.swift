@@ -103,6 +103,10 @@ struct CookingView: View {
     @State private var logging: Recipe?
     @State private var confirmExit = false
     @State private var asking = false
+    /// The ingredient tapped in the step's text, and where, for its tooltip.
+    @State private var tip: (id: String, frame: CGRect)?
+    @State private var stepLayout: Text.Layout?
+    @State private var tipWidth: CGFloat = 0
     @State private var addingTimer = false
     /// "When did you start?" for a scheduled meal (MealStartSheet).
     @State private var startPrompt: MealStartPrompt?
@@ -367,14 +371,26 @@ struct CookingView: View {
                             .foregroundStyle(Theme.brandDeep)
                             .textCase(.uppercase)
                     }
-                    Text(step.map { _ in match.highlighted(color: Theme.brandDeep) } ?? AttributedString("This recipe has no steps."))
+                    // An ingredient in the text shows its amount in a tooltip
+                    // above it when tapped, as on the web; tapping the words
+                    // doesn't move on (Next, swipes and the keyboard do).
+                    (step.map { _ in match.text(color: Theme.brandDeep) } ?? Text("This recipe has no steps."))
                         .font(.system(size: size, weight: .medium, design: .rounded))
                         .lineSpacing(size * 0.18)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .onPreferenceChange(Text.LayoutKey.self) { layouts in
+                            MainActor.assumeIsolated { stepLayout = layouts.first?.layout }
+                        }
                         .contentShape(Rectangle())
-                        // Tap the words to go on: no aiming needed.
-                        .onTapGesture { move(1) }
-                    stepIngredients(size: size)
+                        .onTapGesture(coordinateSpace: .local) { point in
+                            let hit = stepLayout?.ingredient(at: point)
+                            withAnimation(.snappy(duration: 0.18)) {
+                                tip = hit.flatMap { $0.id == tip?.id ? nil : $0 }
+                            }
+                        }
+                        .overlay(alignment: .topLeading) { ingredientTip(size: size) }
+                        .onChange(of: stepIndex) { tip = nil }
+                        .onChange(of: dish.recipe.id) { tip = nil }
                     if step != nil {
                         Button { asking = true } label: {
                             Label("Ask about this step", systemImage: "bubble.left.and.text.bubble.right")
@@ -414,22 +430,34 @@ struct CookingView: View {
         }
     }
 
-    /// The ingredients in use, scaled, in recipe order.
-    private func stepIngredients(size: CGFloat) -> some View {
-        let ingredients = dish.recipe.ingredients.filter { inUse.contains($0.id) }
-        return Group {
-            if !ingredients.isEmpty {
-                FlowLayout(spacing: 10) {
-                    ForEach(ingredients) { ingredient in
-                        let quantity = Format.quantity(ingredient.amount, ingredient.unit, scale: dish.scale)
-                        Text(quantity.isEmpty ? ingredient.name : "\(quantity) \(ingredient.name)")
-                            .font(.system(size: max(17, size * 0.5), weight: .semibold))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Theme.brand.opacity(0.15), in: Capsule())
-                            .foregroundStyle(Theme.brandDeep)
-                    }
-                }
+    /// The tapped ingredient's amount, in a dark bubble by the word (the
+    /// web's tooltip): above it, or below on the first line where above would
+    /// be outside the scroll view. It stays until another tap or step.
+    @ViewBuilder private func ingredientTip(size: CGFloat) -> some View {
+        if let tip, let ingredient = dish.recipe.ingredients.first(where: { $0.id == tip.id }) {
+            let quantity = Format.quantity(ingredient.amount, ingredient.unit, scale: dish.scale)
+            let text = [quantity.isEmpty ? nil : quantity, ingredient.name].compactMap { $0 }.joined(separator: " ")
+                + (ingredient.preparation.map { $0.isEmpty ? "" : ", \($0)" } ?? "")
+            let font = max(15, size * 0.45)
+            let height = font * 1.25 + 16
+            GeometryReader { proxy in
+                let below = tip.frame.minY < height + 8
+                Text(text)
+                    .font(.system(size: font, weight: .semibold))
+                    .foregroundStyle(Theme.background)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Theme.foreground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
+                    .frame(maxWidth: proxy.size.width * 0.9)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { tipWidth = $0 }
+                    .position(x: min(max(tip.frame.midX, tipWidth / 2), proxy.size.width - tipWidth / 2),
+                              y: below ? tip.frame.maxY + 6 + height / 2 : tip.frame.minY - 6 - height / 2)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel(text)
             }
         }
     }

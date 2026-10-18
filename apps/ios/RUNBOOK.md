@@ -584,3 +584,16 @@ mode opens that dish on the step the schedule has it on by now. ⋯ →
   cues moved). **Not checked:** the Live Activity re-send on a real device,
   the iPhone layout of the sheet.
 - The simulator often ignored the first tap after a screen change; tap again.
+
+### 18 Oct 2026 — ingredient tooltips in cooking mode (v1.42.1)
+
+James: highlighting did nothing, and the badges under the step got pushed
+out of sight on long steps. Now the step's ingredient names are dotted-
+underlined (as on the web) and tapping one shows its scaled amount and
+preparation in a dark bubble by the word; tapping the text no longer goes
+to the next step, and the badges are gone. `StepMatch.text` builds the Text
+with an `IngredientTag` custom attribute per name; the tap is traced to a
+name through `Text.LayoutKey` (`Text.Layout.ingredient(at:)`). Links
+(`AttributedString.link` + openURL) didn't fire alongside a tap gesture.
+The bubble sits below the word on the first line (above would be clipped
+by the scroll view). Checked on the iPhone 18 Pro simulator.
