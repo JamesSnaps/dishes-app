@@ -22,7 +22,10 @@ interface Registration {
   householdId: string;
   memberId: string;
   groupId: string;
-  /** The cue last sent, so an update only goes out when it changes. */
+  /**
+   * The cue last sent and its times, so an update only goes out when it
+   * changes — including when the meal is moved and the next cue stays the same.
+   */
   sentCue: string | null;
 }
 
@@ -76,13 +79,15 @@ export function liveActivityState(clock: MealClock, now: number) {
   const next = upcoming[0];
   const after = upcoming[1];
   const line = (c: MealClock["cues"][number]) => (c.dish ? `${c.dish}: ${c.text}` : c.text);
+  const nextAt = Math.floor((next?.at ?? clock.serveAt) / 1000);
+  const serveAt = Math.floor(clock.serveAt / 1000);
   return {
-    cueId: next?.id ?? "serve",
+    cueId: `${next?.id ?? "serve"}@${nextAt}/${serveAt}`,
     state: {
-      nextAt: Math.floor((next?.at ?? clock.serveAt) / 1000),
+      nextAt,
       nextText: next ? line(next) : "Serve",
       afterText: after ? line(after) : null,
-      serveAt: Math.floor(clock.serveAt / 1000),
+      serveAt,
       stepsLeft: upcoming.length,
     },
   };

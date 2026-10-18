@@ -37,6 +37,12 @@ export async function setMealServeAt(groupId: string, serveAt: string | null) {
   }, true);
 }
 
+/** Move the meal's serve time by `minutes` — "I started earlier, move dinner". */
+export async function shiftMealServeAt(groupId: string, minutes: number) {
+  const session = await requireSession();
+  return run(() => timelineService.shiftMealServeAt(session, groupId, minutes), true);
+}
+
 export async function planMealTimelineWithAi(groupId: string) {
   const session = await requireSession();
   return run(async () => {

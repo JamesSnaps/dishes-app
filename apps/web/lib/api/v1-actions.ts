@@ -173,6 +173,7 @@ export const actions: Record<string, Handler> = {
   "meals.updateFromGroup": (_s, [groupId]) => meals.updateSavedMealFromGroup(str(groupId)),
   "timeline.get": (_s, [groupId]) => timeline.getMealSchedule(str(groupId)),
   "timeline.setServeAt": (_s, [groupId, at]) => timeline.setMealServeAt(str(groupId), z.string().nullable().parse(at)),
+  "timeline.shift": (_s, [groupId, minutes]) => timeline.shiftMealServeAt(str(groupId), z.number().int().parse(minutes)),
   "timeline.planWithAi": (_s, [groupId]) => timeline.planMealTimelineWithAi(str(groupId)),
   "timeline.clear": (_s, [groupId]) => timeline.clearMealTimeline(str(groupId)),
 

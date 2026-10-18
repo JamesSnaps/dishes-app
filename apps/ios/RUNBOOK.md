@@ -554,3 +554,33 @@ same schedules the cue reminders use) and both chips use it for the dishes
 it covers; other dishes still use estimates, and the earliest wins. The
 stated-time slack is capped at 15 min. Checked on web and the iPhone
 simulator: Saturday shows Fish Tacos at 16:45 (earlier than the roast's 16:52).
+
+### 18 Oct 2026 — "When did you start?" in cooking mode (v1.42.0)
+
+James often starts a meal before opening the app and wants the schedule to
+follow — but not by re-syncing on step changes, since he reads ahead. Now a
+scheduled meal's cook asks once as it begins, on its day ("Schedule says
+start Mushroom Risotto at 08:20 for 17:00"): Start now, or I started earlier
+at… (a wheel defaulting to now, or the due time within 10 min). More than
+5 min off offers **Move dinner to …** (`timeline.shift` — the meal's
+serve-at, or that date's dinner time when it follows it, so the planner chip
+moves too; cues already due are marked sent so the reminder loop doesn't
+re-fire them; the Live Activity's change key now includes the times, so a
+moved meal is re-sent even when the next cue is the same) or **Keep …**
+(only the first dish's cues shift, on this device). Started early, cooking
+mode opens that dish on the step the schedule has it on by now. ⋯ →
+"Started at a different time…" asks again mid-cook.
+
+- `CookRequest.groupId` (planner Cook, Tonight, "Cook tonight", a reminder's
+  link) and `MealClock.Cue.recipeId/stepIndex`; rules in
+  `DishesCore/Models/MealStart.swift` with tests (same as
+  apps/web/lib/meal-start.ts). `MealCueLine` shows the next cue under the
+  progress bar, as the web's Now / next strip.
+- Checked on the iPad Pro 11-inch simulator against the worktree's dev
+  server, with the dev Sunday roast moved to today and dinner at 08:33:
+  the sheet, 07:15 → "40 min early — move dinner?" → Move dinner to 07:53
+  (the day's dinner time became 07:53) → Mushroom Risotto opened on step 4;
+  the ⋯ menu entry. Web checked the same way, plus Keep (only the risotto's
+  cues moved). **Not checked:** the Live Activity re-send on a real device,
+  the iPhone layout of the sheet.
+- The simulator often ignored the first tap after a screen change; tap again.

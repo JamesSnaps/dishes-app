@@ -505,7 +505,7 @@ struct PlanScreen: View {
     private func cook(_ meal: PlannedMeal) {
         let dishes = CookDish.inStartOrder(meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty })
         guard !dishes.isEmpty else { return }
-        nav.cooking = CookRequest(title: meal.title, dishes: dishes)
+        nav.cooking = CookRequest(title: meal.title, groupId: meal.groupId, dishes: dishes)
     }
 }
 
@@ -1140,6 +1140,8 @@ struct Week: Hashable, Sendable {
 /// One slot in a day: a combined meal with its dishes, or a single dish.
 struct PlannedMeal: Identifiable {
     var id: String
+    /// Set for a combined meal (`id` is then the group's); nil for a single dish.
+    var groupId: String? = nil
     var mealType: String
     var title: String?
     var serveAt: String?
@@ -1180,7 +1182,7 @@ struct PlanData: Sendable {
         var meals: [PlannedMeal] = []
         for group in groups where group.mealPlanId == plan.id && group.dayOfWeek == day {
             let dishes = todays.filter { $0.groupId == group.id }.map { ($0, $0.recipeId.flatMap { recipes[$0] }) }
-            meals.append(PlannedMeal(id: group.id, mealType: group.mealType, title: group.title, serveAt: group.serveAt,
+            meals.append(PlannedMeal(id: group.id, groupId: group.id, mealType: group.mealType, title: group.title, serveAt: group.serveAt,
                                      sourceMealId: group.sourceMealId, dishes: dishes))
         }
         for entry in todays where entry.groupId == nil || !groups.contains(where: { $0.id == entry.groupId }) {

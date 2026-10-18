@@ -91,6 +91,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Step 2 — meal cooking mode: "Cook this meal" starts every dish together, a tab per dish in cooking mode, and a whole-meal timers panel (v1.17.0)
 - [x] Timer-end push notifications — running timers are handed to the server while the app is hidden (per device, Redis-backed, re-armed on restart, to-the-second `setTimeout`) and taken back on return; hint in cooking mode when the device has no push subscription (v1.19.0)
 - [x] Step 3 — meal cooking schedule: ready-by time per meal (default: day's dinner time), simple back-to-back schedule with oven-clash warnings, "Plan with AI" (stored, invalidated when dishes change), a push per cue plus heads-up, next-cue times and timeline in cooking mode (v1.18.0)
+- [x] "When did you start?" as a scheduled meal's cook begins (web and iOS): start now or earlier, then move dinner by the difference (serve time / day's dinner time, cues, pushes, Live Activity, planner chip) or keep the serve time; started early opens the first dish on the step it should be on; "Started at a different time…" mid-cook (v1.42.0)
 - [ ] Optional step fields "hands-off" and oven temperature (editor, import and AI generation) to sharpen the simple schedule — the AI currently infers both from step text
 - [ ] Saved meals in the native app (browse + add); groups already sync
 - [ ] AI meal planner proposing combined meals

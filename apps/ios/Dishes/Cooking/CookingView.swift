@@ -37,6 +37,8 @@ struct CookDish: Hashable {
 struct CookRequest: Identifiable {
     let id = UUID()
     var title: String?
+    /// The planned combined meal being cooked, for its cooking schedule.
+    var groupId: String? = nil
     var dishes: [CookDish]
 }
 
@@ -55,6 +57,13 @@ final class CookSession {
     var finished: Set<String> = []
     /// For "How long did it take?" in the debrief; minimised time counts.
     let startedAt = Date()
+    /// The meal's cooking schedule as clock times, once fetched (scheduled meals only).
+    var clock: APIClient.MealClock?
+    /// "I started earlier, keep dinner at 17:00": that dish's cues shown this
+    /// many minutes off the schedule, here only (MealStartSheet).
+    var startShift: (recipeId: String, minutes: Int)?
+    /// "When did you start?" has been asked as this cook began.
+    var askedStart = false
 
     init(request: CookRequest) {
         self.request = request
@@ -70,6 +79,13 @@ final class CookSession {
     }
 
     var stepIndex: Int { steps[dish.recipe.id] ?? 0 }
+
+    /// The schedule's cues as cooking mode shows them, a kept-dinner start applied.
+    var cues: [APIClient.MealClock.Cue] {
+        guard let clock else { return [] }
+        guard let shift = startShift else { return clock.cues }
+        return MealStart.shifted(clock.cues, by: shift.minutes, recipeId: shift.recipeId)
+    }
 
     /// The same dishes, in any order: tapping Cook again resumes rather than restarts.
     func isCooking(_ other: CookRequest) -> Bool {
@@ -88,6 +104,8 @@ struct CookingView: View {
     @State private var confirmExit = false
     @State private var asking = false
     @State private var addingTimer = false
+    /// "When did you start?" for a scheduled meal (MealStartSheet).
+    @State private var startPrompt: MealStartPrompt?
     @FocusState private var keys: Bool
     @Environment(\.horizontalSizeClass) private var width
 
@@ -184,6 +202,11 @@ struct CookingView: View {
             CustomTimerSheet(dish: dish.recipe.title)
                 .presentationDetents([.large])
         }
+        .sheet(item: $startPrompt) { prompt in
+            MealStartSheet(session: session, prompt: prompt)
+                .presentationDetents([.large])
+        }
+        .task { await loadSchedule() }
         .sheet(item: $logging) { recipe in
             CookReviewSheet(recipe: recipe,
                             mode: .afterCooking(minutes: Int(Date().timeIntervalSince(session.startedAt) / 60),
@@ -204,7 +227,22 @@ struct CookingView: View {
         .onChange(of: session.dishIndex) { showActivity() }
         .onChange(of: CookTimers.shared.timers) { showActivity() }
         // A sheet takes the keyboard; have it back when they close.
-        .onChange(of: asking || addingTimer || logging != nil || showIngredients) { _, open in if !open { keys = true } }
+        .onChange(of: asking || addingTimer || logging != nil || showIngredients || startPrompt != nil) { _, open in if !open { keys = true } }
+    }
+
+    /// A scheduled meal's clock, fresh each time cooking mode opens. The first
+    /// time, as the cook begins on the day, it asks when you started — single
+    /// dishes and resumed cooks never do.
+    private func loadSchedule() async {
+        guard let groupId = request.groupId else { return }
+        let first = !session.askedStart
+        session.askedStart = true
+        guard let clock = try? await AppModel.shared.api.mealClock(groupId: groupId) else { return }
+        session.clock = clock
+        let serve = Date(timeIntervalSince1970: clock.serveAt / 1000)
+        if first, MealStart.firstCue(clock.cues) != nil, Calendar.current.isDateInToday(serve) {
+            startPrompt = .start
+        }
     }
 
     /// This cook's timers that haven't gone off (every dish in a meal).
@@ -301,6 +339,13 @@ struct CookingView: View {
             if width == .compact {
                 Button("Ingredients", systemImage: "list.bullet") { showIngredients = true }
             }
+            if session.clock != nil {
+                Menu {
+                    Button("Started at a different time…", systemImage: "clock.arrow.circlepath") { startPrompt = .later }
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                }
+            }
             Button { minimise() } label: {
                 Label("Minimise", systemImage: "chevron.down")
             }
@@ -313,6 +358,7 @@ struct CookingView: View {
     private func stepPane(size: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             progress
+            if !session.cues.isEmpty { MealCueLine(session: session) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     if let label = step?.groupLabel {
@@ -852,5 +898,48 @@ struct FlowLayout: Layout {
             widest = max(widest, x - spacing)
         }
         return (CGSize(width: widest, height: y + rowHeight), origins)
+    }
+}
+
+/// A scheduled meal's next cue against the clock — "08:40 · Lamb: Stir and
+/// season" — under the progress bar, as the web's "Now / next" strip. Tap it
+/// to go to that dish and step.
+struct MealCueLine: View {
+    @Bindable var session: CookSession
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let now = context.date.timeIntervalSince1970 * 1000
+            // A cue counts as "now" for a few minutes after its time, as on the web.
+            let upcoming = session.cues.filter { $0.at + 5 * 60_000 > now }
+            if let next = upcoming.first(where: { $0.id != "serve" }) ?? upcoming.first {
+                Button { go(to: next) } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "alarm").foregroundStyle(Theme.brandDeep)
+                        Text(next.at <= now ? "Now" : MealStartSheet.hhmm(Date(timeIntervalSince1970: next.at / 1000)))
+                            .font(.system(size: 15, weight: .bold).monospacedDigit())
+                            .foregroundStyle(next.at <= now ? Color(hex: 0xE11D48) : Theme.foreground)
+                        Text("\(Text(next.dish.map { "\($0): " } ?? "").bold())\(next.text)")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Theme.foreground)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .callout(Theme.amber50, Theme.orange50, border: Color(hex: 0xFDE68A).opacity(0.7))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func go(to cue: APIClient.MealClock.Cue) {
+        guard let recipeId = cue.recipeId,
+              let index = session.request.dishes.firstIndex(where: { $0.recipe.id == recipeId }) else { return }
+        withAnimation {
+            session.dishIndex = index
+            if let step = cue.stepIndex { session.steps[recipeId] = step }
+        }
     }
 }
