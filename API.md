@@ -809,6 +809,7 @@ The per-action adapters are in `apps/web/lib/api/v1-actions.ts`.
 |---|---|
 | `pantry` | `list`, `addStaple`, `removeStaples`, `addStock`, `removeStock`, `updateStock`, `addCheckedFromList` |
 | `deliveries` | `overview`, `weekPanel`, `setReminders`, `saveSettings`, `addAway`, `updateAway`, `removeAway`, `set`, `saveOrder` |
+| `planner` | `nutrition` — `[weekStartDate]` → the week's heart-healthy summary, protein targets (heart focus only) and swap suggestions; `swap` — `[entryId, recipeId]`; `groupToShopping` — `[groupId, forceInclude?]` → `{ added, merged, skipped }` |
 | `dinner` (the planner's dinner-time chip) | `week` — `[weekStartDate, recipeIds]` → each day's dinner time and per-recipe start estimates; `setTime` — `[date, "HH:MM" \| null]`; `setReminder` — `[date, on]` |
 | `meals` (saved meals) | `list`, `create`, `update`, `delete`, `saveFromGroup`, `updateFromGroup` |
 | `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear` |

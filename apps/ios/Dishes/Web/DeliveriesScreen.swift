@@ -161,40 +161,7 @@ struct DeliveriesScreen: View {
     }
 
     private func nextCard(_ n: DeliveryOverview.Next, canEdit: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("NEXT ORDER").font(.system(size: 12, weight: .bold)).tracking(0.6).foregroundStyle(Color(hex: 0x047857))
-                    Text("\(n.day) \(n.label)").font(.system(size: 20, weight: .bold))
-                    Text("Covers \(n.coverageLabel) · \(n.cutoffLabel)").font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
-                }
-                Spacer()
-                statusBadge(n.status)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                checklistLine(n.unplannedCount == 0, n.unplannedCount == 0 ? "Every dinner planned" : "\(n.unplannedCount) dinner\(n.unplannedCount == 1 ? "" : "s") not planned (\(n.unplannedDinners ?? ""))")
-                checklistLine(n.mealsNotOnList == 0, n.mealsNotOnList == 0 ? "All meals on the list" : "\(n.mealsNotOnList) meal\(n.mealsNotOnList == 1 ? "" : "s") not on the list yet")
-                checklistLine(n.unticked == 0, n.unticked == 0 ? "Everything’s in the basket" : "\(n.unticked) item\(n.unticked == 1 ? "" : "s") not ticked off")
-                if !n.addedSinceOrder.isEmpty {
-                    checklistLine(false, "Added since ordering: \(n.addedSinceOrder.joined(separator: ", "))")
-                }
-                if let min = n.belowMinimum { checklistLine(false, "Under the \(min) minimum") }
-            }
-            if canEdit && n.status != "ordered" {
-                Button {
-                    Task { if await WebAction.run("deliveries.set", [.string(n.date), .string("ordered")], done: "Marked as ordered.") { await data.load() } }
-                } label: { Label("Mark as ordered", systemImage: "checkmark.circle") }
-                .buttonStyle(.gradient(.emeraldTeal))
-            }
-        }
-        .padding(16)
-        .callout(Theme.emerald100.opacity(0.6), Theme.background, border: Color(hex: 0xA7F3D0))
-    }
-
-    private func checklistLine(_ done: Bool, _ text: String) -> some View {
-        Label(text, systemImage: done ? "checkmark.circle.fill" : "exclamationmark.circle")
-            .font(.system(size: 14))
-            .foregroundStyle(done ? Color(hex: 0x047857) : Color(hex: 0xB45309))
+        NextDeliveryCard(next: n, canEdit: canEdit) { await data.load() }
     }
 
     private func dayRow(_ day: DeliveryOverview.Day, canEdit: Bool) -> some View {
@@ -239,7 +206,13 @@ struct DeliveriesScreen: View {
         Task { if await WebAction.run("deliveries.set", [.string(day.date), .string(target)]) { await data.load() } }
     }
 
-    private func statusBadge(_ status: String) -> some View {
+    private func statusBadge(_ status: String) -> some View { DeliveryStatusBadge(status: status) }
+}
+
+/// "To order", "Ordered", "Skipped" or "Away".
+struct DeliveryStatusBadge: View {
+    let status: String
+    var body: some View {
         let (text, fg, bg): (String, Color, Color) = switch status {
         case "ordered": ("Ordered", Color(hex: 0x047857), Theme.emerald100)
         case "skipped": ("Skipped", Theme.mutedForeground, Theme.muted)
@@ -250,6 +223,9 @@ struct DeliveriesScreen: View {
             .padding(.horizontal, 10).padding(.vertical, 4)
             .foregroundStyle(fg).background(bg, in: Capsule())
     }
+}
+
+extension DeliveriesScreen {
 
     static func short(_ date: String) -> String {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
@@ -443,4 +419,60 @@ private struct DeliverySettingsSheet: View {
         ])], done: "Delivery settings saved.")
         if ok { await saved(); dismiss() }
     }
+}
+
+/// The next open order and what's still to do before it (the web's
+/// next-delivery-card.tsx): on Deliveries, and from the planner's strip.
+struct NextDeliveryCard: View {
+    let next: DeliveryOverview.Next
+    let canEdit: Bool
+    var changed: () async -> Void
+
+    var body: some View {
+        let n = next
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("NEXT ORDER").font(.system(size: 12, weight: .bold)).tracking(0.6).foregroundStyle(Color(hex: 0x047857))
+                    Text(n.label.hasPrefix(String(n.day.prefix(3))) ? n.label : "\(n.day) \(n.label)").font(.system(size: 20, weight: .bold))
+                    Text("Covers \(n.coverageLabel) · \(n.cutoffLabel)").font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                }
+                Spacer()
+                DeliveryStatusBadge(status: n.status)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(Self.checklist(n).enumerated()), id: \.offset) { _, line in
+                    Label(line.text, systemImage: line.done ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(line.done ? Color(hex: 0x047857) : Color(hex: 0xB45309))
+                }
+            }
+            if canEdit && n.status != "ordered" {
+                Button {
+                    Task { if await WebAction.run("deliveries.set", [.string(n.date), .string("ordered")], done: "Marked as ordered.") { await changed() } }
+                } label: { Label("Mark as ordered", systemImage: "checkmark.circle") }
+                .buttonStyle(.gradient(.emeraldTeal))
+            }
+        }
+        .padding(16)
+        .callout(Theme.emerald100.opacity(0.6), Theme.background, border: Color(hex: 0xA7F3D0))
+    }
+
+    /// What's left before ordering, done items included.
+    static func checklist(_ n: DeliveryOverview.Next) -> [(done: Bool, text: String)] {
+        var lines: [(Bool, String)] = [
+            (n.unplannedCount == 0, n.unplannedCount == 0 ? "Every dinner planned"
+                : "\(n.unplannedCount) dinner\(n.unplannedCount == 1 ? "" : "s") not planned (\(n.unplannedDinners ?? ""))"),
+            (n.mealsNotOnList == 0, n.mealsNotOnList == 0 ? "All meals on the list"
+                : "\(n.mealsNotOnList) meal\(n.mealsNotOnList == 1 ? "" : "s") not on the list yet"),
+            (n.unticked == 0, n.unticked == 0 ? "Everything’s in the basket"
+                : "\(n.unticked) item\(n.unticked == 1 ? "" : "s") not ticked off"),
+        ]
+        if !n.addedSinceOrder.isEmpty { lines.append((false, "Added since ordering: \(n.addedSinceOrder.joined(separator: ", "))")) }
+        if let min = n.belowMinimum { lines.append((false, "Under the \(min) minimum")) }
+        return lines
+    }
+
+    /// How many checklist lines still need doing.
+    static func toDo(_ n: DeliveryOverview.Next) -> Int { checklist(n).filter { !$0.done }.count }
 }

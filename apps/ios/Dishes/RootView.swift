@@ -319,7 +319,7 @@ enum TonightMeal {
         let today = (Calendar(identifier: .iso8601).component(.weekday, from: Date()) + 5) % 7
         let meals = data.meals(on: today, in: week)
         guard let meal = meals.first(where: { $0.mealType == "dinner" }) ?? meals.last else { return nil }
-        let dishes = meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty }.map { CookDish(recipe: $0) }
+        let dishes = CookDish.inStartOrder(meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty })
         return dishes.isEmpty ? nil : CookRequest(title: meal.title, dishes: dishes)
     }
 }

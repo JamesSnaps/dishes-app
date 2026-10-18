@@ -38,10 +38,12 @@ struct PlanScreen: View {
                     header
                     if wholeWeek {
                         actions.frame(maxWidth: 640)
+                        weekStrips
                         weekGrid
                     } else {
                         dayStrip
                         actions
+                        weekStrips
                         dayDetail
                     }
                 }
@@ -89,6 +91,15 @@ struct PlanScreen: View {
     private var extrasKey: String {
         week.key + dinnerRecipes.map { $0.map(\.id).joined(separator: ",") }.joined(separator: "|")
             + "#\(data.value.entries(in: week).filter { $0.addedToShoppingListAt == nil }.count)"
+    }
+
+    private func reloadExtras() async {
+        await extras.load(week: week.key, dinnerRecipeIds: dinnerRecipes.flatMap { $0 }.map(\.id))
+    }
+
+    /// Heart-healthy and next-order banners for the week.
+    private var weekStrips: some View {
+        PlanWeekStrips(extras: extras, reload: reloadExtras, swapped: reloadExtras)
     }
 
     /// The dinner-time and delivery chips for a day, when the server has them.
@@ -365,7 +376,8 @@ struct PlanScreen: View {
     // MARK: Changes (sync mutations, so they work offline)
 
     private var planActions: PlanActions {
-        PlanActions(week: week, move: moveEntry, setMealType: setMealType, setServings: setServings, moveGroup: moveGroup)
+        PlanActions(week: week, move: moveEntry, setMealType: setMealType, setServings: setServings, moveGroup: moveGroup,
+                    updateGroup: updateGroup, deleteGroup: deleteGroup)
     }
 
     /// An entry made offline has a placeholder id until it syncs; the server
@@ -440,6 +452,47 @@ struct PlanScreen: View {
         }
     }
 
+    private func updateGroup(_ meal: PlannedMeal, _ fields: [String: JSONValue]) {
+        guard ready(meal.id) else { return }
+        Task {
+            var optimistic: [OptimisticChange] = []
+            if let group = try? await app.store.read({ try $0.record(.mealPlanGroups, id: meal.id) }) {
+                optimistic.append(.put(.mealPlanGroups, group.merging(.object(fields.filter { $0.key != "servings" }))))
+            }
+            // The dishes follow the meal's type and servings on the server.
+            let follow = fields.filter { $0.key == "mealType" || $0.key == "servings" }
+            if !follow.isEmpty {
+                for dish in meal.dishes {
+                    if let row = try? await app.store.read({ try $0.record(.mealPlanEntries, id: dish.entry.id) }) {
+                        optimistic.append(.put(.mealPlanEntries, row.merging(.object(follow))))
+                    }
+                }
+            }
+            await app.mutate("meal_plan_group.update",
+                             payload: JSONValue.object(["groupId": .string(meal.id)]).merging(.object(fields)),
+                             optimistic: optimistic)
+        }
+    }
+
+    private func deleteGroup(_ meal: PlannedMeal, keepRecipes: Bool) {
+        guard ready(meal.id) else { return }
+        Task {
+            var optimistic: [OptimisticChange] = [.remove(.mealPlanGroups, id: meal.id)]
+            for dish in meal.dishes {
+                if keepRecipes {
+                    if let row = try? await app.store.read({ try $0.record(.mealPlanEntries, id: dish.entry.id) }) {
+                        optimistic.append(.put(.mealPlanEntries, row.merging(.object(["groupId": .null]))))
+                    }
+                } else {
+                    optimistic.append(.remove(.mealPlanEntries, id: dish.entry.id))
+                }
+            }
+            await app.mutate("meal_plan_group.delete",
+                             payload: .object(["groupId": .string(meal.id), "keepRecipes": .bool(keepRecipes)]),
+                             optimistic: optimistic)
+        }
+    }
+
     private func delete(_ entry: MealPlanEntry) {
         Task {
             await app.mutate("meal_plan_entry.delete", payload: .object(["entryId": .string(entry.id)]),
@@ -449,7 +502,7 @@ struct PlanScreen: View {
 
     /// A meal cooks as one: every dish as a tab, timers pooled.
     private func cook(_ meal: PlannedMeal) {
-        let dishes = meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty }.map { CookDish(recipe: $0) }
+        let dishes = CookDish.inStartOrder(meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty })
         guard !dishes.isEmpty else { return }
         nav.cooking = CookRequest(title: meal.title, dishes: dishes)
     }
@@ -464,6 +517,10 @@ struct PlanActions {
     var setMealType: (MealPlanEntry, String) -> Void
     var setServings: (MealPlanEntry, Double?) -> Void
     var moveGroup: (PlannedMeal, Int) -> Void
+    /// Title, meal type or servings for a whole meal (`meal_plan_group.update`).
+    var updateGroup: (PlannedMeal, [String: JSONValue]) -> Void
+    /// Remove a meal, or split it back into separate dishes (`keepRecipes`).
+    var deleteGroup: (PlannedMeal, Bool) -> Void
 }
 
 extension EnvironmentValues {
@@ -732,6 +789,7 @@ struct MealGroupCard: View {
                     .buttonStyle(GradientButtonStyle(gradient: .brand, height: 32))
                     .fixedSize()
                 }
+                MealMenu(meal: meal)
             }
             ForEach(meal.dishes, id: \.entry.id) { dish in
                 EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete, cook: { cook(meal) }, showsType: false)
@@ -1084,7 +1142,14 @@ struct PlannedMeal: Identifiable {
     var mealType: String
     var title: String?
     var serveAt: String?
+    var sourceMealId: String? = nil
     var dishes: [(entry: MealPlanEntry, recipe: Recipe?)]
+
+    /// One servings figure when every dish agrees on it.
+    var servings: Double? {
+        let values = Set(dishes.compactMap { $0.entry.servings ?? $0.recipe?.servings })
+        return values.count == 1 ? values.first : nil
+    }
 }
 
 struct PlanData: Sendable {
@@ -1115,7 +1180,7 @@ struct PlanData: Sendable {
         for group in groups where group.mealPlanId == plan.id && group.dayOfWeek == day {
             let dishes = todays.filter { $0.groupId == group.id }.map { ($0, $0.recipeId.flatMap { recipes[$0] }) }
             meals.append(PlannedMeal(id: group.id, mealType: group.mealType, title: group.title, serveAt: group.serveAt,
-                                     dishes: dishes))
+                                     sourceMealId: group.sourceMealId, dishes: dishes))
         }
         for entry in todays where entry.groupId == nil || !groups.contains(where: { $0.id == entry.groupId }) {
             meals.append(PlannedMeal(id: entry.id, mealType: entry.mealType, title: nil, serveAt: nil,
