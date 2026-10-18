@@ -5,6 +5,7 @@ import { recipes, recipeIngredients, recipeSteps, householdMembers } from "@dish
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { CookingMode } from "./_components/cooking-mode";
+import { MealCooking } from "./_components/meal-cooking";
 import { getAverageDuration } from "@/lib/services/cook-history";
 import { getCookAssistThreads } from "@/app/actions/cook-assist-threads";
 import { isStorageAvailable } from "@/lib/storage";
@@ -51,6 +52,7 @@ export default async function CookPage({ params, searchParams }: Props) {
               recipeId: c.recipeId,
               stepIndex: c.stepIndex,
               text: c.text,
+              ...(c.covers?.length ? { covers: c.covers } : {}),
             })),
           };
         })
@@ -60,51 +62,78 @@ export default async function CookPage({ params, searchParams }: Props) {
     ? parseFloat(servingsParam)
     : meal?.dishes.find((d) => d.recipeId === id)?.servings;
 
-  const [recipe, ingredients, steps, members, avgDuration, assistThreads, onShoppingList] =
-    await Promise.all([
+  const ctx = { householdId, memberId };
+  const [own, members, onShoppingList, others] = await Promise.all([
+    loadDish(householdId, id),
+    db
+      .select({ id: householdMembers.id, displayName: householdMembers.displayName })
+      .from(householdMembers)
+      .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
+      .orderBy(householdMembers.displayName),
+    // So the checklist can show what the meal plan already put on the list,
+    // before you tap rather than after.
+    getActiveListItemNames(ctx),
+    // Cooking a meal: every dish's page is loaded now, so moving through the
+    // meal's sequence (or between dishes) is instant rather than a page load.
+    meal
+      ? Promise.all(meal.dishes.filter((d) => d.recipeId !== id).map((d) => loadDish(householdId, d.recipeId)))
+      : Promise.resolve([]),
+  ]);
+
+  if (!own) notFound();
+
+  const common = {
+    householdMembers: members,
+    ownName: members.find((m) => m.id === memberId)?.displayName ?? null,
+    storageAvailable: isStorageAvailable(),
+    onShoppingList,
+  };
+
+  if (meal) {
+    const servingsOf = new Map(meal.dishes.map((d) => [d.recipeId, d.servings]));
+    const dishes = [own, ...others.filter((d): d is DishData => !!d)].map((d) => ({
+      ...d,
+      initialServings: d.recipe.id === id ? initialServings : servingsOf.get(d.recipe.id),
+    }));
+    return (
+      <MealCooking
+        {...common}
+        dishes={dishes}
+        initialRecipeId={id}
+        meal={{ ...meal, schedule }}
+      />
+    );
+  }
+
+  return (
+    <CookingMode
+      {...common}
+      recipe={own.recipe}
+      ingredients={own.ingredients}
+      steps={own.steps}
+      avgDuration={own.avgDuration}
+      initialServings={initialServings}
+      initialAssistThreads={own.assistThreads}
+    />
+  );
+}
+
+export type DishData = NonNullable<Awaited<ReturnType<typeof loadDish>>>;
+
+/** Everything cooking mode needs for one dish (household-scoped). */
+async function loadDish(householdId: string, id: string) {
+  const [recipe, ingredients, steps, avgDuration, assistThreads] = await Promise.all([
     db
       .select()
       .from(recipes)
       .where(and(eq(recipes.id, id), eq(recipes.householdId, householdId)))
       .limit(1)
       .then((r) => r[0] ?? null),
-    db
-      .select()
-      .from(recipeIngredients)
-      .where(eq(recipeIngredients.recipeId, id))
-      .orderBy(asc(recipeIngredients.position)),
-    db
-      .select()
-      .from(recipeSteps)
-      .where(eq(recipeSteps.recipeId, id))
-      .orderBy(asc(recipeSteps.position)),
-    db
-      .select({ id: householdMembers.id, displayName: householdMembers.displayName })
-      .from(householdMembers)
-      .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
-      .orderBy(householdMembers.displayName),
+    db.select().from(recipeIngredients).where(eq(recipeIngredients.recipeId, id)).orderBy(asc(recipeIngredients.position)),
+    db.select().from(recipeSteps).where(eq(recipeSteps.recipeId, id)).orderBy(asc(recipeSteps.position)),
     getAverageDuration(householdId, id),
     getCookAssistThreads(id),
-    // So the checklist can show what the meal plan already put on the list,
-    // before you tap rather than after.
-    getActiveListItemNames({ householdId, memberId }),
   ]);
-
-  if (!recipe) notFound();
-
-  return (
-    <CookingMode
-      recipe={recipe}
-      ingredients={ingredients}
-      steps={steps}
-      householdMembers={members}
-      ownName={members.find((m) => m.id === memberId)?.displayName ?? null}
-      avgDuration={avgDuration}
-      storageAvailable={isStorageAvailable()}
-      initialServings={initialServings}
-      initialAssistThreads={assistThreads}
-      onShoppingList={onShoppingList}
-      meal={meal ? { ...meal, schedule } : undefined}
-    />
-  );
+  if (!recipe) return null;
+  return { recipe, ingredients, steps, avgDuration, assistThreads };
 }

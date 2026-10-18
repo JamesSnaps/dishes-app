@@ -13,7 +13,8 @@ import {
   Input,
   Label,
 } from "@dishes/ui";
-import { useCookSession } from "@/components/providers/cook-session-provider";
+import { mealCues, useCookSession, type CookCue } from "@/components/providers/cook-session-provider";
+import { positionAt, stepsOf } from "@/lib/meal-sequence";
 import { shiftMealServeAt } from "@/app/actions/meal-timeline";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -46,6 +47,7 @@ export function MealStartDialog({
   onOpenChange,
   atStart,
   currentRecipeId,
+  sequence = false,
 }: {
   groupId: string;
   open: boolean;
@@ -53,6 +55,8 @@ export function MealStartDialog({
   /** Opened as the cook begins (not from the schedule mid-cook). */
   atStart: boolean;
   currentRecipeId: string;
+  /** Walking the meal as one sequence: an early start moves your place in it. */
+  sequence?: boolean;
 }) {
   const router = useRouter();
   const { sessions, updateMeal, setStepIndex, activateSession } = useCookSession();
@@ -80,10 +84,22 @@ export function MealStartDialog({
   const pickedValid = picked !== null && picked <= Date.now() + 60_000;
   const delta = startedAt === null ? 0 : startDelta(startedAt, first.at);
 
-  /** Done: open the first dish where the schedule has it by now, if they're under way. */
-  const finish = (start: number) => {
+  /**
+   * Done: open where the schedule has you by now, if you're under way — in a
+   * meal's sequence, the last step due by now across every dish (`cues`, the
+   * meal's times as just set); otherwise the first dish's step.
+   */
+  const finish = (start: number, cues: CookCue[] = mealCues(meal)) => {
     onOpenChange(false);
     if (!atStart) return;
+    if (sequence) {
+      if (Date.now() - start < ON_TIME_MINUTES * 60_000) return;
+      const at = positionAt(cues, Date.now());
+      if (!at) return;
+      updateMeal(groupId, (m) => ({ ...m, position: at.id, view: "meal" }));
+      for (const st of stepsOf(at)) setStepIndex(st.stepIndex, st.recipeId);
+      return;
+    }
     const step = stepAfter(meal.cues ?? [], firstRecipeId, Date.now() - start);
     if (step <= 0) return;
     setStepIndex(step, firstRecipeId);
@@ -97,7 +113,7 @@ export function MealStartDialog({
     const off = startDelta(start, first.at);
     if (Math.abs(off) < ON_TIME_MINUTES) {
       updateMeal(groupId, (m) => ({ ...m, startShift: undefined }));
-      finish(start);
+      finish(start, mealCues({ ...meal, startShift: undefined }));
     } else {
       setStartedAt(start);
     }
@@ -106,7 +122,7 @@ export function MealStartDialog({
   const keep = () => {
     if (startedAt === null) return;
     updateMeal(groupId, (m) => ({ ...m, startShift: { recipeId: firstRecipeId, minutes: delta } }));
-    finish(startedAt);
+    finish(startedAt, mealCues({ ...meal, startShift: { recipeId: firstRecipeId, minutes: delta } }));
   };
 
   const move = async () => {
@@ -129,7 +145,7 @@ export function MealStartDialog({
       cues: shiftCues(m.cues ?? [], delta),
     }));
     toast({ title: `Ready by ${clockOf(serveAt + delta * 60_000)} now`, description: "Every dish's times have moved with it." });
-    finish(startedAt);
+    finish(startedAt, shiftCues(meal.cues ?? [], delta));
   };
 
   const early = delta < 0;

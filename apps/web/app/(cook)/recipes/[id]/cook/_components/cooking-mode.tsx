@@ -6,6 +6,9 @@ import { MarkdownContent } from "@/components/markdown-content";
 import { CookSwitcher } from "@/components/cook-switcher";
 import { MealDishTabs, MealTimelinePanel, MealTimersPanel } from "./meal-cook-bar";
 import { MealStartDialog } from "./meal-start-dialog";
+import { BackToMealBar, CueCard, SequenceBar, SequenceDue, cueLabel, useMealCook } from "./meal-cooking";
+import { indexOfStep } from "@/lib/meal-sequence";
+import { freezeMealTimeline } from "@/app/actions/meal-timeline";
 import { firstCue } from "@/lib/meal-start";
 import { TimerPushHint } from "./timer-push-hint";
 import type { MealCookDish } from "@/lib/services/meal-plan";
@@ -927,6 +930,11 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     dismissAlert,
   } = useCookSession();
 
+  // Cooking a planned meal (MealCooking): walked as one sequence across its
+  // dishes when it has a schedule. `seq` is the place in it; null otherwise.
+  const mealCtx = useMealCook();
+  const seq = mealCtx?.sequence ?? null;
+
   // This route's own cook, looked up by recipe rather than by "whichever is
   // active" — several cooks can be live at once.
   const active = sessions.find((s) => s.recipeId === recipe.id) ?? null;
@@ -1048,7 +1056,12 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     // refresh or revalidation must not restart a dish already finished. From
     // here the sessions' own meal tag carries the meal.
     mealStarted.current = true;
-    window.history.replaceState(window.history.state, "", `/recipes/${recipe.id}/cook`);
+    window.history.replaceState(window.history.state, "", `/recipes/${recipe.id}/cook?meal=${meal.groupId}`);
+    // A fresh cook of a scheduled meal freezes its schedule for this cook, so
+    // a recipe edited mid-cook doesn't move the steps, pushes or Lock Screen.
+    if (meal.schedule && !sessionsRef.current.some((s) => s.meal?.groupId === meal.groupId)) {
+      freezeMealTimeline(meal.groupId).catch(() => {});
+    }
     // A fresh start of a meal with a schedule for today: check the start time
     // before the first step. Resuming it (any dish already cooking) doesn't ask.
     const first = firstCue(meal.schedule?.cues ?? []);
@@ -1175,8 +1188,26 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     };
   }, []);
 
-  const goNext = useCallback(() => { if (!isLast) setStepIndex(stepIndex + 1); }, [isLast, stepIndex, setStepIndex]);
-  const goPrev = useCallback(() => { if (!isFirst) setStepIndex(stepIndex - 1); }, [isFirst, stepIndex, setStepIndex]);
+  // In a meal's sequence, Next and Back move through the whole meal, whichever
+  // dish each step belongs to; otherwise through this recipe.
+  const seqFirst = seq ? seq.index === 0 : isFirst;
+  const seqLast = seq ? seq.index === seq.cues.length - 1 : isLast;
+  const goNext = useCallback(() => {
+    if (seq) { if (seq.index < seq.cues.length - 1) mealCtx?.goTo(seq.index + 1); return; }
+    if (!isLast) setStepIndex(stepIndex + 1);
+  }, [seq, mealCtx, isLast, stepIndex, setStepIndex]);
+  const goPrev = useCallback(() => {
+    if (seq) { if (seq.index > 0) mealCtx?.goTo(seq.index - 1); return; }
+    if (!isFirst) setStepIndex(stepIndex - 1);
+  }, [seq, mealCtx, isFirst, stepIndex, setStepIndex]);
+  /** A step of this dish (a timer, an alert): its place in the sequence, or the step itself. */
+  const jumpToStep = useCallback((idx: number) => {
+    const at = seq ? indexOfStep(seq.cues, recipe.id, idx) : -1;
+    if (at >= 0) mealCtx?.goTo(at);
+    else setStepIndex(idx);
+  }, [seq, mealCtx, recipe.id, setStepIndex]);
+  // The sequence is on a note, a combined prep step or serving — not one of this dish's steps.
+  const cueIsStep = !seq || (seq.cue.recipeId === recipe.id && seq.cue.stepIndex !== null && !seq.cue.covers?.length);
 
   // Keyboard navigation — skip when a modal/dialog is open
   useEffect(() => {
@@ -1206,16 +1237,29 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     timers,
     onToggle: toggleTimer,
     onReset: resetTimer,
-    onJumpToStep: setStepIndex,
+    onJumpToStep: jumpToStep,
   };
 
   const NavButtons = ({ className }: { className?: string }) => (
     <div className={`flex gap-3 ${className ?? ""}`}>
-      <Button variant="outline" size="lg" onClick={goPrev} disabled={isFirst} className="flex-1">
+      <Button variant="outline" size="lg" onClick={goPrev} disabled={seqFirst} className="flex-1">
         <ChevronLeft className="mr-1.5 h-5 w-5" />
         Previous
       </Button>
-      {isLast ? (
+      {mealCtx && seqLast ? (
+        // A planned meal ends once, with one review of the whole meal.
+        <Button
+          size="lg"
+          onClick={() => {
+            if (latestThreadRef.current.length >= 2) saveStepThread(stepIndex, latestThreadRef.current);
+            mealCtx.finishMeal();
+          }}
+          className="flex-1 bg-gradient-to-r from-orange-500 to-rose-500 text-white hover:from-orange-600 hover:to-rose-600"
+        >
+          <CheckCircle2 className="mr-1.5 h-5 w-5" />
+          Finish meal
+        </Button>
+      ) : isLast && !seq ? (
         <Button
           size="lg"
           onClick={() => {
@@ -1264,16 +1308,18 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
 
           {/* Title — absolutely centred so it's never pushed off-axis */}
           <div className="absolute inset-x-0 flex flex-col items-center px-28 sm:px-48 pointer-events-none">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Cooking Mode
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground truncate w-full text-center">
+              {seq && mealCtx ? mealCtx.title : "Cooking Mode"}
             </p>
-            <h1 className="text-sm font-semibold truncate w-full text-center">{recipe.title}</h1>
+            <h1 className="text-sm font-semibold truncate w-full text-center">
+              {seq && mealCtx ? cueLabel(mealCtx, seq.cue) : recipe.title}
+            </h1>
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <CookSwitcher currentRecipeId={recipe.id} mealGroupId={mealGroupId} />
             <span className="text-sm font-semibold tabular-nums">
-              {stepIndex + 1} / {steps.length}
+              {seq ? `${seq.index + 1} / ${seq.cues.length}` : `${stepIndex + 1} / ${steps.length}`}
             </span>
             {/* Minimise keeps the session (and its timers) alive in the mini bar */}
             <Button
@@ -1288,13 +1334,17 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           </div>
         </div>
 
-        {mealGroupId && (
-          <MealDishTabs
-            groupId={mealGroupId}
-            currentRecipeId={recipe.id}
-            onChangeStart={() => setStartPrompt("later")}
-          />
-        )}
+        {seq ? (
+          <SequenceBar onChangeStart={() => setStartPrompt("later")} />
+        ) : mealGroupId ? (
+          <BackToMealBar>
+            <MealDishTabs
+              groupId={mealGroupId}
+              currentRecipeId={recipe.id}
+              onChangeStart={() => setStartPrompt("later")}
+            />
+          </BackToMealBar>
+        ) : null}
         {mealGroupId && (
           <MealStartDialog
             groupId={mealGroupId}
@@ -1302,6 +1352,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
             onOpenChange={(open) => !open && setStartPrompt(null)}
             atStart={startPrompt === "start"}
             currentRecipeId={recipe.id}
+            sequence={!!mealCtx?.scheduled}
           />
         )}
 
@@ -1309,7 +1360,9 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
         <div className="h-1 bg-border">
           <div
             className="h-full bg-primary transition-all duration-300"
-            style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
+            style={{
+              width: `${(seq ? (seq.index + 1) / seq.cues.length : (stepIndex + 1) / steps.length) * 100}%`,
+            }}
           />
         </div>
       </header>
@@ -1318,7 +1371,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
         {/* ── Main column: scrollable content + pinned desktop nav ─── */}
-        <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0">
 
           {/* ── Main content ─────────────────────────────────────────── */}
           <main className="flex-1 min-h-0 overflow-y-auto">
@@ -1343,8 +1396,10 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                 </div>
               )}
 
-              {/* Step dot nav (mobile only) */}
-              <div className="mb-4 flex justify-center gap-1 lg:hidden">
+              <SequenceDue />
+
+              {/* Step dot nav (mobile only) — the meal's sequence has its schedule instead */}
+              <div className={`mb-4 justify-center gap-1 lg:hidden ${seq ? "hidden" : "flex"}`}>
                 {steps.map((_, i) => (
                   <button
                     key={i}
@@ -1369,8 +1424,10 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                 </div>
               )}
 
+              {!cueIsStep && <CueCard />}
+
               {/* Step number badge + instruction */}
-              {currentStep && (
+              {cueIsStep && currentStep && (
                 <div className="mb-6">
                   {currentStep.groupLabel?.trim() && (
                     <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-orange-500 lg:text-base">
@@ -1393,7 +1450,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
               )}
 
               {/* Timer for current step */}
-              {currentTimer && (
+              {cueIsStep && currentTimer && (
                 <StepTimer
                   timer={currentTimer}
                   onToggle={() => toggleTimer(stepIndex)}
@@ -1403,7 +1460,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
               <TimerPushHint running={[...timers.values()].some((t) => t.running)} />
 
               {/* AI quick-ask */}
-              {currentStep && (
+              {cueIsStep && currentStep && (
                 <CookAssist
                   recipeTitle={recipe.title}
                   stepNumber={stepIndex + 1}
@@ -1436,8 +1493,18 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                 />
               )}
 
+              {/* The whole meal's schedule — mobile only; the sidebar has it on desktop */}
+              {seq && mealGroupId && (
+                <details className="mt-4 rounded-xl border bg-gradient-to-br from-orange-50/70 to-transparent dark:from-orange-950/20 lg:hidden">
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none">
+                    Whole schedule ({seq.cues.length} steps)
+                  </summary>
+                  <MealTimelinePanel groupId={mealGroupId} onChangeStart={() => setStartPrompt("later")} />
+                </details>
+              )}
+
               {/* Active ingredients — mobile only */}
-              {stepIngredients.length > 0 && (
+              {cueIsStep && stepIngredients.length > 0 && (
                 <div className="mt-6 rounded-xl border bg-orange-500/5 border-orange-500/20 p-4 lg:hidden">
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">
                     Used in this step
@@ -1549,12 +1616,14 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           {/* Step progress */}
           <div className="shrink-0 px-6 py-5 border-b">
             <div className="flex items-center justify-between mb-2.5">
-              <span className="font-semibold text-sm">Step {stepIndex + 1} of {steps.length}</span>
+              <span className="font-semibold text-sm">
+                {seq ? `Step ${seq.index + 1} of ${seq.cues.length} in the meal` : `Step ${stepIndex + 1} of ${steps.length}`}
+              </span>
             </div>
             <div className="h-2 rounded-full bg-border overflow-hidden">
               <div
                 className="h-full rounded-full bg-primary transition-all duration-300"
-                style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
+                style={{ width: `${(seq ? (seq.index + 1) / seq.cues.length : (stepIndex + 1) / steps.length) * 100}%` }}
               />
             </div>
             {avgDuration && (
@@ -1722,7 +1791,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           )}
 
           {/* Up Next */}
-          {!isLast && steps[stepIndex + 1] && (
+          {!seq && !isLast && steps[stepIndex + 1] && (
             <div className="shrink-0 px-6 py-5 border-t bg-muted/30">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Up Next
@@ -1778,7 +1847,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                     size="sm"
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     onClick={() => {
-                      setStepIndex(idx);
+                      jumpToStep(idx);
                       dismissAlert(idx);
                     }}
                   >

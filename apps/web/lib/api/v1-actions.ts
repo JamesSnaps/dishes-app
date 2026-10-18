@@ -34,6 +34,7 @@ import * as library from "@/app/actions/library-shares";
 import * as sharing from "@/app/actions/sharing";
 import * as settings from "@/app/actions/settings";
 import * as timeline from "@/app/actions/meal-timeline";
+import * as mealCookActions from "@/app/actions/meal-cooks";
 import * as ai from "@/app/actions/ai";
 import * as recipeActions from "@/app/actions/recipes";
 
@@ -177,6 +178,9 @@ export const actions: Record<string, Handler> = {
   "timeline.shift": (_s, [groupId, minutes]) => timeline.shiftMealServeAt(str(groupId), z.number().int().parse(minutes)),
   "timeline.planWithAi": (_s, [groupId]) => timeline.planMealTimelineWithAi(str(groupId)),
   "timeline.clear": (_s, [groupId]) => timeline.clearMealTimeline(str(groupId)),
+  "timeline.freeze": (_s, [groupId]) => timeline.freezeMealTimeline(str(groupId)),
+  /** The whole-meal review: `[input]` → `{ id, cookIds }` (lib/services/meal-cooks.ts). */
+  "mealCooks.log": (_s, [input]) => mealCookActions.logMealCook(obj(input) as never),
 
   // ── Recipes: import and AI tools ──────────────────────────────────────────
   /** The web's paste import: ingredient lines and method text, parsed. */

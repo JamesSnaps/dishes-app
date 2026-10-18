@@ -169,10 +169,20 @@ struct MealStartSheet: View {
         await app.syncNow()
     }
 
-    /// Done: open the first dish where the schedule has it by now, if they're under way.
+    /// Done: open where the schedule has you by now, if you're under way — in
+    /// the meal's sequence, the last step due by now across every dish (the
+    /// meal's times as just set); otherwise the first dish's step.
     private func finish(_ start: Date) {
         dismiss()
-        guard prompt == .start, let clock, let recipeId = MealStart.firstCue(clock.cues)?.recipeId else { return }
+        guard prompt == .start else { return }
+        if !session.cues.isEmpty {
+            guard Date.now.timeIntervalSince(start) >= Double(MealStart.onTimeMinutes * 60),
+                  let at = MealSequence.position(at: Date.now.timeIntervalSince1970 * 1000, in: session.cues),
+                  let index = session.cues.firstIndex(where: { $0.id == at.id }) else { return }
+            session.goTo(index)
+            return
+        }
+        guard let clock, let recipeId = MealStart.firstCue(clock.cues)?.recipeId else { return }
         let step = MealStart.step(after: Date.now.timeIntervalSince(start), recipeId: recipeId, in: clock.cues)
         guard step > 0 else { return }
         session.steps[recipeId] = step

@@ -38,7 +38,15 @@ export type TimelineCue = {
   /** The recipe step this starts; null for a coordinating note. */
   stepIndex: number | null;
   text: string;
+  /**
+   * A combined prep step (AI schedules only): one cue doing the same job for
+   * several dishes at once — "Chop 3 onions (2 gravy, 1 stuffing)". The steps
+   * it covers have no cue of their own; cooking mode shows each one's text.
+   */
+  covers?: CueStep[];
 };
+
+export type CueStep = { recipeId: string; stepIndex: number };
 
 export type MealTimeline = {
   cues: TimelineCue[];
@@ -46,7 +54,26 @@ export type MealTimeline = {
   source: "auto" | "ai";
   /** Fingerprint of the dishes and steps it was planned from — see `timelineInputsKey`. */
   inputsKey: string;
+  /**
+   * Set when a cook of the meal started (epoch ms): the schedule is frozen for
+   * that cook, so editing a recipe mid-cook doesn't move the steps, pushes or
+   * Live Activity under you. Honoured for a day — see `isFrozen`.
+   */
+  frozenAt?: number;
 };
+
+/** How long a cook's frozen schedule holds: comfortably longer than any meal. */
+export const FROZEN_FOR_MS = 24 * 60 * 60 * 1000;
+
+export function isFrozen(timeline: Pick<MealTimeline, "frozenAt"> | null | undefined, now = Date.now()): boolean {
+  return !!timeline?.frozenAt && now - timeline.frozenAt < FROZEN_FOR_MS;
+}
+
+/** The recipe steps a cue does: its own, or the ones a combined prep cue covers. */
+export function cueSteps(cue: Pick<TimelineCue, "recipeId" | "stepIndex" | "covers">): CueStep[] {
+  if (cue.covers?.length) return cue.covers;
+  return cue.recipeId && cue.stepIndex !== null ? [{ recipeId: cue.recipeId, stepIndex: cue.stepIndex }] : [];
+}
 
 /** Steps without a time still take some: a little, rather than none. */
 export const DEFAULT_STEP_MINUTES = 5;
@@ -168,7 +195,13 @@ export function autoTimeline(dishes: TimelineDishInput[]): MealTimeline {
  * simple schedule would have it, and there is always exactly one serve cue.
  */
 export function reconcileTimeline(
-  proposed: { offsetMinutes: number; recipeId: string | null; stepIndex: number | null; text: string }[],
+  proposed: {
+    offsetMinutes: number;
+    recipeId: string | null;
+    stepIndex: number | null;
+    text: string;
+    covers?: { recipeId: string; stepIndex: number }[] | null;
+  }[],
   warnings: string[],
   dishes: TimelineDishInput[]
 ): MealTimeline {
@@ -176,9 +209,29 @@ export function reconcileTimeline(
   const seen = new Set<string>();
   const cues: TimelineCue[] = [];
   let notes = 0;
+  let combos = 0;
 
   for (const p of proposed) {
     const offset = Math.max(-MAX_LEAD_MINUTES, Math.min(0, Math.round(p.offsetMinutes)));
+
+    // A combined prep step: kept only when it really covers two or more real
+    // steps not already scheduled; those steps then have no cue of their own.
+    if (p.covers?.length) {
+      const covers = p.covers
+        .filter((c) => {
+          const d = byId.get(c.recipeId);
+          return !!d && c.stepIndex >= 0 && c.stepIndex < d.steps.length && !seen.has(`${c.recipeId}:${c.stepIndex}`);
+        })
+        .filter((c, i, all) => all.findIndex((o) => o.recipeId === c.recipeId && o.stepIndex === c.stepIndex) === i);
+      const text = p.text.trim().slice(0, 140);
+      if (covers.length >= 2 && text) {
+        for (const c of covers) seen.add(`${c.recipeId}:${c.stepIndex}`);
+        cues.push({ id: `combo:${combos++}`, offsetMinutes: offset, recipeId: null, stepIndex: null, text, covers });
+        continue;
+      }
+      // Not a real combination: fall through and treat it as an ordinary cue.
+    }
+
     const dish = p.recipeId ? byId.get(p.recipeId) : undefined;
     // A dish that isn't in this meal: the planner made it up. Drop the cue.
     if (p.recipeId && !dish) continue;
@@ -204,11 +257,16 @@ export function reconcileTimeline(
   }
 
   // A dish's steps happen in order: a step scheduled before the one ahead of it
-  // starts with it instead, never before.
+  // starts with it instead, never before (a combined prep step counts as each
+  // step it covers).
   for (const dish of dishes) {
     let floor = -Infinity;
     for (let i = 0; i < dish.steps.length; i++) {
-      const cue = cues.find((c) => c.recipeId === dish.recipeId && c.stepIndex === i);
+      const cue = cues.find(
+        (c) =>
+          (c.recipeId === dish.recipeId && c.stepIndex === i) ||
+          c.covers?.some((o) => o.recipeId === dish.recipeId && o.stepIndex === i)
+      );
       if (!cue) continue;
       if (cue.offsetMinutes < floor) cue.offsetMinutes = floor;
       floor = cue.offsetMinutes;
@@ -230,13 +288,24 @@ export function parseStoredTimeline(value: unknown): MealTimeline | null {
   const v = value as Partial<MealTimeline>;
   if (!Array.isArray(v.cues) || typeof v.inputsKey !== "string") return null;
   return {
-    cues: v.cues.filter(
-      (c): c is TimelineCue =>
-        !!c && typeof c.id === "string" && typeof c.offsetMinutes === "number" && typeof c.text === "string"
-    ),
+    cues: v.cues
+      .filter(
+        (c): c is TimelineCue =>
+          !!c && typeof c.id === "string" && typeof c.offsetMinutes === "number" && typeof c.text === "string"
+      )
+      .map((c) => {
+        const covers = Array.isArray(c.covers)
+          ? c.covers.filter(
+              (o): o is CueStep => !!o && typeof o.recipeId === "string" && typeof o.stepIndex === "number"
+            )
+          : [];
+        const { covers: _drop, ...rest } = c;
+        return covers.length ? { ...rest, covers } : rest;
+      }),
     warnings: Array.isArray(v.warnings) ? v.warnings.filter((w) => typeof w === "string") : [],
     source: v.source === "ai" ? "ai" : "auto",
     inputsKey: v.inputsKey,
+    ...(typeof v.frozenAt === "number" ? { frozenAt: v.frozenAt } : {}),
   };
 }
 

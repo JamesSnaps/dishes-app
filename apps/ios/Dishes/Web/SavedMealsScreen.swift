@@ -10,6 +10,8 @@ struct SavedMealsScreen: View {
     @Environment(AppModel.self) private var app
     @State private var meals = Observed<[SavedMeal]>([])
     @State private var editing: MealDraft?
+    /// How each meal has gone down when cooked as a whole (the meal review), by id.
+    @State private var ratings: [String: MealRating] = [:]
 
     var body: some View {
         ScrollView {
@@ -39,7 +41,39 @@ struct SavedMealsScreen: View {
         .background(Theme.background)
         .navigationBarTitleDisplayMode(.inline)
         .task { await meals.follow(app.store) { r in try r.records(.meals).compactMap(SavedMeal.init).sorted { $0.title < $1.title } } }
+        .task {
+            // Ratings come from the server (meal cooks don't sync); offline, they just don't show.
+            struct Row: Decodable, Sendable { var id: String; var rating: MealRating? }
+            if let rows = try? await app.api.action("meals.list", as: [Row].self) {
+                ratings = Dictionary(rows.compactMap { r in r.rating.map { (r.id, $0) } }, uniquingKeysWith: { a, _ in a })
+            }
+        }
         .sheet(item: $editing) { draft in MealEditor(draft: draft).presentationSizing(.page) }
+    }
+
+    /// The meal's average, and its best and lowest combination once it's been made more than one way.
+    private func ratingLine(_ r: MealRating) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                if let avg = r.average {
+                    StarRating(value: avg * 2, size: 12)
+                    Text(String(format: "%.1f", avg)).font(.system(size: 12, weight: .semibold))
+                } else {
+                    Text("Not rated yet").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                }
+                Text("· cooked \(r.cookCount) time\(r.cookCount == 1 ? "" : "s")")
+                    .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+            }
+            if r.combinations.count > 1, let best = r.combinations.first, let worst = r.combinations.last {
+                Text("\(Text("Best \(String(format: "%.1f", best.average))★").bold().foregroundStyle(Color(hex: 0x047857))) \(best.titles.joined(separator: " + "))")
+                    .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground).lineLimit(2)
+                Text("\(Text("Lowest \(String(format: "%.1f", worst.average))★").bold().foregroundStyle(Color(hex: 0xB45309))) \(worst.titles.joined(separator: " + "))")
+                    .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground).lineLimit(2)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func card(_ meal: SavedMeal) -> some View {
@@ -49,6 +83,7 @@ struct SavedMealsScreen: View {
                 Text(meal.title).font(.system(size: 17, weight: .bold))
                 Spacer()
             }
+            if let rating = ratings[meal.id] { ratingLine(rating) }
             ForEach(meal.slots) { slot in
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text((slot.label ?? slot.role ?? "Dish").capitalizedFirst)
@@ -241,4 +276,12 @@ struct RecipePickerSheet: View {
         }
         .task { await recipes.follow(app.store) { r in try r.records(.recipes).compactMap(Recipe.init).sorted { $0.title < $1.title } } }
     }
+}
+
+/// A saved meal's ratings from its meal reviews (lib/services/meal-cooks.ts).
+struct MealRating: Decodable, Sendable, Hashable {
+    struct Combination: Decodable, Sendable, Hashable { var titles: [String]; var average: Double; var count: Int }
+    var average: Double?
+    var cookCount: Int
+    var combinations: [Combination]
 }

@@ -45,7 +45,9 @@ export function CookMiniBar() {
 
   function resume(recipeId: string, stepIndex?: number) {
     if (stepIndex !== undefined) setStepIndex(stepIndex, recipeId);
-    router.push(`/recipes/${recipeId}/cook`);
+    // A dish of a planned meal reopens the whole meal, at your place in it.
+    const groupId = sessions.find((s) => s.recipeId === recipeId)?.meal?.groupId;
+    router.push(`/recipes/${recipeId}/cook${groupId ? `?meal=${groupId}` : ""}`);
   }
 
   return (

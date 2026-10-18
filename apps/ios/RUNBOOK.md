@@ -658,3 +658,32 @@ cookbook look — stains, and handwriting in several hands and inks.
   gave up the side column the time and signal are drawn in, and the pages
   slid under them. Hosted pages have `safeAreaRegions = []` so their measured
   size is exact.
+
+### 18 Oct 2026 — a meal cooked as one sequence, and one meal review (v1.46.0)
+
+James wanted a scheduled saved meal cooked as one merged sequence rather
+than hopping between recipes, with the times visible to look ahead, and a
+review of the whole meal (rating combinations) at the end.
+
+- Cooking mode walks the frozen schedule (`MealSequence` in DishesCore, with
+  tests; `MealSequenceViews.swift`): Next/Back go through every dish's steps
+  in time order; each step shows its due time ("in 25 min", "Now", "late"),
+  "also now" chips, and what's next. Whole schedule from the toolbar (iPad)
+  or ⋯ (iPhone). The title menu opens one dish's recipe ("Back to the meal"
+  returns to your place). Notes, combined prep steps (`covers`) and Serve get
+  their own card.
+- `timeline.freeze` on the first open of a cook: the server keeps that
+  schedule (simple or AI) for 24 h, so edits mid-cook don't move cues,
+  pushes or the Live Activity. The AI planner may now batch identical prep
+  across dishes into one cue with `covers`.
+- One review at the end (`MealReviewSheet`, `mealCooks.log`): the meal's own
+  stars, who ate, occasion, notes, photo (on the main dish's entry), plus a
+  quick star row per dish. New `meal_cooks` table (0044) + `cook_history.meal_cook_id`.
+  Saved meals show the average and best/lowest combination.
+- Checked on the iPhone 18 Pro simulator and the web (desktop and 375 px):
+  start prompt → Keep 17:00 → sequence across risotto/soup/curry, schedule
+  list, Serve → review saved with per-dish ratings; Saved meals shows 4.0 ·
+  cooked 3 times. **Not checked:** an AI plan with combined steps (no AI key
+  in dev — covered by unit tests), iPad layout, the photo upload.
+- Simulator tip: screenshots at 0.2 scale on the iPhone are 920 px wide for
+  402 pt — multiply by 0.437, not the iPad's 0.688.

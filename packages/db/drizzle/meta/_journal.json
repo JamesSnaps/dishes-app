@@ -57,6 +57,13 @@
       "when": 1792454400000,
       "tag": "0043_notification_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792540800000,
+      "tag": "0044_meal_cooks",
+      "breakpoints": true
     }
   ]
 }

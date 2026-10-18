@@ -39,7 +39,8 @@ export function CookSwitcher({
   function switchTo(recipeId: string) {
     if (recipeId === currentRecipeId) return;
     activateSession(recipeId);
-    router.push(`/recipes/${recipeId}/cook`);
+    const groupId = sessions.find((s) => s.recipeId === recipeId)?.meal?.groupId;
+    router.push(`/recipes/${recipeId}/cook${groupId ? `?meal=${groupId}` : ""}`);
   }
 
   const otherCount = sessions.filter((s) => s.recipeId !== currentRecipeId).length;

@@ -18,6 +18,7 @@
 
 import { db } from "@/lib/db";
 import { runInTransaction } from "@dishes/db";
+import { savedMealRatings, type SavedMealRating } from "@/lib/services/meal-cooks";
 import { meals, mealSlots, mealSlotOptions, recipes } from "@dishes/db/schema";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { MEAL_ROLES, isMealRole, type MealRole, type MealType } from "@dishes/shared";
@@ -78,6 +79,8 @@ export type SavedMeal = {
   notes: string | null;
   defaultMealType: MealType;
   slots: SavedMealSlot[];
+  /** How it's gone down when cooked as a whole meal (rated in the meal review). */
+  rating?: SavedMealRating | null;
 };
 
 export type MealSlotInput = {
@@ -257,7 +260,12 @@ export async function listMeals(ctx: HouseholdContext): Promise<SavedMeal[]> {
   const byRole = (a: SavedMealSlot, b: SavedMealSlot) =>
     MEAL_ROLES.indexOf(a.role) - MEAL_ROLES.indexOf(b.role) || a.position - b.position;
 
-  return rows.map((m) => ({ ...m, slots: (slotsByMeal.get(m.id) ?? []).sort(byRole) }));
+  const ratings = await savedMealRatings(ctx.householdId, rows.map((r) => r.id));
+  return rows.map((m) => ({
+    ...m,
+    slots: (slotsByMeal.get(m.id) ?? []).sort(byRole),
+    rating: ratings.get(m.id) ?? null,
+  }));
 }
 
 export async function getMeal(ctx: HouseholdContext, mealId: string): Promise<SavedMeal> {
