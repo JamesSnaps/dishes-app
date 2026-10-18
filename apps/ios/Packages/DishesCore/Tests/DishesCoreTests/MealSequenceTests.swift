@@ -34,6 +34,23 @@ struct MealSequenceTests {
         #expect(MealSequence.position(at: 9_999_999, in: cues)?.id == "spuds:0")
     }
 
+    // Each dish's "carve and serve" / "garnish" is part of the one serve cue.
+    let serving: [Cue] = [
+        Cue(id: "lamb:0", at: 0, recipeId: "lamb", stepIndex: 0, dish: "Lamb", text: "Slow cook"),
+        Cue(id: "peas:0", at: 3_000_000, recipeId: "peas", stepIndex: 0, dish: "Peas", text: "Boil"),
+        Cue(id: "serve", at: 3_600_000, recipeId: nil, stepIndex: nil, dish: nil, text: "Serve",
+            covers: [.init(recipeId: "lamb", stepIndex: 1), .init(recipeId: "peas", stepIndex: 1)]),
+    ]
+
+    @Test func serveCueDoesEachDishsServingStep() {
+        #expect(MealSequence.steps(of: serving[2]).map(\.recipeId) == ["lamb", "peas"])
+        #expect(MealSequence.index(ofStep: 1, recipeId: "lamb", in: serving) == 2)
+        #expect(MealSequence.index(ofStep: 1, recipeId: "peas", in: serving) == 2)
+        #expect(MealSequence.anchor(serving, at: 2) == "lamb")
+        #expect(MealSequence.position(at: 9_999_999, in: serving)?.id == "peas:0")
+        #expect(MealSequence.alsoNow(serving, at: 1).isEmpty)
+    }
+
     @Test func dueLabels() {
         #expect(MealSequence.due(25 * 60_000, now: 0).text == "in 25 min")
         #expect(MealSequence.due(0, now: 2 * 60_000).text == "Now")

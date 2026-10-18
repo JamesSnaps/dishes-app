@@ -195,8 +195,8 @@ export function MealCooking({
 
 /** "Lamb · step 3 of 6", "Prep for 2 dishes", "Note", "Serve" — what the cue is. */
 export function cueLabel(ctx: MealCookValue, cue: CookCue): string {
-  if (cue.covers?.length) return `Prep for ${new Set(cue.covers.map((c) => c.recipeId)).size} dishes`;
   if (cue.id === "serve") return "Serve";
+  if (cue.covers?.length) return `Prep for ${new Set(cue.covers.map((c) => c.recipeId)).size} dishes`;
   const dish = ctx.dishes.find((d) => d.id === cue.recipeId);
   if (dish && cue.stepIndex !== null) return `${dish.title} · step ${cue.stepIndex + 1} of ${dish.steps.length}`;
   return dish ? `${dish.title} · note` : "Note";

@@ -12,7 +12,8 @@ public enum MealSequence {
     /// Two cues this close together count as "also now" for each other.
     public static let alsoNowMs = 2.0 * 60_000
 
-    /// The recipe steps a cue does: its own, or a combined prep cue's.
+    /// The recipe steps a cue does: its own, or a combined prep cue's (or the
+    /// serve cue's: each dish's last step when that's only serving it).
     public static func steps(of cue: Cue) -> [Step] {
         if let covers = cue.covers, !covers.isEmpty { return covers }
         if let id = cue.recipeId, let step = cue.stepIndex { return [Step(recipeId: id, stepIndex: step)] }

@@ -12,7 +12,10 @@ import type { CookCue } from "@/components/providers/cook-session-provider";
 /** Two cues this close together count as "also now" for each other. */
 export const ALSO_NOW_MS = 2 * 60_000;
 
-/** The recipe steps a cue does: its own, or a combined prep cue's. */
+/**
+ * The recipe steps a cue does: its own, or a combined prep cue's (or the serve
+ * cue's: each dish's last step when that's only serving it).
+ */
 export function stepsOf(cue: CookCue): { recipeId: string; stepIndex: number }[] {
   if (cue.covers?.length) return cue.covers;
   return cue.recipeId && cue.stepIndex !== null ? [{ recipeId: cue.recipeId, stepIndex: cue.stepIndex }] : [];

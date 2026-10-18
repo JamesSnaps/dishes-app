@@ -236,6 +236,12 @@ export function MealScheduleDialog({
                         </span>
                       )}
                       {cue.text}
+                      {serve && cue.covers?.length ? (
+                        <span className="font-normal opacity-90">
+                          {" — "}
+                          {cue.covers.map((c) => dishTitle.get(c.recipeId) ?? "Dish").join(", ")}
+                        </span>
+                      ) : null}
                     </span>
                   </li>
                 );
