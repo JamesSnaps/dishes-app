@@ -17,8 +17,21 @@ import { decrypt } from "@/lib/crypto";
 import { maxTokensParam } from "@/lib/ai/recipe-generation";
 import type { HouseholdContext } from "@/lib/session";
 import { getGroupForCooking, MealPlanValidationError } from "@/lib/services/meal-plan";
-import { getWeekDinnerSettings } from "@/lib/dinner-reminders/schedule";
-import { addDaysToDate, isValidTime } from "@/lib/dinner-reminders/time";
+import {
+  getReminderSettings,
+  getWeekDinnerSettings,
+  setDayDinner,
+} from "@/lib/dinner-reminders/schedule";
+import {
+  addDaysToDate,
+  dayOfWeekOf,
+  isValidTime,
+  localNow,
+  minutesToTime,
+  timeToMinutes,
+  weekStartOf,
+} from "@/lib/dinner-reminders/time";
+import { claimReminder } from "@/lib/reminder-claim";
 import {
   autoTimeline,
   parseStoredTimeline,
@@ -131,6 +144,63 @@ export async function setMealServeAt(
   }
   await loadGroup(ctx, groupId);
   await db.update(mealPlanGroups).set({ serveAt }).where(eq(mealPlanGroups.id, groupId));
+}
+
+/**
+ * Move the meal's serve time by `minutes` — cooking mode's "I started earlier
+ * (or later), move dinner". Whichever time the meal follows moves: its own
+ * serve-at, or for a dinner on the day's time, that date's dinner time, so the
+ * planner's dinner chip moves with it. Every cue, push and Live Activity reads
+ * from that, so they all follow.
+ *
+ * Cues that are already due at the new time are marked sent: you're doing (or
+ * did) them, and the reminder loop would otherwise send them again because
+ * moving the time re-arms every cue.
+ */
+export async function shiftMealServeAt(
+  ctx: HouseholdContext,
+  groupId: string,
+  minutes: number
+): Promise<MealSchedule> {
+  if (!Number.isInteger(minutes) || Math.abs(minutes) > 12 * 60) {
+    throw new MealPlanValidationError("That's too far to move the meal.");
+  }
+  const before = await getMealSchedule(ctx, groupId);
+  if (!before.serveAt) throw new MealPlanValidationError("This meal has no ready-by time to move.");
+  const target = timeToMinutes(before.serveAt) + minutes;
+  if (target < 0 || target >= 24 * 60) {
+    throw new MealPlanValidationError("That would move the meal into another day.");
+  }
+  const serveAt = minutesToTime(target);
+
+  if (before.serveAtSource === "dinner") {
+    const week = await getWeekDinnerSettings(ctx.householdId, weekStartOf(before.date));
+    const day = week[dayOfWeekOf(before.date)];
+    // Back on the usual time is no one-off at all.
+    await setDayDinner(ctx, before.date, { dinnerTime: serveAt === day?.defaultTime ? null : serveAt });
+  } else {
+    await setMealServeAt(ctx, groupId, serveAt);
+  }
+
+  const after = await getMealSchedule(ctx, groupId);
+  await markPassedCuesSent(ctx.householdId, after);
+  return after;
+}
+
+/** The claim key the reminder loop uses for a meal's cues at its serve time. */
+export function mealCueKeyBase(schedule: Pick<MealSchedule, "groupId" | "date" | "serveAt">): string {
+  return `mealcue:${schedule.groupId}:${schedule.date}:${schedule.serveAt}`;
+}
+
+async function markPassedCuesSent(householdId: string, schedule: MealSchedule): Promise<void> {
+  if (!schedule.serveAt) return;
+  const now = localNow((await getReminderSettings(householdId)).timezone);
+  if (now.date !== schedule.date) return;
+  const serveMin = timeToMinutes(schedule.serveAt);
+  const base = mealCueKeyBase(schedule);
+  for (const cue of schedule.timeline.cues) {
+    if (serveMin + cue.offsetMinutes <= now.minutes) await claimReminder(`${base}:${cue.id}`);
+  }
 }
 
 /** Drop a stored AI schedule; the simple one takes over. */

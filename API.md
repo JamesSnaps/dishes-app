@@ -814,7 +814,7 @@ The per-action adapters are in `apps/web/lib/api/v1-actions.ts`.
 | `planner` | `nutrition` — `[weekStartDate]` → the week's heart-healthy summary, protein targets (heart focus only) and swap suggestions; `swap` — `[entryId, recipeId]`; `groupToShopping` — `[groupId, forceInclude?]` → `{ added, merged, skipped }` |
 | `dinner` (the planner's dinner-time chip) | `week` — `[weekStartDate, recipeIds]` → each day's dinner time and per-recipe start estimates; `setTime` — `[date, "HH:MM" \| null]`; `setReminder` — `[date, on]` |
 | `meals` (saved meals) | `list`, `create`, `update`, `delete`, `saveFromGroup`, `updateFromGroup` |
-| `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear` |
+| `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear`; `shift` — `[groupId, minutes]` moves the meal's serve time by whole minutes (its own, or that date's dinner time when it follows it), marks cues already due at the new time as sent, and answers the new schedule — cooking mode's "I started earlier, move dinner" |
 | `ai` | `improve`, `refine`, `heartHealthy`, `applyTweak`, `saveTweakAsCopy`, `estimateNutrition`, `similar`, `sides`, `recipeImage`, `suggestMealComponents`, `config`, `saveConfig` |
 | `import` | `parse` — `[ingredientText, methodText]` → `{ ingredients, steps }` |
 | `stats` · `wrapped` · `taste` | `stats.report`, `wrapped.report`, `wrapped.recap`, `taste.get`, `taste.refresh`, `taste.clear` |

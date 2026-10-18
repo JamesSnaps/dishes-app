@@ -330,7 +330,7 @@ enum TonightMeal {
         let meals = data.meals(on: today, in: week)
         guard let meal = meals.first(where: { $0.mealType == "dinner" }) ?? meals.last else { return nil }
         let dishes = CookDish.inStartOrder(meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty })
-        return dishes.isEmpty ? nil : CookRequest(title: meal.title, dishes: dishes)
+        return dishes.isEmpty ? nil : CookRequest(title: meal.title, groupId: meal.groupId, dishes: dishes)
     }
 }
 

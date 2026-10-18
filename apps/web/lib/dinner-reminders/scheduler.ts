@@ -7,7 +7,7 @@ import { runLiveActivityTick } from "@/lib/live-activities";
 import { describeEstimate } from "./estimate";
 import { getDinnerPlan, getReminderSettings, type DinnerPlan } from "./schedule";
 import { localNow, minutesToTime, timeToMinutes, weekStartOf } from "./time";
-import { schedulesForDate, type MealSchedule } from "@/lib/services/meal-timeline";
+import { mealCueKeyBase, schedulesForDate, type MealSchedule } from "@/lib/services/meal-timeline";
 import type { TimelineCue } from "@/lib/meal-timeline";
 
 /**
@@ -87,7 +87,7 @@ async function remindMealCues(
   const serveMin = timeToMinutes(schedule.serveAt);
   const dishTitle = new Map(schedule.dishes.map((d) => [d.recipeId, d.title]));
   const minuteOf = (cue: TimelineCue) => serveMin + cue.offsetMinutes;
-  const keyBase = `mealcue:${schedule.groupId}:${schedule.date}:${schedule.serveAt}`;
+  const keyBase = mealCueKeyBase(schedule);
   const cookUrl = (recipeId: string | null) => {
     const id = recipeId ?? schedule.dishes[0]?.recipeId;
     return id ? `/recipes/${id}/cook?meal=${schedule.groupId}` : "/meal-plan";

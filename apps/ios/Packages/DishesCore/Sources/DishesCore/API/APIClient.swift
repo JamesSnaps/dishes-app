@@ -462,11 +462,18 @@ public final class APIClient: SyncTransport, Sendable {
 
     /// A planned meal's schedule as clock times (epoch ms), for the Live Activity.
     public struct MealClock: Decodable, Sendable {
-        public struct Cue: Decodable, Sendable {
+        public struct Cue: Decodable, Sendable, Hashable {
             public var id: String
             public var at: Double
+            /// The dish this starts, and its step; nil for a note or the serve cue.
+            public var recipeId: String?
+            public var stepIndex: Int?
             public var dish: String?
             public var text: String
+
+            public init(id: String, at: Double, recipeId: String?, stepIndex: Int?, dish: String?, text: String) {
+                self.id = id; self.at = at; self.recipeId = recipeId; self.stepIndex = stepIndex; self.dish = dish; self.text = text
+            }
         }
         public var groupId: String
         public var title: String

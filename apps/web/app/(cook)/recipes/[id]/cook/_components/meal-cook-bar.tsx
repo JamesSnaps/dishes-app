@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlarmClock, ChefHat, Pause, Play, RotateCcw, Timer, UtensilsCrossed } from "lucide-react";
+import { AlarmClock, ChefHat, Clock, Pause, Play, RotateCcw, Timer, UtensilsCrossed } from "lucide-react";
 import { Button } from "@dishes/ui";
 import {
   formatTimer,
+  mealCues,
   mostUrgentTimer,
   useCookSession,
   type CookCue,
@@ -68,9 +69,12 @@ function useSwitchDish() {
 export function MealDishTabs({
   groupId,
   currentRecipeId,
+  onChangeStart,
 }: {
   groupId: string;
   currentRecipeId: string;
+  /** "Started at a different time…" */
+  onChangeStart: () => void;
 }) {
   const { timersFor } = useCookSession();
   const dishes = useMealSessions(groupId);
@@ -80,7 +84,7 @@ export function MealDishTabs({
   if (dishes.length < 2) return null;
   const meal = dishes[0]?.meal;
   const title = meal?.title;
-  const upcoming = (meal?.cues ?? []).filter((c) => c.at + CUE_NOW_MS > now);
+  const upcoming = mealCues(meal).filter((c) => c.at + CUE_NOW_MS > now);
   const nextFor = (recipeId: string) => upcoming.find((c) => c.recipeId === recipeId);
   const nextUp = upcoming.find((c) => c.id !== "serve") ?? upcoming[0];
   const dishTitle = new Map(dishes.map((d) => [d.recipeId, d.recipeTitle]));
@@ -165,10 +169,11 @@ export function MealDishTabs({
         })}
       </div>
       {nextUp && (
+        <div className="flex items-center border-t border-orange-200/60 dark:border-orange-900/40">
         <button
           type="button"
           onClick={() => nextUp.recipeId && switchTo(nextUp.recipeId, nextUp.stepIndex)}
-          className="flex w-full items-center gap-2 border-t border-orange-200/60 dark:border-orange-900/40 px-3 py-1.5 text-left text-xs"
+          className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-xs"
         >
           <AlarmClock className="h-3.5 w-3.5 shrink-0 text-orange-600 dark:text-orange-400" />
           <span
@@ -185,6 +190,17 @@ export function MealDishTabs({
             {nextUp.text}
           </span>
         </button>
+        <button
+          type="button"
+          onClick={onChangeStart}
+          title="Started at a different time…"
+          className="mr-2 flex shrink-0 items-center gap-1 rounded-lg border border-orange-300 bg-white/90 px-2 py-1 text-[11px] font-semibold text-orange-800 shadow-sm hover:border-orange-500 dark:border-orange-800 dark:bg-black/30 dark:text-orange-200"
+        >
+          <Clock className="h-3 w-3" />
+          <span className="hidden sm:inline">Started at a different time…</span>
+          <span className="sm:hidden">Started…</span>
+        </button>
+        </div>
       )}
     </div>
   );
@@ -197,12 +213,19 @@ export function MealDishTabs({
  * one highlighted, the rest to come. Tapping a step jumps to that dish at that
  * step.
  */
-export function MealTimelinePanel({ groupId }: { groupId: string }) {
+export function MealTimelinePanel({
+  groupId,
+  onChangeStart,
+}: {
+  groupId: string;
+  /** "Started at a different time…" */
+  onChangeStart: () => void;
+}) {
   const dishes = useMealSessions(groupId);
   const switchTo = useSwitchDish();
   const now = useNow();
   const meal = dishes[0]?.meal;
-  const cues: CookCue[] = meal?.cues ?? [];
+  const cues: CookCue[] = mealCues(meal);
   if (!cues.length) return null;
 
   const dishTitle = new Map(dishes.map((d) => [d.recipeId, d.recipeTitle]));
@@ -210,10 +233,20 @@ export function MealTimelinePanel({ groupId }: { groupId: string }) {
 
   return (
     <div className="shrink-0 px-6 py-5 border-t">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-        <AlarmClock className="h-3.5 w-3.5" />
-        Schedule{meal?.serveAt ? ` · ready ${clockOf(meal.serveAt)}` : ""}
-      </p>
+      <div className="mb-3 flex flex-col items-start gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <AlarmClock className="h-3.5 w-3.5" />
+          Schedule{meal?.serveAt ? ` · ready ${clockOf(meal.serveAt)}` : ""}
+        </p>
+        <button
+          type="button"
+          onClick={onChangeStart}
+          className="flex shrink-0 items-center gap-1 rounded-lg border border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 px-2 py-1 text-[11px] font-semibold text-orange-800 shadow-sm hover:border-orange-500 dark:border-orange-800 dark:from-orange-950/40 dark:to-amber-950/20 dark:text-orange-200"
+        >
+          <Clock className="h-3 w-3" />
+          Started at a different time…
+        </button>
+      </div>
       <ol className="space-y-1">
         {cues.map((cue) => {
           const past = cue.at + CUE_NOW_MS <= now;

@@ -5,6 +5,8 @@ import { saveCookAssistThread, deleteCookAssistThread } from "@/app/actions/cook
 import { MarkdownContent } from "@/components/markdown-content";
 import { CookSwitcher } from "@/components/cook-switcher";
 import { MealDishTabs, MealTimelinePanel, MealTimersPanel } from "./meal-cook-bar";
+import { MealStartDialog } from "./meal-start-dialog";
+import { firstCue } from "@/lib/meal-start";
 import { TimerPushHint } from "./timer-push-hint";
 import type { MealCookDish } from "@/lib/services/meal-plan";
 import type { CookCue } from "@/components/providers/cook-session-provider";
@@ -1010,6 +1012,11 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   // Opened for a planned meal: the meal's other dishes start alongside, each
   // with its own servings and timers, tagged so they show as one meal.
   const mealStarted = useRef(false);
+  // "When did you start?" — asked as a scheduled meal's cook begins ("start"),
+  // or from the schedule mid-cook ("later").
+  const [startPrompt, setStartPrompt] = useState<"start" | "later" | null>(null);
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
   // Set by Exit, so the sessions it ends aren't claimed again while this route
   // is still mounted (ending them changes the callbacks this effect depends on).
   const exiting = useRef(false);
@@ -1042,6 +1049,13 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
     // here the sessions' own meal tag carries the meal.
     mealStarted.current = true;
     window.history.replaceState(window.history.state, "", `/recipes/${recipe.id}/cook`);
+    // A fresh start of a meal with a schedule for today: check the start time
+    // before the first step. Resuming it (any dish already cooking) doesn't ask.
+    const first = firstCue(meal.schedule?.cues ?? []);
+    const today = meal.schedule && new Date(meal.schedule.serveAt).toDateString() === new Date().toDateString();
+    if (first && today && !sessionsRef.current.some((s) => s.meal?.groupId === meal.groupId)) {
+      setStartPrompt("start");
+    }
     startSessions(
       [
         own,
@@ -1274,7 +1288,22 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           </div>
         </div>
 
-        {mealGroupId && <MealDishTabs groupId={mealGroupId} currentRecipeId={recipe.id} />}
+        {mealGroupId && (
+          <MealDishTabs
+            groupId={mealGroupId}
+            currentRecipeId={recipe.id}
+            onChangeStart={() => setStartPrompt("later")}
+          />
+        )}
+        {mealGroupId && (
+          <MealStartDialog
+            groupId={mealGroupId}
+            open={startPrompt !== null}
+            onOpenChange={(open) => !open && setStartPrompt(null)}
+            atStart={startPrompt === "start"}
+            currentRecipeId={recipe.id}
+          />
+        )}
 
         {/* Progress bar */}
         <div className="h-1 bg-border">
@@ -1688,7 +1717,9 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
           {/* Active timers panel */}
           <ActiveTimersPanel {...timerProps} />
           {mealGroupId && <MealTimersPanel groupId={mealGroupId} currentRecipeId={recipe.id} />}
-          {mealGroupId && <MealTimelinePanel groupId={mealGroupId} />}
+          {mealGroupId && (
+            <MealTimelinePanel groupId={mealGroupId} onChangeStart={() => setStartPrompt("later")} />
+          )}
 
           {/* Up Next */}
           {!isLast && steps[stepIndex + 1] && (

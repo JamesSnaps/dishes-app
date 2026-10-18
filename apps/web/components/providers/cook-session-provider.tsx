@@ -64,6 +64,23 @@ export interface CookMeal {
   serveAt?: number;
   /** The cooking schedule as clock times (epoch ms), earliest first. */
   cues?: CookCue[];
+  /**
+   * "I started earlier, keep dinner at 17:00": that dish's cues shown this
+   * many minutes off the schedule, on this device only — the server's
+   * schedule, pushes and Live Activity are untouched. Read cues through
+   * `mealCues`, which applies it.
+   */
+  startShift?: { recipeId: string; minutes: number };
+}
+
+/** The meal's cues as cooking mode should show them, a kept-dinner start applied. */
+export function mealCues(meal: CookMeal | undefined): CookCue[] {
+  const cues = meal?.cues ?? [];
+  const shift = meal?.startShift;
+  if (!shift?.minutes) return cues;
+  return cues
+    .map((c) => (c.recipeId === shift.recipeId ? { ...c, at: c.at + shift.minutes * 60_000 } : c))
+    .sort((a, b) => a.at - b.at);
 }
 
 /** One schedule cue: start a dish's step (or a coordinating note) at `at`. */
@@ -146,6 +163,8 @@ interface CookSessionValue {
   endCook: (recipeId?: string) => void;
   /** Brings a cook to the foreground without touching the rest. */
   activateSession: (recipeId: string) => void;
+  /** Change a meal's tag on every one of its dishes' cooks (a moved schedule). */
+  updateMeal: (groupId: string, fn: (meal: CookMeal) => CookMeal) => void;
   setStepIndex: (index: number, recipeId?: string) => void;
   setServings: (servings: number) => void;
   toggleIngredient: (ingredientId: string) => void;
@@ -321,7 +340,10 @@ function mergeStarts(prev: CookSession[], inits: CookSessionInit[]): CookSession
   const existing = prev.map((s) => {
     const init = byId.get(s.recipeId);
     // Re-tag on every meal start: the meal's schedule may have been replanned.
-    return init?.meal ? { ...s, meal: init.meal } : s;
+    // A start kept on this device stays with it.
+    if (!init?.meal) return s;
+    const startShift = s.meal?.groupId === init.meal.groupId ? s.meal.startShift : undefined;
+    return { ...s, meal: { ...init.meal, ...(startShift ? { startShift } : {}) } };
   });
   const fresh = inits
     .filter((i) => !prev.some((s) => s.recipeId === i.recipeId))
@@ -550,6 +572,14 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
     setActiveRecipeId(recipeId);
   }, []);
 
+  const updateMeal = useCallback(
+    (groupId: string, fn: (meal: CookMeal) => CookMeal) =>
+      setSessions((prev) =>
+        prev.map((s) => (s.meal?.groupId === groupId ? { ...s, meal: fn(s.meal) } : s))
+      ),
+    []
+  );
+
   const setStepIndex = useCallback(
     (index: number, recipeId?: string) =>
       updateFor(recipeId ?? activeRecipeId, (prev) => ({ ...prev, stepIndex: index })),
@@ -683,6 +713,7 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
       endSession,
       endCook,
       activateSession,
+      updateMeal,
       setStepIndex,
       setServings,
       toggleIngredient,
@@ -702,6 +733,7 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
       endSession,
       endCook,
       activateSession,
+      updateMeal,
       setStepIndex,
       setServings,
       toggleIngredient,
