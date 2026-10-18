@@ -544,6 +544,14 @@ don't exist there.
     precise needed with floury fingers
   - Hardware keyboard shortcuts (→ / ← steps, space starts the step's timer)
     for an iPad on a keyboard case
+- [x] **Several cooks at once (v1.46.1, `Cooking/CookStack.swift`).** `AppNav`
+  keeps a list of cooks, the one in front first; starting another (a dessert
+  while the roast is minimised) adds it, starting one already going resumes
+  it (a planned meal matches by its group). The resume bar stacks the others
+  behind the front cook and fans them out on a tap; cooking mode switches
+  between them (toolbar on iPad, title menu on iPhone). The Live Activity
+  follows the cook in front, updated rather than restarted. Cooks are kept
+  across a relaunch for 12 h (`SavedCooks`, as the web)
 - [ ] **Hands-free cooking.** On-device `SpeechAnalyzer` for "next step",
   "previous step", "start the timer", "how much butter?"; `AVSpeechSynthesizer`
   to read a step aloud. Most useful on the iPad, propped up out of reach
