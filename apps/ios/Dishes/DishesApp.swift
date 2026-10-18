@@ -3,6 +3,7 @@
 //   - BGAppRefreshTask "uk.collco.dishes.refresh", scheduled each time the app
 //     goes to the background (iOS decides when it runs)
 //   - a push from the server (every one carries "content-available"), see Push.swift
+//   - a message from the Watch app (WatchLink)
 //
 //   @main DishesApp → RootView, with AppModel.shared in the environment
 
@@ -39,6 +40,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         BackgroundRefresh.register()
         UNUserNotificationCenter.current().delegate = self
         Push.shared.launch()
+        // Before anything from the Watch can arrive (it may be what launched the app).
+        WatchLink.shared.start()
         return true
     }
 
@@ -69,6 +72,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async
         -> UIBackgroundFetchResult {
         await AppModel.shared.start()
+        // A cook changed on another device (lib/cooking-sessions.ts): only the Watch cares.
+        if userInfo["kind"] as? String == "cooking" {
+            await WatchLink.shared.cookingChanged()
+            return .newData
+        }
         await AppModel.shared.syncNow()
         return .newData
     }

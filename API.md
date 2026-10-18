@@ -767,6 +767,25 @@ Hand over a meal-schedule Live Activity's push token:
 The server updates the activity over APNs as each step comes due and ends it
 half an hour after serving. `DELETE` with `{ "token" }` stops it.
 
+### `GET /api/v1/cooking-sessions` · `PUT /api/v1/cooking-sessions/{id}` · `DELETE …`
+
+Cooks in progress, shared across the household's devices (cook on the iPad,
+follow it on a Watch through its iPhone). Short-lived: kept in Redis, not the
+database or the sync log (`lib/cooking-sessions.ts`).
+
+- `PUT /{id}` — the device cooking publishes its whole state each time, `{id}` a
+  UUID it makes: `{ version, startedAt, title, device, dish, step, totalSteps,
+  instruction, timers: [{ id, label, dish?, endsAt?, remainingMs, durationMs?,
+  state: "running" | "paused" | "finished" }] }` (epoch ms) → `{ ok: true }`.
+  `version` must not go down (409 `conflict` if a newer one is stored); 410
+  `gone` once the session has ended or if `startedAt` is more than 12 hours ago
+  — stop publishing it. Not heard from for 2 hours, a session expires.
+- `DELETE /{id}` — the cook is over → 204. It can't be published again.
+- `GET` — `{ sessions: [... , updatedAt, memberName] }`, most recently changed first.
+
+A change that other devices would see (not a heartbeat) sends the household's
+iOS devices a silent push with `kind: "cooking"`.
+
 ### AI — `/api/v1/ai/*` and `/api/v1/cook-assist`
 
 All use the household's own AI key (Settings → AI, on the web or in the app) and answer a

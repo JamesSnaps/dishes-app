@@ -138,6 +138,13 @@ struct RootView: View {
             }
         }
         .task { await tonight.follow(app.store, TonightMeal.load) }
+        #if DEBUG
+        // `-DishesCookTonight YES`: straight into cooking tonight's meal (checking the Watch, RUNBOOK.md).
+        .onChange(of: tonight.value?.title) {
+            guard UserDefaults.standard.bool(forKey: "DishesCookTonight"), nav.cooking == nil, let request = tonight.value else { return }
+            nav.cooking = request
+        }
+        #endif
         // iPhone Duo: half-folded like a book opens the cookbook; opening it flat closes it again.
         .background { HingeObserver() }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }

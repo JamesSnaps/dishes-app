@@ -37,6 +37,8 @@ export type ApiErrorCode =
   | "forbidden"
   | "not_found"
   | "invalid_request"
+  | "conflict"
+  | "gone"
   | "internal_error";
 
 export type ApiErrorBody = {

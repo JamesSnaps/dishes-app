@@ -133,13 +133,14 @@ export interface ApnsResult {
 
 /**
  * Send a visible notification to each device, or with `silent` a background
- * push that only wakes the app to sync. Never throws; failures are logged with
+ * push that only wakes the app to sync (`data` goes alongside `aps`, e.g.
+ * `kind: "cooking"` for a cook in progress elsewhere). Never throws; failures are logged with
  * Apple's reason and dead tokens are pruned.
  */
 export async function deliverToApnsDevices(
   devices: ApnsDevice[],
   payload: PushPayload | null,
-  options: { silent?: boolean } = {}
+  options: { silent?: boolean; data?: Record<string, string> } = {}
 ): Promise<ApnsResult> {
   if (devices.length === 0 || !apnsConfigured()) return { sent: 0, failed: 0, stale: 0 };
 
@@ -154,7 +155,7 @@ export async function deliverToApnsDevices(
   const silent = options.silent || !payload;
   const body = JSON.stringify(
     silent
-      ? { aps: { "content-available": 1 } }
+      ? { aps: { "content-available": 1 }, ...(options.data ?? {}) }
       : {
           aps: {
             alert: { title: payload!.title, ...(payload!.body ? { body: payload!.body } : {}) },

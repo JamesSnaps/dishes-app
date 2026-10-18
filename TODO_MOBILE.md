@@ -607,10 +607,27 @@ don't exist there.
 
 #### Tier 4 — later
 
-- [ ] **Apple Watch app** — the shopping list on the wrist, timers and step
-  cues as taps while cooking. Strongest second-wave feature. Also what puts
-  "add to shopping" on the Watch: watchOS won't run an iPhone app's intents
-  (until then the quick-add Shortcut in API.md does it)
+- [x] **Apple Watch app** (v1.47.0, `DishesWatch`; RUNBOOK.md "Apple Watch").
+  The phone relays everything over WatchConnectivity — the Watch never signs in
+  (Authelia rotates refresh tokens, so the phone and Watch can't share one).
+  - [x] W1 — shopping list: aisle groups, tap to tick, Add by voice/Scribble,
+    "Add to Shopping List" App Intent on the Watch, items-left complication.
+    Ticks are WatchActions with ids, applied once by the phone and kept on the
+    Watch until a snapshot confirms them
+  - [x] W2 — tonight's meal and its schedule (the meal clock) as clock times,
+    and a "Tonight" complication that moves on at each cue
+  - [x] W3 — the cook in progress, from any device: `CookingShare` publishes
+    the cooking device's state to `/api/v1/cooking-sessions` (Redis, versioned,
+    tombstoned on end, refused after 12 h), a silent push (`kind: "cooking"`)
+    tells phones with a Watch to fetch it, and the Watch polls while the
+    cooking screen is open. View-only
+  - [ ] Watch controls for the cook (Next step, pause a timer): requests to the
+    cooking device, which decides — only once the view-only round trip has
+    proved itself
+  - [ ] The web's cooking mode publishing its cook too
+  - [ ] Check on a real Watch: complications on a face, Siri on the wrist,
+    the Action button, a tick with the phone locked in a pocket, a cook on the
+    iPad followed on the Watch
 - [ ] **Handoff + universal links** — a Dishes URL opens in the app; a recipe
   open on the Mac continues on the iPad (`NSUserActivity` with `webpageURL`)
 - [ ] **Supermarket geofence** — "You're at Tesco: 12 items on the list"
