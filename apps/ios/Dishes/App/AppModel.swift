@@ -285,13 +285,15 @@ final class AppModel {
     /// One item onto the active shopping list, offline-first: the shopping
     /// screen's add card and the Siri / Shortcuts intent both come here.
     @discardableResult
-    func addShoppingItem(_ name: String, amount: String? = nil, unit: String? = nil, category: String? = nil) async -> Bool {
+    func addShoppingItem(_ name: String, amount: String? = nil, unit: String? = nil, category: String? = nil,
+                         id: String = UUID().uuidString.lowercased()) async -> Bool {
         let data = try? await store.read(ShoppingData.load)
         let list = data?.list
         let position = (data?.all.map(\.position).max() ?? 0) + 1
         // The server keeps a client-made id (AddItemInput.id), so the row
-        // written here is the row the server will have.
-        let id = UUID().uuidString.lowercased()
+        // written here is the row the server will have — and an item added
+        // from the Watch twice (its id is the Watch's) is one row.
+        if (try? await store.read({ try $0.record(.shoppingItems, id: id) })) != nil { return true }
         let record = JSONValue.fields([
             "id": .string(id), "listId": .string(list?.id ?? "pending"), "ingredientName": .string(name),
             "isChecked": .bool(false), "position": .number(Double(position)),
@@ -306,6 +308,16 @@ final class AppModel {
                                               "category": category.map(JSONValue.string)]),
                             // With no list yet the server makes one, so the row's listId is a guess: temporary.
                             optimistic: [.put(.shoppingItems, record, temporary: list == nil)])
+    }
+
+    /// Ticks an item off (or back on), offline-first: the shopping screen and the Watch.
+    /// False when the item has gone (deleted on another device).
+    @discardableResult
+    func setShoppingItem(_ id: String, checked: Bool) async -> Bool {
+        guard let current = try? await store.read({ try $0.record(.shoppingItems, id: id) }) else { return false }
+        return await mutate("shopping_item.toggle",
+                            payload: .object(["itemId": .string(id), "checked": .bool(checked)]),
+                            optimistic: [.put(.shoppingItems, current.merging(.object(["isChecked": .bool(checked)])))])
     }
 
     private func explain(_ failures: [FailedMutation]) {

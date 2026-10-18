@@ -1,6 +1,7 @@
 // Drives the cooking Live Activity (drawn by DishesWidgets): started when
 // cooking mode opens, updated when the step, the timers or the cook in front
-// change, ended when the last cook does. Between updates the Lock Screen counts the next timer down by
+// change, ended when the last cook does — and shares the same with other
+// devices (CookingShare). Between updates the Lock Screen counts the next timer down by
 // itself, so nothing here runs while the device is locked.
 //
 //   CookingActivity.shared.show(title:dish:step:of:instruction:link:)
@@ -18,6 +19,8 @@ final class CookingActivity {
     /// Starts the activity, or updates the running one. Quietly does nothing
     /// when Live Activities are turned off for Dishes in Settings.
     func show(title: String, dish: String, step: Int, of total: Int, instruction: String, link: URL? = nil) {
+        // The same state, shared with the household's other devices (and the Watch).
+        CookingShare.shared.show(title: title, dish: dish, step: step, of: total, instruction: instruction)
         let next = CookTimers.shared.timers
             .filter { $0.state == .running }
             .min { ($0.endsAt ?? .distantFuture) < ($1.endsAt ?? .distantFuture) }
@@ -39,7 +42,7 @@ final class CookingActivity {
             Task { await box.activity.update(content) }
             return
         }
-        end()
+        endActivity()
         last = state
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         activity = try? Activity.request(attributes: CookingActivityAttributes(title: title), content: content)
@@ -66,7 +69,14 @@ final class CookingActivity {
         }
     }
 
+    /// Cooking mode has closed: the Live Activity goes, and so does the shared cook.
     func end() {
+        CookingShare.shared.end()
+        endActivity()
+    }
+
+    /// Just the Live Activity (also when `show` replaces it with a new one).
+    private func endActivity() {
         last = nil
         guard let activity else { return }
         self.activity = nil

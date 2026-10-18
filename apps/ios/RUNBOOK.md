@@ -110,6 +110,53 @@ UPLOAD=0 apps/ios/scripts/testflight.sh   # archive and export an .ipa only
 - Privacy manifest: `Dishes/Resources/PrivacyInfo.xcprivacy` (no tracking;
   UserDefaults, CA92.1).
 
+## Apple Watch
+
+`DishesWatch` (watchOS 26, `uk.collco.dishes.watchkitapp`) is embedded in the
+phone app and installs with it, with its complications in `DishesWatchWidgets`.
+The Watch never signs in or talks to the server: `Dishes/App/WatchLink.swift`
+on the phone sends it a snapshot (shopping list, tonight's meal and its meal
+clock, cooks in progress) by application context whenever any of it changes,
+and applies what's done on the Watch (ticks, new items) through the same
+outbox paths as the shopping screen. `WatchShared/WatchContract.swift` has the
+messages. Each Watch action has an id; the Watch shows it on top of the
+snapshot until a snapshot lists it as applied, and the phone applies each id
+once. The Watch keeps its copy in the App Group `group.uk.collco.dishes.watch`
+for the complications.
+
+**Cooks on other devices.** `Dishes/Cooking/CookingShare.swift` publishes the
+cooking device's state (fed by `CookingActivity`, so it follows exactly what
+the Live Activity shows) to `/api/v1/cooking-sessions` — Redis, versioned,
+ended for good on Exit, refused if started 12 h ago (API.md). The web's
+cooking mode publishes the same way (`apps/web/lib/cooking-share.ts`, device
+"Browser"). The server sends
+a silent push `kind: "cooking"`; a phone with a Watch fetches the cooks and
+passes them on, and the Watch asks again every 15 s while its cooking screen is
+open. Nothing from the server changes cooking mode on any device.
+
+```bash
+xcrun simctl create "Dishes Watch Phone" com.apple.CoreSimulator.SimDeviceType.iPhone-17 com.apple.CoreSimulator.SimRuntime.iOS-27-0
+xcrun simctl create "Dishes Watch" com.apple.CoreSimulator.SimDeviceType.Apple-Watch-Series-12-46mm com.apple.CoreSimulator.SimRuntime.watchOS-27-0
+xcrun simctl pair <watch-udid> <phone-udid>      # then boot both (iOS 27.1 won't pair with watchOS 27.0)
+DEVICE=<phone-udid> WATCH=<watch-udid> apps/ios/scripts/sim.sh
+```
+
+Simulator limits (Xcode 27.1):
+- The phone only sees the Watch app as installed (`isWatchAppInstalled`) a
+  little after it's installed, and loses it again whenever the phone app is
+  reinstalled. Reinstall the Watch app, wait a few seconds, relaunch the phone
+  app. Messages (and their replies) still work when it's wrong, so the Watch
+  gets fresh snapshots whenever it asks.
+- `transferUserInfo` doesn't cross between paired simulators (as Keepsake
+  found); a tick made with the phone "unreachable" only arrives on a device.
+- `simctl openurl` can't open a watchOS app's URLs. Debug builds of the Watch
+  app take `-DishesScreen shopping|tonight|cooking` and `-DishesDemo tick|add`;
+  the phone app takes `-DishesCookTonight YES` to open cooking mode on
+  tonight's meal.
+- A fresh pair takes minutes to boot the first time, and with many simulators
+  booted on 16 GB the Watch never finished — shut down the others first.
+- Logs: `xcrun simctl spawn <phone> log stream --level debug --predicate 'subsystem == "uk.collco.dishes" AND category == "watch"'`.
+
 ## Things worth knowing
 
 - **Week keys are local dates.** Meal plans are keyed `yyyy-MM-dd` on the
@@ -822,3 +869,35 @@ needs a tap, and the simulator panel wasn't attached):
 the panel or a device), the app coming from the background rather than
 already in front, a meal sequence's cue (no dev server running, so no meal
 clock), the iPad, and opening over the cookbook cover.
+
+### 18 Oct 2026 — the Apple Watch app (v1.47.0, branch `feat/watch-app`)
+
+James: start the Watch app; and could a cook on the kitchen iPad show on the
+Watch without being flaky or kicking a device out of cooking mode?
+
+- The phone relays (option A in the plan): Authelia rotates refresh tokens, so
+  the Watch can't share the phone's sign-in. No server change for W1/W2.
+- W1 shopping (aisle groups, tick, Add by dictation/Scribble, the
+  "Add to Shopping List" intent on the Watch), W2 tonight (meal clock as clock
+  times), W3 cooks in progress from any device (new `/api/v1/cooking-sessions`,
+  Redis only — **no migration**). Complications: Shopping and Tonight.
+- `AppModel.setShoppingItem` is now the one tick path (shopping screen and
+  Watch); `addShoppingItem` takes an id so an add from the Watch sent twice is
+  one row.
+- Checked on a paired iPhone 17 (iOS 27.0) + Watch Series 12 against the dev
+  server: snapshot reaches the Watch (36 items, 6.6 kB); a tick on the Watch
+  reached the server's `sync_operations` a second later; an add ("Watch
+  test") landed; a cook PUT as an "iPad" showed on the Watch home and cooking
+  screens with its running and paused timers, a step change arrived on the next
+  poll, and ending it showed "That cook has finished"; cooking on the phone
+  itself showed as "this iPhone" and published to the server. Server rules
+  checked with curl: late version 409, after end 410, started 13 h ago 410.
+- Fixed on the way: WatchConnectivity reply handlers made inside a main-actor
+  method crashed when called off it (`@Sendable` now); `CookingActivity.show`
+  ends its own activity before starting a new one, which also ended the shared
+  cook — the Live Activity restart is `endActivity()` now.
+- **Not checked:** complications on a watch face, Siri on the wrist, a real
+  iPad (the iPad path is the same `CookingShare` code; an "iPad" was stood in
+  for with curl), silent pushes (no APNs key in dev — the Watch's 15 s poll
+  covered it), anything on a real Watch. New capability (App Group on the
+  Watch targets): press Run in Xcode once so the profile picks it up.

@@ -511,6 +511,80 @@ public final class APIClient: SyncTransport, Sendable {
         }
     }
 
+    // MARK: Cooking sessions (a cook in progress, followed from other devices)
+
+    /// A cook in progress as the device cooking it publishes it, so the
+    /// household's other devices (and the Watch, through its phone) can follow
+    /// it. Only the cooking device writes it; times are epoch ms
+    /// (apps/web/lib/cooking-sessions.ts).
+    public struct CookingSession: Codable, Sendable, Equatable {
+        public struct Timer: Codable, Sendable, Equatable {
+            public var id: String
+            public var label: String
+            public var dish: String?
+            public var endsAt: Double?
+            public var remainingMs: Double
+            /// The whole length, added minutes included.
+            public var durationMs: Double?
+            /// "running", "paused" or "finished".
+            public var state: String
+
+            public init(id: String, label: String, dish: String?, endsAt: Double?, remainingMs: Double,
+                        durationMs: Double?, state: String) {
+                self.id = id; self.label = label; self.dish = dish; self.endsAt = endsAt
+                self.remainingMs = remainingMs; self.durationMs = durationMs; self.state = state
+            }
+        }
+
+        public var id: String
+        /// Goes up with every change, so the server can turn down one that arrives out of order.
+        public var version: Int
+        public var startedAt: Double
+        public var title: String
+        /// "iPad", "iPhone".
+        public var device: String
+        public var dish: String
+        public var step: Int
+        public var totalSteps: Int
+        public var instruction: String
+        public var timers: [Timer]
+        /// Set by the server.
+        public var updatedAt: Double?
+        public var memberName: String?
+
+        public init(id: String, version: Int, startedAt: Double, title: String, device: String, dish: String,
+                    step: Int, totalSteps: Int, instruction: String, timers: [Timer]) {
+            self.id = id; self.version = version; self.startedAt = startedAt; self.title = title
+            self.device = device; self.dish = dish; self.step = step; self.totalSteps = totalSteps
+            self.instruction = instruction; self.timers = timers
+        }
+    }
+
+    /// Publishes this device's cook. False when the server has finished with
+    /// this session (ended, or started too long ago): stop publishing it.
+    public func publishCooking(_ session: CookingSession) async throws -> Bool {
+        struct Reply: Decodable { var ok: Bool }
+        do {
+            _ = try await request("/cooking-sessions/\(session.id)", method: "PUT", json: session, as: Reply.self)
+            return true
+        } catch APIError.http(status: 410, _, _) {
+            return false
+        } catch APIError.http(status: 409, _, _) {
+            // Overtaken by a newer version of the same cook: nothing to do.
+            return true
+        }
+    }
+
+    public func endCooking(id: String) async throws {
+        _ = try await send { bearer in authorisedRequest(url("/cooking-sessions/\(id)"), method: "DELETE", token: bearer) }
+    }
+
+    /// The household's cooks in progress, newest first.
+    public func cookingSessions() async throws -> [CookingSession] {
+        struct Reply: Decodable { var sessions: [CookingSession] }
+        return try await request("/cooking-sessions", as: Reply.self).sessions
+    }
+
     // MARK: AI (the household's own OpenAI key, server-side)
 
     public struct AIStatus: Decodable, Sendable { public var configured: Bool }

@@ -208,12 +208,7 @@ struct ShoppingScreen: View {
     private func toggle(_ item: ShoppingItem) {
         ticks += 1
         let checked = !item.isChecked
-        Task {
-            let current = try? await app.store.read { try $0.record(.shoppingItems, id: item.id) }
-            await app.mutate("shopping_item.toggle",
-                             payload: .object(["itemId": .string(item.id), "checked": .bool(checked)]),
-                             optimistic: current.map { [.put(.shoppingItems, $0.merging(.object(["isChecked": .bool(checked)])))] } ?? [])
-        }
+        Task { await app.setShoppingItem(item.id, checked: checked) }
     }
 
     private func delete(_ item: ShoppingItem) {

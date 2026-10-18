@@ -6,6 +6,8 @@
 #   DEV_SERVER=http://localhost:3001 apps/ios/scripts/sim.sh
 #   FRESH=1 apps/ios/scripts/sim.sh                 # uninstall first (empty database)
 #   DEVICE=<udid or name> apps/ios/scripts/sim.sh   # a particular simulator (an iPad, say)
+#   DEVICE=<phone> WATCH=<watch udid> apps/ios/scripts/sim.sh   # also install and open the Watch app
+#                                                    # (the watch must be paired with that phone; RUNBOOK.md)
 set -eu
 # Signed ad hoc ("Sign to Run Locally"): the simulator's Keychain refuses an
 # unsigned app, so CODE_SIGNING_ALLOWED=NO would lose the sign-in tokens.
@@ -37,3 +39,9 @@ xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
 if [ "${FRESH:-}" = 1 ]; then xcrun simctl uninstall "$UDID" "$BUNDLE"; fi
 xcrun simctl install "$UDID" "$DERIVED/Build/Products/Debug-iphonesimulator/Dishes.app"
 xcrun simctl launch "$UDID" "$BUNDLE" -DishesDevServer "$DEV_SERVER" "$@"
+
+if [ -n "${WATCH:-}" ]; then
+  xcrun simctl terminate "$WATCH" "$BUNDLE.watchkitapp" 2>/dev/null || true
+  xcrun simctl install "$WATCH" "$DERIVED/Build/Products/Debug-iphonesimulator/Dishes.app/Watch/DishesWatch.app"
+  xcrun simctl launch "$WATCH" "$BUNDLE.watchkitapp"
+fi

@@ -8,6 +8,7 @@ import { MealDishTabs, MealTimelinePanel, MealTimersPanel } from "./meal-cook-ba
 import { MealStartDialog } from "./meal-start-dialog";
 import { BackToMealBar, CueCard, SequenceBar, SequenceDue, cueLabel, useMealCook } from "./meal-cooking";
 import { indexOfStep } from "@/lib/meal-sequence";
+import { showCookShare } from "@/lib/cooking-share";
 import { freezeMealTimeline } from "@/app/actions/meal-timeline";
 import { firstCue } from "@/lib/meal-start";
 import { TimerPushHint } from "./timer-push-hint";
@@ -1208,6 +1209,27 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
   }, [seq, mealCtx, recipe.id, setStepIndex]);
   // The sequence is on a note, a combined prep step or serving — not one of this dish's steps.
   const cueIsStep = !seq || (seq.cue.recipeId === recipe.id && seq.cue.stepIndex !== null && !seq.cue.covers?.length);
+
+  // What's on screen, for the household's other devices (a Watch, through its
+  // iPhone). Only while this recipe's cook is live: Done and Exit end it, and
+  // the provider ends the shared cook with it. One-way — nothing comes back.
+  // The cook is its meal (or this recipe alone), as the provider counts them.
+  const shareTitle = active ? (active.meal?.title ?? active.recipeTitle) : null;
+  const shareInstruction = cueIsStep
+    ? currentStep?.instruction ?? ""
+    : seq?.cue.id === "serve"
+      ? "Everything should be ready — time to serve."
+      : seq?.cue.text ?? "";
+  useEffect(() => {
+    if (!shareTitle || isComplete || exiting.current || steps.length === 0) return;
+    showCookShare({
+      title: shareTitle,
+      dish: recipe.title,
+      step: stepIndex + 1,
+      totalSteps: steps.length,
+      instruction: shareInstruction,
+    });
+  }, [shareTitle, isComplete, recipe.title, stepIndex, steps.length, shareInstruction]);
 
   // Keyboard navigation — skip when a modal/dialog is open
   useEffect(() => {

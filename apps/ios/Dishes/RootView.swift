@@ -236,6 +236,13 @@ struct RootView: View {
         .task { await nav.restoreCooks(from: app.store) }
         // Steps move without the list changing, so they're saved as the app goes away too.
         .onChange(of: scenePhase) { _, phase in if phase != .active { SavedCooks.save(nav.sessions) } }
+        #if DEBUG
+        // `-DishesCookTonight YES`: straight into cooking tonight's meal (checking the Watch, RUNBOOK.md).
+        .onChange(of: tonight.value?.title) {
+            guard UserDefaults.standard.bool(forKey: "DishesCookTonight"), nav.cooking == nil, let request = tonight.value else { return }
+            nav.cooking = request
+        }
+        #endif
         // iPhone Duo: half-folded like a book opens the cookbook; opening it flat closes it again.
         .background { HingeObserver() }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }

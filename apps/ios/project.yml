@@ -11,6 +11,7 @@ options:
   bundleIdPrefix: uk.collco
   deploymentTarget:
     iOS: "26.1"
+    watchOS: "26.0"
   createIntermediateGroups: true
   developmentLanguage: en-GB
 
@@ -18,7 +19,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     # Keep in step with "version" in apps/web/package.json (one version for the product).
-    MARKETING_VERSION: "1.46.4"
+    MARKETING_VERSION: "1.47.1"
     CURRENT_PROJECT_VERSION: "1"
     # James Collard's individual membership, as Keepsake: a personal app, kept off
     # the Snapdragons company team.
@@ -38,9 +39,12 @@ targets:
     sources:
       - path: Dishes
       - path: Shared
+      - path: WatchShared
     dependencies:
       - package: DishesCore
       - target: DishesWidgets
+      # The Watch app, embedded so it installs with the phone's (TODO_MOBILE.md, Watch).
+      - target: DishesWatch
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: uk.collco.dishes
@@ -107,3 +111,54 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
+
+  # The Watch app: the shopping list, tonight's meal and the cook in progress,
+  # all from the phone over WatchConnectivity — the Watch never signs in itself
+  # (RUNBOOK.md, "Apple Watch").
+  DishesWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: DishesWatch
+      - path: WatchShared
+    dependencies:
+      - target: DishesWatchWidgets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.collco.dishes.watchkitapp
+        PRODUCT_NAME: DishesWatch
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # The complication reads the Watch's copy of the list through the App Group.
+        CODE_SIGN_ENTITLEMENTS: DishesWatch/DishesWatch.entitlements
+    info:
+      path: DishesWatch/Info.plist
+      properties:
+        CFBundleDisplayName: Dishes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: uk.collco.dishes
+        CFBundleURLTypes:
+          - CFBundleURLName: uk.collco.dishes.watch
+            CFBundleURLSchemes: [dishes-watch]
+
+  # Complications and Smart Stack cards: items left, tonight's meal, the cook in progress.
+  DishesWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: DishesWatchWidgets
+      - path: WatchShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.collco.dishes.watchkitapp.widgets
+        CODE_SIGN_ENTITLEMENTS: DishesWatchWidgets/DishesWatchWidgets.entitlements
+    info:
+      path: DishesWatchWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Dishes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
