@@ -34,6 +34,10 @@ struct CookTimer: Codable, Identifiable, Hashable {
     var id: UUID
     var label: String
     var dish: String?
+    /// The recipe step it's for, so a timer can say which and take you back
+    /// there; nil for a timer of your own (and ones saved before this).
+    var recipeId: String?
+    var stepIndex: Int?
     /// Seconds in total, including any added minutes.
     var duration: TimeInterval
     /// When it goes off, while running.
@@ -118,8 +122,8 @@ final class CookTimers {
 
     // MARK: Changes
 
-    func start(label: String, dish: String?, seconds: TimeInterval) async {
-        var timer = CookTimer(id: UUID(), label: label, dish: dish, duration: seconds,
+    func start(label: String, dish: String?, seconds: TimeInterval, recipeId: String? = nil, stepIndex: Int? = nil) async {
+        var timer = CookTimer(id: UUID(), label: label, dish: dish, recipeId: recipeId, stepIndex: stepIndex, duration: seconds,
                               endsAt: Date.now.addingTimeInterval(seconds), remaining: seconds,
                               state: .running, usesAlarmKit: false)
         timer.usesAlarmKit = await schedule(timer, seconds: seconds)
