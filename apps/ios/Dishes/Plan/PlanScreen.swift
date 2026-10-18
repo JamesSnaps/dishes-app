@@ -106,7 +106,8 @@ struct PlanScreen: View {
     @ViewBuilder private func dayChips(_ day: Int, compact: Bool = false) -> some View {
         if let dinner = extras.dinner?.days.first(where: { $0.dayOfWeek == day }) {
             DinnerTimeChip(date: week.day(day), day: dinner, dishes: dinnerRecipes[day],
-                           estimates: extras.dinner?.estimates ?? [:], compact: compact) { extras.update($0) }
+                           estimates: extras.dinner?.estimates ?? [:], scheduled: extras.dinner?.scheduled?[String(day)],
+                           compact: compact) { extras.update($0) }
         }
         if let panel = extras.deliveries, let delivery = panel.days.first(where: { $0.date == localDateKey(week.day(day)) }) {
             DeliveryDayChip(day: delivery, canEdit: panel.canEdit) {

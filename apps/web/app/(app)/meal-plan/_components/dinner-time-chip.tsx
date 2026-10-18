@@ -76,14 +76,25 @@ export function useWeekDinnerSchedule(weekStartDate: string, recipeIds: string[]
   return { schedule, updateDay };
 }
 
-/** The longest dish sets the start time, matching the reminder itself. */
+/**
+ * When to start, matching the reminders: a scheduled combined meal starts at
+ * its schedule's first cue; any other dish by its estimate, the longest first.
+ */
 function startBy(
   day: DayDinnerSetting,
   dishes: DinnerDish[],
-  estimates: WeekDinnerSchedule["estimates"]
+  estimates: WeekDinnerSchedule["estimates"],
+  scheduled?: { start: string; title: string; recipeIds: string[] }
 ): { time: string; dish: string; explanation: string | null } | null {
-  let best: { minutes: number; dish: string; explanation: string | null } | null = null;
+  let best: { minutes: number; dish: string; explanation: string | null } | null = scheduled
+    ? {
+        minutes: toMinutes(day.time) - toMinutes(scheduled.start),
+        dish: scheduled.title,
+        explanation: "follows the meal’s cooking schedule",
+      }
+    : null;
   for (const d of dishes) {
+    if (scheduled?.recipeIds.includes(d.recipeId)) continue;
     const est = estimates[d.recipeId];
     const minutes =
       est?.minutes ?? ((d.prepTimeMinutes ?? 0) + (d.cookTimeMinutes ?? 0) || 45);
@@ -105,6 +116,7 @@ export function DinnerTimeChip({
   day,
   dishes,
   estimates,
+  scheduled,
   onChange,
 }: {
   /** "YYYY-MM-DD" of the day shown. */
@@ -113,6 +125,7 @@ export function DinnerTimeChip({
   day: DayDinnerSetting;
   dishes: DinnerDish[];
   estimates: WeekDinnerSchedule["estimates"];
+  scheduled?: { start: string; title: string; recipeIds: string[] };
   onChange: (day: DayDinnerSetting) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -123,7 +136,7 @@ export function DinnerTimeChip({
     if (open) setTime(day.time);
   }, [open, day.time]);
 
-  const start = startBy(day, dishes, estimates);
+  const start = startBy(day, dishes, estimates, scheduled);
 
   function run(action: () => Promise<DayDinnerSetting>, done?: string) {
     startTransition(async () => {

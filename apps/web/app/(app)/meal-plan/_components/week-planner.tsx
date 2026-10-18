@@ -1381,6 +1381,7 @@ export function WeekPlanner({
                       cookTimeMinutes: e.recipe.cookTimeMinutes,
                     }))}
                   estimates={dinnerSchedule.estimates}
+                  scheduled={dinnerSchedule.scheduled?.[selectedDay]}
                   onChange={updateDinnerDay}
                 />
               )}
