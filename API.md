@@ -696,7 +696,7 @@ the proxy headers, making `/api/v1` bearer-only in practice.
 
 ### `GET /api/v1/members`
 
-The household's active members, by name, with each one's `avatarUrl` (or null). Cook history keys "who ate it"
+The household's active members, by name, with each one's `avatarUrl` (or null). `cholesterolDiet` (boolean) says whether to pre-select Heart-healthy when they're eating; their notes are never sent. Cook history keys "who ate it"
 (`cookedFor`) and per-person ratings (`memberRatings`) on display names, so a
 client needs these to offer them.
 

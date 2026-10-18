@@ -176,6 +176,8 @@ public final class APIClient: SyncTransport, Sendable {
         public var displayName: String
         public var role: String
         public var avatarUrl: String?
+        /// On a cholesterol-lowering diet: ticking them switches Heart-healthy on.
+        public var cholesterolDiet: Bool?
     }
 
     /// Active members, for "who ate it" and per-person ratings.
@@ -525,6 +527,10 @@ public final class APIClient: SyncTransport, Sendable {
         public var tags: [String]
         public var difficulty: String
         public var id: String { title }
+
+        public init(title: String, description: String, cuisine: String = "", tags: [String] = [], difficulty: String = "medium") {
+            self.title = title; self.description = description; self.cuisine = cuisine; self.tags = tags; self.difficulty = difficulty
+        }
     }
 
     public struct ConceptRequest: Encodable, Sendable {
@@ -543,7 +549,7 @@ public final class APIClient: SyncTransport, Sendable {
         return try await slowPost("/ai/concepts", json: ask, timeout: 90, as: Reply.self).concepts
     }
 
-    public struct CreatedRecipe: Decodable, Sendable {
+    public struct CreatedRecipe: Decodable, Hashable, Sendable {
         public var recipeId: String
         public var title: String
         public var collectionName: String?
@@ -579,7 +585,10 @@ public final class APIClient: SyncTransport, Sendable {
         public var preferences: String
         public var memberIds: [String]?
         public var favouritesOnly: Bool?
-        public init(weekStartDate: String, slots: [(Int, String)], preferences: String, memberIds: [String]?, favouritesOnly: Bool?) {
+        public var heartHealthy: Bool?
+        public init(weekStartDate: String, slots: [(Int, String)], preferences: String, memberIds: [String]?, favouritesOnly: Bool?,
+                    heartHealthy: Bool? = nil) {
+            self.heartHealthy = heartHealthy
             self.weekStartDate = weekStartDate
             self.slots = slots.map { Slot(dayOfWeek: $0.0, mealType: $0.1) }
             self.preferences = preferences
@@ -595,10 +604,11 @@ public final class APIClient: SyncTransport, Sendable {
     }
 
     /// Adds the draft; new ideas are written out as recipes first, so it's slow.
-    public func applyMealPlan(weekStartDate: String, slots: [PlanSlot], memberIds: [String]?) async throws {
-        struct Body: Encodable { var weekStartDate: String; var slots: [PlanSlot]; var memberIds: [String]? }
+    public func applyMealPlan(weekStartDate: String, slots: [PlanSlot], memberIds: [String]?, heartHealthy: Bool? = nil) async throws {
+        struct Body: Encodable { var weekStartDate: String; var slots: [PlanSlot]; var memberIds: [String]?; var heartHealthy: Bool? }
         struct Reply: Decodable { var success: Bool? }
-        _ = try await slowPost("/ai/meal-plan/apply", json: Body(weekStartDate: weekStartDate, slots: slots, memberIds: memberIds),
+        _ = try await slowPost("/ai/meal-plan/apply", json: Body(weekStartDate: weekStartDate, slots: slots, memberIds: memberIds,
+                                                                  heartHealthy: heartHealthy),
                                timeout: 600, as: Reply.self)
     }
 

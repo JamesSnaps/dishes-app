@@ -21,6 +21,7 @@ struct PlanGeneratorSheet: View {
     @State private var preferences = ""
     @State private var favouritesOnly = false
     @State private var eating: Set<String> = []
+    @State private var heartHealthy = false
     @State private var draft: [APIClient.PlanSlot] = []
 
     private static let dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -91,13 +92,18 @@ struct PlanGeneratorSheet: View {
                     FlowLayout(spacing: 8) {
                         ForEach(app.members) { member in
                             pill(member.displayName, on: eating.contains(member.id)) {
-                                if eating.contains(member.id) { eating.remove(member.id) } else { eating.insert(member.id) }
+                                if eating.contains(member.id) { eating.remove(member.id) } else {
+                                    eating.insert(member.id)
+                                    // Someone on a cholesterol-lowering diet switches it on, as on the web.
+                                    if member.cholesterolDiet == true { heartHealthy = true }
+                                }
                             }
                         }
                     }
                 }
             }
             Toggle("Only from our favourites", isOn: $favouritesOnly).tint(Theme.brand).font(.system(size: 15))
+            Toggle("Heart-healthy (lower saturated fat)", isOn: $heartHealthy).tint(Theme.brand).font(.system(size: 15))
             Button { Task { await makeDraft() } } label: {
                 Label("Draft \(days.count) \(mealType)\(days.count == 1 ? "" : "s")", systemImage: "sparkles")
             }
@@ -204,7 +210,8 @@ struct PlanGeneratorSheet: View {
                 slots: days.sorted().map { ($0, mealType) },
                 preferences: preferences,
                 memberIds: eating.isEmpty ? nil : Array(eating),
-                favouritesOnly: favouritesOnly ? true : nil))
+                favouritesOnly: favouritesOnly ? true : nil,
+                heartHealthy: heartHealthy ? true : nil))
                 .sorted { $0.dayOfWeek < $1.dayOfWeek }
             stage = draft.isEmpty ? .failed("No meals came back. Try fewer constraints.") : .draft
         } catch {
@@ -215,7 +222,8 @@ struct PlanGeneratorSheet: View {
     private func add() async {
         stage = .adding
         do {
-            try await app.api.applyMealPlan(weekStartDate: week.key, slots: draft, memberIds: eating.isEmpty ? nil : Array(eating))
+            try await app.api.applyMealPlan(weekStartDate: week.key, slots: draft, memberIds: eating.isEmpty ? nil : Array(eating),
+                                            heartHealthy: heartHealthy ? true : nil)
             await app.syncNow()
             app.toast = "Added \(draft.count) meals to the plan"
             dismiss()
