@@ -782,3 +782,43 @@ the web's `cueLabel`). Its card lists each dish's serving step under
 check:meal-timeline`). **Not checked** in the simulator or a browser; stored
 and frozen schedules keep their old separate cues until replanned.
 
+### 18 Oct 2026 — tapping the Live Activity opens that cook (v1.46.4)
+
+James tapped the cooking Live Activity on step 4 of a recipe and the app
+opened wherever it was, not at the cook. The activity now carries a link,
+`dishes://cook?dish=<id>…&group=<id>&recipe=<id>&step=4&cue=<id>`
+(`Shared/CookLink.swift`; the `dishes` scheme was already registered for the
+sign-in callback), set as `widgetURL` on the Lock Screen view and the whole
+Dynamic Island (compact, minimal and expanded). It's in the activity's
+`ContentState` because the activity follows whichever cook is in front, so
+the link changes with it. `CookLinkHandler` (`.onOpenURL` on RootView) finds
+the cook — the same meal by group id, else the same dishes — brings it to the
+front, opens cooking mode and goes to the step, or in a meal sequence to the
+cue (on a cold launch the schedule isn't back yet, so the cue is stored as the
+position and lands once it is). With the cook ended since, it opens the
+recipe. From a cold launch the link waits for `restoreCooks`
+(`AppNav.cooksRestored`). The meal-schedule activity links to `group=<id>`
+only: that meal's cook if one's going, else the Planner. Cooking mode also
+refreshes the activity when the sequence position or dish view changes (a
+prep step or note can move on without the step changing).
+
+Checked on the iPhone 18 Pro Max simulator, with cooks seeded through
+SavedCooks (the `cooks` key in the app container's
+`Library/Preferences/uk.collco.dishes.plist` — `simctl spawn defaults write
+uk.collco.dishes` writes the device-wide domain instead, which the app never
+reads) and the link opened by the app itself through `UIApplication.open`
+via a temporary debug hook (`simctl openurl` puts up "Open in Dishes?", which
+needs a tap, and the simulator panel wasn't attached):
+- cold launch, one cook saved at step 1, link for step 4 → cooking mode on
+  Bolognese step 4 of 5
+- two cooks minimised (Bolognese in front), link for the cookies at step 3 →
+  cookies in front at step 3 of 4, "2 cooks"; the activity's link followed
+  (logged `…recipe=b82d…&step=3`); then a Bolognese step-2 link from inside
+  cooking mode switched back
+- a link for a dish with no cook → its recipe page, cooks left minimised
+- a meal-schedule link with no cook → the Planner
+
+**Not checked:** an actual tap on the Lock Screen or Dynamic Island (needs
+the panel or a device), the app coming from the background rather than
+already in front, a meal sequence's cue (no dev server running, so no meal
+clock), the iPad, and opening over the cookbook cover.
