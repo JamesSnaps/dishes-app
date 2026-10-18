@@ -597,3 +597,16 @@ name through `Text.LayoutKey` (`Text.Layout.ingredient(at:)`). Links
 (`AttributedString.link` + openURL) didn't fire alongside a tap gesture.
 The bubble sits below the word on the first line (above would be clipped
 by the scroll view). Checked on the iPhone 18 Pro simulator.
+
+### 18 Oct 2026 — Create with AI matches the web (v1.43.0)
+
+- "Inspire me" / "I know what I want" modes; direct mode writes the named
+  dish straight away (a concept with the title as its description, as the web does).
+- The five ideas are tickable; several are written one after another with
+  a progress list (each saved as it finishes, Open on any).
+- Ticking a member on a cholesterol-lowering diet switches Heart-healthy on,
+  in Create with AI and Generate plan; Generate plan gains the toggle and
+  passes it to draft and apply. `/api/v1/members` adds `cholesterolDiet`.
+- Checked on the iPhone simulator: both modes render. **Not checked:**
+  generating (no AI key in dev), the batch list, the auto toggle with a real
+  cholesterol member.
