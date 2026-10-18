@@ -127,7 +127,9 @@ for the complications.
 **Cooks on other devices.** `Dishes/Cooking/CookingShare.swift` publishes the
 cooking device's state (fed by `CookingActivity`, so it follows exactly what
 the Live Activity shows) to `/api/v1/cooking-sessions` — Redis, versioned,
-ended for good on Exit, refused if started 12 h ago (API.md). The server sends
+ended for good on Exit, refused if started 12 h ago (API.md). The web's
+cooking mode publishes the same way (`apps/web/lib/cooking-share.ts`, device
+"Browser"). The server sends
 a silent push `kind: "cooking"`; a phone with a Watch fetches the cooks and
 passes them on, and the Watch asks again every 15 s while its cooking screen is
 open. Nothing from the server changes cooking mode on any device.

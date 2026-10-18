@@ -773,7 +773,8 @@ Cooks in progress, shared across the household's devices (cook on the iPad,
 follow it on a Watch through its iPhone). Short-lived: kept in Redis, not the
 database or the sync log (`lib/cooking-sessions.ts`).
 
-- `PUT /{id}` — the device cooking publishes its whole state each time, `{id}` a
+- `PUT /{id}` — the device cooking (the iOS app's `CookingShare`, the web's
+  `lib/cooking-share.ts`) publishes its whole state each time, `{id}` a
   UUID it makes: `{ version, startedAt, title, device, dish, step, totalSteps,
   instruction, timers: [{ id, label, dish?, endsAt?, remainingMs, durationMs?,
   state: "running" | "paused" | "finished" }] }` (epoch ms) → `{ ok: true }`.

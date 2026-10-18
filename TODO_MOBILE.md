@@ -624,7 +624,9 @@ don't exist there.
   - [ ] Watch controls for the cook (Next step, pause a timer): requests to the
     cooking device, which decides — only once the view-only round trip has
     proved itself
-  - [ ] The web's cooking mode publishing its cook too
+  - [x] The web's cooking mode publishing its cook too: `lib/cooking-share.ts`,
+    fed by cooking mode (the step on screen) and the cook-session provider
+    (timers, and ending the cook when it leaves the list), device "Browser"
   - [ ] Check on a real Watch: complications on a face, Siri on the wrist,
     the Action button, a tick with the phone locked in a pocket, a cook on the
     iPad followed on the Watch

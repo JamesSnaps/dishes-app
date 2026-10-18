@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { playChime, unlockAudio } from "@/lib/cook-audio";
+import { syncCookShares } from "@/lib/cooking-share";
 
 // A cook session lives above the route tree so it survives navigation out of
 // cooking mode — that's what lets the mini bar "minimise" a cook instead of
@@ -308,6 +309,34 @@ function sendTimers(timers: ReturnType<typeof runningTimers>, background: boolea
   }).catch(() => {});
 }
 
+/**
+ * Each cook as the household's other devices see it: one per meal (or recipe
+ * cooked alone), with the timers that are going or paused partway. Untouched
+ * and finished ones aren't sent (the iOS app leaves finished ones out too).
+ */
+function sharedCooks(sessions: CookSession[]) {
+  const byTitle = new Map<string, Parameters<typeof syncCookShares>[0][number]["timers"]>();
+  for (const s of sessions) {
+    const title = s.meal?.title ?? s.recipeTitle;
+    const timers = byTitle.get(title) ?? [];
+    for (const [idx, t] of Object.entries(s.timers)) {
+      if (t.done || (t.endsAt === null && t.pausedRemaining >= t.totalSeconds)) continue;
+      const remainingMs = t.endsAt === null ? t.pausedRemaining * 1000 : Math.max(0, t.endsAt - Date.now());
+      timers.push({
+        id: `${s.recipeId}:${idx}`,
+        label: t.label || `Step ${t.stepNumber}`,
+        dish: s.recipeTitle,
+        endsAt: t.endsAt,
+        remainingMs,
+        durationMs: t.totalSeconds * 1000,
+        state: t.endsAt === null ? "paused" : "running",
+      });
+    }
+    byTitle.set(title, timers);
+  }
+  return [...byTitle].map(([title, timers]) => ({ title, timers }));
+}
+
 /** A fresh session for a cook that isn't running yet. */
 function newSession(init: CookSessionInit, startedAt: number): CookSession {
   const timers: Record<string, StoredTimer> = {};
@@ -474,6 +503,13 @@ export function CookSessionProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("pagehide", onHide);
     };
   }, []);
+
+  // The household's other devices (a Watch, through its iPhone) follow these
+  // cooks: their timers go out with them, and a cook that leaves the list ends
+  // there too. Cooking mode adds the step on screen (lib/cooking-share.ts).
+  useEffect(() => {
+    if (hydrated) syncCookShares(sharedCooks(sessions));
+  }, [sessions, hydrated]);
 
   // Promote elapsed timers to done and raise their alerts — across every cook,
   // so a dessert timer still fires while you're looking at the main course.
