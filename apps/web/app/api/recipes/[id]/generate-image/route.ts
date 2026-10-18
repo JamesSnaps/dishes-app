@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
-import { getRedis } from "@/lib/redis";
-import { generateImageBackground } from "@/lib/image-gen-worker";
-import { db } from "@/lib/db";
-import { recipes, notifications } from "@dishes/db/schema";
-import { eq, and } from "drizzle-orm";
 import { createLogger } from "@/lib/logger";
+import { startRecipeImageJob } from "@/lib/services/recipe-image-job";
 
 const log = createLogger("image-gen-route");
 
@@ -30,54 +25,11 @@ export async function POST(
         ? body.instructions.trim().slice(0, 500) || null
         : null;
 
-    const [recipe] = await db
-      .select({ title: recipes.title })
-      .from(recipes)
-      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
-      .limit(1);
-
-    if (!recipe) {
+    const job = await startRecipeImageJob(householdId, recipeId, style, instructions);
+    if (!job) {
       return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
     }
-
-    // Create a "generating" notification immediately so the bell lights up
-    const [notif] = await db
-      .insert(notifications)
-      .values({
-        householdId,
-        type: "image_generating",
-        title: "Generating image…",
-        body: `Creating a photo for "${recipe.title}" — this usually takes 15–30 seconds.`,
-        recipeId,
-      })
-      .returning({ id: notifications.id });
-
-    const jobId = randomUUID();
-    const redis = getRedis();
-
-    if (redis) {
-      await redis.set(
-        `image-gen-job:${jobId}`,
-        JSON.stringify({
-          status: "pending",
-          recipeId,
-          householdId,
-          style,
-          instructions,
-          startedAt: Date.now(),
-        }),
-        "EX",
-        3600
-      );
-    }
-
-    // Fire and forget — returns before the image is ready
-    generateImageBackground(jobId, recipeId, householdId, notif.id, style, instructions).catch((err) => {
-      log.error(`Background job ${jobId} threw:`, err);
-    });
-
-    log.info(`Started background image job ${jobId} for recipe ${recipeId}`);
-    return NextResponse.json({ jobId, status: "pending" });
+    return NextResponse.json({ jobId: job.jobId, status: "pending" });
   } catch (err) {
     log.error("Failed to start job:", err);
     return NextResponse.json(

@@ -610,3 +610,13 @@ by the scroll view). Checked on the iPhone 18 Pro simulator.
 - Checked on the iPhone simulator: both modes render. **Not checked:**
   generating (no AI key in dev), the batch list, the auto toggle with a real
   cholesterol member.
+
+### 18 Oct 2026 — AI photo with style and instructions (v1.44.0)
+
+Recipe ⋯ → AI tools → Generate a photo opens a sheet: style (the household's
+default from AI settings first) and optional custom instructions (≤500
+chars), as the web's Generate image button. It starts the same background
+job (`lib/services/recipe-image-job.ts`, now shared with
+`/api/recipes/[id]/generate-image`) through `ai.recipeImageJob`; the sheet
+closes at once and the app syncs at ~30/50/80 s to pull the photo down.
+**Not checked:** an actual image (no AI key or storage in dev).
