@@ -69,6 +69,13 @@ export interface WeekDinnerSchedule {
   days: DayDinnerSetting[];
   /** Real-world minutes per recipe, for "start by" on the planner. */
   estimates: Record<string, { minutes: number; explanation: string }>;
+  /**
+   * Per day of the week, the earliest first cue of that day's scheduled
+   * combined dinner — what its cooking schedule says to start at, and what
+   * the reminders send. The planner prefers this to estimates for the
+   * dishes it covers, so the chip and the schedule agree.
+   */
+  scheduled?: Record<number, { start: string; title: string; recipeIds: string[] }>;
 }
 
 /** One-off rows for a week, keyed by day. Empty when the week has no plan. */

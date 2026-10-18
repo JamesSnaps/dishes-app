@@ -15,8 +15,12 @@ struct WeekDinnerSchedule: Decodable, Sendable {
         var reminderEnabled: Bool
     }
     struct Estimate: Decodable, Sendable { var minutes: Int; var explanation: String }
+    /// A scheduled combined dinner's first cue (the reminders use it too).
+    struct Scheduled: Decodable, Sendable { var start: String; var title: String; var recipeIds: [String] }
     var days: [Day]
     var estimates: [String: Estimate]
+    /// Keyed by day of the week, as a string ("0"…"6") in JSON.
+    var scheduled: [String: Scheduled]?
 }
 
 struct WeekDeliveryPanel: Decodable, Sendable {
@@ -97,15 +101,19 @@ struct DinnerTimeChip: View {
     let day: WeekDinnerSchedule.Day
     let dishes: [Recipe]
     let estimates: [String: WeekDinnerSchedule.Estimate]
+    var scheduled: WeekDinnerSchedule.Scheduled? = nil
     /// Fewer words, for a column of the whole-week grid.
     var compact = false
     var changed: (WeekDinnerSchedule.Day) -> Void
     @State private var open = false
 
-    /// The longest dish sets the start time, as the reminder itself does.
+    /// When to start, as the reminders do: a scheduled combined meal at its
+    /// schedule's first cue, any other dish by its estimate, longest first.
     private var start: (time: String, dish: String, explanation: String?)? {
-        var best: (minutes: Int, dish: String, explanation: String?)?
-        for recipe in dishes {
+        var best: (minutes: Int, dish: String, explanation: String?)? = scheduled.map {
+            (Self.minutes(day.time) - Self.minutes($0.start), $0.title, "follows the meal’s cooking schedule")
+        }
+        for recipe in dishes where !(scheduled?.recipeIds.contains(recipe.id) ?? false) {
             let est = estimates[recipe.id]
             let stated = (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0)
             let minutes = est?.minutes ?? (stated > 0 ? stated : 45)

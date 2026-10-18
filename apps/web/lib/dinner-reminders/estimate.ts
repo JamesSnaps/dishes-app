@@ -36,6 +36,8 @@ export interface EstimateInput {
 }
 
 const FALLBACK_MINUTES = 45;
+/** Slack added to a stated time: 10%, but an 8-hour slow cook doesn't need 50 minutes more. */
+const MAX_SLACK_MINUTES = 15;
 const MAX_RECENT = 5;
 /** Below this many comparable cooks, the household ratio isn't trusted. */
 const MIN_RATIO_SAMPLES = 3;
@@ -151,7 +153,7 @@ export function estimateFrom(
     // No household ratio yet: pad stated times a little, since they skew short.
     return slower !== 1
       ? { minutes: roundUp5(adjusted), basis: "adjusted", cookCount: 0, ratio: slower }
-      : { minutes: roundUp5(stated * 1.1), basis: "stated", cookCount: 0, ratio };
+      : { minutes: roundUp5(stated + Math.min(stated * 0.1, MAX_SLACK_MINUTES)), basis: "stated", cookCount: 0, ratio };
   }
   return { minutes: FALLBACK_MINUTES, basis: "fallback", cookCount: 0, ratio };
 }

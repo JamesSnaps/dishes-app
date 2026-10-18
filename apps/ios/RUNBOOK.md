@@ -543,3 +543,14 @@ meal menu; no heart-healthy or delivery warnings on mobile.
   cholesterol-lowering diet: both banners and sheets, the meal menu, the
   remove confirmation, and Sunday roast cooking Mushroom Risotto first.
   **Not checked:** a swap applied (no library match in dev), iPad layout.
+
+### 18 Oct 2026 — dinner chip vs cooking schedule (v1.41.1)
+
+James: the planner chip said "start 07:40" for a Sunday roast whose cooking
+schedule starts 08:20. The chip used the longest dish's prep+cook plus 10%
+slack (40 min on an 8h25m slow cooker); the schedule sums the steps. Now
+`dinner.week` returns each day's scheduled-meal start (`scheduled`, from the
+same schedules the cue reminders use) and both chips use it for the dishes
+it covers; other dishes still use estimates, and the earliest wins. The
+stated-time slack is capped at 15 min. Checked on web and the iPhone
+simulator: Saturday shows Fish Tacos at 16:45 (earlier than the roast's 16:52).

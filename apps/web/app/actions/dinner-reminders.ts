@@ -13,6 +13,8 @@ import {
   type WeekDinnerSchedule,
 } from "@/lib/dinner-reminders/schedule";
 import { describeEstimate, estimateCookTimes } from "@/lib/dinner-reminders/estimate";
+import { addDaysToDate, timeToMinutes } from "@/lib/dinner-reminders/time";
+import { schedulesForDate } from "@/lib/services/meal-timeline";
 import {
   isValidTime,
   isValidTimezone,
@@ -110,15 +112,17 @@ export async function getWeekDinnerSchedule(
   recipeIds: string[]
 ): Promise<WeekDinnerSchedule> {
   const session = await requireSession();
-  const [days, estimates] = await Promise.all([
+  const [days, estimates, scheduled] = await Promise.all([
     getWeekDinnerSettings(session.householdId, weekStartDate),
     estimateCookTimes(session.householdId, recipeIds.slice(0, 50)),
+    weekMealStarts(session.householdId, weekStartDate),
   ]);
   return {
     days,
     estimates: Object.fromEntries(
       [...estimates].map(([id, e]) => [id, { minutes: e.minutes, explanation: describeEstimate(e) }])
     ),
+    scheduled,
   };
 }
 
@@ -131,4 +135,32 @@ export async function setDayDinnerTime(date: string, dinnerTime: string | null) 
 export async function setDayDinnerReminder(date: string, enabled: boolean) {
   const session = await requireSession();
   return setDayDinner(session, date, { reminderEnabled: enabled });
+}
+
+/** Each day's earliest scheduled-dinner start (see WeekDinnerSchedule.scheduled). */
+async function weekMealStarts(
+  householdId: string,
+  weekStartDate: string
+): Promise<NonNullable<WeekDinnerSchedule["scheduled"]>> {
+  const out: NonNullable<WeekDinnerSchedule["scheduled"]> = {};
+  for (let day = 0; day < 7; day++) {
+    const date = addDaysToDate(weekStartDate, day);
+    const schedules = await schedulesForDate(householdId, date, weekStartDate, day);
+    for (const sc of schedules) {
+      const first = sc.timeline.cues.find((c) => c.id !== "serve");
+      if (!sc.serveAt || !first) continue;
+      const startMin = timeToMinutes(sc.serveAt) + first.offsetMinutes;
+      const current = out[day];
+      if (!current || startMin < timeToMinutes(current.start)) {
+        out[day] = {
+          start: minutesToTime(startMin),
+          title: sc.title,
+          recipeIds: [...new Set([...(current?.recipeIds ?? []), ...sc.dishes.map((d) => d.recipeId)])],
+        };
+      } else {
+        current.recipeIds = [...new Set([...current.recipeIds, ...sc.dishes.map((d) => d.recipeId)])];
+      }
+    }
+  }
+  return out;
 }
