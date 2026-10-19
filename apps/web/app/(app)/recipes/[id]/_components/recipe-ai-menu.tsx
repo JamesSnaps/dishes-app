@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Wand2, MessageCircleQuestion, ChevronDown, HeartPulse, Salad } from "lucide-react";
+import { Sparkles, Wand2, MessageCircleQuestion, ChevronDown, HeartPulse, Salad, ImagePlus } from "lucide-react";
 import {
   Button,
   DropdownMenu,
@@ -14,22 +14,26 @@ import { AskRecipeSheet } from "./ask-recipe-sheet";
 import { TweakRecipeButton } from "./tweak-recipe-button";
 import { SimilarRecipesButton } from "./similar-recipes-button";
 import { GenerateSideSheet } from "@/components/meals/generate-side-sheet";
+import { GenerateImageDialog } from "./generate-image-button";
+import type { ImageStyleValue } from "@/lib/image-styles";
 
 interface Props {
   recipeId: string;
   recipeTitle: string;
   recipe: GeneratedRecipe;
   cookContext?: string;
+  imageStyle?: ImageStyleValue;
 }
 
 // One entry point for every AI action on the recipe page. The individual
 // sheets still own their own flows — this only decides which one is open.
-export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Props) {
+export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext, imageStyle }: Props) {
   const [askOpen, setAskOpen] = useState(false);
   const [tweakOpen, setTweakOpen] = useState(false);
   const [similarOpen, setSimilarOpen] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [heartOpen, setHeartOpen] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
 
   const items = [
     {
@@ -61,6 +65,12 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Pro
       label: "Find similar recipes",
       hint: "Five new ideas inspired by this one",
       onSelect: () => setSimilarOpen(true),
+    },
+    {
+      icon: ImagePlus,
+      label: "New photo",
+      hint: "Generate a fresh image for this recipe",
+      onSelect: () => setImageOpen(true),
     },
   ];
 
@@ -122,6 +132,13 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext }: Pro
         open={similarOpen}
         onOpenChange={setSimilarOpen}
         hideTrigger
+      />
+      <GenerateImageDialog
+        recipeId={recipeId}
+        recipeTitle={recipeTitle}
+        defaultStyle={imageStyle}
+        open={imageOpen}
+        onOpenChange={setImageOpen}
       />
       <GenerateSideSheet
         recipeIds={[recipeId]}

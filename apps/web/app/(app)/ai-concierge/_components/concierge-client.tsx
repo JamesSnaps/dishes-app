@@ -48,16 +48,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dishes/ui";
-import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe, generateMealPlanConcepts, type MealPlanSlot } from "@/app/actions/ai";
-import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
+import { startConceptsJob, startRecipeJob, startRecipeBatchJob, startMealPlanJob, type MealPlanSlot } from "@/app/actions/ai";
+import { listTrackedAiJobs, useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
+import type { BatchJobProgress, ConceptsJobResult, MealPlanJobResult, RecipeJobResult } from "@/lib/ai/job-types";
+import { recipeJobToDefaults, stashAiDraft } from "@/lib/ai/recipe-defaults";
+import type { ConceptCard } from "@/lib/ai/recipe-generation";
 import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
 import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
 import type { StyleBreakdown, LibraryStyle } from "@/lib/services/recipe-library";
 import { StarRating } from "@/app/(app)/recipes/[id]/_components/star-rating";
 import { useSync } from "@/components/providers/sync-provider";
-import { saveGeneratedRecipe, getRecipePreview, type RecipePreview } from "@/app/actions/recipes";
-import { recipeToDefaults } from "@/app/(app)/recipes/_components/ai-concierge";
-import type { RecipeFormDefaults } from "../../recipes/_components/recipe-form";
+import { getRecipePreview, type RecipePreview } from "@/app/actions/recipes";
 
 // ── Heart-healthy status in the plan preview ───────────────────────────────────
 
@@ -294,24 +295,6 @@ function difficultyClass(d: string) {
   if (d === "easy") return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800";
   if (d === "hard") return "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800";
   return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-800";
-}
-
-// Form defaults plus the collection the AI thinks the recipe belongs in, so the
-// user sees (and can drop) the suggestion before saving.
-async function withSuggestedCollection(r: GeneratedRecipe): Promise<RecipeFormDefaults> {
-  const defaults = recipeToDefaults(r);
-  const suggestion = await suggestCollectionForRecipe({
-    title: r.title,
-    description: r.description,
-    cuisine: r.cuisine,
-    tags: r.tags,
-    mealTypes: r.mealTypes,
-  });
-  if (suggestion.collectionId) {
-    defaults.collectionId = suggestion.collectionId;
-    defaults.collectionName = suggestion.collectionName;
-  }
-  return defaults;
 }
 
 function getMondayOf(offset = 0): string {
@@ -1020,6 +1003,45 @@ function SlotGrid({
 
 // ── Plan My Week tab ───────────────────────────────────────────────────────────
 
+const PLAN_HREF = "/ai-concierge?tab=plan";
+
+/** The form behind a meal-plan job — and, for a redo, the draft — so coming back restores it. */
+type PlanContext = {
+  weekStart: string;
+  slots: string[];
+  preferences: string;
+  memberIds: string[];
+  frequencyMode: FrequencyMode;
+  cuisineFilter: string;
+  tagFilter: string;
+  ratedOnly: boolean;
+  maxCaloriesPerMeal: string;
+  heartHealthy: boolean;
+  /** Redoing part of a draft: the draft as it stood and which of its slots are being replaced. */
+  redo?: { draft: MealPlanSlot[]; rejected: number[]; indices: number[] };
+};
+
+/**
+ * Puts redone suggestions back into the draft, matched to their slot by day +
+ * meal type; falls back to order if the model shuffled the day or meal type.
+ */
+function mergeRedoneSlots(draft: MealPlanSlot[], indices: number[], replacements: MealPlanSlot[]): MealPlanSlot[] {
+  const pool = [...replacements];
+  const next = [...draft];
+  for (const i of indices) {
+    const orig = draft[i]!;
+    const matchIdx = pool.findIndex((s) => s.dayOfWeek === orig.dayOfWeek && s.mealType === orig.mealType);
+    const pick = matchIdx >= 0 ? pool.splice(matchIdx, 1)[0] : pool.shift();
+    if (pick) next[i] = { ...pick, dayOfWeek: orig.dayOfWeek, mealType: orig.mealType };
+  }
+  return next;
+}
+
+function weekOffsetOf(weekStart: string): number {
+  const ms = new Date(weekStart).getTime() - new Date(getMondayOf(0)).getTime();
+  return Math.round(ms / (7 * 24 * 60 * 60 * 1000));
+}
+
 function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBreakdown }: PlanMyWeekProps) {
   const router = useRouter();
   // The meal plan screen reads from the local store, so a plan written by this
@@ -1064,7 +1086,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [previewCache, setPreviewCache] = useState<Map<string, RecipePreview>>(() => new Map());
   const [error, setError] = useState<string | null>(null);
-  const [isGenerating, startGenTransition] = useTransition();
+  const [isGenerating, startGenTransition] = useAsyncBusy();
+  const { run, resume } = useAiJobRunner();
   const [isAdding, startAddTransition] = useTransition();
   const [added, setAdded] = useState(false);
   const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
@@ -1072,8 +1095,11 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   // Load coverage for the chosen week; auto-remove newly-covered slots from selection
   useEffect(() => {
     const weekStart = getMondayOf(weekOffset);
+    let cancelled = false;
     getWeekMealSlots(weekStart)
       .then((coverage) => {
+        // A restored plan can change the week before this week's answer lands.
+        if (cancelled) return;
         setExistingCoverage(coverage);
         const coveredKeys = new Set(coverage.map((s) => `${s.dayOfWeek}:${s.mealType}`));
         setSelectedSlots((prev) => {
@@ -1082,8 +1108,44 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
           return next;
         });
       })
-      .catch(() => setExistingCoverage([]));
+      .catch(() => { if (!cancelled) setExistingCoverage([]); });
+    return () => { cancelled = true; };
   }, [weekOffset]);
+
+  // A plan asked for before leaving the page: put the form (and any draft being
+  // redone) back as it was and pick the job up again where it left off.
+  useEffect(() => {
+    const job = listTrackedAiJobs().find((j) => j.kind === "meal-plan" && j.href === PLAN_HREF);
+    if (!job) return;
+    const ctx = job.context as PlanContext | undefined;
+    if (ctx) {
+      setWeekOffset(weekOffsetOf(ctx.weekStart));
+      setSelectedSlots(new Set(ctx.slots));
+      setPreferences(ctx.preferences);
+      setSelectedMemberIds(new Set(ctx.memberIds));
+      setFrequencyMode(ctx.frequencyMode);
+      setCuisineFilter(ctx.cuisineFilter);
+      setTagFilter(ctx.tagFilter);
+      setRatedOnly(ctx.ratedOnly);
+      setMaxCaloriesPerMeal(ctx.maxCaloriesPerMeal);
+      setHeartHealthy(ctx.heartHealthy);
+      if (ctx.redo) {
+        setGeneratedSlots(ctx.redo.draft);
+        setRejectedSlots(new Set(ctx.redo.rejected));
+        setRedoingSlots(new Set(ctx.redo.indices));
+      }
+    }
+    const redo = ctx?.redo;
+    startGenTransition(async () => {
+      const out = await resume<MealPlanJobResult>(job.jobId);
+      if (!out) return;
+      setRedoingSlots(new Set());
+      if ("error" in out) { setError(out.error); return; }
+      if (!redo) { setGeneratedSlots(out.result.slots); return; }
+      setGeneratedSlots(mergeRedoneSlots(redo.draft, redo.indices, out.result.slots));
+      setRejectedSlots(new Set(redo.rejected.filter((i) => !redo.indices.includes(i))));
+    });
+  }, [resume, startGenTransition]);
 
   function buildFullPreferences(): string {
     const parts: string[] = [];
@@ -1115,6 +1177,22 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
     });
   }
 
+  function buildContext(redo?: PlanContext["redo"]): PlanContext {
+    return {
+      weekStart: getMondayOf(weekOffset),
+      slots: Array.from(selectedSlots),
+      preferences,
+      memberIds: Array.from(selectedMemberIds),
+      frequencyMode,
+      cuisineFilter,
+      tagFilter,
+      ratedOnly,
+      maxCaloriesPerMeal,
+      heartHealthy,
+      redo,
+    };
+  }
+
   function buildGenerateParams() {
     return {
       weekStartDate: getMondayOf(weekOffset),
@@ -1144,28 +1222,23 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
     const redo = new Set(indices);
     setError(null);
     setRedoingSlots(redo);
+    const context = buildContext({ draft: current, rejected: Array.from(rejectedSlots), indices });
     startGenTransition(async () => {
-      const result = await generateMealPlanConcepts({
-        ...buildGenerateParams(),
-        slots: indices.map((i) => ({ dayOfWeek: current[i]!.dayOfWeek, mealType: current[i]!.mealType })),
-        keptSlots: current
-          .filter((_, i) => !redo.has(i) && !rejectedSlots.has(i))
-          .map((s) => ({ dayOfWeek: s.dayOfWeek, mealType: s.mealType, title: s.title, cuisine: s.cuisine })),
-        replacingTitles: indices.map((i) => current[i]!.title),
-      });
+      const out = await run<MealPlanJobResult>(
+        startMealPlanJob({
+          ...buildGenerateParams(),
+          slots: indices.map((i) => ({ dayOfWeek: current[i]!.dayOfWeek, mealType: current[i]!.mealType })),
+          keptSlots: current
+            .filter((_, i) => !redo.has(i) && !rejectedSlots.has(i))
+            .map((s) => ({ dayOfWeek: s.dayOfWeek, mealType: s.mealType, title: s.title, cuisine: s.cuisine })),
+          replacingTitles: indices.map((i) => current[i]!.title),
+        }),
+        { kind: "meal-plan", label: "Week plan", href: PLAN_HREF, context }
+      );
+      if (!out) return;
       setRedoingSlots(new Set());
-      if (result.error) { setError(result.error); return; }
-      // Match replacements back to their slot by day + meal type; fall back to
-      // order if the model shuffled the day or meal type.
-      const pool = [...result.slots!];
-      const next = [...current];
-      for (const i of indices) {
-        const orig = current[i]!;
-        const matchIdx = pool.findIndex((s) => s.dayOfWeek === orig.dayOfWeek && s.mealType === orig.mealType);
-        const pick = matchIdx >= 0 ? pool.splice(matchIdx, 1)[0] : pool.shift();
-        if (pick) next[i] = { ...pick, dayOfWeek: orig.dayOfWeek, mealType: orig.mealType };
-      }
-      setGeneratedSlots(next);
+      if ("error" in out) { setError(out.error); return; }
+      setGeneratedSlots(mergeRedoneSlots(current, indices, out.result.slots));
       setRejectedSlots((prev) => {
         const n = new Set(prev);
         for (const i of indices) n.delete(i);
@@ -1184,10 +1257,15 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
       const colon = key.indexOf(":");
       return { dayOfWeek: parseInt(key.slice(0, colon), 10), mealType: key.slice(colon + 1) };
     });
+    const context = buildContext();
     startGenTransition(async () => {
-      const result = await generateMealPlanConcepts({ ...buildGenerateParams(), slots });
-      if (result.error) { setError(result.error); return; }
-      setGeneratedSlots(result.slots!);
+      const out = await run<MealPlanJobResult>(
+        startMealPlanJob({ ...buildGenerateParams(), slots }),
+        { kind: "meal-plan", label: "Week plan", href: PLAN_HREF, context }
+      );
+      if (!out) return;
+      if ("error" in out) { setError(out.error); return; }
+      setGeneratedSlots(out.result.slots);
     });
   }
 
@@ -1670,6 +1748,23 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
 
 // ── Find a Recipe tab ─────────────────────────────────────────────────────────
 
+const CONCIERGE_HREF = "/ai-concierge";
+
+/** The form behind a concepts job, so coming back to the page restores it. */
+type ConciergeContext = {
+  promptText: string;
+  mealType: string;
+  mealRole: MealRole | null;
+  prefs: string[];
+  memberIds: string[];
+  cuisine: string;
+  dietary: string;
+  cookTime: string;
+  spiceLevel: string;
+  budget: string;
+  servings: string;
+};
+
 function FindRecipeTab({ members }: { members: Member[] }) {
   const router = useRouter();
   const [mode, setMode] = useState<"inspire" | "direct">("inspire");
@@ -1684,7 +1779,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const [batchItems, setBatchItems] = useState<BatchItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = useAsyncBusy();
+  const { run, resume } = useAiJobRunner();
 
   function switchMode(next: "inspire" | "direct") {
     setMode(next);
@@ -1723,6 +1819,36 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     return { heartHealthy, ...(role ? { mealRole: role } : {}) };
   }
 
+  function showConcepts(next: ConceptCard[]) {
+    setConcepts(next);
+    setTimeout(() => {
+      document.getElementById("concierge-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  }
+
+  // Ideas asked for before leaving the page: put the form back as it was and
+  // pick the job up again (or its finished ideas) where it left off.
+  useEffect(() => {
+    const job = listTrackedAiJobs().find((j) => j.kind === "concepts" && j.href === CONCIERGE_HREF);
+    if (!job) return;
+    const ctx = job.context as ConciergeContext | undefined;
+    if (ctx) {
+      setPromptText(ctx.promptText);
+      setMealType(ctx.mealType);
+      setMealRole(ctx.mealRole);
+      setSelectedPrefs(new Set(ctx.prefs));
+      setSelectedMemberIds(new Set(ctx.memberIds));
+      setCuisine(ctx.cuisine); setDietary(ctx.dietary); setCookTime(ctx.cookTime);
+      setSpiceLevel(ctx.spiceLevel); setBudget(ctx.budget); setServings(ctx.servings);
+    }
+    startTransition(async () => {
+      const out = await resume<ConceptsJobResult>(job.jobId);
+      if (!out) return;
+      if ("error" in out) { setError(out.error); return; }
+      showConcepts(out.result.concepts);
+    });
+  }, [resume, startTransition]);
+
   function runGenerate(overridePrompt?: string, roleOverride?: MealRole | null) {
     const role = roleOverride === undefined ? mealRole : roleOverride;
     const full = buildPrompt(overridePrompt, role);
@@ -1732,13 +1858,33 @@ function FindRecipeTab({ members }: { members: Member[] }) {
     setGeneratingIdx(null);
     setSelectedIndices(new Set());
     setBatchItems(null);
+    const context: ConciergeContext = {
+      promptText: overridePrompt ?? promptText, mealType, mealRole: role,
+      prefs: Array.from(selectedPrefs), memberIds: Array.from(selectedMemberIds),
+      cuisine, dietary, cookTime, spiceLevel, budget, servings,
+    };
     startTransition(async () => {
-      const result = await generateConcepts(full, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions(role));
-      if (result.error) { setError(result.error); return; }
-      setConcepts(result.concepts!);
-      setTimeout(() => {
-        document.getElementById("concierge-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
+      const out = await run<ConceptsJobResult>(
+        startConceptsJob(full, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions(role)),
+        { kind: "concepts", label: "Recipe ideas", href: CONCIERGE_HREF, context }
+      );
+      if (!out) return;
+      if ("error" in out) { setError(out.error); return; }
+      showConcepts(out.result.concepts);
+    });
+  }
+
+  /** Writes one recipe, then opens it in the editor to review and save. */
+  function writeRecipe(concept: ConceptCard, onError: () => void) {
+    startTransition(async () => {
+      const out = await run<RecipeJobResult>(
+        startRecipeJob(concept, Array.from(selectedMemberIds), mealType || undefined, undefined, { ...recipeOptions(), suggestCollection: true }),
+        { kind: "recipe", label: concept.title }
+      );
+      if (!out) return;
+      if ("error" in out) { setError(out.error); onError(); return; }
+      stashAiDraft(recipeJobToDefaults(out.result));
+      router.push("/recipes/new");
     });
   }
 
@@ -1784,40 +1930,25 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       const { idx, concept } = chosen[0]!;
       setError(null);
       setGeneratingIdx(idx);
-      startTransition(async () => {
-        const result = await generateFullRecipe(concept, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions());
-        if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
-        const defaults = await withSuggestedCollection(result.recipe!);
-        sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
-        router.push("/recipes/new");
-      });
+      writeRecipe(concept, () => setGeneratingIdx(null));
     } else {
-      const items: BatchItem[] = chosen.map(({ concept }) => ({ concept, status: "pending" }));
-      setBatchItems(items);
+      // Written and saved server-side, so leaving the page doesn't stop it.
+      const batchConcepts = chosen.map(({ concept }) => concept);
+      const toItems = (p: BatchJobProgress): BatchItem[] =>
+        p.items.map((item, i) => ({ ...item, concept: batchConcepts[i]! }));
+      setBatchItems(batchConcepts.map((concept) => ({ concept, status: "pending" })));
       void (async () => {
-        const updated = [...items];
-        for (let i = 0; i < updated.length; i++) {
-          updated[i] = { ...updated[i]!, status: "generating" };
-          setBatchItems([...updated]);
-          const genResult = await generateFullRecipe(updated[i]!.concept, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions());
-          if (genResult.error) {
-            updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
-            setBatchItems([...updated]);
-            continue;
-          }
-          const saveResult = await saveGeneratedRecipe(genResult.recipe!);
-          if (saveResult.error) {
-            updated[i] = { ...updated[i]!, status: "error", error: saveResult.error };
-          } else {
-            updated[i] = {
-              ...updated[i]!,
-              status: "done",
-              recipeId: saveResult.recipeId,
-              collectionName: saveResult.collectionName,
-            };
-          }
-          setBatchItems([...updated]);
+        const out = await run<BatchJobProgress, BatchJobProgress>(
+          startRecipeBatchJob(batchConcepts, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions()),
+          { kind: "recipe-batch", label: `${batchConcepts.length} recipes` },
+          (p) => setBatchItems(toItems(p))
+        );
+        if (!out) return;
+        if ("error" in out) {
+          setBatchItems(batchConcepts.map((concept) => ({ concept, status: "error", error: out.error })));
+          return;
         }
+        setBatchItems(toItems(out.result));
       })();
     }
   }
@@ -1834,13 +1965,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       tags: [],
       difficulty: "medium",
     };
-    startTransition(async () => {
-      const result = await generateFullRecipe(directConcept, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions());
-      if (result.error) { setError(result.error); setGeneratingIdx(null); return; }
-      const defaults = await withSuggestedCollection(result.recipe!);
-      sessionStorage.setItem("ai_draft", JSON.stringify(defaults));
-      router.push("/recipes/new");
-    });
+    writeRecipe(directConcept, () => setGeneratingIdx(null));
   }
 
   const hasFilter = !!(cuisine || dietary || cookTime || spiceLevel || budget || servings);
@@ -2359,8 +2484,18 @@ function FindRecipeTab({ members }: { members: Member[] }) {
 
 export function ConciergeClient({ availableCuisines, availableTags, members, styleBreakdown }: PlanMyWeekProps & { members: Member[] }) {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") === "plan" ? "plan" : "recipe";
-  const [activeTab, setActiveTab] = useState<"recipe" | "plan">(initialTab);
+  const tabParam = searchParams.get("tab") === "plan" ? "plan" : "recipe";
+  const [activeTab, setActiveTab] = useState<"recipe" | "plan">(tabParam);
+  // Follow the URL, so the AI tray's "View plan" / "View ideas" switch tabs
+  // even when this page is already open on the other one.
+  useEffect(() => setActiveTab(tabParam), [tabParam]);
+
+  function selectTab(tab: "recipe" | "plan") {
+    setActiveTab(tab);
+    // Keep the URL in step, so a link to the tab already showing is a no-op
+    // rather than one the effect above can't see.
+    window.history.replaceState(null, "", tab === "plan" ? PLAN_HREF : CONCIERGE_HREF);
+  }
 
   return (
     <div className="p-4 lg:p-8 max-w-screen-xl mx-auto">
@@ -2399,7 +2534,7 @@ export function ConciergeClient({ availableCuisines, availableTags, members, sty
       <div className="mb-6 flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
         <button
           type="button"
-          onClick={() => setActiveTab("recipe")}
+          onClick={() => selectTab("recipe")}
           className={cn(
             "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
             activeTab === "recipe"
@@ -2412,7 +2547,7 @@ export function ConciergeClient({ availableCuisines, availableTags, members, sty
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("plan")}
+          onClick={() => selectTab("plan")}
           className={cn(
             "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
             activeTab === "plan"

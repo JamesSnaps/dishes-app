@@ -35,9 +35,13 @@ struct RecipeDetailView: View {
     @State private var servings: Double?
     @State private var tab = Tab.ingredients
     @State private var pageWidth: CGFloat = 0
+    @State private var choosingRole = false
 
     /// Room for a 330pt ingredients column and a readable method beside it.
     private var sideBySide: Bool { pageWidth >= 760 }
+    /// Wide enough (iPad landscape) for the web's two columns: photo and
+    /// details on the left, ingredients and method tabbed on the right.
+    private var twoColumn: Bool { pageWidth >= 1000 }
 
     enum Tab { case overview, ingredients, steps }
 
@@ -66,6 +70,12 @@ struct RecipeDetailView: View {
             if let recipe = recipe.value { CookReviewSheet(recipe: recipe).presentationSizing(.page) }
         }
         .sheet(isPresented: $editing) { RecipeEditor(recipeId: recipeId) }
+        .sheet(isPresented: $choosingRole) {
+            if let recipe = recipe.value {
+                RecipeRoleSheet(recipe: recipe) { tool = .sides }
+                    .presentationDetents([.height(300)])
+            }
+        }
         .sheet(item: $tool) { tool in
             if let recipe = recipe.value {
                 switch tool {
@@ -110,46 +120,56 @@ struct RecipeDetailView: View {
     private func content(_ recipe: Recipe) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if recipe.imageUrl != nil {
-                    Color.clear
-                        .aspectRatio(width == .regular ? 2.4 : 1.6, contentMode: .fit)
-                        .overlay { RecipeImage(recipe: recipe, thumbnail: false) }
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                header(recipe)
-                ratingRow(recipe)
-                controls(recipe)
-                NutritionPanel(recipe: recipe)
-
-                if sideBySide {
-                    overview(recipe)
-                    HStack(alignment: .top, spacing: 28) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Ingredients").font(.system(size: 19, weight: .bold))
-                                Spacer()
-                                addToListButton(recipe)
-                            }
-                            ingredients(recipe)
+                if twoColumn {
+                    HStack(alignment: .top, spacing: 32) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            summary(recipe)
+                            overview(recipe)
                         }
-                        .frame(width: 330, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Method").font(.system(size: 19, weight: .bold))
-                            steps(recipe)
+                        .frame(width: (pageWidth - 56 - 32) * 0.42, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 14) {
+                            let current = tab == .overview ? Tab.ingredients : tab
+                            HStack(spacing: 0) {
+                                tabButton("Ingredients (\(recipe.ingredients.count))", .ingredients, selected: current)
+                                tabButton("Method (\(recipe.steps.count))", .steps, selected: current)
+                            }
+                            .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+                            if current == .steps {
+                                steps(recipe)
+                            } else {
+                                ingredientsHeader(recipe)
+                                ingredients(recipe)
+                            }
                         }
                     }
                 } else {
-                    tabs(recipe)
-                    switch tab {
-                    case .overview: overview(recipe)
-                    case .ingredients:
-                        HStack {
-                            Text("\(recipe.ingredients.count) ingredients").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
-                            Spacer()
-                            addToListButton(recipe)
+                    summary(recipe)
+                    if sideBySide {
+                        overview(recipe)
+                        HStack(alignment: .top, spacing: 28) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("Ingredients").font(.system(size: 19, weight: .bold))
+                                    Spacer()
+                                    addToListButton(recipe)
+                                }
+                                ingredients(recipe)
+                            }
+                            .frame(width: 330, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Method").font(.system(size: 19, weight: .bold))
+                                steps(recipe)
+                            }
                         }
-                        ingredients(recipe)
-                    case .steps: steps(recipe)
+                    } else {
+                        tabs(recipe)
+                        switch tab {
+                        case .overview: overview(recipe)
+                        case .ingredients:
+                            ingredientsHeader(recipe)
+                            ingredients(recipe)
+                        case .steps: steps(recipe)
+                        }
                     }
                 }
 
@@ -162,6 +182,29 @@ struct RecipeDetailView: View {
             .frame(maxWidth: .infinity)
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
+    }
+
+    /// Photo, title, badges, rating, servings and Start Cooking, then nutrition.
+    @ViewBuilder
+    private func summary(_ recipe: Recipe) -> some View {
+        if recipe.imageUrl != nil {
+            Color.clear
+                .aspectRatio(twoColumn ? 1.4 : width == .regular ? 2.4 : 1.6, contentMode: .fit)
+                .overlay { RecipeImage(recipe: recipe, thumbnail: false) }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        header(recipe)
+        ratingRow(recipe)
+        controls(recipe)
+        NutritionPanel(recipe: recipe)
+    }
+
+    private func ingredientsHeader(_ recipe: Recipe) -> some View {
+        HStack {
+            Text("\(recipe.ingredients.count) ingredients").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
+            Spacer()
+            addToListButton(recipe)
+        }
     }
 
     // MARK: Header
@@ -184,7 +227,8 @@ struct RecipeDetailView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(recipe.isFavourite ? "Remove from favourites" : "Add to favourites")
             }
-            HStack(spacing: 10) {
+            FlowLayout(spacing: 10) {
+                RecipeRoleBadge(role: recipe.mealRole) { choosingRole = true }
                 if let cuisine = recipe.cuisine { BadgeView(text: cuisine) }
                 if let difficulty = recipe.difficulty { BadgeView(text: difficulty.rawValue.capitalized, style: .outline) }
                 if let time = Format.shortMinutes(recipe.totalMinutes) {
@@ -393,15 +437,16 @@ struct RecipeDetailView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
     }
 
-    private func tabButton(_ title: String, _ value: Tab) -> some View {
-        Button { withAnimation(.snappy) { tab = value } } label: {
+    private func tabButton(_ title: String, _ value: Tab, selected: Tab? = nil) -> some View {
+        let on = (selected ?? tab) == value
+        return Button { withAnimation(.snappy) { tab = value } } label: {
             Text(title)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(tab == value ? Theme.brand : Theme.mutedForeground)
+                .foregroundStyle(on ? Theme.brand : Theme.mutedForeground)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity)
                 .overlay(alignment: .bottom) {
-                    Rectangle().fill(tab == value ? Theme.brand : .clear).frame(height: 2)
+                    Rectangle().fill(on ? Theme.brand : .clear).frame(height: 2)
                 }
         }
         .buttonStyle(.plain)

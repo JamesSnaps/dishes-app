@@ -104,6 +104,11 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Concierge step 3: AI generates full structured recipe (ingredients + steps)
 - [x] Save generated recipe to the library
 - [x] Handle OpenAI errors gracefully (quota, key invalid, timeout)
+- [x] Generation survives leaving the page — concept ideas, single recipes and multi-recipe batches run as server-side AI jobs (`lib/ai-jobs.ts`, polled at `/api/ai-jobs/{id}`), with an app-wide tray offering the result; long AI waits no longer run inside `startTransition`, which held navigation until the AI answered (v1.48.0)
+- [x] Same for Plan My Week's draft plan — a `meal-plan` AI job (`startMealPlanJob`) for both a fresh plan and redoing slots; the tray's View plan brings back the plan tab with its inputs and the draft (v1.48.1)
+- [ ] iOS: check whether leaving Create with AI mid-generation loses the result; if so, add `/api/v1` routes over the AI jobs and use them
+- [x] "New photo" on a recipe page that already has an image (on the hero image and under Ask AI) (v1.48.0)
+- [x] Recipe page declutter: dish role as a badge that opens a dialog, nutrition collapsed to its calories line, and a two-column layout on wide screens (web ≥1280 px, iOS ≥1000 pt) with ingredients and method tabbed on the right (v1.49.0)
 
 ## Heart-healthy (cholesterol-lowering) diet
 - [x] Saturated fat per serving (column, AI estimate, form, nutrition panel, share page, API)

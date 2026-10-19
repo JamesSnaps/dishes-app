@@ -1,5 +1,6 @@
 // Nutrition, as the web's panel (recipes/[id]/_components/nutrition-panel.tsx):
-// the orange-to-amber callout with kcal large, then protein, carbs, fat,
+// the orange-to-amber callout, collapsed to its kcal line until tapped (the
+// open/closed choice is remembered on the device), then protein, carbs, fat,
 // saturated fat, fibre, sugar and sodium in a grid — per serving, so the
 // servings stepper doesn't change them — an "AI estimate" tag, and the heart-healthy badge
 // (lib/heart-healthy.ts). With no figures yet, the AI estimates them from the
@@ -12,16 +13,24 @@ struct NutritionPanel: View {
     @Environment(AppModel.self) private var app
     let recipe: Recipe
     @State private var estimating = false
+    @AppStorage("recipeNutritionOpen") private var open = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "flame")
-                Text("Nutrition").font(.system(size: 15, weight: .semibold))
-                if recipe.hasNutrition {
-                    Text("per serving").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+            if recipe.hasNutrition {
+                Button { withAnimation(.snappy) { open.toggle() } } label: { summary }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(open ? "Hides the breakdown" : "Shows protein, carbs, fat and more")
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "flame")
+                    Text("Nutrition").font(.system(size: 15, weight: .semibold))
+                    Spacer()
                 }
-                Spacer()
+                .foregroundStyle(Color(hex: 0x9A3412))
+            }
+
+            if recipe.hasNutrition, open {
                 if recipe.nutritionSource == "ai" {
                     Label("AI estimate", systemImage: "sparkles")
                         .labelStyle(TightLabel())
@@ -30,27 +39,6 @@ struct NutritionPanel: View {
                         .padding(.vertical, 2)
                         .background(Color(hex: 0xFFEDD5), in: Capsule())
                         .foregroundStyle(Color(hex: 0xC2410C))
-                }
-            }
-            .foregroundStyle(Color(hex: 0x9A3412))
-
-            if recipe.hasNutrition {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    if let kcal = recipe.calories {
-                        Text("\(Int(kcal.rounded()))").font(.system(size: 30, weight: .bold)).foregroundStyle(Color(hex: 0x7C2D12))
-                        Text("kcal").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
-                    }
-                    Spacer()
-                    if recipe.isHeartHealthy {
-                        Label("Heart-healthy", systemImage: "heart.text.square.fill")
-                            .labelStyle(TightLabel())
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 3)
-                            .background(LinearGradient(colors: [Color(hex: 0xF43F5E), Color(hex: 0xEC4899)],
-                                                       startPoint: .leading, endPoint: .trailing), in: Capsule())
-                    }
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], spacing: 8) {
                     macro("Protein", recipe.proteinG, "g")
@@ -61,7 +49,7 @@ struct NutritionPanel: View {
                     macro("Sugar", recipe.sugarG, "g")
                     macro("Sodium", recipe.sodiumMg, "mg", digits: 0)
                 }
-            } else {
+            } else if !recipe.hasNutrition {
                 Text("No nutrition yet. The AI can estimate it from the ingredients.")
                     .font(.system(size: 14))
                     .foregroundStyle(Theme.mutedForeground)
@@ -85,8 +73,40 @@ struct NutritionPanel: View {
                 .disabled(estimating)
             }
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, recipe.hasNutrition && !open ? 12 : 16)
         .callout(Theme.orange50, Theme.amber50, border: Color(hex: 0xFED7AA).opacity(0.7))
+    }
+
+    /// 🔥 520 kcal per serving · Heart-healthy · Nutrition ⌄ — the always-visible line.
+    private var summary: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: "flame").foregroundStyle(Color(hex: 0x9A3412))
+            if let kcal = recipe.calories {
+                Text("\(Int(kcal.rounded()))").font(.system(size: 20, weight: .bold)).foregroundStyle(Color(hex: 0x7C2D12))
+                Text("kcal").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
+            }
+            Text("per serving").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+            Spacer(minLength: 6)
+            if recipe.isHeartHealthy {
+                Label("Heart-healthy", systemImage: "heart.text.square.fill")
+                    .labelStyle(TightLabel())
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(LinearGradient(colors: [Color(hex: 0xF43F5E), Color(hex: 0xEC4899)],
+                                               startPoint: .leading, endPoint: .trailing), in: Capsule())
+            }
+            if !open {
+                Text("Nutrition").font(.system(size: 13, weight: .medium)).foregroundStyle(Color(hex: 0x9A3412))
+            }
+            Image(systemName: "chevron.down")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(hex: 0x9A3412))
+                .rotationEffect(.degrees(open ? 180 : 0))
+        }
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder

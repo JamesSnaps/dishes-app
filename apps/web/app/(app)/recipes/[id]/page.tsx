@@ -28,16 +28,16 @@ import { requireHousehold } from "@/lib/household";
 import { aiConfigurations } from "@dishes/db/schema";
 import type { ImageStyleValue } from "@/lib/image-styles";
 import { Badge } from "@dishes/ui";
-import { RecipeRoleBar } from "./_components/recipe-role-bar";
+import { RecipeRoleBadge } from "./_components/recipe-role-bar";
 import { isMealRole } from "@dishes/shared";
 import { RecipeActionsMenu } from "./_components/recipe-actions-menu";
-import { RecipeTabs } from "./_components/recipe-tabs";
+import { RecipeOverview, RecipeTabs } from "./_components/recipe-tabs";
 import { StartCookingButton } from "./_components/start-cooking-button";
 import { RecipeAiMenu } from "./_components/recipe-ai-menu";
 import { RateRecipeSheet } from "./_components/rate-recipe-sheet";
 import { AddCookReviewSheet } from "./_components/add-cook-review-sheet";
 import { MemoryCard } from "./_components/memory-card";
-import { GenerateImageButton } from "./_components/generate-image-button";
+import { GenerateImageButton, RegenerateImageButton } from "./_components/generate-image-button";
 import { NutritionPanel } from "./_components/nutrition-panel";
 import { toggleFavourite } from "@/app/actions/recipes";
 import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/lib/services/cook-history";
@@ -269,7 +269,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
     <>
       {/* Sticky back bar */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b">
-        <div className="mx-auto max-w-4xl px-4 lg:px-8 py-3">
+        <div className="mx-auto max-w-4xl px-4 lg:px-8 py-3 xl:max-w-7xl">
           <Link
             href={backHref}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit"
@@ -280,15 +280,23 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         </div>
       </div>
 
-    <div className="mx-auto max-w-4xl p-4 lg:p-8">
+    <div className="mx-auto max-w-4xl p-4 lg:p-8 xl:max-w-7xl">
+      {/* Wide screens: photo and details on the left, ingredients and method on the right */}
+      <div className="xl:grid xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] xl:items-start xl:gap-10">
+      <div>
       {/* Hero image */}
       {recipe.imageUrl ? (
-        <div className="mb-6 aspect-video overflow-hidden rounded-xl bg-muted">
+        <div className="relative mb-6 aspect-video overflow-hidden rounded-xl bg-muted">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={recipe.imageUrl}
             alt={recipe.title}
             className="h-full w-full object-cover"
+          />
+          <RegenerateImageButton
+            recipeId={id}
+            recipeTitle={recipe.title}
+            defaultStyle={(aiConfig?.imageStyle as ImageStyleValue | undefined) ?? "studio"}
           />
         </div>
       ) : (
@@ -347,6 +355,11 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
 
       {/* Meta row */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
+        <RecipeRoleBadge
+          recipeId={id}
+          recipeTitle={recipe.title}
+          mealRole={isMealRole(recipe.mealRole) ? recipe.mealRole : null}
+        />
         {recipe.cuisine && (
           <Badge variant="secondary">{recipe.cuisine}</Badge>
         )}
@@ -386,12 +399,6 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
           </span>
         )}
       </div>
-
-      <RecipeRoleBar
-        recipeId={id}
-        recipeTitle={recipe.title}
-        mealRole={isMealRole(recipe.mealRole) ? recipe.mealRole : null}
-      />
 
       {/* Planner stats */}
       {plannerStats.timesPlanned > 0 && (
@@ -460,6 +467,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
           <RecipeAiMenu
             recipeId={id}
             recipeTitle={recipe.title}
+            imageStyle={(aiConfig?.imageStyle as ImageStyleValue | undefined) ?? "studio"}
             recipe={recipeForTweak}
             cookContext={cookContext}
           />
@@ -484,7 +492,21 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         />
       </div>
 
+      {/* The Overview tab's content, which moves out of the tabs on wide screens */}
+      <div className="mb-6 hidden xl:block">
+        <RecipeOverview
+          description={recipe.description}
+          prepTimeMinutes={recipe.prepTimeMinutes}
+          cookTimeMinutes={recipe.cookTimeMinutes}
+          tags={tags}
+          sourceUrl={recipe.sourceUrl}
+          isAiGenerated={recipe.isAiGenerated}
+        />
+      </div>
+      </div>
+
       {/* Tabbed content */}
+      <div>
       <RecipeTabs
         recipeId={id}
         description={recipe.description}
@@ -504,6 +526,8 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
         ownName={ownName}
         storageAvailable={isStorageAvailable()}
       />
+      </div>
+      </div>
 
       {/* Linked notes */}
       <section className="mt-10">

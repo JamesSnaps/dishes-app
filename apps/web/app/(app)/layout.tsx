@@ -4,6 +4,7 @@ import { SideNav } from "@/components/nav/side-nav";
 import { ScrollReset } from "@/components/scroll-reset";
 import { OfflineIndicator } from "@/components/offline-indicator";
 import { JobsProvider } from "@/components/providers/jobs-provider";
+import { AiJobsTray } from "@/components/ai-jobs-tray";
 import { SyncProvider } from "@/components/providers/sync-provider";
 import { ShoppingCountProvider } from "@/components/providers/shopping-count-context";
 import { UnsavedChangesProvider } from "@/components/unsaved-changes-context";
@@ -105,6 +106,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <BottomNav className="lg:hidden print:hidden" />
 
       <OfflineIndicator />
+      <AiJobsTray />
       <RefreshOnStalePaint />
 
       {member && !member.onboardingCompletedAt && (

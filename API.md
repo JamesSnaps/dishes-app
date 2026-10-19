@@ -342,7 +342,7 @@ Adds a single item from a plain-text string. Designed for Siri Shortcuts and voi
 4. Add **Show Notification** — `Added <Provided Input> to shopping list`
 5. Name the Shortcut **"Add to shopping list"** — Siri will pick it up automatically
 
-On an iPhone or iPad with the Dishes app, its own **Add to Shopping List** action (Siri: "Add to my Dishes shopping list") does this without a token and works offline. This Shortcut is still the way to do it from an **Apple Watch**: it uses only built-in actions, so it syncs to the Watch and runs there, while watchOS won't run an iPhone app's actions.
+On an iPhone or iPad with the Dishes app, its own **Add to Shopping List** action (Siri: "Add to shopping in Dishes") does this without a token and works offline, and so does the Dishes Watch app on an **Apple Watch**. This Shortcut is still useful anywhere neither app is installed: it uses only built-in actions.
 
 ---
 

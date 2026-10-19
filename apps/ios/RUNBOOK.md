@@ -902,6 +902,24 @@ Watch without being flaky or kicking a device out of cooking mode?
   covered it), anything on a real Watch. New capability (App Group on the
   Watch targets): press Run in Xcode once so the profile picks it up.
 
+### 18 Oct 2026 — a tidier recipe page (v1.49.0)
+
+- The recipe's role is a badge in the meta row ("Main ✎", or a dashed "Set
+  dish type") that opens `RecipeRoleSheet`: Main / Side / Sauce / Extra, and
+  Generate a side dish. It saves through the new `recipes.setMealRole` action
+  (`lib/api/v1-actions.ts`) and patches the local row, so it shows at once.
+- `NutritionPanel` collapses to its kcal line; `@AppStorage("recipeNutritionOpen")`
+  remembers open or closed.
+- At 1000 pt and up (iPad landscape, iPad Pro 13" portrait) the page is two
+  columns: photo, details, nutrition and overview on the left; Ingredients /
+  Method tabs on the right. 760–1000 pt keeps ingredients beside the method;
+  narrower keeps the three tabs.
+- Checked on the iPad Pro 11" simulator: portrait layout, the role sheet, the
+  collapsed nutrition, and the two-column layout (by lowering the threshold to
+  800 for one build, since the headless simulator can't rotate). **Not
+  checked:** a real landscape iPad, the iPad Pro 13" (its fresh simulator hung
+  on first sync), or tapping a role in the app — the `recipes.setMealRole` action itself was checked with curl (set and cleared).
+
 ### 18 Oct 2026 — suggestions in the shopping add field (v1.50.0)
 
 - `AddItemCard` suggests as you type: items the household has had on any list
@@ -918,3 +936,14 @@ Watch without being flaky or kicking a device out of cooking mode?
   red onion (in a recipe); Qty 2 + tap red onion added "2 red onion" and kept
   the keyboard up. **Not checked:** the iPhone layout, or a hardware keyboard
   (arrow keys are web-only).
+
+### 19 Oct 2026 — Siri phrases that don't collide with Reminders
+
+James: "Add to my Dishes shopping list" got "I didn't find a Dishes shopping
+list". "Add to my <name> list" is Siri's Reminders grammar, so it looked for
+a Reminders list called "Dishes shopping" and never asked Dishes. The phrases
+(iPhone and Watch) now name the app after "in"/"with": **"Add to shopping in
+Dishes"**, "Add an item in Dishes", "Add shopping with Dishes", "Add something
+to Dishes"; on the Watch also "Open/Show shopping in Dishes". Built for the
+simulators; Siri can't be checked there — try it on the phone and the Watch
+(Shortcuts → Dishes lists the phrases once installed).

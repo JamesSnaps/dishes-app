@@ -1,5 +1,6 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
+import { MEAL_ROLES } from "@dishes/shared";
 import {
   collections,
   notes,
@@ -193,6 +194,8 @@ export const actions: Record<string, Handler> = {
   /** Improve a draft already tweaked (the web's "Refine"), not the stored recipe. */
   "ai.refine": (_s, [draft, instruction]) => ai.improveRecipe(obj(draft) as never, str(instruction)),
   "ai.heartHealthy": async (s, [recipeId]) => ai.makeRecipeHeartHealthy(await asGenerated(s, str(recipeId))),
+  "recipes.setMealRole": (_s, [recipeId, role]) =>
+    recipeActions.setRecipeMealRole(str(recipeId), z.enum(MEAL_ROLES).nullable().parse(role ?? null)),
   "ai.applyTweak": (_s, [recipeId, tweaked]) => recipeActions.applyTweakToRecipe(str(recipeId), obj(tweaked) as never),
   "ai.saveTweakAsCopy": (_s, [recipeId, tweaked]) => recipeActions.saveRecipeAsCopy(str(recipeId), obj(tweaked) as never),
   "ai.estimateNutrition": (_s, [recipeId]) => ai.estimateNutrition(str(recipeId)),

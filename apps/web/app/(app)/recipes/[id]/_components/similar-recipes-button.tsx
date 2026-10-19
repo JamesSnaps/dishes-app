@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea } from "@dishes/ui";
-import { withReferences } from "@/lib/ai/references";
-import { generateSimilarConcepts, generateFullRecipe } from "@/app/actions/ai";
-import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
+import { generateSimilarConcepts, startRecipeJob } from "@/app/actions/ai";
+import { useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
+import type { RecipeJobResult } from "@/lib/ai/job-types";
+import { recipeJobToDefaults, stashAiDraft } from "@/lib/ai/recipe-defaults";
+import type { ConceptCard } from "@/lib/ai/recipe-generation";
 
 // ── Tiny helpers (mirrors concierge-client.tsx) ───────────────────────────────
 
@@ -29,17 +31,6 @@ function difficultyClass(d: string) {
   if (d === "easy") return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800";
   if (d === "hard") return "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800";
   return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-800";
-}
-
-function recipeToSessionDefaults(r: GeneratedRecipe) {
-  return {
-    title: r.title, description: r.description, cuisine: r.cuisine,
-    difficulty: r.difficulty, prepTimeMinutes: r.prepTimeMinutes,
-    cookTimeMinutes: r.cookTimeMinutes, servings: r.servings,
-    servingsUnit: r.servingsUnit, tags: r.tags,
-    ...withReferences(r.notes, r.references),
-    ingredients: r.ingredients, steps: r.steps,
-  };
 }
 
 // ── Concept card ──────────────────────────────────────────────────────────────
@@ -131,7 +122,8 @@ export function SimilarRecipesButton({
   const [concepts, setConcepts] = useState<ConceptCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useAsyncBusy();
+  const { run } = useAiJobRunner();
 
   // Reset on every open, however it was opened (own button or the AI menu).
   useEffect(() => {
@@ -169,14 +161,16 @@ export function SimilarRecipesButton({
     setGeneratingIdx(idx);
     setPhase("loading-recipe");
     startTransition(async () => {
-      const result = await generateFullRecipe(concept);
-      if (result.error || !result.recipe) {
-        setError(result.error ?? "Something went wrong.");
+      // A background job: leave the page and the app-wide tray offers the recipe.
+      const out = await run<RecipeJobResult>(startRecipeJob(concept), { kind: "recipe", label: concept.title });
+      if (!out) return;
+      if ("error" in out) {
+        setError(out.error);
         setPhase("concepts");
         setGeneratingIdx(null);
         return;
       }
-      sessionStorage.setItem("ai_draft", JSON.stringify(recipeToSessionDefaults(result.recipe)));
+      stashAiDraft(recipeJobToDefaults(out.result));
       router.push("/recipes/new");
     });
   }

@@ -27,6 +27,8 @@ function writeJobs(jobs: PendingImageJob[]) {
 }
 
 export const IMAGE_READY_EVENT = "dishes-image-ready";
+/** Same detail shape (recipeId only); lets a waiting button reset itself. */
+export const IMAGE_FAILED_EVENT = "dishes-image-failed";
 export interface ImageReadyDetail {
   recipeId: string;
   imageUrl?: string;
@@ -82,6 +84,9 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
             window.dispatchEvent(new Event("dishes-notification-added"));
           } else if (data.status === "failed") {
             writeJobs(readJobs().filter((j) => j.jobId !== job.jobId));
+            window.dispatchEvent(
+              new CustomEvent<ImageReadyDetail>(IMAGE_FAILED_EVENT, { detail: { recipeId: job.recipeId } })
+            );
             toast({
               title: "Image generation failed",
               description:
