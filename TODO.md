@@ -58,6 +58,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Shopping list page (`/shopping`) — active list with check-off items
 - [x] Generate list from recipe(s) — consolidates duplicate ingredients
 - [x] Manual item addition
+- [x] Add-field autocomplete on the web and in the iOS app — past list items (most bought, recently, first; picking one brings back its aisle) and recipe ingredient names, from the local store so it works offline; arrow keys + Enter on the web (`lib/shopping-suggestions.ts`, `DishesCore/Models/ShoppingSuggestions.swift`) (v1.50.0)
 - [x] Check/uncheck items
 - [x] Clear checked items
 - [x] Archive/complete a list

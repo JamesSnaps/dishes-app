@@ -78,7 +78,7 @@ export function ShoppingListClient({ listId, initialItems, mostOrdered }: Props)
         </div>
       )}
 
-      <AddItemForm onAdd={add} />
+      <AddItemForm onAdd={add} items={items} mostOrdered={mostOrdered} />
 
       {items.length === 0 ? (
         <p className="py-8 text-center text-muted-foreground text-sm">
