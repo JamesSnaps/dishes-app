@@ -901,3 +901,20 @@ Watch without being flaky or kicking a device out of cooking mode?
   for with curl), silent pushes (no APNs key in dev — the Watch's 15 s poll
   covered it), anything on a real Watch. New capability (App Group on the
   Watch targets): press Run in Xcode once so the profile picks it up.
+
+### 18 Oct 2026 — suggestions in the shopping add field (v1.50.0)
+
+- `AddItemCard` suggests as you type: items the household has had on any list
+  (scored by count, halved every 60 days, so recent beats long-ago) ahead of
+  recipe ingredient names. Tapping one adds it with the Qty/Unit already typed
+  and, unless a category is chosen, the aisle it was last filed under.
+  Unticked items on the active list aren't offered.
+- Ranking lives in `DishesCore/Models/ShoppingSuggestions.swift`, the same rules
+  as the web's `lib/shopping-suggestions.ts` (tests: `ShoppingSuggestionsTests`).
+  It reads raw `shoppingItems` and `recipes` records, so it's offline, and the
+  observation only starts once the field has been focused.
+- The list sits inside the card below Qty/Unit/Category, not over them.
+- Checked on the iPad Pro 11" simulator: "on" → Onions (Produce, past list) then
+  red onion (in a recipe); Qty 2 + tap red onion added "2 red onion" and kept
+  the keyboard up. **Not checked:** the iPhone layout, or a hardware keyboard
+  (arrow keys are web-only).

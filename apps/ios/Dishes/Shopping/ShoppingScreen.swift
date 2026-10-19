@@ -232,7 +232,8 @@ let shoppingCategories = ["Produce", "Dairy", "Meat", "Fish", "Bakery", "Pantry"
 
 // MARK: Add
 
-/// The add card: name and a + on the first row, quantity, unit and category on the second.
+/// The add card: name and a + on the first row, quantity, unit and category on the second,
+/// and while typing, suggestions from past lists and the household's recipes below them.
 /// The Control Center control opens here with the item field focused.
 struct AddItemCard: View {
     @Environment(AppModel.self) private var app
@@ -242,6 +243,14 @@ struct AddItemCard: View {
     @State private var unit = ""
     @State private var category = ""
     @FocusState private var focused: Bool
+    /// Past items and recipe ingredients, read from the local store only once the
+    /// field has been focused — a visit that adds nothing doesn't pay for it.
+    @State private var index = Observed(ShoppingSuggestionIndex())
+    @State private var suggesting = false
+
+    private var suggestions: [ShoppingSuggestion] {
+        focused ? index.value.suggestions(for: name) : []
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -249,8 +258,8 @@ struct AddItemCard: View {
                 field("Add item…", text: $name)
                     .focused($focused)
                     .submitLabel(.done)
-                    .onSubmit(add)
-                Button(action: add) {
+                    .onSubmit { add() }
+                Button { add() } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.white)
@@ -281,9 +290,24 @@ struct AddItemCard: View {
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border))
                 }
             }
+            // Below the controls rather than over them, so Qty and the category
+            // stay reachable straight after typing.
+            let shown = suggestions
+            if !shown.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(shown, id: \.self) { suggestionRow($0) }
+                }
+                .padding(6)
+                .callout(Theme.orange50, Theme.rose50, border: Theme.brand.opacity(0.25))
+            }
         }
         .padding(14)
         .card()
+        .onChange(of: focused) { _, now in if now { suggesting = true } }
+        .task(id: suggesting) {
+            guard suggesting else { return }
+            await index.follow(app.store, ShoppingSuggestionIndex.load)
+        }
         .onChange(of: nav.focusShoppingAdd, initial: true) { _, wanted in
             guard wanted else { return }
             nav.focusShoppingAdd = false
@@ -303,8 +327,56 @@ struct AddItemCard: View {
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border))
     }
 
-    private func add() {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func suggestionRow(_ s: ShoppingSuggestion) -> some View {
+        let history = s.source == .history
+        let detail = history
+            ? [s.category, s.count > 1 ? "×\(s.count)" : nil].compactMap { $0 }.joined(separator: " · ")
+            : s.count > 1 ? "\(s.count) recipes" : "in a recipe"
+        return Button { add(s.name, remembered: s.category) } label: {
+            HStack(spacing: 10) {
+                Image(systemName: history ? "clock.arrow.circlepath" : "fork.knife")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(history ? Theme.brandDeep : Theme.heart)
+                    .frame(width: 28, height: 28)
+                    .background((history ? Theme.brand : Theme.heart).opacity(0.14), in: Circle())
+                Text(highlighted(s.name))
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.foreground)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text(detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.mutedForeground)
+                    .lineLimit(1)
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.brand)
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 44)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add \(s.name)")
+        .accessibilityHint(detail)
+    }
+
+    /// The name with what's been typed in bold.
+    private func highlighted(_ text: String) -> AttributedString {
+        var out = AttributedString(text)
+        let query = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !query.isEmpty, let range = out.range(of: query, options: .caseInsensitive) {
+            out[range].font = .system(size: 15, weight: .semibold)
+        }
+        return out
+    }
+
+    /// Typed (`picked` nil) or a suggestion: the same add either way, with the
+    /// suggestion bringing its old aisle when no category has been chosen.
+    private func add(_ picked: String? = nil, remembered: String? = nil) {
+        let trimmed = (picked ?? name).trimmingCharacters(in: .whitespacesAndNewlines)
         // Done on an empty field means "finished adding".
         guard !trimmed.isEmpty else { focused = false; return }
         let qty = amount.trimmingCharacters(in: .whitespaces)
@@ -314,7 +386,7 @@ struct AddItemCard: View {
         focused = true
         Task {
             await app.addShoppingItem(trimmed, amount: qty.isEmpty ? nil : qty, unit: u.isEmpty ? nil : u,
-                                      category: category.isEmpty ? nil : category)
+                                      category: category.isEmpty ? remembered : category)
         }
     }
 }
