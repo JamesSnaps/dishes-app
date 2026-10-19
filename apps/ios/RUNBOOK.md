@@ -971,3 +971,7 @@ seeded thread shows under Earlier and Delete removes it server-side; an
 answer is saved; Done, reopen → same conversation, not duplicated under
 Earlier; a follow-up updates the same row with the whole history sent.
 **Not checked:** a real AI answer, the iPhone layout.
+
+Uploaded to TestFlight as 1.51.1 (build 202610191617) from the PR branch; the
+saving and Earlier list need the server side, which goes live once PR #51 is
+merged and deployed.
