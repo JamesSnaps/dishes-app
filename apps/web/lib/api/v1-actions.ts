@@ -38,6 +38,7 @@ import * as timeline from "@/app/actions/meal-timeline";
 import * as mealCookActions from "@/app/actions/meal-cooks";
 import * as ai from "@/app/actions/ai";
 import * as recipeActions from "@/app/actions/recipes";
+import * as cookAssist from "@/app/actions/cook-assist-threads";
 
 /**
  * The website's features for the iOS app, through one route:
@@ -69,6 +70,9 @@ function form(fields: Record<string, unknown>): FormData {
   }
   return fd;
 }
+
+const assistMessages = (v: unknown) =>
+  z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).min(1).parse(v);
 
 const obj = (v: unknown) => z.record(z.string(), z.unknown()).parse(v ?? {});
 
@@ -182,6 +186,13 @@ export const actions: Record<string, Handler> = {
   "timeline.freeze": (_s, [groupId]) => timeline.freezeMealTimeline(str(groupId)),
   /** The whole-meal review: `[input]` → `{ id, cookIds }` (lib/services/meal-cooks.ts). */
   "mealCooks.log": (_s, [input]) => mealCookActions.logMealCook(obj(input) as never),
+
+  // ── "Ask about this step" conversations (cooking mode) ──────────────────
+  "cookAssist.list": (_s, [recipeId]) => cookAssist.getCookAssistThreads(str(recipeId)),
+  "cookAssist.save": (_s, [recipeId, stepNumber, messages]) =>
+    cookAssist.saveCookAssistThread(str(recipeId), z.number().int().positive().parse(stepNumber), assistMessages(messages)),
+  "cookAssist.update": (_s, [id, messages]) => cookAssist.updateCookAssistThread(str(id), assistMessages(messages)),
+  "cookAssist.delete": (_s, [id]) => cookAssist.deleteCookAssistThread(str(id)),
 
   // ── Recipes: import and AI tools ──────────────────────────────────────────
   /** The web's paste import: ingredient lines and method text, parsed. */

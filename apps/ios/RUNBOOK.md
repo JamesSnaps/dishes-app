@@ -947,3 +947,27 @@ Dishes"**, "Add an item in Dishes", "Add shopping with Dishes", "Add something
 to Dishes"; on the Watch also "Open/Show shopping in Dishes". Built for the
 simulators; Siri can't be checked there — try it on the phone and the Watch
 (Shortcuts → Dishes lists the phrases once installed).
+
+### 19 Oct 2026 — "Ask about this step" keeps its conversations (v1.51.1)
+
+James: the chat was gone as soon as he left it. It lived only in the sheet's
+`@State` and was never saved — the web saves to `cook_assist_threads`, the app
+never did. Now:
+- The open conversation for each step is on the `CookSession` (`assist`, by
+  recipe id + step), so closing the sheet and reopening carries on, and an
+  answer still arriving when the sheet closes lands there.
+- After every answer it's saved: `cookAssist.save` the first time (→ id),
+  `cookAssist.update` after that. Best effort — a failed save is retried on the
+  next answer.
+- Opening the sheet loads `cookAssist.list` for the recipe and shows that
+  step's other conversations under "Earlier", each with Delete. The web's
+  cooking mode shows the app's conversations too, and vice versa.
+- `saveCookAssistThread` now checks the recipe is the household's.
+- A failed answer puts the question back in the field, as on the web.
+
+Checked on the iPad Pro 11" simulator against the dev server (no AI key there,
+so the route was stubbed with a canned answer for the test, then reverted):
+seeded thread shows under Earlier and Delete removes it server-side; an
+answer is saved; Done, reopen → same conversation, not duplicated under
+Earlier; a follow-up updates the same row with the whole history sent.
+**Not checked:** a real AI answer, the iPhone layout.
