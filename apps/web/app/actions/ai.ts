@@ -38,6 +38,10 @@ import {
 // import them from `@/lib/ai/recipe-generation` directly.
 import type { ConceptCard, GeneratedRecipe, RecipeNutrition } from "@/lib/ai/recipe-generation";
 import { groundRecipeConcept, groundingPromptSuffix, type RecipeGrounding } from "@/lib/ai/web-grounding";
+import type { BatchJobItem, BatchJobProgress, ConceptsJobResult, MealPlanJobResult, RecipeJobResult } from "@/lib/ai/job-types";
+import { startAiJob } from "@/lib/ai-jobs";
+import { requireSession } from "@/lib/session";
+import * as recipeService from "@/lib/services/recipes";
 
 const log = createLogger("ai");
 
@@ -203,19 +207,36 @@ async function buildTasteProfileAddendum(householdId: string): Promise<string> {
 
 // ── Step 1: Generate 5 concept cards ──────────────────────────────────────────
 
+type ConceptOptions = { heartHealthy?: boolean; mealRole?: "main" | "side" | "sauce" | "other" };
+
 export async function generateConcepts(
   prompt: string,
   memberIds?: string[],
   mealType?: string,
   targetCalories?: number,
-  options?: { heartHealthy?: boolean; mealRole?: "main" | "side" | "sauce" | "other" }
+  options?: ConceptOptions
+): Promise<{ concepts?: ConceptCard[]; error?: string }> {
+  try {
+    const user = await resolveIdentity();
+    const { householdId } = await requireHousehold(user);
+    return await conceptsFor(householdId, prompt, memberIds, mealType, targetCalories, options);
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+async function conceptsFor(
+  householdId: string,
+  prompt: string,
+  memberIds?: string[],
+  mealType?: string,
+  targetCalories?: number,
+  options?: ConceptOptions
 ): Promise<{ concepts?: ConceptCard[]; error?: string }> {
   if (!prompt.trim())
     return { error: "Please describe what you'd like to cook." };
 
   try {
-    const user = await resolveIdentity();
-    const { householdId } = await requireHousehold(user);
     const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),
       buildMemberConstraints(memberIds ?? [], householdId),
@@ -780,9 +801,20 @@ export async function suggestCollectionForRecipe(input: {
 }): Promise<CollectionSuggestion> {
   try {
     if (!input.title?.trim()) return {};
-
     const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
+    return await collectionSuggestionFor(householdId, input);
+  } catch {
+    return {};
+  }
+}
+
+async function collectionSuggestionFor(
+  householdId: string,
+  input: Parameters<typeof suggestCollectionForRecipe>[0]
+): Promise<CollectionSuggestion> {
+  try {
+    if (!input.title?.trim()) return {};
 
     const existing = await db
       .select({
@@ -847,20 +879,37 @@ Choose a collection ONLY when the recipe clearly and obviously belongs in it, ju
 
 // ── Step 2: Generate full recipe from a chosen concept ─────────────────────────
 
+type FullRecipeOptions = {
+  heartHealthy?: boolean;
+  mealRole?: "main" | "side" | "sauce" | "other";
+  accompanies?: string;
+};
+
 export async function generateFullRecipe(
   concept: ConceptCard,
   memberIds?: string[],
   mealType?: string,
   targetCalories?: number,
-  options?: {
-    heartHealthy?: boolean;
-    mealRole?: "main" | "side" | "sauce" | "other";
-    accompanies?: string;
-  }
+  options?: FullRecipeOptions
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
     const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
+    return await fullRecipeFor(householdId, concept, memberIds, mealType, targetCalories, options);
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+async function fullRecipeFor(
+  householdId: string,
+  concept: ConceptCard,
+  memberIds?: string[],
+  mealType?: string,
+  targetCalories?: number,
+  options?: FullRecipeOptions
+): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
+  try {
     const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem, webGrounding }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),
       buildMemberConstraints(memberIds ?? [], householdId),
@@ -909,6 +958,150 @@ export async function generateFullRecipe(
     if (grounding) recipe.references = grounding.references;
     if (options?.mealRole) recipe.mealRole = options.mealRole;
     return { recipe };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+// ── Background jobs: generation that survives leaving the page ────────────────
+// Each answers a job id at once; the page polls /api/ai-jobs/{id} for the
+// result, and the app-wide tray picks it up if the page has gone.
+
+/** Throws the action's own error message so the job fails with it. */
+function unwrap<T extends { error?: string }>(r: T): Omit<T, "error"> {
+  if (r.error) throw new Error(r.error);
+  return r;
+}
+
+export async function startConceptsJob(
+  prompt: string,
+  memberIds?: string[],
+  mealType?: string,
+  targetCalories?: number,
+  options?: ConceptOptions
+): Promise<{ jobId?: string; error?: string }> {
+  if (!prompt.trim()) return { error: "Please describe what you'd like to cook." };
+  try {
+    const user = await resolveIdentity();
+    const { householdId } = await requireHousehold(user);
+    const jobId = await startAiJob<ConceptsJobResult>(
+      { householdId, kind: "concepts", label: "Recipe ideas" },
+      async () => {
+        const { concepts } = unwrap(await conceptsFor(householdId, prompt, memberIds, mealType, targetCalories, options));
+        return { concepts: concepts! };
+      }
+    );
+    return { jobId };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+export async function startRecipeJob(
+  concept: ConceptCard,
+  memberIds?: string[],
+  mealType?: string,
+  targetCalories?: number,
+  options?: FullRecipeOptions & { suggestCollection?: boolean }
+): Promise<{ jobId?: string; error?: string }> {
+  try {
+    const user = await resolveIdentity();
+    const { householdId } = await requireHousehold(user);
+    const jobId = await startAiJob<RecipeJobResult>(
+      { householdId, kind: "recipe", label: concept.title },
+      async () => {
+        const { recipe } = unwrap(await fullRecipeFor(householdId, concept, memberIds, mealType, targetCalories, options));
+        if (!options?.suggestCollection) return { recipe: recipe! };
+        const collection = await collectionSuggestionFor(householdId, {
+          title: recipe!.title,
+          description: recipe!.description,
+          cuisine: recipe!.cuisine,
+          tags: recipe!.tags,
+          mealTypes: recipe!.mealTypes,
+        });
+        return { recipe: recipe!, collection };
+      }
+    );
+    return { jobId };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+/** Writes and saves several recipes one after another, entirely server-side. */
+export async function startRecipeBatchJob(
+  concepts: ConceptCard[],
+  memberIds?: string[],
+  mealType?: string,
+  targetCalories?: number,
+  options?: FullRecipeOptions
+): Promise<{ jobId?: string; error?: string }> {
+  if (concepts.length === 0) return { error: "Pick at least one idea." };
+  try {
+    const session = await requireSession();
+    const { householdId } = session;
+    const label = `${concepts.length} recipes`;
+    const jobId = await startAiJob<BatchJobProgress, BatchJobProgress>(
+      { householdId, kind: "recipe-batch", label },
+      async (report) => {
+        const items: BatchJobItem[] = concepts.map((c) => ({ title: c.title, status: "pending" }));
+        const publish = () => report({ items: items.map((i) => ({ ...i })) });
+        for (let i = 0; i < concepts.length; i++) {
+          items[i]!.status = "generating";
+          await publish();
+          try {
+            const { recipe } = unwrap(await fullRecipeFor(householdId, concepts[i]!, memberIds, mealType, targetCalories, options));
+            const suggestion = await collectionSuggestionFor(householdId, {
+              title: recipe!.title,
+              description: recipe!.description,
+              cuisine: recipe!.cuisine,
+              tags: recipe!.tags,
+              mealTypes: recipe!.mealTypes,
+            });
+            const { recipeId, linkedCollectionId } = await recipeService.createRecipe(
+              session,
+              recipeService.generatedToWriteInput(recipe!, suggestion.collectionId)
+            );
+            items[i] = {
+              title: recipe!.title,
+              status: "done",
+              recipeId,
+              collectionName: linkedCollectionId ? suggestion.collectionName : undefined,
+            };
+          } catch (err) {
+            items[i] = { ...items[i]!, status: "error", error: err instanceof Error ? err.message : "Failed to save recipe." };
+          }
+          await publish();
+        }
+        try {
+          revalidatePath("/recipes");
+          revalidatePath("/collections");
+        } catch {
+          // Outside the request by now — the recipes page re-reads on navigation anyway.
+        }
+        return { items };
+      }
+    );
+    return { jobId };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+/** Drafts a week's plan (or redoes some of its slots) in the background. */
+export async function startMealPlanJob(params: MealPlanParams): Promise<{ jobId?: string; error?: string }> {
+  if (!params.slots.length) return { error: "Please select at least one slot to plan." };
+  try {
+    const user = await resolveIdentity();
+    const { householdId } = await requireHousehold(user);
+    const jobId = await startAiJob<MealPlanJobResult>(
+      { householdId, kind: "meal-plan", label: "Week plan" },
+      async () => {
+        const { slots } = unwrap(await mealPlanFor(householdId, params));
+        return { slots: slots! };
+      }
+    );
+    return { jobId };
   } catch (err) {
     return { error: classifyError(err) };
   }
@@ -994,7 +1187,7 @@ export type MealPlanSlot = {
   avgRating?: number | null;
 };
 
-export async function generateMealPlanConcepts(params: {
+export type MealPlanParams = {
   slots: { dayOfWeek: number; mealType: string }[];
   preferences: string;
   cuisineFilter?: string;
@@ -1017,14 +1210,29 @@ export async function generateMealPlanConcepts(params: {
   keptSlots?: { dayOfWeek: number; mealType: string; title: string; cuisine?: string }[];
   /** Redoing part of a draft: the suggestions being replaced, never to be offered again. */
   replacingTitles?: string[];
-}): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
+};
+
+export async function generateMealPlanConcepts(
+  params: MealPlanParams
+): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
+  try {
+    const user = await resolveIdentity();
+    const { householdId } = await requireHousehold(user);
+    return await mealPlanFor(householdId, params);
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+async function mealPlanFor(
+  householdId: string,
+  params: MealPlanParams
+): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
   const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, favouritesOnly, frequentsOnly, ratedOnly, memberIds, maxCaloriesPerMeal, heartHealthy, weekStartDate, keptSlots, replacingTitles } = params;
   if (!requestedSlots.length)
     return { error: "Please select at least one slot to plan." };
 
   try {
-    const user = await resolveIdentity();
-    const { householdId } = await requireHousehold(user);
     const safePreferences = preferences.slice(0, 500);
     const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem }, memberConstraints, tasteAddendum] = await Promise.all([
       getOpenAiClient(householdId),

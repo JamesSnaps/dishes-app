@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, AlertCircle, Target, Check, ChevronDown, ChevronUp, HeartPulse } from "lucide-react";
 import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
@@ -16,11 +16,12 @@ import {
   Badge,
 } from "@dishes/ui";
 
-import { generateConcepts, generateFullRecipe, suggestCollectionForRecipe } from "@/app/actions/ai";
-import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
-import { saveGeneratedRecipe } from "@/app/actions/recipes";
+import { generateConcepts, startRecipeJob, startRecipeBatchJob } from "@/app/actions/ai";
+import type { ConceptCard } from "@/lib/ai/recipe-generation";
+import type { BatchJobProgress, RecipeJobResult } from "@/lib/ai/job-types";
+import { recipeJobToDefaults } from "@/lib/ai/recipe-defaults";
+import { useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
 import type { RecipeFormDefaults } from "./recipe-form";
-import { withReferences } from "@/lib/ai/references";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -32,53 +33,6 @@ function difficultyVariant(d: string): "default" | "secondary" | "outline" {
   if (d === "easy") return "secondary";
   if (d === "hard") return "default";
   return "outline";
-}
-
-export function recipeToDefaults(r: GeneratedRecipe): RecipeFormDefaults {
-  return {
-    title: r.title,
-    description: r.description,
-    cuisine: r.cuisine,
-    difficulty: r.difficulty,
-    prepTimeMinutes: r.prepTimeMinutes,
-    cookTimeMinutes: r.cookTimeMinutes,
-    servings: r.servings,
-    servingsUnit: r.servingsUnit,
-    mealTypes: r.mealTypes,
-    mealRole: r.mealRole ?? null,
-    tags: r.tags,
-    ...withReferences(r.notes, r.references),
-    ingredients: r.ingredients,
-    steps: r.steps,
-    calories: r.nutrition?.calories ?? null,
-    proteinG: r.nutrition?.proteinG == null ? null : String(r.nutrition.proteinG),
-    carbsG: r.nutrition?.carbsG == null ? null : String(r.nutrition.carbsG),
-    fatG: r.nutrition?.fatG == null ? null : String(r.nutrition.fatG),
-    saturatedFatG: r.nutrition?.saturatedFatG == null ? null : String(r.nutrition.saturatedFatG),
-    fiberG: r.nutrition?.fiberG == null ? null : String(r.nutrition.fiberG),
-    sugarG: r.nutrition?.sugarG == null ? null : String(r.nutrition.sugarG),
-    sodiumMg: r.nutrition?.sodiumMg == null ? null : String(r.nutrition.sodiumMg),
-  };
-}
-
-// Form defaults plus the collection the AI thinks the recipe belongs in, so the
-// user sees (and can drop) the suggestion before saving.
-async function recipeToDefaultsWithCollection(
-  r: GeneratedRecipe
-): Promise<RecipeFormDefaults> {
-  const defaults = recipeToDefaults(r);
-  const suggestion = await suggestCollectionForRecipe({
-    title: r.title,
-    description: r.description,
-    cuisine: r.cuisine,
-    tags: r.tags,
-    mealTypes: r.mealTypes,
-  });
-  if (suggestion.collectionId) {
-    defaults.collectionId = suggestion.collectionId;
-    defaults.collectionName = suggestion.collectionName;
-  }
-  return defaults;
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -226,7 +180,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = useAsyncBusy();
+  const { run } = useAiJobRunner();
 
   const parsedTargetCalories = (() => {
     const n = parseInt(targetCalories, 10);
@@ -288,19 +243,29 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       tags: [],
       difficulty: "medium",
     };
+    writeRecipe(directConcept, "prompt");
+  }
+
+  // Runs as a background job: close the page mid-way and the app-wide tray
+  // offers the finished recipe instead of it being lost.
+  function writeRecipe(concept: ConceptCard, backTo: Step) {
     startTransition(async () => {
-      const result = await generateFullRecipe(directConcept, undefined, mealType || undefined, parsedTargetCalories, {
-        heartHealthy,
-        ...(mealRole ? { mealRole } : {}),
-      });
-      if (result.error) {
-        setError(result.error);
-        setStep("prompt");
+      const out = await run<RecipeJobResult>(
+        startRecipeJob(concept, undefined, mealType || undefined, parsedTargetCalories, {
+          heartHealthy,
+          ...(mealRole ? { mealRole } : {}),
+          suggestCollection: true,
+        }),
+        { kind: "recipe", label: concept.title }
+      );
+      if (!out) return;
+      if ("error" in out) {
+        setError(out.error);
+        setStep(backTo);
         return;
       }
-      const defaults = await recipeToDefaultsWithCollection(result.recipe!);
       setOpen(false);
-      onRecipeGenerated(defaults);
+      onRecipeGenerated(recipeJobToDefaults(out.result));
     });
   }
 
@@ -320,20 +285,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
     if (selected.size === 1) {
       setError(null);
       setStep("generating");
-      startTransition(async () => {
-        const result = await generateFullRecipe(chosenConcepts[0]!, undefined, mealType || undefined, parsedTargetCalories, {
-          heartHealthy,
-          ...(mealRole ? { mealRole } : {}),
-        });
-        if (result.error) {
-          setError(result.error);
-          setStep("concepts");
-          return;
-        }
-        const defaults = await recipeToDefaultsWithCollection(result.recipe!);
-        setOpen(false);
-        onRecipeGenerated(defaults);
-      });
+      writeRecipe(chosenConcepts[0]!, "concepts");
     } else {
       const items: BatchItem[] = chosenConcepts.map((c) => ({
         concept: c,
@@ -342,38 +294,24 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       setBatchItems(items);
       setStep("batch-generating");
 
+      // Written and saved server-side, so leaving the page doesn't stop it.
+      const toItems = (p: BatchJobProgress): BatchItem[] =>
+        p.items.map((item, i) => ({ ...item, concept: chosenConcepts[i]! }));
       void (async () => {
-        const updated = [...items];
-        for (let i = 0; i < updated.length; i++) {
-          updated[i] = { ...updated[i]!, status: "generating" };
-          setBatchItems([...updated]);
-
-          const genResult = await generateFullRecipe(
-            updated[i]!.concept,
-            undefined,
-            mealType || undefined,
-            parsedTargetCalories,
-            { heartHealthy, ...(mealRole ? { mealRole } : {}) }
-          );
-          if (genResult.error) {
-            updated[i] = { ...updated[i]!, status: "error", error: genResult.error };
-            setBatchItems([...updated]);
-            continue;
-          }
-
-          const saveResult = await saveGeneratedRecipe(genResult.recipe!);
-          if (saveResult.error) {
-            updated[i] = { ...updated[i]!, status: "error", error: saveResult.error };
-          } else {
-            updated[i] = {
-              ...updated[i]!,
-              status: "done",
-              recipeId: saveResult.recipeId,
-              collectionName: saveResult.collectionName,
-            };
-          }
-          setBatchItems([...updated]);
+        const out = await run<BatchJobProgress, BatchJobProgress>(
+          startRecipeBatchJob(chosenConcepts, undefined, mealType || undefined, parsedTargetCalories, {
+            heartHealthy,
+            ...(mealRole ? { mealRole } : {}),
+          }),
+          { kind: "recipe-batch", label: `${chosenConcepts.length} recipes` },
+          (p) => setBatchItems(toItems(p))
+        );
+        if (!out) return;
+        if ("error" in out) {
+          setBatchItems(chosenConcepts.map((concept) => ({ concept, status: "error", error: out.error })));
+          return;
         }
+        setBatchItems(toItems(out.result));
       })();
     }
   }

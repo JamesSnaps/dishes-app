@@ -122,88 +122,50 @@ export function RecipeTabs({
     });
   }
 
-  const totalMinutes = (prepTimeMinutes ?? 0) + (cookTimeMinutes ?? 0);
-
   return (
     <div>
       {/* Tab bar */}
       <div className="border-b flex gap-0 overflow-x-auto touch-pan-x scrollbar-hide">
-        {tabs.map((tab) => (
+        {tabs.map((tab) => {
+          // Wide screens drop the Overview tab and open on Ingredients.
+          const active =
+            activeTab === tab.id
+              ? "border-primary text-primary"
+              : tab.id === "ingredients" && activeTab === "overview"
+                ? "border-transparent text-muted-foreground hover:text-foreground xl:border-primary xl:text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground";
+          return (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+            className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${active} ${
+              tab.id === "overview" ? "xl:hidden" : ""
             }`}
           >
             {tab.label}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Tab content */}
       <div className="mt-6">
         {activeTab === "overview" && (
-          <div className="space-y-6">
-            {description && (
-              <p className="text-muted-foreground leading-relaxed">{description}</p>
-            )}
-
-            {(prepTimeMinutes || cookTimeMinutes) && (
-              <div className="flex gap-6 rounded-lg bg-muted/50 px-4 py-3 text-sm">
-                {prepTimeMinutes ? (
-                  <div>
-                    <div className="font-medium">Prep</div>
-                    <div className="text-muted-foreground">{formatTime(prepTimeMinutes)}</div>
-                  </div>
-                ) : null}
-                {cookTimeMinutes ? (
-                  <div>
-                    <div className="font-medium">Cook</div>
-                    <div className="text-muted-foreground">{formatTime(cookTimeMinutes)}</div>
-                  </div>
-                ) : null}
-                {totalMinutes > 0 && prepTimeMinutes && cookTimeMinutes ? (
-                  <div>
-                    <div className="font-medium">Total</div>
-                    <div className="text-muted-foreground">{formatTime(totalMinutes)}</div>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {tags.map((t) => (
-                  <Badge key={t.id} variant="secondary" className="text-xs">
-                    {t.tag}
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {sourceUrl && (
-              <a
-                href={sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ExternalLink className="h-4 w-4" />
-                {isAiGenerated ? `Inspired by ${hostOf(sourceUrl)}` : "Original source"}
-              </a>
-            )}
-
-            {!description && !prepTimeMinutes && !cookTimeMinutes && tags.length === 0 && !sourceUrl && (
-              <p className="text-muted-foreground text-sm">No overview information available.</p>
-            )}
+          // On wide screens the overview sits in the page's left column instead.
+          <div className="xl:hidden">
+            <RecipeOverview
+              description={description}
+              prepTimeMinutes={prepTimeMinutes}
+              cookTimeMinutes={cookTimeMinutes}
+              tags={tags}
+              sourceUrl={sourceUrl}
+              isAiGenerated={isAiGenerated}
+            />
           </div>
         )}
 
-        {activeTab === "ingredients" && (
-          <div>
+        {(activeTab === "ingredients" || activeTab === "overview") && (
+          <div className={activeTab === "overview" ? "hidden xl:block" : undefined}>
             {ingredients.length > 0 ? (
               <>
                 <div className="mb-4 flex items-center justify-between gap-4">
@@ -377,4 +339,80 @@ function hostOf(url: string): string {
   } catch {
     return "the web";
   }
+}
+
+/** Description, prep/cook times, tags and source — the Overview tab, and the
+ *  left column's details on wide screens. */
+export function RecipeOverview({
+  description,
+  prepTimeMinutes,
+  cookTimeMinutes,
+  tags,
+  sourceUrl,
+  isAiGenerated,
+}: {
+  description: string | null;
+  prepTimeMinutes: number | null;
+  cookTimeMinutes: number | null;
+  tags: { id: string; tag: string }[];
+  sourceUrl: string | null;
+  isAiGenerated?: boolean;
+}) {
+  const totalMinutes = (prepTimeMinutes ?? 0) + (cookTimeMinutes ?? 0);
+  return (
+    <div className="space-y-6">
+      {description && (
+        <p className="text-muted-foreground leading-relaxed">{description}</p>
+      )}
+
+      {(prepTimeMinutes || cookTimeMinutes) && (
+        <div className="flex gap-6 rounded-lg bg-muted/50 px-4 py-3 text-sm">
+          {prepTimeMinutes ? (
+            <div>
+              <div className="font-medium">Prep</div>
+              <div className="text-muted-foreground">{formatTime(prepTimeMinutes)}</div>
+            </div>
+          ) : null}
+          {cookTimeMinutes ? (
+            <div>
+              <div className="font-medium">Cook</div>
+              <div className="text-muted-foreground">{formatTime(cookTimeMinutes)}</div>
+            </div>
+          ) : null}
+          {totalMinutes > 0 && prepTimeMinutes && cookTimeMinutes ? (
+            <div>
+              <div className="font-medium">Total</div>
+              <div className="text-muted-foreground">{formatTime(totalMinutes)}</div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((t) => (
+            <Badge key={t.id} variant="secondary" className="text-xs">
+              {t.tag}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {sourceUrl && (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ExternalLink className="h-4 w-4" />
+          {isAiGenerated ? `Inspired by ${hostOf(sourceUrl)}` : "Original source"}
+        </a>
+      )}
+
+      {!description && !prepTimeMinutes && !cookTimeMinutes && tags.length === 0 && !sourceUrl && (
+        <p className="text-muted-foreground text-sm">No overview information available.</p>
+      )}
+    </div>
+  );
 }

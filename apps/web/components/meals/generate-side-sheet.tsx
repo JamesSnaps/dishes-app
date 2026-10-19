@@ -8,32 +8,15 @@
  */
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, Salad, Sparkles } from "lucide-react";
 import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea } from "@dishes/ui";
-import { withReferences } from "@/lib/ai/references";
-import { generateFullRecipe, generateSideConcepts } from "@/app/actions/ai";
-import type { ConceptCard, GeneratedRecipe } from "@/lib/ai/recipe-generation";
-
-function recipeToSessionDefaults(recipe: GeneratedRecipe) {
-  return {
-    title: recipe.title,
-    description: recipe.description,
-    cuisine: recipe.cuisine,
-    difficulty: recipe.difficulty,
-    prepTimeMinutes: recipe.prepTimeMinutes,
-    cookTimeMinutes: recipe.cookTimeMinutes,
-    servings: recipe.servings,
-    servingsUnit: recipe.servingsUnit,
-    tags: recipe.tags,
-    mealRole: "side" as const,
-    mealTypes: recipe.mealTypes,
-    ...withReferences(recipe.notes, recipe.references),
-    ingredients: recipe.ingredients,
-    steps: recipe.steps,
-  };
-}
+import { startRecipeJob, generateSideConcepts } from "@/app/actions/ai";
+import { useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
+import type { RecipeJobResult } from "@/lib/ai/job-types";
+import { recipeJobToDefaults, stashAiDraft } from "@/lib/ai/recipe-defaults";
+import type { ConceptCard } from "@/lib/ai/recipe-generation";
 
 type Phase = "idle" | "loading-concepts" | "concepts" | "loading-recipe";
 
@@ -53,7 +36,8 @@ function SideFlow({
   const [withDishes, setWithDishes] = useState(accompanies);
   const [error, setError] = useState<string | null>(null);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
-  const [, startTransition] = useTransition();
+  const [, startTransition] = useAsyncBusy();
+  const { run } = useAiJobRunner();
 
   function runGenerateConcepts(currentNote: string) {
     setError(null);
@@ -78,20 +62,19 @@ function SideFlow({
     setGeneratingIdx(idx);
     setPhase("loading-recipe");
     startTransition(async () => {
-      const result = await generateFullRecipe(concept, undefined, undefined, undefined, {
-        mealRole: "side",
-        accompanies: withDishes,
-      });
-      if (result.error || !result.recipe) {
-        setError(result.error ?? "Something went wrong.");
+      // A background job: leave the page and the app-wide tray offers the recipe.
+      const out = await run<RecipeJobResult>(
+        startRecipeJob(concept, undefined, undefined, undefined, { mealRole: "side", accompanies: withDishes }),
+        { kind: "recipe", label: concept.title }
+      );
+      if (!out) return;
+      if ("error" in out) {
+        setError(out.error);
         setPhase("concepts");
         setGeneratingIdx(null);
         return;
       }
-      sessionStorage.setItem(
-        "ai_draft",
-        JSON.stringify(recipeToSessionDefaults(result.recipe))
-      );
+      stashAiDraft(recipeJobToDefaults(out.result));
       onClose?.();
       router.push("/recipes/new");
     });
