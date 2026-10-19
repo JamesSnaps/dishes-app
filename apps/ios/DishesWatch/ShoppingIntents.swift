@@ -1,4 +1,4 @@
-// "Add to my Dishes shopping list" on the Watch — Siri on the wrist, Shortcuts,
+// "Add to shopping in Dishes" on the Watch — Siri on the wrist, Shortcuts,
 // and the Action button on an Ultra. It runs without opening the app: the item
 // goes to the phone like a tap in the list does (WatchModel.add), queued if the
 // phone is out of reach. The iPhone's own AddToShoppingListIntent can't run on
@@ -46,17 +46,20 @@ struct DishesWatchShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: AddToShoppingListIntent(),
+            // Not "add to my <name> shopping list": Siri takes that for a Reminders
+            // list (the iPhone's ShoppingIntents.swift has the story).
             phrases: [
-                "Add to my \(.applicationName) shopping list",
-                "Add to the \(.applicationName) shopping list",
-                "Add to \(.applicationName) shopping",
+                "Add to shopping in \(.applicationName)",
+                "Add an item in \(.applicationName)",
+                "Add shopping with \(.applicationName)",
+                "Add something to \(.applicationName)",
             ],
             shortTitle: "Add to Shopping",
             systemImageName: "cart.badge.plus"
         )
         AppShortcut(
             intent: OpenShoppingListIntent(),
-            phrases: ["Open my \(.applicationName) shopping list", "Show the \(.applicationName) shopping list"],
+            phrases: ["Open shopping in \(.applicationName)", "Show shopping in \(.applicationName)"],
             shortTitle: "Shopping List",
             systemImageName: "cart"
         )

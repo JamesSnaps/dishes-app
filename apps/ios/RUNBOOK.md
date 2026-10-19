@@ -918,3 +918,14 @@ Watch without being flaky or kicking a device out of cooking mode?
   red onion (in a recipe); Qty 2 + tap red onion added "2 red onion" and kept
   the keyboard up. **Not checked:** the iPhone layout, or a hardware keyboard
   (arrow keys are web-only).
+
+### 19 Oct 2026 — Siri phrases that don't collide with Reminders
+
+James: "Add to my Dishes shopping list" got "I didn't find a Dishes shopping
+list". "Add to my <name> list" is Siri's Reminders grammar, so it looked for
+a Reminders list called "Dishes shopping" and never asked Dishes. The phrases
+(iPhone and Watch) now name the app after "in"/"with": **"Add to shopping in
+Dishes"**, "Add an item in Dishes", "Add shopping with Dishes", "Add something
+to Dishes"; on the Watch also "Open/Show shopping in Dishes". Built for the
+simulators; Siri can't be checked there — try it on the phone and the Watch
+(Shortcuts → Dishes lists the phrases once installed).

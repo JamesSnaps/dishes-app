@@ -1,4 +1,4 @@
-// "Hey Siri, add to my Dishes shopping list" — and the same action in
+// "Hey Siri, add to shopping in Dishes" — and the same action in
 // Shortcuts, on the Action button and from a Shortcuts automation (an NFC tag
 // on the fridge). It runs in the background without opening the app, and is
 // an outbox mutation like the add card's, so it works with no signal and
@@ -56,10 +56,14 @@ struct DishesShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: AddToShoppingListIntent(),
+            // Never "add to my <name> shopping list": that's Siri's own Reminders
+            // grammar, so Siri looks for a Reminders list called "Dishes shopping"
+            // and answers "I didn't find a Dishes shopping list". Naming the app
+            // after "in" or "with" keeps the request Dishes'.
             phrases: [
-                "Add to my \(.applicationName) shopping list",
-                "Add to the \(.applicationName) shopping list",
-                "Add to \(.applicationName) shopping",
+                "Add to shopping in \(.applicationName)",
+                "Add an item in \(.applicationName)",
+                "Add shopping with \(.applicationName)",
                 "Add something to \(.applicationName)",
             ],
             shortTitle: "Add to Shopping",
