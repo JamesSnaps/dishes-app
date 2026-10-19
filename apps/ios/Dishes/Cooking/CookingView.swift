@@ -69,6 +69,9 @@ final class CookSession: Identifiable {
     var position: String?
     /// Reading one dish's whole recipe instead of walking the meal's sequence.
     var dishView = false
+    /// "Ask about this step": the conversation open on each step, by
+    /// CookAssistSheet.key, so closing the sheet and coming back carries on.
+    var assist: [String: AssistThread] = [:]
 
     init(request: CookRequest) {
         self.request = request
@@ -219,7 +222,7 @@ struct CookingView: View {
         .onKeyPress(.escape) { minimise(); return .handled }
         .overlay(alignment: .top) { RingingBanner() }
         .sheet(isPresented: $asking) {
-            CookAssistSheet(dish: dish, stepIndex: stepIndex)
+            CookAssistSheet(session: session, dish: dish, stepIndex: stepIndex)
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $addingTimer) {

@@ -1,21 +1,36 @@
 // "Ask about this step" in cooking mode, as the web's: a short chat about the
 // step on screen ("can I use butter instead?", "how do I know it's done?"),
 // with the whole recipe as context. The answer streams in as it's written.
+// Each conversation is saved after every answer (cook_assist_threads, shared
+// with the web), and earlier ones for the step show above it.
 
 import DishesCore
 import SwiftUI
 
+/// One conversation about a step; `id` once it's been saved.
+struct AssistThread: Decodable, Identifiable {
+    var id: String?
+    var stepNumber: Int?
+    var messages: [APIClient.AssistMessage] = []
+}
+
 struct CookAssistSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    let session: CookSession
     let dish: CookDish
     let stepIndex: Int
 
-    @State private var messages: [APIClient.AssistMessage] = []
+    @State private var previous: [AssistThread] = []
     @State private var draft = ""
     @State private var answering = false
     @State private var error: String?
     @FocusState private var focused: Bool
+
+    static func key(recipeId: String, stepIndex: Int) -> String { "\(recipeId)#\(stepIndex)" }
+    private var key: String { Self.key(recipeId: dish.recipe.id, stepIndex: stepIndex) }
+    /// The conversation open now, kept on the cook so it outlives the sheet.
+    private var messages: [APIClient.AssistMessage] { session.assist[key]?.messages ?? [] }
 
     private var step: RecipeStep? { dish.recipe.steps.indices.contains(stepIndex) ? dish.recipe.steps[stepIndex] : nil }
 
@@ -37,6 +52,9 @@ struct CookAssistSheet: View {
                                 .padding(14)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Theme.orange50, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            if !previous.isEmpty {
+                                previousSection
                             }
                             if messages.isEmpty {
                                 FlowLayout(spacing: 8) {
@@ -87,9 +105,40 @@ struct CookAssistSheet: View {
                 .overlay(alignment: .top) { Rectangle().fill(Theme.border).frame(height: 1) }
             }
             .background(Theme.background)
+            .task { await loadPrevious() }
             .navigationTitle("Ask about this step")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+    }
+
+    /// Earlier conversations about this step, from this cook or another day.
+    private var previousSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("EARLIER")
+                .font(.system(size: 12, weight: .semibold)).tracking(0.6)
+                .foregroundStyle(Theme.mutedForeground)
+            ForEach(previous) { thread in
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(thread.messages.enumerated()), id: \.offset) { _, message in
+                        bubble(message)
+                    }
+                    if let id = thread.id {
+                        Button(role: .destructive) { Task { await delete(id) } } label: {
+                            Label("Delete", systemImage: "trash").font(.system(size: 13))
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .padding(12)
+                .background(Theme.muted.opacity(0.5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            if !messages.isEmpty {
+                Text("NOW")
+                    .font(.system(size: 12, weight: .semibold)).tracking(0.6)
+                    .foregroundStyle(Theme.mutedForeground)
+                    .padding(.top, 4)
+            }
         }
     }
 
@@ -119,10 +168,15 @@ struct CookAssistSheet: View {
         error = nil
         answering = true
         defer { answering = false }
-        messages.append(.init(role: "user", content: question))
-        let history = messages
-        messages.append(.init(role: "assistant", content: ""))
-        let reply = messages.count - 1
+        // Captured, not read from self: the answer keeps arriving (and is
+        // saved) if the sheet is closed or the step moves on meanwhile.
+        let (key, recipeId, stepNumber, session) = (key, dish.recipe.id, stepIndex + 1, session)
+        var thread = session.assist[key] ?? AssistThread()
+        thread.messages.append(.init(role: "user", content: question))
+        let history = thread.messages
+        thread.messages.append(.init(role: "assistant", content: ""))
+        session.assist[key] = thread
+        let reply = thread.messages.count - 1
 
         let recipe = dish.recipe
         let used = recipe.ingredients.filter { step?.ingredientIds.contains($0.id) == true }
@@ -140,13 +194,48 @@ struct CookAssistSheet: View {
             messages: history)
         do {
             for try await chunk in app.api.cookAssist(context) {
-                messages[reply].content += chunk
+                session.assist[key]?.messages[reply].content += chunk
             }
-            if messages[reply].content.isEmpty { messages[reply].content = "No answer came back." }
+            if session.assist[key]?.messages[reply].content.isEmpty == true {
+                session.assist[key]?.messages[reply].content = "No answer came back."
+            }
         } catch {
-            messages.remove(at: reply)
+            session.assist[key]?.messages.remove(at: reply)
+            if session.assist[key]?.messages.last?.role == "user" { session.assist[key]?.messages.removeLast() }
+            draft = question
             self.error = ConciergeSheet.explain(error)
+            return
         }
+        await save(key: key, recipeId: recipeId, stepNumber: stepNumber)
+    }
+
+    /// The conversation so far, to the server: a new thread on its first
+    /// answer, the same one after that. Best effort — a failed save leaves it
+    /// on the cook and the next answer tries again.
+    private func save(key: String, recipeId: String, stepNumber: Int) async {
+        guard let thread = session.assist[key], !thread.messages.isEmpty,
+              let messages = try? JSONValue(encoding: thread.messages) else { return }
+        struct Saved: Decodable { var id: String }
+        do {
+            if let id = thread.id {
+                try await app.api.run("cookAssist.update", [.string(id), messages])
+            } else {
+                let saved = try await app.api.action("cookAssist.save",
+                                                     [.string(recipeId), .number(Double(stepNumber)), messages], as: Saved.self)
+                session.assist[key]?.id = saved.id
+            }
+        } catch {}
+    }
+
+    private func loadPrevious() async {
+        guard let all = try? await app.api.action("cookAssist.list", [.string(dish.recipe.id)], as: [AssistThread].self) else { return }
+        let open = session.assist[key]?.id
+        previous = all.filter { $0.stepNumber == stepIndex + 1 && $0.id != open && !$0.messages.isEmpty }
+    }
+
+    private func delete(_ id: String) async {
+        previous.removeAll { $0.id == id }
+        try? await app.api.run("cookAssist.delete", [.string(id)])
     }
 }
 
