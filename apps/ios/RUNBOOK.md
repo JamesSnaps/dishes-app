@@ -124,7 +124,9 @@ a recipe page from Safari, or a link another app shares as text, is sent to
   only sees them once the updated app has been opened.
 - Authelia rotates refresh tokens, so the two processes must never refresh
   with a spent one: `AuthSession` reads the store before refreshing and uses
-  a pair the other process saved (AuthSessionTests).
+  a pair the other process saved. If both refresh at once, the loser's
+  invalid_grant isn't taken as a sign-out while the store holds the winner's
+  new pair (AuthSessionTests, AuthSessionRaceTests).
 - A build signed without the group (errSecMissingEntitlement) keeps the
   tokens in the app's own group: the app works, the extension says "Sign in
   to Dishes first".

@@ -49,3 +49,80 @@ import Testing
         #expect(try await auth.refresh(after: "old") == "fresh")
     }
 }
+
+/// Authelia, stubbed: discovery, then a token endpoint that refuses every
+/// refresh as already spent — after `onRefusal` has run (the other process
+/// winning the race and saving its new pair).
+final class StubAuthelia: URLProtocol {
+    nonisolated(unsafe) static var onRefusal: (@Sendable () -> Void)?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        let url = request.url!
+        let discovery = url.path.hasSuffix("openid-configuration")
+        if !discovery { Self.onRefusal?() }
+        let body = discovery
+            ? #"{"authorization_endpoint":"https://auth.test/authorize","token_endpoint":"https://auth.test/token"}"#
+            : #"{"error":"invalid_grant","error_description":"refresh token already used"}"#
+        let response = HTTPURLResponse(url: url, statusCode: discovery ? 200 : 400, httpVersion: nil,
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
+@Suite(.serialized) struct AuthSessionRaceTests {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func tokens(_ access: String, refresh: String, expiresIn seconds: TimeInterval) -> TokenSet {
+        TokenSet(accessToken: access, refreshToken: refresh,
+                 expiresAt: Int((now.timeIntervalSince1970 + seconds) * 1000))
+    }
+
+    func session(store: InMemoryTokenStore) -> AuthSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubAuthelia.self]
+        let oidc = OIDCClient(config: OIDCConfig(issuer: URL(string: "https://auth.test")!, clientId: "test",
+                                                 redirectURI: "dishes://auth/callback"),
+                              session: URLSession(configuration: config))
+        let fixedNow = now
+        return AuthSession(oidc: oidc, store: store, now: { fixedNow })
+    }
+
+    @Test func losingARefreshRaceKeepsTheWinnersTokens() async throws {
+        let store = InMemoryTokenStore(tokens("old", refresh: "r1", expiresIn: 30))
+        let winner = tokens("winner", refresh: "r2", expiresIn: 3600)
+        StubAuthelia.onRefusal = { try? store.save(winner) }
+        defer { StubAuthelia.onRefusal = nil }
+
+        #expect(try await session(store: store).accessToken() == "winner")
+        #expect(try store.load() == winner, "the winner's pair is not wiped")
+    }
+
+    @Test func requestsWaitingOnTheRefreshGetTheWinnersTokensToo() async throws {
+        let store = InMemoryTokenStore(tokens("old", refresh: "r1", expiresIn: 30))
+        let winner = tokens("winner", refresh: "r2", expiresIn: 3600)
+        StubAuthelia.onRefusal = { try? store.save(winner) }
+        defer { StubAuthelia.onRefusal = nil }
+
+        // Several requests find the token expiring at once: one refreshes, the rest join it.
+        let auth = session(store: store)
+        async let a = auth.accessToken()
+        async let b = auth.accessToken()
+        async let c = auth.accessToken()
+        let all = try await [a, b, c]
+        #expect(all == ["winner", "winner", "winner"])
+    }
+
+    @Test func aRefusedRefreshWithNothingNewerSignsOut() async throws {
+        let store = InMemoryTokenStore(tokens("old", refresh: "r1", expiresIn: 30))
+        StubAuthelia.onRefusal = nil
+
+        #expect(try await session(store: store).accessToken() == nil)
+        #expect(try store.load() == nil)
+    }
+}
