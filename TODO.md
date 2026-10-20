@@ -149,7 +149,8 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] With an AI key: tidy-up pass (ingredient splitting, timers, cuisine, meal types) and full extraction for pages without recipe data
 - [x] SSRF guard — public http(s) only, every redirect re-checked, size and time limits
 - [x] `?importUrl=` deep link (bookmarklet / iOS Shortcut) and PWA share target
-- [ ] Import from web in the iOS app (share extension → same server action via `/api/v1`)
+- [x] Import from web in the iOS app — New Recipe → From a website…, `POST /api/v1/recipes/import-url`, `dishes://import?url=` for a Safari share-sheet Shortcut (v1.52.0)
+- [ ] iOS share extension, so Dishes appears in Safari's share sheet without a Shortcut
 - [ ] Re-import / refresh a recipe from its source link
 
 ## Household & Settings

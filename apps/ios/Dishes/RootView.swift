@@ -35,6 +35,11 @@ final class AppNav {
     var recipeSearch = ""
     /// A recipe for Recipes to open, which it clears once shown.
     var openedRecipe: String?
+    /// A recipe page sent as dishes://import?url=…, for Recipes to import; it
+    /// clears it once the import sheet is up.
+    var importLink: WebImportLink? {
+        didSet { if importLink != nil { tab = .recipes } }
+    }
     /// The cookbook, when it's open (Book/CookbookView.swift).
     var book: BookRequest?
     /// Focus the shopping list's add field, which it clears once done (the

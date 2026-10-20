@@ -23,6 +23,8 @@ struct RecipesScreen: View {
     @State private var askingAI = false
     @State private var usingCamera = false
     @State private var choosingPhoto = false
+    /// New Recipe → From a website: a page to import (nil link: ask for one).
+    @State private var webImport: WebImportLink?
     @State private var pickedPhoto: PhotosPickerItem?
     /// A recipe photo to read in with the AI.
     @State private var photo: RecipePhoto?
@@ -220,6 +222,16 @@ struct RecipesScreen: View {
                     pickedPhoto = nil
                 }
             }
+            .sheet(item: $webImport) { page in
+                WebImportSheet(link: page.url.isEmpty ? nil : page.url) { id in path.append(id) }
+                    .presentationSizing(.page)
+            }
+            // A page sent from a Shortcut (dishes://import?url=…).
+            .onChange(of: nav.importLink, initial: true) { _, link in
+                guard let link else { return }
+                nav.importLink = nil
+                webImport = link
+            }
             .sheet(isPresented: $askingAI) {
                 ConciergeSheet { id in path.append(id) }
                     .presentationSizing(.page)
@@ -376,6 +388,7 @@ extension RecipesScreen {
             Button("Photograph a recipe", systemImage: "camera") { usingCamera = true }
         }
         Button("From a photo…", systemImage: "photo") { choosingPhoto = true }
+        Button("From a website…", systemImage: "globe") { webImport = WebImportLink(page: "") }
     }
 
     /// The recipes on screen as a cookbook (every recipe while browsing).

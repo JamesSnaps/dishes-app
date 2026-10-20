@@ -652,6 +652,21 @@ public final class APIClient: SyncTransport, Sendable {
         return try await slowPost("/ai/photo-recipe", json: Body(image: image.base64EncodedString(), mimeType: mime))
     }
 
+    public struct ImportedRecipe: Decodable, Hashable, Sendable {
+        public var recipeId: String
+        public var title: String
+        /// How it was read: "recipe-data", "recipe-data+ai" or "ai".
+        public var via: String?
+        /// Something to pass on, e.g. the photo couldn't be copied.
+        public var notice: String?
+    }
+
+    /// A recipe page read in (the web's Import from web) and saved; it syncs down next.
+    public func recipeFromWeb(_ url: String) async throws -> ImportedRecipe {
+        struct Body: Encodable { var url: String }
+        return try await slowPost("/recipes/import-url", json: Body(url: url), timeout: 120)
+    }
+
     public struct PlanSlot: Codable, Hashable, Sendable, Identifiable {
         public var dayOfWeek: Int
         public var mealType: String
