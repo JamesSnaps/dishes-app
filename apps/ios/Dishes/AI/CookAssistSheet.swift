@@ -204,7 +204,7 @@ struct CookAssistSheet: View {
         let api = app.api
         do {
             for try await event in CookAssist.ask(context, serverReady: AIContext.cached?.configured == true,
-                                                       server: { api.cookAssist(context) }) {
+                                                       server: { CookAssist.onServer(context, api: api) }) {
                 switch event {
                 case .engine(let source, _): engine = source
                 case .restart: session.assist[key]?.messages[reply].content = ""

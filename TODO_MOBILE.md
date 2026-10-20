@@ -1085,21 +1085,40 @@ for themselves.
 So the router's third step is the same Swift session code as the first two,
 not a separate set of REST calls.
 
-- [ ] **`DishesServerModel: LanguageModel`** + its `LanguageModelExecutor` in
+- [x] **`DishesServerModel: LanguageModel`** + its `LanguageModelExecutor` in
   `DishesCore/AI`: sends the `Transcript` (instructions, prompt, tool calls,
   tool output) and the generation schema to the server, streams text back
   through the `LanguageModelExecutorGenerationChannel`. Capabilities: tool
   calling and guided generation. Errors mapped to `LanguageModelError`
-  (`rateLimited` for the monthly budget, `timeout`, `refusal`)
-- [ ] **`POST /api/v1/ai/respond`** on the server: transcript + optional JSON
+  (`rateLimited` for the monthly budget, `timeout`, `refusal`).
+  *Done (v1.60.0), with these differences:* guided generation only — no job
+  uses a tool, and attachments aren't sent (photos still go to
+  `/ai/photo-recipe`, read with vision on the server). The transcript goes as
+  chat messages (instructions → system, prompts → user, answers →
+  assistant); the schema is the `GenerationSchema` encoded, which is already
+  JSON Schema. Errors stay the app's `APIError` (the SDK's error contexts have
+  no public initialisers); the router treats both the same. Tested with a
+  stubbed server: a plain answer and a `@Generable` one come back through a
+  real `LanguageModelSession`
+- [x] **`POST /api/v1/ai/respond`** on the server: transcript + optional JSON
   schema in, streamed text out, through the household's key with
   `buildSystemAddendum` added on the server. OpenAI structured outputs
   (`json_schema`) when a schema is sent. Same budget checks and logging as the
-  other AI routes; Redis rate limit per member
-- [ ] The existing task routes (`/ai/concepts`, `/ai/recipes`,
+  other AI routes; Redis rate limit per member. *Done (v1.60.0):* the
+  addendum only with `settings: true` — the device's prompts already carry
+  the household's settings from the cached context, so adding them again
+  would say everything twice. Apple's `x-order` is stripped and the schema
+  sent non-strict. There are no budget checks to share (the other routes have
+  none); 30 calls a minute per member (`checkRateLimitFor`), 429 with
+  Retry-After past it. Checked by curl: validation (400), no key (422), the
+  31st call in a minute (429)
+- [x] The existing task routes (`/ai/concepts`, `/ai/recipes`,
   `/ai/meal-plan*`, `/ai/photo-recipe`, `/cook-assist`) stay for the web and
   for the server-only jobs; iOS stops calling `photo-recipe` and `cook-assist`
-  once D3's versions are in
+  once D3's versions are in. *Done for cook assist:* its fallback is the same
+  session on `DishesServerModel` (`CookAssist.onServer`, the server's prompt
+  via `Prompts.cookAssist`). `photo-recipe` stays until images can go
+  through `/ai/respond`
 
 ### D6. Smaller wins
 

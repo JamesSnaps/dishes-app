@@ -3,7 +3,7 @@
 // server's prompt (Prompts.cookAssist). The router sends it to the server
 // when the device can't answer or the answer fails CookAssistChecks.
 //
-//   for try await event in CookAssist.ask(context, server: { api.cookAssist(context) }) { … }
+//   for try await event in CookAssist.ask(context, serverReady: true, server: { CookAssist.onServer(context, api: api) }) { … }
 
 import Foundation
 import FoundationModels
@@ -37,11 +37,26 @@ public enum CookAssist {
 
     /// The on-device model's answer, chunk by chunk.
     public static func onDevice(_ context: APIClient.CookAssistContext) -> AsyncThrowingStream<String, Error> {
+        guard #available(iOS 27, macOS 27, *) else {
+            return AsyncThrowingStream { $0.finish(throwing: DeviceAIUnavailable()) }
+        }
+        return answer(context, model: SystemLanguageModel.default)
+    }
+
+    /// The household's AI's answer, through the same session code
+    /// (DishesServerModel, D5) — the server's prompt, so the same answer the
+    /// web's cooking mode gets.
+    public static func onServer(_ context: APIClient.CookAssistContext, api: APIClient) -> AsyncThrowingStream<String, Error> {
+        guard #available(iOS 27, macOS 27, *) else { return api.cookAssist(context) }
+        return answer(context, model: DishesServerModel(api: api))
+    }
+
+    @available(iOS 27, macOS 27, *)
+    static func answer(_ context: APIClient.CookAssistContext, model: some LanguageModel) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    guard #available(iOS 27, macOS 27, *) else { throw DeviceAIUnavailable() }
-                    let session = LanguageModelSession(instructions: Prompts.cookAssist(context))
+                    let session = LanguageModelSession(model: model, instructions: Prompts.cookAssist(context))
                     var sent = ""
                     for try await snapshot in session.streamResponse(to: question(context.messages)) {
                         let text = snapshot.content

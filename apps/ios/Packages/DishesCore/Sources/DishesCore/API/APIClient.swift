@@ -768,26 +768,56 @@ public final class APIClient: SyncTransport, Sendable {
 
     /// "Ask about this step": the answer as it's written, chunk by chunk.
     public func cookAssist(_ context: CookAssistContext) -> AsyncThrowingStream<String, Error> {
+        textStream("/cook-assist", body: context)
+    }
+
+    /// One turn of a conversation through the household's key, for
+    /// DishesServerModel (POST /api/v1/ai/respond): the answer as it's written,
+    /// JSON text when `schema` (a JSON schema) is given. `settings` asks the
+    /// server to add the household's AI settings to the instructions.
+    public struct RespondRequest: Encodable, Sendable {
+        public struct Message: Encodable, Sendable, Hashable {
+            public var role: String
+            public var content: String
+            public init(role: String, content: String) { self.role = role; self.content = content }
+        }
+        public var messages: [Message]
+        public var schema: JSONValue?
+        public var settings: Bool?
+        public var maxTokens: Int?
+        public init(messages: [Message], schema: JSONValue? = nil, settings: Bool? = nil, maxTokens: Int? = nil) {
+            self.messages = messages; self.schema = schema; self.settings = settings; self.maxTokens = maxTokens
+        }
+    }
+
+    public func respond(_ request: RespondRequest) -> AsyncThrowingStream<String, Error> {
+        textStream("/ai/respond", body: request)
+    }
+
+    /// A POST answered as streamed plain text, a word at a time (and only
+    /// whole UTF-8 characters), not a redraw per byte.
+    func textStream(_ path: String, body: some Encodable & Sendable) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let token = try await tokens?.accessToken()
                     if tokens != nil && token == nil { throw APIError.signedOut }
-                    var r = authorisedRequest(url("/cook-assist"), method: "POST", token: token)
+                    var r = authorisedRequest(url(path), method: "POST", token: token)
                     r.timeoutInterval = 120
                     r.setValue("text/plain", forHTTPHeaderField: "Accept")
                     r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    r.httpBody = try JSONEncoder().encode(context)
+                    r.httpBody = try JSONEncoder().encode(body)
                     let (bytes, response) = try await session.bytes(for: r)
                     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                         var text = ""
                         for try await line in bytes.lines { text += line }
-                        throw APIError.http(status: http.statusCode, code: "http_error", message: text.isEmpty ? "HTTP \(http.statusCode)" : text)
+                        let message = (try? JSONDecoder().decode(ErrorEnvelope.self, from: Data(text.utf8)))?.error?.message
+                        throw APIError.http(status: http.statusCode, code: "http_error",
+                                            message: message ?? (text.isEmpty ? "HTTP \(http.statusCode)" : text))
                     }
                     var buffer = [UInt8]()
                     for try await byte in bytes {
                         buffer.append(byte)
-                        // A word at a time (and only whole UTF-8 characters), not a redraw per byte.
                         guard byte == 0x20 || byte == 0x0A || buffer.count >= 24,
                               let text = String(bytes: buffer, encoding: .utf8) else { continue }
                         continuation.yield(text)

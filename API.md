@@ -937,6 +937,7 @@ seconds, so clients should allow a long timeout.
 - `POST /api/v1/ai/meal-plan` `{ weekStartDate, slots: [{ dayOfWeek, mealType }], preferences, memberIds?, favouritesOnly?, heartHealthy? }`
   → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId? }] }` — a draft, nothing saved
 - `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
+- `POST /api/v1/ai/respond` `{ messages: [{ role: "system" | "user" | "assistant", content }], schema?: <JSON Schema>, settings?: boolean, maxTokens?: number }` → the answer as streamed plain text (JSON text when `schema` is sent: OpenAI structured outputs, non-strict). A plain model call through the household's key, for the iOS app's `DishesServerModel` — the device's own prompts and schemas run on the server. `settings: true` adds the household's AI settings (measurements, default prompt, equipment) to the system message. 30 calls a minute per member: past that, 429 with `Retry-After`
 - `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text. The iOS app answers on the device first (iOS 27) and comes here when it can't
 
 ### `GET /api/v1/ai/context`

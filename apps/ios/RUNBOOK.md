@@ -1273,3 +1273,19 @@ In dev, a widget tap that cold-launches the app opens it without
 **Not checked:** the tinted and clear Home Screen styles, the Lock Screen
 slots, StandBy, a device build (the widget extension now needs the Keychain
 group on its provisioning profile).
+
+### 20 Oct 2026 — iOS 27 Phase D5: the server as a LanguageModel (v1.60.0)
+
+`DishesServerModel` (`DishesCore/AI`) is a FoundationModels `LanguageModel`
+whose executor sends the session's transcript and schema to the new
+`POST /api/v1/ai/respond` and streams the text back, so a job falls back with
+its own prompt and `@Generable` type. Cook assist's fallback uses it
+(`CookAssist.onServer`), so the app no longer calls `/cook-assist`.
+
+Checked: `DishesServerModelTests` run a real `LanguageModelSession` against a
+stubbed `/ai/respond` (a plain answer, a `ConceptList` decoded from JSON, and
+cook assist's fallback — what's sent and what comes back); curl on the dev
+server for 400, 422 (no key) and 429 (the 31st call in a minute).
+
+**Not checked:** a real answer from OpenAI (no key on the dev household),
+streaming a long answer through the session on the device.
