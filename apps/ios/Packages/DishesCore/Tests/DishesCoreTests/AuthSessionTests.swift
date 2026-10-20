@@ -103,6 +103,21 @@ final class StubAuthelia: URLProtocol {
         #expect(try store.load() == winner, "the winner's pair is not wiped")
     }
 
+    @Test func requestsWaitingOnTheRefreshGetTheWinnersTokensToo() async throws {
+        let store = InMemoryTokenStore(tokens("old", refresh: "r1", expiresIn: 30))
+        let winner = tokens("winner", refresh: "r2", expiresIn: 3600)
+        StubAuthelia.onRefusal = { try? store.save(winner) }
+        defer { StubAuthelia.onRefusal = nil }
+
+        // Several requests find the token expiring at once: one refreshes, the rest join it.
+        let auth = session(store: store)
+        async let a = auth.accessToken()
+        async let b = auth.accessToken()
+        async let c = auth.accessToken()
+        let all = try await [a, b, c]
+        #expect(all == ["winner", "winner", "winner"])
+    }
+
     @Test func aRefusedRefreshWithNothingNewerSignsOut() async throws {
         let store = InMemoryTokenStore(tokens("old", refresh: "r1", expiresIn: 30))
         StubAuthelia.onRefusal = nil

@@ -90,30 +90,34 @@ public actor AuthSession: TokenProvider {
             return nil
         }
         let oidc = oidc
-        let task = Task<TokenSet?, Error> { try await oidc.refresh(refreshToken) }
+        let store = store
+        // The whole outcome, recovery included, is the shared task's value, so
+        // requests that joined it (refreshing) get the same tokens as this one.
+        let task = Task<TokenSet?, Error> {
+            do {
+                let fresh = try await oidc.refresh(refreshToken)
+                try store.save(fresh)
+                return fresh
+            } catch OIDCError.invalidGrant {
+                // Refused because the other process spent this refresh token first?
+                // Then its new pair is (or is about to be) in the store: use that
+                // rather than sign out, which would clear the store and sign out both.
+                return try await Self.pairSavedElsewhere(in: store, replacing: refreshToken)
+            }
+        }
         refreshing = task
         defer { refreshing = nil }
-        do {
-            guard let fresh = try await task.value else { return nil }
-            try store.save(fresh)
-            tokens = fresh
-            return fresh
-        } catch OIDCError.invalidGrant {
-            // Refused because the other process spent this refresh token first?
-            // Then its new pair is (or is about to be) in the store: use that
-            // rather than sign out, which would clear the store and sign out both.
-            if let theirs = try await pairSavedElsewhere(replacing: refreshToken) {
-                tokens = theirs
-                return theirs
-            }
+        guard let result = try await task.value else {
             try signOut()
             return nil
         }
+        tokens = result
+        return result
     }
 
     /// A pair another process saved in place of `spent`, allowing it a moment
     /// to finish saving after its own refresh succeeded.
-    private func pairSavedElsewhere(replacing spent: String) async throws -> TokenSet? {
+    private static func pairSavedElsewhere(in store: any TokenStore, replacing spent: String) async throws -> TokenSet? {
         for attempt in 0..<2 {
             if let stored = try store.load(), stored.refreshToken != spent { return stored }
             if attempt == 0 { try? await Task.sleep(for: .seconds(1)) }
