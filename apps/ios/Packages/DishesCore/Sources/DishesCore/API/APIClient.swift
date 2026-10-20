@@ -660,6 +660,13 @@ public final class APIClient: SyncTransport, Sendable {
         return try await slowPost("/ai/recipes", json: Body(concept: concept, memberIds: memberIds, mealType: mealType, heartHealthy: heartHealthy))
     }
 
+    /// A recipe written on the device (a scanned page, reviewed), saved as the
+    /// concierge saves its own: the server files it in a collection when one
+    /// fits, unless `collectionId` says otherwise. It syncs down next.
+    public func saveGeneratedRecipe(_ recipe: GeneratedRecipe) async throws -> CreatedRecipe {
+        try await slowPost("/recipes/generated", json: recipe, timeout: 60)
+    }
+
     /// A photo of a cookbook page or recipe card, read and saved as a recipe.
     public func recipeFromPhoto(_ image: Data, mime: String = "image/jpeg") async throws -> CreatedRecipe {
         struct Body: Encodable { var image: String; var mimeType: String }

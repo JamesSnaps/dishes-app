@@ -19,5 +19,9 @@ let package = Package(
     targets: [
         .target(name: "DishesCore", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
         .testTarget(name: "DishesCoreTests", dependencies: ["DishesCore"]),
+        // The on-device AI's evaluations (TODO_MOBILE.md, Phase D2): slow and
+        // model-bound, so apart from the unit tests and skipped unless asked —
+        // DISHES_EVALS=1 swift test --filter DishesCoreEvaluations (macOS 27).
+        .testTarget(name: "DishesCoreEvaluations", dependencies: ["DishesCore"]),
     ]
 )

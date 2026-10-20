@@ -1,0 +1,1378 @@
+{
+ "about": "The recipes the recipe-card evaluation prints and reads back: the dev seed's (packages/db/src/seed.ts), in GeneratedRecipe's shape. Real photos go in fixtures/evals/recipe-photos/<name>.jpg with <name>.json beside them, in the same shape.",
+ "recipes": [
+  {
+   "title": "Banana Bread",
+   "description": "Dense, moist and freckled with brown spots. Best the next day.",
+   "cuisine": "American",
+   "difficulty": "easy",
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 60,
+   "servings": "10",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "baking",
+    "breakfast",
+    "sweet"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "ripe bananas",
+     "amount": "3",
+     "unit": "",
+     "preparation": "mashed",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "plain flour",
+     "amount": "250",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "caster sugar",
+     "amount": "150",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "unsalted butter",
+     "amount": "115",
+     "unit": "g",
+     "preparation": "melted",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "eggs",
+     "amount": "2",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "baking soda",
+     "amount": "1",
+     "unit": "tsp",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "vanilla extract",
+     "amount": "1",
+     "unit": "tsp",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "walnuts",
+     "amount": "80",
+     "unit": "g",
+     "preparation": "chopped",
+     "isOptional": true,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Heat the oven to 175°C and line a loaf tin. Mash the bananas in a large bowl.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Whisk in the melted butter, sugar, eggs and vanilla.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Fold in the flour and baking soda until just combined, then the walnuts.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Pour into the tin and bake for 55–65 minutes until a skewer comes out clean.",
+     "durationMinutes": "60",
+     "timerLabel": "Bake banana bread",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Chocolate Chip Cookies",
+   "description": "Crisp edges, chewy middles, puddles of dark chocolate.",
+   "cuisine": "American",
+   "difficulty": "easy",
+   "prepTimeMinutes": 20,
+   "cookTimeMinutes": 12,
+   "servings": "24",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "baking",
+    "sweet",
+    "dessert"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "plain flour",
+     "amount": "300",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "unsalted butter",
+     "amount": "170",
+     "unit": "g",
+     "preparation": "softened",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "brown sugar",
+     "amount": "200",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "caster sugar",
+     "amount": "100",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "eggs",
+     "amount": "2",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "dark chocolate",
+     "amount": "200",
+     "unit": "g",
+     "preparation": "chopped",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "baking soda",
+     "amount": "1",
+     "unit": "tsp",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "vanilla extract",
+     "amount": "2",
+     "unit": "tsp",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "sea salt",
+     "amount": "",
+     "unit": "",
+     "preparation": "flaky, to finish",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Cream the butter with both sugars until pale and fluffy.",
+     "durationMinutes": "4",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Beat in the eggs and vanilla, then fold in the flour and baking soda.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Fold through the chopped chocolate and chill the dough for 30 minutes.",
+     "durationMinutes": "30",
+     "timerLabel": "Chill dough",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Scoop onto trays, sprinkle with sea salt, and bake at 180°C for 11–13 minutes.",
+     "durationMinutes": "12",
+     "timerLabel": "Bake cookies",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Classic Beef Bolognese",
+   "description": "A rich, slow-simmered ragù with beef and pork, built on a proper soffritto. Worth the time.",
+   "cuisine": "Italian",
+   "difficulty": "medium",
+   "prepTimeMinutes": 25,
+   "cookTimeMinutes": 180,
+   "servings": "8",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "pasta",
+    "beef",
+    "slow-cooked",
+    "family"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "olive oil",
+     "amount": "45",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "unsalted butter",
+     "amount": "40",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "onions",
+     "amount": "2",
+     "unit": "",
+     "preparation": "finely chopped",
+     "isOptional": false,
+     "groupLabel": "Soffritto"
+    },
+    {
+     "ingredientName": "carrots",
+     "amount": "2",
+     "unit": "",
+     "preparation": "finely chopped",
+     "isOptional": false,
+     "groupLabel": "Soffritto"
+    },
+    {
+     "ingredientName": "celery sticks",
+     "amount": "4",
+     "unit": "",
+     "preparation": "finely chopped",
+     "isOptional": false,
+     "groupLabel": "Soffritto"
+    },
+    {
+     "ingredientName": "garlic cloves",
+     "amount": "6",
+     "unit": "",
+     "preparation": "minced",
+     "isOptional": false,
+     "groupLabel": "Soffritto"
+    },
+    {
+     "ingredientName": "beef mince",
+     "amount": "500",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "pork mince",
+     "amount": "500",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "dry red wine",
+     "amount": "480",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "chopped tomatoes",
+     "amount": "800",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "tomato paste",
+     "amount": "40",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "whole milk",
+     "amount": "240",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "bay leaves",
+     "amount": "2",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "salt",
+     "amount": "",
+     "unit": "",
+     "preparation": "to taste",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "black pepper",
+     "amount": "",
+     "unit": "",
+     "preparation": "to taste",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Heat the olive oil and butter in a large, heavy pot over a medium-low heat. Add the finely chopped onion, carrot and celery along with a pinch of salt, and cook gently for 10–15 minutes until soft, sweet and translucent with no browning. Add the garlic and cook for a further 30–60 seconds until fragrant, then remove the soffritto and set aside, leaving the fat behind.",
+     "durationMinutes": "15",
+     "timerLabel": "Soften soffritto",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Raise the heat and brown the beef and pork mince in the same pot, breaking it up well. Take your time — a deep brown crust is where the flavour lives.",
+     "durationMinutes": "12",
+     "timerLabel": "Brown the mince",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Return the soffritto to the pot. Pour in the red wine and let it bubble until almost fully reduced, scraping up the browned bits.",
+     "durationMinutes": "8",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Stir in the chopped tomatoes, tomato paste, milk and bay leaves. Season, bring to a bare simmer, then cook uncovered on the lowest heat for 2–3 hours, stirring occasionally.",
+     "durationMinutes": "150",
+     "timerLabel": "Simmer the ragù",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Taste and adjust the salt and pepper. Discard the bay leaves before serving over fresh pasta.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Creamy Tomato Soup",
+   "description": "Velvety, deeply tomatoey and ready for grilled cheese dunking.",
+   "cuisine": "American",
+   "difficulty": "easy",
+   "prepTimeMinutes": 10,
+   "cookTimeMinutes": 30,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "soup",
+    "vegetarian",
+    "comfort"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "onions",
+     "amount": "1",
+     "unit": "",
+     "preparation": "diced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "garlic cloves",
+     "amount": "4",
+     "unit": "",
+     "preparation": "minced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "chopped tomatoes",
+     "amount": "800",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "vegetable stock",
+     "amount": "500",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "double cream",
+     "amount": "120",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "fresh basil",
+     "amount": "1",
+     "unit": "handful",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "olive oil",
+     "amount": "30",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "salt",
+     "amount": "",
+     "unit": "",
+     "preparation": "to taste",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Soften the onion in olive oil over medium heat, then add the garlic for a minute.",
+     "durationMinutes": "8",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Pour in the tomatoes and stock, season, and simmer for 20 minutes.",
+     "durationMinutes": "20",
+     "timerLabel": "Simmer soup",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Blitz smooth, stir through the cream and torn basil, and serve.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Fish Tacos",
+   "description": "Crisp battered fish, quick slaw and a lime crema in soft tortillas.",
+   "cuisine": "Mexican",
+   "difficulty": "medium",
+   "prepTimeMinutes": 25,
+   "cookTimeMinutes": 15,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "fish",
+    "tacos",
+    "fresh"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "white fish fillets",
+     "amount": "500",
+     "unit": "g",
+     "preparation": "cut into strips",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "plain flour",
+     "amount": "120",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "sparkling water",
+     "amount": "180",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "corn tortillas",
+     "amount": "8",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "white cabbage",
+     "amount": "200",
+     "unit": "g",
+     "preparation": "finely shredded",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "limes",
+     "amount": "2",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "soured cream",
+     "amount": "120",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "fresh coriander",
+     "amount": "1",
+     "unit": "handful",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Whisk the flour and sparkling water into a loose batter.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Dip the fish strips and fry until crisp and golden, then drain.",
+     "durationMinutes": "6",
+     "timerLabel": "Fry fish",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Toss the cabbage with the juice of one lime for a quick slaw, and mix the soured cream with the rest.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Warm the tortillas, fill with fish, slaw and crema, and finish with coriander.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Greek Salad",
+   "description": "No lettuce. Just ripe tomatoes, cucumber, feta and good oil.",
+   "cuisine": "Greek",
+   "difficulty": "easy",
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 0,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "salad",
+    "vegetarian",
+    "no-cook",
+    "summer"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "ripe tomatoes",
+     "amount": "4",
+     "unit": "",
+     "preparation": "cut into wedges",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "cucumber",
+     "amount": "1",
+     "unit": "",
+     "preparation": "thickly sliced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "red onion",
+     "amount": "1",
+     "unit": "",
+     "preparation": "thinly sliced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "feta",
+     "amount": "200",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "kalamata olives",
+     "amount": "100",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "extra virgin olive oil",
+     "amount": "60",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "dried oregano",
+     "amount": "1",
+     "unit": "tsp",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Combine the tomatoes, cucumber and red onion in a wide bowl.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Top with a slab of feta and the olives.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Drizzle generously with olive oil and shower with oregano. Don't toss.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Mushroom Risotto",
+   "description": "Slow-stirred, creamy and earthy. Meditative cooking.",
+   "cuisine": "Italian",
+   "difficulty": "medium",
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 35,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "rice",
+    "vegetarian",
+    "mushrooms"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "arborio rice",
+     "amount": "320",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "chestnut mushrooms",
+     "amount": "400",
+     "unit": "g",
+     "preparation": "sliced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "onions",
+     "amount": "1",
+     "unit": "",
+     "preparation": "finely diced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "garlic cloves",
+     "amount": "2",
+     "unit": "",
+     "preparation": "minced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "dry white wine",
+     "amount": "150",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "vegetable stock",
+     "amount": "1.2",
+     "unit": "l",
+     "preparation": "hot",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "parmesan",
+     "amount": "60",
+     "unit": "g",
+     "preparation": "grated",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "unsalted butter",
+     "amount": "40",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Brown the mushrooms in butter until golden, then set aside.",
+     "durationMinutes": "8",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Soften the onion and garlic, add the rice and toast for a minute until translucent at the edges.",
+     "durationMinutes": "5",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Deglaze with white wine, then add hot stock a ladle at a time, stirring until each is absorbed.",
+     "durationMinutes": "20",
+     "timerLabel": "Stir risotto",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Stir the mushrooms back in with the parmesan and a knob of butter to finish.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Shakshuka",
+   "description": "Eggs poached in a spiced pepper and tomato sauce. Brunch hero.",
+   "cuisine": "Middle Eastern",
+   "difficulty": "easy",
+   "prepTimeMinutes": 10,
+   "cookTimeMinutes": 25,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "eggs",
+    "breakfast",
+    "vegetarian"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "eggs",
+     "amount": "6",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "chopped tomatoes",
+     "amount": "800",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "red peppers",
+     "amount": "2",
+     "unit": "",
+     "preparation": "sliced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "onions",
+     "amount": "1",
+     "unit": "",
+     "preparation": "diced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "garlic cloves",
+     "amount": "3",
+     "unit": "",
+     "preparation": "minced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "ground cumin",
+     "amount": "1",
+     "unit": "tsp",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "smoked paprika",
+     "amount": "1",
+     "unit": "tsp",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "feta",
+     "amount": "100",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": true,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Soften the onion and peppers in oil, then add the garlic and spices.",
+     "durationMinutes": "8",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Pour in the tomatoes and simmer until thick and jammy.",
+     "durationMinutes": "12",
+     "timerLabel": "Reduce sauce",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Make wells and crack in the eggs. Cover and cook until the whites set.",
+     "durationMinutes": "6",
+     "timerLabel": "Poach eggs",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Crumble over feta and serve with bread.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Smash Burgers",
+   "description": "Thin, lacy-edged patties with maximum crust. A griddle classic.",
+   "cuisine": "American",
+   "difficulty": "easy",
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 10,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "beef",
+    "burger",
+    "quick"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "beef mince",
+     "amount": "600",
+     "unit": "g",
+     "preparation": "80/20",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "burger buns",
+     "amount": "4",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "american cheese",
+     "amount": "4",
+     "unit": "slices",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "onions",
+     "amount": "1",
+     "unit": "",
+     "preparation": "thinly sliced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "pickles",
+     "amount": "8",
+     "unit": "slices",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "salt",
+     "amount": "",
+     "unit": "",
+     "preparation": "to taste",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "black pepper",
+     "amount": "",
+     "unit": "",
+     "preparation": "to taste",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Roll the beef into loose balls. Get a griddle screaming hot.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Smash each ball flat on the griddle, season hard, and don't touch for 2 minutes until a crust forms.",
+     "durationMinutes": "2",
+     "timerLabel": "Sear patties",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Flip, top with cheese and onions, and toast the buns alongside.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Stack with pickles and serve immediately.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Spaghetti Carbonara",
+   "description": "The real thing — eggs, cheese, guanciale and pasta water. No cream.",
+   "cuisine": "Italian",
+   "difficulty": "medium",
+   "prepTimeMinutes": 10,
+   "cookTimeMinutes": 15,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "pasta",
+    "quick",
+    "eggs"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "spaghetti",
+     "amount": "400",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "guanciale",
+     "amount": "150",
+     "unit": "g",
+     "preparation": "diced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "egg yolks",
+     "amount": "4",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "whole eggs",
+     "amount": "1",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "pecorino romano",
+     "amount": "80",
+     "unit": "g",
+     "preparation": "grated",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "black pepper",
+     "amount": "",
+     "unit": "",
+     "preparation": "freshly ground",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Boil the spaghetti in well-salted water until al dente, reserving a mug of pasta water.",
+     "durationMinutes": "10",
+     "timerLabel": "Cook pasta",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Crisp the guanciale slowly in a cold pan until the fat renders and it turns golden.",
+     "durationMinutes": "8",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Whisk the egg yolks, whole egg, pecorino and lots of black pepper into a paste.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Toss the drained pasta with the guanciale off the heat, then stir in the egg mixture with splashes of pasta water until glossy.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Thai Green Curry",
+   "description": "Fragrant, coconut-rich and as hot as you dare to make it.",
+   "cuisine": "Thai",
+   "difficulty": "medium",
+   "prepTimeMinutes": 20,
+   "cookTimeMinutes": 25,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "curry",
+    "chicken",
+    "spicy",
+    "coconut"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "green curry paste",
+     "amount": "60",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "coconut milk",
+     "amount": "800",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "chicken thighs",
+     "amount": "600",
+     "unit": "g",
+     "preparation": "sliced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "thai aubergines",
+     "amount": "200",
+     "unit": "g",
+     "preparation": "quartered",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "bamboo shoots",
+     "amount": "150",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "fish sauce",
+     "amount": "30",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "palm sugar",
+     "amount": "15",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "thai basil",
+     "amount": "1",
+     "unit": "handful",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "kaffir lime leaves",
+     "amount": "4",
+     "unit": "",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Fry the curry paste in the thick top of the coconut milk until split and aromatic.",
+     "durationMinutes": "5",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Add the chicken and seal, then pour in the rest of the coconut milk.",
+     "durationMinutes": "5",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Add the aubergines, bamboo shoots and lime leaves, and simmer until tender.",
+     "durationMinutes": "15",
+     "timerLabel": "Simmer curry",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Season with fish sauce and palm sugar, finish with thai basil.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  },
+  {
+   "title": "Weeknight Chicken Stir-Fry",
+   "description": "Fast, fresh and endlessly adaptable — on the table in 20 minutes.",
+   "cuisine": "Chinese",
+   "difficulty": "easy",
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 10,
+   "servings": "4",
+   "servingsUnit": "servings",
+   "mealRole": null,
+   "mealTypes": [],
+   "tags": [
+    "chicken",
+    "quick",
+    "vegetables"
+   ],
+   "ingredients": [
+    {
+     "ingredientName": "chicken breasts",
+     "amount": "3",
+     "unit": "",
+     "preparation": "sliced thin",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "broccoli florets",
+     "amount": "300",
+     "unit": "g",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "red peppers",
+     "amount": "2",
+     "unit": "",
+     "preparation": "sliced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "carrots",
+     "amount": "2",
+     "unit": "",
+     "preparation": "julienned",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "garlic cloves",
+     "amount": "3",
+     "unit": "",
+     "preparation": "minced",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "fresh ginger",
+     "amount": "20",
+     "unit": "g",
+     "preparation": "grated",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "soy sauce",
+     "amount": "60",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "sesame oil",
+     "amount": "15",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "vegetable oil",
+     "amount": "30",
+     "unit": "ml",
+     "preparation": "",
+     "isOptional": false,
+     "groupLabel": ""
+    },
+    {
+     "ingredientName": "spring onions",
+     "amount": "4",
+     "unit": "",
+     "preparation": "sliced",
+     "isOptional": false,
+     "groupLabel": ""
+    }
+   ],
+   "steps": [
+    {
+     "instruction": "Heat the vegetable oil in a wok over high heat. Sear the chicken until golden and just cooked through, then remove.",
+     "durationMinutes": "5",
+     "timerLabel": "Sear chicken",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Add the broccoli, peppers and carrot to the hot wok and stir-fry until crisp-tender.",
+     "durationMinutes": "4",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Add the garlic and ginger, toss for 30 seconds, then return the chicken with the soy sauce and sesame oil.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    },
+    {
+     "instruction": "Finish with sliced spring onions and serve over rice.",
+     "durationMinutes": "",
+     "timerLabel": "",
+     "groupLabel": ""
+    }
+   ],
+   "notes": null
+  }
+ ]
+}

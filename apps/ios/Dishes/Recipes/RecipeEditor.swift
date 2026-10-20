@@ -7,6 +7,11 @@
 // (photo, nutrition, notes, source link, meal types) is carried over from the
 // device's copy of the row rather than cleared.
 //
+// A draft from the on-device AI (a scanned page, ConciergeSheet) opens it as
+// a new recipe filled in, marked as read by the AI, to check against the page;
+// saving sends it to POST /api/v1/recipes/generated, so it's saved as the
+// server's own AI recipes are (marked AI, filed in a collection when one fits).
+//
 // Each step remembers which ingredients it uses (the links cooking mode shows
 // as chips). Ingredients get new ids on every save, so the links travel as
 // positions in the ingredients list (`ingredientIndexes`) and the server maps
@@ -14,12 +19,22 @@
 
 import DishesCore
 import SwiftUI
+import UIKit
+
+/// A recipe the AI read (a scanned page), for the editor to check before saving.
+struct ReviewDraft: Identifiable {
+    let id = UUID()
+    var recipe: GeneratedRecipe
+    var engine: AIEngine
+}
 
 struct RecipeEditor: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     /// nil: a new recipe.
     let recipeId: String?
+    /// A new recipe read by the AI, to check before it's saved.
+    var draft: ReviewDraft? = nil
     var onSaved: ((String) -> Void)?
 
     struct EditIngredient: Identifiable, Hashable {
@@ -62,6 +77,21 @@ struct RecipeEditor: View {
             Form {
                 switch tab {
                 case .details:
+                if let draft {
+                    Section {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(draft.engine == .device ? "Read on this \(UIDevice.current.model)" : "Read by the AI")
+                                    .font(.system(size: 15, weight: .semibold))
+                                Text("Check it against the page, then save.")
+                                    .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                            }
+                        } icon: {
+                            Image(systemName: draft.engine == .device ? "apple.intelligence" : "sparkles").foregroundStyle(Theme.brand)
+                        }
+                    }
+                    .listRowBackground(Theme.orange50)
+                }
                 Section("Recipe") {
                     TextField("Title", text: $title)
                         .font(.system(size: 17, weight: .semibold))
@@ -194,7 +224,7 @@ struct RecipeEditor: View {
                 .background(.bar)
             }
             .tint(Theme.brand)
-            .navigationTitle(recipeId == nil ? "New recipe" : "Edit recipe")
+            .navigationTitle(draft != nil ? "Check the recipe" : recipeId == nil ? "New recipe" : "Edit recipe")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $pasting) {
                 PasteImportSheet { parsed in
@@ -243,6 +273,10 @@ struct RecipeEditor: View {
     private func load() async {
         guard !loaded else { return }
         loaded = true
+        if let draft {
+            fill(from: draft.recipe)
+            return
+        }
         guard let recipeId,
               let row = try? await app.store.read({ try $0.record(.recipes, id: recipeId) }),
               let recipe = Recipe(row) else { return }
@@ -273,9 +307,70 @@ struct RecipeEditor: View {
         if steps.isEmpty { steps = [EditStep()] }
     }
 
+    private func fill(from recipe: GeneratedRecipe) {
+        title = recipe.title
+        summary = recipe.description
+        cuisine = recipe.cuisine
+        prep = recipe.prepTimeMinutes.map(String.init) ?? ""
+        cook = recipe.cookTimeMinutes.map(String.init) ?? ""
+        servings = recipe.servings
+        servingsUnit = recipe.servingsUnit
+        difficulty = recipe.difficulty
+        role = recipe.mealRole ?? ""
+        tags = recipe.tags.joined(separator: ", ")
+        ingredients = recipe.ingredients.map {
+            EditIngredient(name: $0.ingredientName, amount: $0.amount, unit: $0.unit, preparation: $0.preparation,
+                           group: $0.groupLabel, optional: $0.isOptional)
+        }
+        steps = recipe.steps.map {
+            EditStep(instruction: $0.instruction, minutes: $0.durationMinutes, timerLabel: $0.timerLabel, group: $0.groupLabel)
+        }
+        if ingredients.isEmpty { ingredients = [EditIngredient()] }
+        if steps.isEmpty { steps = [EditStep()] }
+    }
+
+    /// The draft as edited, in the shape POST /api/v1/recipes/generated takes.
+    private func edited(_ draft: ReviewDraft) -> GeneratedRecipe {
+        let trim = { (s: String) in s.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var recipe = draft.recipe
+        recipe.title = trim(title)
+        recipe.description = trim(summary)
+        recipe.cuisine = trim(cuisine)
+        recipe.prepTimeMinutes = Int(trim(prep))
+        recipe.cookTimeMinutes = Int(trim(cook))
+        recipe.servings = trim(servings).isEmpty ? "4" : trim(servings)
+        recipe.servingsUnit = trim(servingsUnit).isEmpty ? "servings" : trim(servingsUnit)
+        recipe.difficulty = difficulty.isEmpty ? "medium" : difficulty
+        recipe.mealRole = role.isEmpty ? nil : role
+        recipe.tags = tags.split(separator: ",").map { trim(String($0)) }.filter { !$0.isEmpty }
+        recipe.ingredients = ingredients.filter { !trim($0.name).isEmpty }.map {
+            .init(ingredientName: trim($0.name), amount: trim($0.amount), unit: trim($0.unit),
+                  preparation: trim($0.preparation), isOptional: $0.optional, groupLabel: trim($0.group))
+        }
+        recipe.steps = steps.filter { !trim($0.instruction).isEmpty }.map {
+            .init(instruction: trim($0.instruction), durationMinutes: Int(trim($0.minutes)).map(String.init) ?? "",
+                  timerLabel: trim($0.timerLabel), groupLabel: trim($0.group))
+        }
+        return recipe
+    }
+
     private func save() async {
         saving = true
         defer { saving = false }
+        if let draft {
+            do {
+                let made = try await app.api.saveGeneratedRecipe(edited(draft))
+                app.toast = made.collectionName.map { "Saved \(made.title) to \($0)." } ?? "Saved \(made.title)."
+                await app.syncNow()
+                dismiss()
+                onSaved?(made.recipeId)
+            } catch APIError.http(_, _, let message) {
+                app.toast = "Couldn’t save: \(message)"
+            } catch {
+                app.toast = app.online ? "Couldn’t save the recipe." : "You’re offline — saving it needs a connection. It stays here until then."
+            }
+            return
+        }
         let text = { (s: String) -> JSONValue in
             let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
             return t.isEmpty ? .null : .string(t)
@@ -339,7 +434,10 @@ struct RecipeEditor: View {
 }
 
 /// The web's paste import: paste the ingredient list and the method as text
-/// (from a website, a message, notes) and they're parsed into rows.
+/// (from a website, a message, notes) and they're parsed into rows — on the
+/// device, offline: the server's rules (MethodRules, IngredientRules), with
+/// the on-device model tidying the ingredient lines they misread
+/// (IngredientLineReader).
 struct PasteImportSheet: View {
     struct Parsed: Decodable, Sendable {
         struct Ingredient: Decodable, Sendable { var ingredientName: String; var amount: String; var unit: String; var preparation: String; var isOptional: Bool; var groupLabel: String }
@@ -349,6 +447,23 @@ struct PasteImportSheet: View {
     }
     @Environment(\.dismiss) private var dismiss
     var imported: (Parsed) -> Void
+
+    /// As the server's `import.parse`: method-looking lines in the ingredients
+    /// box move to the method when the method box is empty.
+    static func parse(_ ingredientText: String, _ methodText: String) async -> Parsed {
+        let split = MethodRules.splitIngredients(ingredientText)
+        let rows = await IngredientLineReader.read(split.lines)
+        let method = methodText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? split.leftover : methodText
+        return Parsed(
+            ingredients: rows.map { row in
+                let i = row.value
+                return .init(ingredientName: i.ingredientName, amount: i.amount, unit: i.unit, preparation: i.preparation,
+                             isOptional: i.isOptional, groupLabel: i.groupLabel)
+            },
+            steps: MethodRules.steps(method).map {
+                .init(instruction: $0.instruction, durationMinutes: $0.durationMinutes, timerLabel: $0.timerLabel, groupLabel: $0.groupLabel)
+            })
+    }
     @State private var ingredientText = ""
     @State private var methodText = ""
     @State private var working = false
@@ -375,15 +490,13 @@ struct PasteImportSheet: View {
                     Button(working ? "Reading…" : "Add") {
                         Task {
                             working = true; defer { working = false }
-                            do {
-                                let parsed = try await AppModel.shared.api.action("import.parse", [.string(ingredientText), .string(methodText)], as: Parsed.self)
-                                if parsed.ingredients.isEmpty && parsed.steps.isEmpty {
-                                    AppModel.shared.toast = "Nothing recognisable there."
-                                } else {
-                                    imported(parsed)
-                                    dismiss()
-                                }
-                            } catch { AppModel.shared.toast = WebAction.explain(error) }
+                            let parsed = await Self.parse(ingredientText, methodText)
+                            if parsed.ingredients.isEmpty && parsed.steps.isEmpty {
+                                AppModel.shared.toast = "Nothing recognisable there."
+                            } else {
+                                imported(parsed)
+                                dismiss()
+                            }
                         }
                     }
                     .bold()

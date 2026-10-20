@@ -832,10 +832,19 @@ index. Everything here works without AI and offline.
 
 ### D2. The local-first AI engine (`DishesCore/AI`)
 
+*Decided (James, 20 Oct 2026):* every family device can run the on-device
+model, and **Private Cloud Compute isn't used** — the router goes device →
+server only. **"Close enough"**, set when D2 was built: a job moves to the
+device when, on its evaluation set, (1) every sample passes the structure
+checks, (2) its expected-answer score is at least 90% of the server's on the
+same set, and (3) at least 0.75 out of 1 whatever the server scores. With no
+server score yet (no household key where the evaluation ran), (1) and (3)
+decide, and the server is measured when it can be.
+
 One place that decides where each AI job runs, so features don't each decide
 for themselves.
 
-- [ ] **`AIRouter`** — each job (`AITask`) says what it needs; the router picks
+- [x] **`AIRouter`** — each job (`AITask`) says what it needs; the router picks
   the first option that can do it:
   1. **On the device:** `SystemLanguageModel.default`, guided generation into
      `@Generable` types, with `OCRTool` / `BarcodeReaderTool`
@@ -847,36 +856,76 @@ for themselves.
      step
   3. **The server:** the household's OpenAI key, through D5's
      `DishesServerModel` or the existing `/api/v1/ai/*` route
-- [ ] **When it falls back to the server:** Apple Intelligence unavailable
+
+  *Done (v1.56.0), `DishesCore/AI/AIRouter.swift`:* device → fallback, no
+  Private Cloud Compute. A job's fallback is the server, or — for ingredient
+  lines, which the server reads with rules — the rules on the device. Not
+  `OCRTool`: Vision reads the page first (`RecipeReader`) and the text goes in
+  the prompt, the photo too when there's little text. The tool would make the
+  small model decide to read, and `_Vision_FoundationModels` isn't in the
+  simulator SDK
+- [x] **When it falls back to the server:** Apple Intelligence unavailable
   (device, setting, model still downloading, language); the job is marked
   server-only (below); or the on-device attempt fails — `LanguageModelError`
   (`contextSizeExceeded`, `guardrailViolation`, `refusal`, `timeout`), or the
   result fails our own checks (every step's ingredient references exist,
   amounts are numbers, metric units when the household is metric, no empty
-  steps). One automatic retry on the server, no prompt to the user
-- [ ] **Show where it ran:** a small "On this iPad" / "Finished on the server"
+  steps). One automatic retry on the server, no prompt to the user. *Done
+  (v1.56.0), `AIChecks.swift`:* plus every unit and amount must be on the
+  page (the model added "kg" to "4 ripe tomatoes" before that check). There
+  are no ingredient references in `GeneratedRecipe`, so nothing to check there
+- [x] **Show where it ran:** a small "On this iPad" / "Finished on the server"
   label on AI results, and a Settings → AI row saying whether this device can
-  run Dishes' AI on the device. Helps while tuning; can be quieter later
+  run Dishes' AI on the device. Helps while tuning; can be quieter later.
+  *Done (v1.56.0):* "Read on this iPad" on the review screen; Settings → AI →
+  "This iPad" (where reading runs, the model and its context size, or why not)
 - [ ] **Dynamic Profiles** (`LanguageModelSession.DynamicProfile`, `.model(_:)`)
   so a conversation (cook assist) moves to the server mid-session without
-  losing the transcript, instead of restarting
-- [ ] **Shared Swift types:** `GeneratedRecipe`, `GeneratedIngredient`,
+  losing the transcript, instead of restarting. *Moved to D5:* it needs the
+  server as a `LanguageModel` (`DishesServerModel`) to switch to, and cook
+  assist is the first job that needs it
+- [x] **Shared Swift types:** `GeneratedRecipe`, `GeneratedIngredient`,
   `GeneratedStep`, `RecipeConcept` as `@Generable` structs matching the
   TypeScript `GeneratedRecipe` field for field (`ingredientName`, `amount`,
   `unit`, `preparation`, `isOptional`, `groupLabel`…), with `@Guide`
   descriptions taken from the server prompts. A JSON fixture shared with the
-  web tests keeps the two in step, as C2 does for sync
-- [ ] **Prompt copies:** the on-device prompts are Swift copies of the server
+  web tests keeps the two in step, as C2 does for sync. *Done (v1.56.0):*
+  `GeneratedRecipe` (Codable, the wire twin) and `fixtures/wire/generated-recipe.json`,
+  decoded by the Swift tests and parsed by the server's schema in
+  `check:ai-context`. What the model fills is a separate, smaller `@Generable`
+  `RecipeDraft` (no nutrition, role or collection — the server's job), with a
+  regex guide on amounts. `RecipeConcept` waits for the concierge job (D3)
+- [x] **Prompt copies:** the on-device prompts are Swift copies of the server
   ones (`analyzeRecipePhoto`, `fullRecipeSystemPrompt`, `buildSystemAddendum`).
   Put a comment on each side pointing at the other, so a change to one gets
-  made to both
-- [ ] **Evaluations** (`Evaluations.framework`, Xcode 27): a fixed set per job
+  made to both. *Done (v1.56.0), `Prompts.swift`:* `buildSystemAddendum` and
+  `analyzeRecipePhoto` (less "always use metric" — see the comment there), with
+  comments both ways; `fullRecipeSystemPrompt` comes with the concierge job.
+  The ingredient rules are copies too (`IngredientRules`, `MethodRules`),
+  checked against `fixtures/ingredient-lines.json` on both sides
+- [x] **Evaluations** (`Evaluations.framework`, Xcode 27): a fixed set per job
   — 20 cookbook photos and recipe cards (scanned, handwritten, two-column),
   20 pasted-text pages, 30 ingredient lines, 15 cook-assist questions — scored
   on structure (fields, references, units) and against expected answers. **A
   job's default moves to the device only once the on-device model scores
   within an agreed margin of the server on its set.** Re-run after each
-  iOS point release
+  iOS point release. *Done (v1.56.0) for the first two jobs*, in the
+  `DishesCoreEvaluations` target (`DISHES_EVALS=1 swift test --filter
+  DishesCoreEvaluations`; results in `fixtures/evals/results/`):
+  - **Ingredient lines** (32): device 0.969, rules (the server's path) 0.836,
+    every answer passing its checks → device
+  - **Recipe cards** (20): the dev seed's recipes printed in 20 styles —
+    handwriting fonts, two columns, tilted, tinted paper: device 0.964, every
+    card passing its checks → device. The server isn't measured yet (no
+    household key where it ran), so the 0.75 floor decided. What it took: the
+    model copies each quantity as printed and the rules split it (asked for the
+    unit itself, it gave counted things one — "8 ea corn tortillas"); no
+    "always use metric" in the reading prompt; a regex guide on amounts only
+    (guides take `\d` and `\w`, no character classes; a unit guide made
+    everything worse). Seen on the simulator: "1 tsp dried oregano" can lose
+    its "tsp" — the review screen is there for that **Real photos still wanted:** drop `<name>.jpg` + `<name>.json`
+    (GeneratedRecipe) into `fixtures/evals/recipe-photos/` and they join the set
+  - Pasted text and cook assist get their sets with their jobs (D3)
 
 **Where each job starts** (the router's table, revised by the evaluations):
 
@@ -884,7 +933,7 @@ for themselves.
 |---|---|---|
 | Ingredient line → structured (editor, shopping add) | Device | Small, offline, instant |
 | Pasted / shared text → recipe | Device | Text-only, fits easily |
-| Photo or scan → recipe | Device (image + `OCRTool`) | iOS 27 multimodal; was `/ai/photo-recipe` |
+| Photo or scan → recipe | Device (Vision text, + the image when there's little) | iOS 27 multimodal; was `/ai/photo-recipe` |
 | Collection suggestion for a new recipe | Device | Picking from a short list |
 | Cook assist ("Ask about this step") | Device, server via Dynamic Profile | Short answers, offline in the kitchen |
 | Improve / heart-healthy / refine a recipe | Device if the evaluation passes | One recipe in, one out |
@@ -896,22 +945,32 @@ for themselves.
 
 ### D3. On-device AI features
 
-- [ ] **Scan a cookbook page or recipe card** (replaces the Tier 3 item):
+- [x] **Scan a cookbook page or recipe card** (replaces the Tier 3 item):
   VisionKit document camera or a photo → `ImageAttachment` + `OCRTool` →
   `GeneratedRecipe` → review screen (the existing `RecipeEditor`, filled in) →
   `POST /api/v1/recipes/generated`. Two-page recipes: several photos in one
   session. Nutrition is then filled in by the server's `ai.estimateNutrition`
-  in the background, so the on-device model doesn't have to guess it
+  in the background, so the on-device model doesn't have to guess it.
+  *Done (v1.56.0):* New Recipe →
+  Scan a recipe… (VisionKit's document camera, any number of pages) or From a
+  photo…, then `ConciergeSheet.readPhotos` → `RecipeEditor` as "Check the
+  recipe" → `POST /api/v1/recipes/generated`. Falling back, the server reads
+  it (pages stacked into one image) and saves it as before. Saved without
+  nutrition, the server estimates it with the household's key in `after()`
+  and it follows in the next sync
 - [ ] **Share extension, beyond web pages:** shared text (Notes, Messages,
   Instagram captions) and screenshots go through the same device-first
   pipeline. Web links still go to `/recipes/import-url`, which reads the page's
   recipe data properly; the device handles the text when the server's reader
   can't. Needs the App Group's cached AI context (D0) and staying inside the
   extension's memory limit (check on the iPad)
-- [ ] **Ingredient lines as you type:** the recipe editor and the shopping add
+- [x] **Ingredient lines as you type:** the recipe editor and the shopping add
   card turn "2 tbsp finely chopped parsley" into amount / unit / name /
   preparation, offline. Quick rules first (`DishesCore`), the model only for
-  what they can't read
+  what they can't read. *Done (v1.56.0):* `IngredientLineReader`.
+  The shopping add card splits "500g beef mince" into its fields; the recipe
+  editor's Paste import reads on the device, offline (it was the server's
+  `import.parse`). The editor's own rows still take the parts separately
 - [ ] **Cook assist on the device** (`CookAssistSheet`): the same context
   `CookAssistContext` sends today, kept on the device and streamed with
   `streamResponse`. Pairs with D1's "how much butter?" and with the Tier 1

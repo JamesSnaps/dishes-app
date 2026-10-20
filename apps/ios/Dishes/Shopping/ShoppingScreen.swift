@@ -379,13 +379,20 @@ struct AddItemCard: View {
         let trimmed = (picked ?? name).trimmingCharacters(in: .whitespacesAndNewlines)
         // Done on an empty field means "finished adding".
         guard !trimmed.isEmpty else { focused = false; return }
-        let qty = amount.trimmingCharacters(in: .whitespaces)
-        let u = unit.trimmingCharacters(in: .whitespaces)
+        var qty = amount.trimmingCharacters(in: .whitespaces)
+        var u = unit.trimmingCharacters(in: .whitespaces)
         name = ""; amount = ""; unit = ""
         // Stay in the field: items usually come in a run.
         focused = true
         Task {
-            await app.addShoppingItem(trimmed, amount: qty.isEmpty ? nil : qty, unit: u.isEmpty ? nil : u,
+            var item = trimmed
+            // "500g beef mince" typed into the name: the amount and unit go in their own
+            // fields, as the recipe editor reads a line (rules, then the on-device model).
+            if picked == nil, qty.isEmpty, u.isEmpty, let read = await IngredientLineReader.read(trimmed)?.value,
+               !read.amount.isEmpty {
+                (item, qty, u) = (read.ingredientName, read.amount, read.unit)
+            }
+            await app.addShoppingItem(item, amount: qty.isEmpty ? nil : qty, unit: u.isEmpty ? nil : u,
                                       category: category.isEmpty ? remembered : category)
         }
     }

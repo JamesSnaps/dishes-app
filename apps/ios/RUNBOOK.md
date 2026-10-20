@@ -221,6 +221,33 @@ Simulator limits (Xcode 27.1):
   By hand: Shortcuts → Dishes shows every action; Spotlight (swipe down on
   the Home Screen) finds a recipe by an ingredient.
 
+## On-device AI (Phase D2)
+
+- **`DishesCore/AI`:** the router (device first, then the server — or, for
+  ingredient lines, the rules), the checks an on-device answer must pass, the
+  prompts (Swift copies of the server's, each pointing at its original), and
+  the two jobs so far: `IngredientLineReader` and `RecipeReader`.
+- **The simulator uses the Mac's model**, so it needs Apple Intelligence on
+  the Mac. The document camera isn't in the simulator: test scans with From a
+  photo… after `xcrun simctl addmedia <udid> card.png`.
+- **Evaluations** decide where a job starts (`AITask.firstTry`), and run on
+  the Mac (macOS 27, the same model as the devices — check Settings → AI →
+  This iPad shows the same model as `DeviceAI.modelDescription` on the Mac):
+
+  ```bash
+  cd apps/ios/Packages/DishesCore
+  DISHES_EVALS=1 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --filter DishesCoreEvaluations
+  ```
+
+  About 6 minutes. Results go to `fixtures/evals/results/<job>.json`; the
+  rule for "close enough" is in TODO_MOBILE.md, D2. To see the printed cards:
+  add `DISHES_EVAL_CARDS=<folder>`. Real photos go in
+  `fixtures/evals/recipe-photos/` (`<name>.jpg` + `<name>.json`). Keep the
+  prompts' examples out of the evaluation sets, or the score means nothing.
+- **Rules shared with the web** (`IngredientRules`, `MethodRules`) are checked
+  against `fixtures/ingredient-lines.json` by `IngredientRulesTests` and
+  `pnpm --filter @dishes/web check:ai-context`.
+
 ## Things worth knowing
 
 - **Week keys are local dates.** Meal plans are keyed `yyyy-MM-dd` on the
@@ -1137,3 +1164,40 @@ This Mac, after the macOS 27 update: no simulator runtimes and no xcodegen —
 see One-time setup. The dev database made with `drizzle-kit push` alone has
 no sync triggers, so a device only ever sees its first snapshot; the README's
 local-dev step now applies them.
+
+### 20 Oct 2026 — iOS 27 Phase D2: on-device AI, first two jobs (v1.56.0)
+
+`DishesCore/AI`: the router (device → server, or the rules for ingredient
+lines; no Private Cloud Compute), the checks an answer must pass, Swift copies
+of the server's prompts and ingredient rules, and two jobs —
+`IngredientLineReader` (rules, then the model for the lines they misread) and
+`RecipeReader` (Vision reads the page, the model fills a `@Generable` draft).
+In the app: New Recipe → Scan a recipe… (document camera, several pages) /
+From a photo… → "Check the recipe" (RecipeEditor, "Read on this iPad") →
+`POST /api/v1/recipes/generated`, the server estimating nutrition after; the
+shopping add card and Paste import read lines on the device; Settings → AI →
+This iPad.
+
+Evaluations (`DishesCoreEvaluations`, on this Mac, AFM 3 Core, 4,096 tokens):
+ingredient lines 0.969 against the rules' 0.836, 32/32 checks; recipe cards
+0.964, 20/20 checks (server not measured: no key). Both start on the device.
+
+Checked on the iPad Pro 11" simulator against the dev server: typing "2 tbsp
+finely chopped flat-leaf parsley" on the shopping list saved 2 · tbsp ·
+flat-leaf parsley; From a photo… with a printed Greek Salad card read it on
+the device in about 20 seconds, opened "Check the recipe", and saving gave the
+server an AI recipe with 7 ingredients and 3 steps — counted ones without
+units, 200 g feta, 60 ml oil — but "1 tsp dried oregano" lost its "tsp".
+
+Found on the way:
+- The concierge sheet's `.task` is cancelled as the photo picker closes, and
+  a cancelled Vision request fails: the read now starts in its own Task.
+- The server's "always use metric" made the model add units ("4 kg tomato"):
+  left out of the reading prompt (noted on both sides), and every unit and
+  amount must now be on the page.
+- Guided generation takes `\d` and `\w` but no character classes; Swift's
+  `\d` matches ½ where JavaScript's doesn't, so the rules use `[0-9]`.
+
+**Not checked:** the document camera (no camera in the simulator), Paste import
+by hand, real cookbook photos, the server's score on the same sets (needs a
+key), the fallback with a key set up, a device build.

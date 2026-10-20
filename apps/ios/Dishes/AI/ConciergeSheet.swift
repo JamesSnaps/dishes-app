@@ -2,11 +2,14 @@
 // say what you fancy and tick any of five ideas — each is written out and
 // saved to the household's recipes — or, under "I know what I want", name the
 // dish and it's written straight away. Or point the camera at a cookbook page
-// and it's read in. Everything runs on the server with the household's own
-// AI key, so this needs a connection.
+// and it's read in: on the device when it can (DishesCore/AI/RecipeReader,
+// offline, no key needed), and then shown in the recipe editor to check
+// before it's saved; otherwise on the server, which saves it straight away.
+// The ideas and the writing run on the server with the household's own AI
+// key, so they need a connection.
 //
 //   .sheet { ConciergeSheet { recipeId in path.append(recipeId) } }
-//   .sheet { ConciergeSheet(photo: image) { … } }   // straight to reading a photo
+//   .sheet { ConciergeSheet(photos: pages) { … } }  // straight to reading a photo (or a scan's pages)
 //   ConciergeSheet(inTab: true) { … }                 // the AI tab: no Close, starts over after saving
 
 import DishesCore
@@ -17,8 +20,8 @@ import UIKit
 struct ConciergeSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    /// A photo of a recipe to read in at once (New Recipe → From a photo).
-    var photo: UIImage? = nil
+    /// A photo of a recipe, or a scan's pages, to read in at once (New Recipe → From a photo, Scan pages).
+    var photos: [UIImage] = []
     /// Shown as the AI tab rather than a sheet: nothing to close, and once a
     /// recipe is saved the form is cleared for the next one.
     var inTab = false
@@ -30,6 +33,8 @@ struct ConciergeSheet: View {
         case thinking
         case ideas([APIClient.Concept])
         case writing(String)
+        /// A photo being read on the device.
+        case reading
         /// Several ideas being written one after another.
         case batch([BatchItem])
         case failed(String)
@@ -54,6 +59,10 @@ struct ConciergeSheet: View {
     @State private var picked: PhotosPickerItem?
     @State private var usingCamera = false
     @State private var configured: Bool?
+    /// A recipe read on the device, open in the editor to check before saving.
+    @State private var review: ReviewDraft?
+    /// The photos passed in have been sent to be read (once, however often the view reappears).
+    @State private var readingStarted = false
 
     private static let mealTypes = ["breakfast", "lunch", "dinner", "dessert", "snack"]
     private static let starters = ["Quick weeknight pasta", "Something with chicken thighs", "A cosy vegetarian curry",
@@ -64,14 +73,17 @@ struct ConciergeSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     header
-                    if configured == false {
+                    if configured == false && stage == .asking {
                         notConfigured
+                        // Reading a photo on the device needs no key.
+                        if DeviceAI.isAvailable { photoSection }
                     } else {
                         switch stage {
                         case .asking: askForm
                         case .thinking: working("Thinking up five ideas…", detail: "Usually 10–20 seconds.")
                         case .ideas(let concepts): ideas(concepts)
                         case .writing(let what): working(what, detail: "Writing ingredients, steps and nutrition takes about a minute.")
+                        case .reading: working("Reading the recipe on this device…", detail: "Usually under half a minute. You check it before it’s saved.")
                         case .batch(let items): batch(items)
                         case .failed(let message): failed(message)
                         }
@@ -92,21 +104,29 @@ struct ConciergeSheet: View {
             }
         }
         .interactiveDismissDisabled(isBusy)
+        .sheet(item: $review) { draft in
+            RecipeEditor(recipeId: nil, draft: draft) { reviewed($0) }
+        }
         .fullScreenCover(isPresented: $usingCamera) {
-            CameraPicker { image in Task { await readPhoto(image) } }.ignoresSafeArea()
+            CameraPicker { image in Task { await readPhotos([image]) } }.ignoresSafeArea()
         }
         .onChange(of: picked) { _, item in
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                    await readPhoto(image)
+                    await readPhotos([image])
                 }
                 picked = nil
             }
         }
         .task {
+            // Not awaited here: presenting this sheet as the photo picker closes can restart the
+            // view, which cancels `.task` — and a read cancelled half way stops Vision.
+            if !photos.isEmpty, !readingStarted {
+                readingStarted = true
+                Task { await readPhotos(photos) }
+            }
             configured = (try? await app.api.aiStatus())?.configured
-            if configured != false, let photo, stage == .asking { await readPhoto(photo) }
         }
         // As a tab it stays alive, so look again once a key may have been added.
         .onAppear {
@@ -117,7 +137,7 @@ struct ConciergeSheet: View {
 
     private var isBusy: Bool {
         switch stage {
-        case .thinking, .writing: true
+        case .thinking, .writing, .reading: true
         case .batch(let items): items.contains { $0.status == .waiting || $0.status == .writing }
         default: false
         }
@@ -223,6 +243,11 @@ struct ConciergeSheet: View {
             .buttonStyle(.gradient(.violetOrange))
             .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
+            photoSection
+        }
+    }
+
+    private var photoSection: some View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("OR FROM A PHOTO")
                     .font(.system(size: 12, weight: .semibold)).tracking(0.6)
@@ -237,11 +262,12 @@ struct ConciergeSheet: View {
                     }
                     .buttonStyle(.outline)
                 }
-                Text("A cookbook page, a handwritten card or a screenshot. It’s read and saved as a recipe.")
+                Text(DeviceAI.isAvailable
+                     ? "A cookbook page, a handwritten card or a screenshot. It’s read on this device and you check it before it’s saved."
+                     : "A cookbook page, a handwritten card or a screenshot. It’s read and saved as a recipe.")
                     .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
             }
             .padding(.top, 6)
-        }
     }
 
     private func ideas(_ concepts: [APIClient.Concept]) -> some View {
@@ -432,14 +458,53 @@ struct ConciergeSheet: View {
         created(made.recipeId)
     }
 
-    private func readPhoto(_ image: UIImage) async {
-        guard let jpeg = CookReviewSheet.jpeg(image) else { return }
-        stage = .writing("Reading the recipe from your photo…")
+    /// The router's two outcomes: a draft to check (the device), or a recipe already saved (the server).
+    private enum Read: Sendable {
+        case draft(RecipeReader.Reading)
+        case saved(APIClient.CreatedRecipe)
+    }
+
+    /// One photo or a scan's pages: read on the device into a draft for the
+    /// editor, or — with no on-device model, or an answer that fails its
+    /// checks — by the server, which saves it (the pages joined into one image).
+    private func readPhotos(_ images: [UIImage]) async {
+        let pages = images.compactMap { $0.uprightCGImage(maxDimension: 2400) }
+        guard !pages.isEmpty else { return }
+        stage = DeviceAI.isAvailable ? .reading : .writing("Reading the recipe from your photo…")
+        let context = AIContext.cached
+        let metric = (context?.measurementSystem ?? "metric") == "metric"
         do {
-            await open(try await app.api.recipeFromPhoto(jpeg))
+            let run = try await AIRouter.run(
+                .scanRecipe,
+                onDevice: {
+                    guard #available(iOS 27, *) else { throw CancellationError() }
+                    return Read.draft(try await RecipeReader.read(pages, context: context))
+                },
+                check: {
+                    guard case .draft(let reading) = $0 else { return [] }
+                    return RecipeChecks.problems(reading.recipe, metric: metric, pageText: reading.pageText)
+                },
+                fallback: {
+                    if stage == .reading { stage = .writing("Reading the recipe from your photo…") }
+                    guard let jpeg = CookReviewSheet.jpeg(UIImage.stacked(images)) else { throw CancellationError() }
+                    return Read.saved(try await app.api.recipeFromPhoto(jpeg))
+                })
+            switch run.value {
+            case .draft(let reading):
+                stage = .asking
+                review = ReviewDraft(recipe: reading.recipe, engine: run.engine)
+            case .saved(let made):
+                await open(made)
+            }
         } catch {
             stage = .failed(Self.explain(error))
         }
+    }
+
+    /// The reviewed draft was saved from the editor (which synced it down).
+    private func reviewed(_ recipeId: String) {
+        if inTab { stage = .asking; prompt = "" } else { dismiss() }
+        created(recipeId)
     }
 
     /// Waits for the saved recipe to sync down, then shows it.

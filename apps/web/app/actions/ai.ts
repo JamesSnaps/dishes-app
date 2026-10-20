@@ -1794,6 +1794,10 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
 
 // ── Scan a recipe photo and extract a full structured recipe ──────────────────
 
+// The iOS app reads photos on the device first, with a copy of this prompt
+// (DishesCore/AI/Prompts.swift, `readRecipe`) — change both together. One
+// difference on purpose: the device's copy leaves out "always use metric",
+// which its small model took as an order to add units the page doesn't give.
 export async function analyzeRecipePhoto(
   base64Image: string,
   mimeType: string

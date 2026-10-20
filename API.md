@@ -985,7 +985,10 @@ with `nutrition` and `mealRole` optional. Unknown fields are refused (400).
 `collectionId`: left out, the server picks a collection with the household's AI
 (as the concierge does; none without a key); a uuid files it there (ignored
 unless it's this household's); `null` files it nowhere. → 201
-`{ recipeId, title, collectionName? }`; the recipe syncs down.
+`{ recipeId, title, collectionName? }`; the recipe syncs down. Sent without
+`nutrition`, the household's AI estimates it after the reply (as the web's
+Estimate nutrition does) and it arrives in a later sync; with no key, it
+stays empty.
 
 ### `POST /api/v1/recipes/import-url`
 
