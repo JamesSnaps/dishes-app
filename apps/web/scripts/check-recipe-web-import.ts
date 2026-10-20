@@ -12,6 +12,8 @@ import assert from "node:assert/strict";
 import {
   cleanSourceUrl,
   extractRecipeFromHtml,
+  fallbackImageUrls,
+  largestFromSrcset,
   normaliseFractions,
   parseDurationMinutes,
   parseIngredientLines,
@@ -200,6 +202,31 @@ line two"}`;
   assert.match(out.pageText, /^Lovely Soup\nSome words\./);
   assert.match(out.pageText, /• 1 onion\n• 2 carrots/);
   assert.doesNotMatch(out.pageText, /Home Shop|var x|© Shop/);
+}
+
+// ── 4b. Photos on pages without og:image or a recipe image ────────────────
+{
+  // The hero is a lazy <img> above <main>; the logo and a tracking pixel aren't photos.
+  const html = page(
+    "",
+    `<header><img src="/static/logo.svg" alt="Veg Box Co logo"></header>` +
+      `<div class="hero"><img src="/placeholder.gif" data-srcset="/img/pasta-400.jpg 400w, /img/pasta-1600.jpg 1600w" alt="A bowl of pasta"></div>` +
+      `<img src="/t.gif" width="1" height="1">` +
+      `<main><p>${"Method words. ".repeat(60)}</p></main>`
+  );
+  assert.deepEqual(extractRecipeFromHtml(html, "https://example.co.uk/recipes/pasta").imageUrls, [
+    "https://example.co.uk/img/pasta-1600.jpg",
+  ]);
+
+  assert.deepEqual(
+    fallbackImageUrls(`<meta itemprop="image" content="/a.jpg"><link rel="image_src" href="/b.jpg">` +
+      `<main><img src="/silicone-mat-brownies.jpg" class="recipe-photo"><img src="/icons/clock.png"></main>`),
+    ["/a.jpg", "/b.jpg", "/silicone-mat-brownies.jpg"],
+    "itemprop/image_src first; 'silicone' isn't an icon, /icons/ is"
+  );
+  assert.equal(largestFromSrcset("s.jpg 1x, m.jpg 2x"), "m.jpg");
+  assert.equal(largestFromSrcset("https://cdn.x/a.jpg?w=300,h=200 300w, https://cdn.x/a.jpg?w=1200,h=800 1200w"),
+    "https://cdn.x/a.jpg?w=1200,h=800");
 }
 
 // ── 5. UK ingredient formats ───────────────────────────────────────────────

@@ -1900,18 +1900,26 @@ const IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 async function importWebImage(
   householdId: string,
   memberId: string,
-  urls: string[]
+  urls: string[],
+  pageUrl: string
 ): Promise<{ url: string; thumbnailUrl: string | null } | null> {
-  for (const imageUrl of urls.slice(0, 3)) {
+  for (const imageUrl of urls.slice(0, 5)) {
     try {
       const res = await safeFetch(imageUrl, {
         accept: "image/webp,image/jpeg,image/png,image/*;q=0.8",
         maxBytes: IMAGE_MAX_BYTES,
+        referer: pageUrl,
       });
       let body = res.body;
       let type = res.contentType;
-      // AVIF, octet-stream CDNs and oversized originals all go through sharp,
-      // which also rejects anything that isn't really an image.
+      // A tracking pixel or a thumbnail isn't the recipe's photo; sharp also
+      // rejects anything that isn't an image at all.
+      const { width = 0, height = 0 } = await sharp(body).metadata();
+      if (width < 200 || height < 150) {
+        log.info("web import: skipping a small image", { imageUrl, width, height });
+        continue;
+      }
+      // AVIF, octet-stream CDNs and oversized originals become a JPEG.
       if (!UPLOAD_ALLOWED_TYPES.includes(type) || body.byteLength > UPLOAD_MAX_SIZE_BYTES) {
         body = await sharp(body)
           .rotate()
@@ -2080,17 +2088,18 @@ export async function importRecipeFromUrl(rawUrl: string): Promise<WebImportResu
 
   draft.sourceUrl = sourceUrl;
 
-  if (extraction.imageUrls.length > 0) {
-    if (!isStorageAvailable()) {
-      notices.push("The photo wasn't copied because image storage isn't configured.");
+  if (extraction.imageUrls.length === 0) {
+    log.info("web import: no photo found on the page", { url: sourceUrl });
+    notices.push("No photo was found on that page — add one if you like.");
+  } else if (!isStorageAvailable()) {
+    notices.push("The photo wasn't copied because image storage isn't configured.");
+  } else {
+    const image = await importWebImage(householdId, memberId, extraction.imageUrls, page.url);
+    if (image) {
+      draft.imageUrl = image.url;
+      draft.thumbnailUrl = image.thumbnailUrl;
     } else {
-      const image = await importWebImage(householdId, memberId, extraction.imageUrls);
-      if (image) {
-        draft.imageUrl = image.url;
-        draft.thumbnailUrl = image.thumbnailUrl;
-      } else {
-        notices.push("The recipe photo couldn't be downloaded — add one before saving if you like.");
-      }
+      notices.push("The recipe photo couldn't be downloaded — add one if you like.");
     }
   }
 

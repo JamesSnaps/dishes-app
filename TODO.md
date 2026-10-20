@@ -146,6 +146,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] "Import from web" on the New Recipe page — fetch a recipe page server-side and pre-fill the form (v1.52.0)
 - [x] Read schema.org `Recipe` JSON-LD (`@graph`, HowToSection groups, ISO durations, yields, nutrition, framework app state) without AI
 - [x] Copy the recipe photo into our own storage (AVIF/oversized images converted to JPEG)
+- [x] Find the photo on pages without og:image or a recipe image (itemprop/image_src, lazy `<img>` srcsets), send the page as Referer for hotlink-protected image hosts, skip pixels/thumbnails, and say when there's no photo (v1.54.1)
 - [x] With an AI key: tidy-up pass (ingredient splitting, timers, cuisine, meal types) and full extraction for pages without recipe data
 - [x] SSRF guard — public http(s) only, every redirect re-checked, size and time limits
 - [x] `?importUrl=` deep link (bookmarklet / iOS Shortcut) and PWA share target

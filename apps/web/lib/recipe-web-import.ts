@@ -431,6 +431,72 @@ function imageUrlsOf(v: unknown): string[] {
     .filter(Boolean);
 }
 
+/** An attribute's value from one tag's source, decoded. */
+function attr(tag: string, name: string): string | undefined {
+  const m = tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i"));
+  const value = m?.[1] ?? m?.[2];
+  return value === undefined ? undefined : decodeEntities(value).trim();
+}
+
+/** The widest entry of a srcset ("a.jpg 400w, b.jpg 1200w" → b.jpg). */
+export function largestFromSrcset(srcset: string): string | undefined {
+  let best: { url: string; size: number } | undefined;
+  for (const part of srcset.split(/,\s+(?=\S)/)) {
+    const [url, descriptor = "1x"] = part.trim().split(/\s+/);
+    if (!url) continue;
+    const size = parseFloat(descriptor) * (descriptor.endsWith("x") ? 1000 : 1);
+    if (!best || size > best.size) best = { url, size };
+  }
+  return best?.url;
+}
+
+const NOT_A_PHOTO =
+  /\.svg(\?|$)|^data:|(^|[\W_])(logos?|icons?|sprites?|avatars?|badges?|pixel|placeholder|spinner|payments?|flags?)([\W_]|$)/i;
+
+/**
+ * Where else a page keeps its photo when it has no og:image or recipe image:
+ * itemprop/thumbnail/image_src tags, then the first real-looking <img> in the
+ * main content (lazy-loading attributes included; logos and icons skipped).
+ */
+export function fallbackImageUrls(html: string): string[] {
+  const urls: string[] = [];
+  for (const m of html.matchAll(/<(?:meta|link)\b[^>]*>/gi)) {
+    const tag = m[0];
+    const itemprop = attr(tag, "itemprop")?.toLowerCase();
+    const name = attr(tag, "name")?.toLowerCase();
+    const rel = attr(tag, "rel")?.toLowerCase();
+    if (itemprop === "image" || name === "thumbnail") urls.push(attr(tag, "content") ?? attr(tag, "href") ?? "");
+    if (rel === "image_src") urls.push(attr(tag, "href") ?? "");
+  }
+
+  const body = html.replace(/<(script|style|noscript|svg|template|head|header|nav|footer)\b[\s\S]*?<\/\1>/gi, " ");
+  const region =
+    body.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1] ??
+    body.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] ??
+    body;
+  const photos = (fragment: string) => {
+    const out: string[] = [];
+    for (const m of fragment.matchAll(/<(?:img|source)\b[^>]*>/gi)) {
+      if (out.length >= 3) break;
+      const tag = m[0];
+      const width = Number(attr(tag, "width") ?? 0);
+      if (width > 0 && width < 200) continue;
+      const srcset = attr(tag, "data-srcset") || attr(tag, "srcset");
+      const src =
+        (srcset && largestFromSrcset(srcset)) ||
+        attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "data-original") || attr(tag, "src");
+      const label = `${attr(tag, "alt") ?? ""} ${attr(tag, "class") ?? ""}`;
+      if (!src || NOT_A_PHOTO.test(src) || NOT_A_PHOTO.test(label)) continue;
+      out.push(src);
+    }
+    return out;
+  };
+  // The hero photo often sits just above <main>, so try the whole page too.
+  const inRegion = photos(region);
+  urls.push(...(inRegion.length ? inRegion : photos(body)));
+  return urls.filter(Boolean);
+}
+
 function absolute(url: string, base: string): string | null {
   try {
     const u = new URL(decodeEntities(url.trim()), base);
@@ -531,6 +597,8 @@ export function extractRecipeFromHtml(html: string, pageUrl: string): PageExtrac
     meta.get("og:image:secure_url") ?? "",
     meta.get("og:image") ?? "",
     meta.get("twitter:image") ?? "",
+    meta.get("twitter:image:src") ?? "",
+    ...fallbackImageUrls(html),
   ]
     .map((u) => (u ? absolute(u, pageUrl) : null))
     .filter((u): u is string => !!u);

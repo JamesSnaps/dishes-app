@@ -137,7 +137,13 @@ const MAX_REDIRECTS = 5;
 
 export async function safeFetch(
   rawUrl: string,
-  opts: { accept: string; maxBytes: number; timeoutMs?: number }
+  opts: {
+    accept: string;
+    maxBytes: number;
+    timeoutMs?: number;
+    /** The page an image is on: image hosts often refuse a request without it (hotlink protection). */
+    referer?: string;
+  }
 ): Promise<SafeFetchResult> {
   let url: URL;
   try {
@@ -161,6 +167,7 @@ export async function safeFetch(
           "User-Agent": USER_AGENT,
           Accept: opts.accept,
           "Accept-Language": "en-GB,en;q=0.9",
+          ...(opts.referer ? { Referer: opts.referer } : {}),
         },
       });
     } catch (err) {
