@@ -11,6 +11,7 @@
  *   - Every query is scoped by householdId. Not optional.
  */
 
+import { normaliseServings } from "@/lib/recipe-parser";
 import { db } from "@/lib/db";
 import {
   recipes,
@@ -507,6 +508,7 @@ export async function createRecipe(
       importedFromRecipeId: input.importedFrom?.recipeId ?? null,
       importedFromName: input.importedFrom?.name ?? null,
       ...input.fields,
+      servings: normaliseServings(input.fields.servings),
     })
     .returning({ id: recipes.id });
 
@@ -536,7 +538,7 @@ export async function updateRecipe(
 
   await db
     .update(recipes)
-    .set(input.fields)
+    .set({ ...input.fields, servings: normaliseServings(input.fields.servings) })
     .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, ctx.householdId)));
 
   await replaceChildren(recipeId, input);

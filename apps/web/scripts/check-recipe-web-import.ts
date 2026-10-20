@@ -22,6 +22,7 @@ import {
   webRecipeToDefaults,
 } from "../lib/recipe-web-import";
 import { assertPublicUrl, isPrivateAddress, UnsafeUrlError } from "../lib/safe-fetch";
+import { normaliseServings } from "../lib/recipe-parser";
 
 const page = (head: string, body = "") =>
   `<!doctype html><html><head><title>Fallback title</title>${head}</head><body>${body}</body></html>`;
@@ -246,6 +247,15 @@ assert.deepEqual(
     ["3-4", "tbsp", "olive oil", ""],
   ]
 );
+
+// ── 5b. Servings is a decimal column: "4-6" from the AI must not reach it ──
+assert.equal(normaliseServings("4-6"), "4");
+assert.equal(normaliseServings("Serves 4"), "4");
+assert.equal(normaliseServings("2.5"), "2.5");
+assert.equal(normaliseServings("12 squares"), "12");
+assert.equal(normaliseServings(""), null);
+assert.equal(normaliseServings(null), null);
+assert.equal(normaliseServings("a few"), null);
 
 // ── 6. Small parsers ───────────────────────────────────────────────────────
 assert.equal(parseDurationMinutes("PT1H30M"), 90);
