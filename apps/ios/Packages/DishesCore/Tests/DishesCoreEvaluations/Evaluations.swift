@@ -145,6 +145,69 @@ struct RecipeScanEvaluation: Evaluation {
     }
 }
 
+// MARK: Filing a recipe
+
+struct CollectionsFixture: Decodable, Sendable {
+    struct Recipe: Decodable, Sendable {
+        var title: String
+        var description: String
+        var cuisine: String
+        var tags: [String]
+        var mealTypes: [String]
+        var acceptable: [String]
+    }
+    var collections: [AIContext.Collection]
+    var recipes: [Recipe]
+
+    static func load() throws -> CollectionsFixture {
+        try JSONDecoder().decode(CollectionsFixture.self, from: Data(contentsOf: fixtureURL("evals/collections.json")))
+    }
+
+    /// 1 for an acceptable collection; 0.5 for none when one fitted (a cautious
+    /// miss beats a wrong filing, as the server's prompt says); 0 otherwise.
+    static func score(_ picked: String?, acceptable: [String]) -> Double {
+        switch (picked, acceptable.isEmpty) {
+        case (nil, true): 1
+        case (nil, false): 0.5
+        case (let name?, _): acceptable.contains(name) ? 1 : 0
+        }
+    }
+}
+
+@available(macOS 27, iOS 27, *)
+struct FileRecipeEvaluation: Evaluation {
+    let fixture: CollectionsFixture
+    let recorder: Recorder
+    let score = Metric("score")
+
+    var dataset: ArrayLoader<ModelSample<String>> {
+        ArrayLoader(samples: fixture.recipes.map { ModelSample(prompt: $0.title, expected: $0.acceptable.joined(separator: " | ")) })
+    }
+
+    func subject(from sample: ModelSample<String>) async throws -> ModelSubject<String> {
+        let r = fixture.recipes.first { $0.title == sample.promptDescription }!
+        let start = Date()
+        let recipe = GeneratedRecipe(title: r.title, description: r.description, cuisine: r.cuisine, mealTypes: r.mealTypes,
+                                     tags: r.tags, ingredients: [], steps: [])
+        var picked: String?
+        var problems: [String] = []
+        do { picked = try await CollectionPicker.pick(for: recipe, from: fixture.collections)?.name } catch { problems = [DeviceAI.describe(error)] }
+        await recorder.add(.init(name: "\(r.title) → \(picked ?? "none") (\(r.acceptable.isEmpty ? "none" : r.acceptable.joined(separator: "/")))",
+                                 deviceScore: CollectionsFixture.score(picked, acceptable: r.acceptable), serverScore: nil,
+                                 engine: "device", problems: problems, seconds: Date().timeIntervalSince(start)))
+        return ModelSubject(value: picked ?? "")
+    }
+
+    var evaluators: Evaluators {
+        Evaluator<ModelSample<String>> { sample, subject in
+            let acceptable = (sample.expected ?? "").split(separator: " | ").map(String.init)
+            return score.scoring(CollectionsFixture.score(subject.value.isEmpty ? nil : subject.value, acceptable: acceptable))
+        }
+    }
+
+    func aggregateMetrics(using aggregator: inout MetricsAggregator) { aggregator.computeMean(of: score) }
+}
+
 // MARK: Running them
 
 @Suite(.serialized, .enabled(if: evaluationsWanted, "DISHES_EVALS=1 to run the on-device AI's evaluations"))
@@ -188,6 +251,15 @@ struct AIEvaluations {
         print("[eval] scanRecipe framework mean: \(result.aggregateValue(.mean(of: Metric("score"))))")
         let gate = try await record(.scanRecipe, recorder, serverIs: "not measured: no household key where this ran")
         if AITask.scanRecipe.firstTry == .device { #expect(gate.passes, "\(gate.summary)") }
+    }
+
+    @Test func fileRecipe() async throws {
+        guard #available(macOS 27, iOS 27, *) else { return }
+        try #require(DeviceAI.isAvailable, "\(DeviceAI.unavailableReason ?? "")")
+        let recorder = Recorder()
+        _ = try await FileRecipeEvaluation(fixture: try CollectionsFixture.load(), recorder: recorder).run()
+        let gate = try await record(.fileRecipe, recorder, serverIs: "not measured: no household key where this ran")
+        if AITask.fileRecipe.firstTry == .device { #expect(gate.passes, "\(gate.summary)") }
     }
 
     /// DISHES_EVAL_CARDS=<folder>: the printed cards as PNGs, to look at.

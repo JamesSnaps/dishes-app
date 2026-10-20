@@ -359,7 +359,20 @@ struct RecipeEditor: View {
         defer { saving = false }
         if let draft {
             do {
-                let made = try await app.api.saveGeneratedRecipe(edited(draft))
+                var recipe = edited(draft)
+                // The collection, chosen on the device from the cached names when it can
+                // (the server then skips its own AI call); otherwise left to the server.
+                let filing = try? await AIRouter.run(
+                    .fileRecipe,
+                    onDevice: { () throws -> String?? in
+                        guard #available(iOS 27, *), let collections = AIContext.cached?.collections, !collections.isEmpty else {
+                            throw CancellationError()
+                        }
+                        return .some(try await CollectionPicker.pick(for: recipe, from: collections)?.id)
+                    },
+                    fallback: { String??.none })
+                recipe.collectionId = filing?.value ?? .none
+                let made = try await app.api.saveGeneratedRecipe(recipe)
                 app.toast = made.collectionName.map { "Saved \(made.title) to \($0)." } ?? "Saved \(made.title)."
                 await app.syncNow()
                 dismiss()

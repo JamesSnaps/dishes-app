@@ -34,11 +34,14 @@ public enum AITask: String, CaseIterable, Sendable {
     case ingredientLine
     /// A photo of a cookbook page or recipe card → a recipe to review.
     case scanRecipe
+    /// Which collection a new recipe belongs in, from the cached names.
+    case fileRecipe
 
     public var firstTry: AIEngine {
         switch self {
         case .ingredientLine: .device
         case .scanRecipe: .device
+        case .fileRecipe: .device
         }
     }
 
@@ -46,7 +49,7 @@ public enum AITask: String, CaseIterable, Sendable {
     public var fallback: AIEngine {
         switch self {
         case .ingredientLine: .rules
-        case .scanRecipe: .server
+        case .scanRecipe, .fileRecipe: .server
         }
     }
 }

@@ -1,0 +1,31 @@
+{
+  "about": "Filing a new recipe into one of the household's collections (TODO_MOBILE.md, D3). `acceptable` lists every collection a careful person might choose; empty means none fits and the answer should be none. The collections are the dev seed's.",
+  "collections": [
+    { "id": "baking", "name": "Baking", "description": "Breads, cakes and sweet things" },
+    { "id": "comfort", "name": "Comfort Food", "description": "Cosy, slow-cooked favourites" },
+    { "id": "quick", "name": "Quick & Easy", "description": "On the table in 30 minutes or less" },
+    { "id": "weeknight", "name": "Weeknight Dinners", "description": "Fast, reliable meals for busy evenings" }
+  ],
+  "recipes": [
+    { "title": "Banana Bread", "description": "Dense, moist and freckled with brown spots. Best the next day.", "cuisine": "American", "tags": ["baking", "sweet"], "mealTypes": ["breakfast", "snack"], "acceptable": ["Baking"] },
+    { "title": "Chocolate Chip Cookies", "description": "Crisp edges, chewy middles, puddles of dark chocolate.", "cuisine": "American", "tags": ["baking", "sweet"], "mealTypes": ["snack", "dessert"], "acceptable": ["Baking"] },
+    { "title": "Classic Beef Bolognese", "description": "A rich, slow-simmered ragù with beef and pork, built on a proper soffritto. Worth the time.", "cuisine": "Italian", "tags": ["pasta", "slow-cooked"], "mealTypes": ["dinner"], "acceptable": ["Comfort Food"] },
+    { "title": "Creamy Tomato Soup", "description": "Velvety, deeply tomatoey and ready for grilled cheese dunking.", "cuisine": "American", "tags": ["soup", "vegetarian"], "mealTypes": ["lunch", "dinner"], "acceptable": ["Comfort Food", "Quick & Easy"] },
+    { "title": "Fish Tacos", "description": "Crisp battered fish, quick slaw and a lime crema in soft tortillas.", "cuisine": "Mexican", "tags": ["fish"], "mealTypes": ["dinner"], "acceptable": ["Weeknight Dinners", "Quick & Easy"] },
+    { "title": "Greek Salad", "description": "No lettuce. Just ripe tomatoes, cucumber, feta and good oil.", "cuisine": "Greek", "tags": ["salad", "vegetarian", "no-cook"], "mealTypes": ["lunch"], "acceptable": ["Quick & Easy"] },
+    { "title": "Mushroom Risotto", "description": "Creamy, earthy and deeply savoury. Stir, stir, stir.", "cuisine": "Italian", "tags": ["vegetarian", "rice"], "mealTypes": ["dinner"], "acceptable": ["Comfort Food"] },
+    { "title": "Shakshuka", "description": "Eggs poached in a spiced pepper and tomato sauce. Brunch hero.", "cuisine": "Middle Eastern", "tags": ["eggs", "vegetarian", "brunch"], "mealTypes": ["breakfast", "lunch"], "acceptable": ["Comfort Food", "Quick & Easy"] },
+    { "title": "Smash Burgers", "description": "Thin, lacy-edged patties with maximum crust. A weeknight treat.", "cuisine": "American", "tags": ["beef"], "mealTypes": ["dinner"], "acceptable": ["Quick & Easy", "Weeknight Dinners"] },
+    { "title": "Spaghetti Carbonara", "description": "Silky, peppery and on the table in 25 minutes. No cream, ever.", "cuisine": "Italian", "tags": ["pasta"], "mealTypes": ["dinner"], "acceptable": ["Weeknight Dinners", "Quick & Easy"] },
+    { "title": "Thai Green Curry", "description": "Fragrant, coconut-rich and as hot as you dare to make it.", "cuisine": "Thai", "tags": ["curry", "chicken"], "mealTypes": ["dinner"], "acceptable": ["Weeknight Dinners"] },
+    { "title": "Weeknight Chicken Stir-Fry", "description": "Fast, fresh and endlessly adaptable — on the table in 20 minutes.", "cuisine": "Chinese", "tags": ["chicken", "quick"], "mealTypes": ["dinner"], "acceptable": ["Quick & Easy", "Weeknight Dinners"] },
+    { "title": "Lemon Drizzle Cake", "description": "A tender loaf soaked in sharp lemon syrup with a crackly sugar top.", "cuisine": "British", "tags": ["cake", "sweet"], "mealTypes": ["dessert", "snack"], "acceptable": ["Baking"] },
+    { "title": "Sourdough Loaf", "description": "An open, chewy crumb and a blistered crust, from a lively starter.", "cuisine": "British", "tags": ["bread"], "mealTypes": [], "acceptable": ["Baking"] },
+    { "title": "Lancashire Hotpot", "description": "Lamb and onions slowly baked under a lid of crisp sliced potatoes.", "cuisine": "British", "tags": ["lamb", "slow-cooked"], "mealTypes": ["dinner"], "acceptable": ["Comfort Food"] },
+    { "title": "Ten-Minute Prawn Noodles", "description": "Garlicky prawns, egg noodles and greens tossed in a hot wok.", "cuisine": "Chinese", "tags": ["prawns", "noodles"], "mealTypes": ["dinner"], "acceptable": ["Quick & Easy", "Weeknight Dinners"] },
+    { "title": "Homemade Strawberry Jam", "description": "Ripe strawberries cooked down with sugar and lemon until it sets.", "cuisine": "British", "tags": ["preserve"], "mealTypes": [], "acceptable": [] },
+    { "title": "Gin and Tonic", "description": "Plenty of ice, a good gin, tonic and a twist of lime.", "cuisine": "British", "tags": ["drink"], "mealTypes": [], "acceptable": [] },
+    { "title": "Pickled Red Onions", "description": "Bright pink, sharp and sweet — ready in an hour, keeps for weeks.", "cuisine": "Mexican", "tags": ["pickle", "condiment"], "mealTypes": [], "acceptable": [] },
+    { "title": "Garlic Butter", "description": "Softened butter beaten with garlic, parsley and a little salt.", "cuisine": "French", "tags": ["condiment"], "mealTypes": [], "acceptable": [] }
+  ]
+}

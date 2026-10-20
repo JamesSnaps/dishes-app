@@ -70,4 +70,28 @@ public enum Prompts {
         "half an onion, sliced" → amount "1/2", unit "", name "onion", preparation "sliced"
         "100 g grated parmesan" → amount "100", unit "g", name "parmesan", preparation "grated"
         """
+
+    /// Copy of `collectionSuggestionFor`'s system prompt (apps/web/app/actions/ai.ts),
+    /// less its JSON format: the schema allows only the listed names or none.
+    public static let fileRecipe = """
+        You file new recipes into a family's existing recipe collections. Choose a collection ONLY when the recipe \
+        clearly and obviously belongs in it, judging by the collection's name and description. If no collection is a \
+        clear fit, answer “\(CollectionPicker.none)” — leaving a recipe uncategorised is far better than filing it in \
+        the wrong place.
+        """
+
+    /// Copy of the same function's user message.
+    public static func fileRecipeQuestion(_ recipe: GeneratedRecipe, collections: [AIContext.Collection]) -> String {
+        let list = collections.map { c in
+            "- \(c.name)" + (c.description.map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : ": \($0)" } ?? "")
+        }.joined(separator: "\n")
+        let lines = [
+            "Title: \(recipe.title)",
+            recipe.description.isEmpty ? nil : "Description: \(recipe.description)",
+            recipe.cuisine.isEmpty ? nil : "Cuisine: \(recipe.cuisine)",
+            recipe.mealTypes.isEmpty ? nil : "Meal types: \(recipe.mealTypes.joined(separator: ", "))",
+            recipe.tags.isEmpty ? nil : "Tags: \(recipe.tags.joined(separator: ", "))",
+        ].compactMap { $0 }.joined(separator: "\n")
+        return "Existing collections:\n\(list)\n\nNew recipe:\n\(lines)\n\nWhich collection does this recipe belong in?"
+    }
 }

@@ -975,8 +975,12 @@ for themselves.
   `CookAssistContext` sends today, kept on the device and streamed with
   `streamResponse`. Pairs with D1's "how much butter?" and with the Tier 1
   hands-free cooking item
-- [ ] **Collection suggestion** at save time, on the device, from the cached
-  collection names
+- [x] **Collection suggestion** at save time, on the device, from the cached
+  collection names. *Done (v1.57.0):* `CollectionPicker` (a dynamic schema of
+  the names or none, so nothing's invented; the prompt is a copy of
+  `collectionSuggestionFor`'s). A reviewed draft goes to the server with its
+  `collectionId` (or null), so the server skips its own call. Evaluation (20
+  recipes, `fixtures/evals/collections.json`): 0.80 → device
 - [ ] **Recipe tweaks** (improve, heart-healthy, refine) and **concierge
   concepts** behind the router, defaulting to whatever the evaluations say
 - [ ] **Meal-plan draft on the device:** a `Tool` that searches the local

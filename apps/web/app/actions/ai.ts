@@ -818,6 +818,8 @@ export async function suggestCollectionForRecipe(input: {
   }
 }
 
+// The iOS app files a recipe it read on the device with a copy of this
+// prompt (DishesCore/AI/Prompts.swift, `fileRecipe`) — change both together.
 async function collectionSuggestionFor(
   householdId: string,
   input: Parameters<typeof suggestCollectionForRecipe>[0]
