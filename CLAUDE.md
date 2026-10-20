@@ -46,7 +46,7 @@ UI mockups: `setup_guide/*.png`
 ## Architecture Principles
 
 - **Household/workspace is the tenant boundary.** Every recipe, meal plan, shopping list, and pantry item belongs to a household. All queries must be scoped by household membership. Never rely on UI filtering alone — enforce at the query layer.
-- **AI is server-side only.** AI keys are stored server-side (household-scoped, encrypted reference). Never expose them to the client.
+- **AI keys are server-side only.** AI keys are stored server-side (household-scoped, encrypted reference). Never expose them to the client. The iOS app runs AI on the device first (Apple's on-device model, which needs no key) and falls back to the server's household key only when the device can't do the job well enough — see `TODO_MOBILE.md` Phase D.
 - **Background/slow work goes to the worker.** The Next.js app should stay responsive. AI generation, recipe import, scheduled jobs, and notifications run in the worker container (Phase 2). In Phase 1, AI calls are triggered synchronously server-side but should be structured so they can move to a queue later.
 - **Design for Phase 2 without building it.** The household model, data schema, and Docker Compose setup should accommodate profile picking, worker queues, and scheduled automations without restructuring. Don't implement them in Phase 1 — just don't block them.
 
@@ -104,7 +104,7 @@ The family profile picker (Phase 2) is a household-level UX feature — switchin
 - TypeScript strict mode throughout
 - Drizzle ORM for all database access — no raw SQL except in migration files
 - shadcn/ui for all UI components — extend rather than replace
-- Server Actions or API route handlers for all AI, import, and write operations — never client-side
+- Server Actions or API route handlers for all AI, import, and write operations — never client-side in the web app (the iOS app's on-device model is the exception; anything using the household key stays on the server)
 - Tailwind for all styling — no CSS modules or styled-components
 - All database queries scoped to household — this is not optional
 - **No wireframe/white-box UI.** Avoid flat white cards with just a border. Use gradient backgrounds, coloured tints, shadows, and visual weight to make the UI feel alive. Interactive elements (buttons, cards) must look obviously clickable — solid fills, gradients, or strong outlines, never bare text or ghost-only styling for primary actions.

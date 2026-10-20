@@ -587,7 +587,7 @@ don't exist there.
 
 #### Tier 2 — at a glance
 
-- [ ] **Interactive widgets** (App Intents buttons): tonight's meal with a
+- [ ] **Interactive widgets** (App Intents buttons; built in Phase D4): tonight's meal with a
   "Start cooking" button; shopping list with tap-to-tick. Home Screen and Lock
   Screen sizes. Read from the App Group store, refreshed after each sync.
   iPad Home Screen widgets get the larger family showing the week
@@ -601,21 +601,22 @@ don't exist there.
   (v1.40.0: `AddToShoppingListIntent`, runs in the background, queues an
   outbox mutation so it works offline; Action button and NFC automations too)
 - [ ] **App Intents, the rest** — "what's for dinner", "start cooking
-  tonight's meal"
+  tonight's meal" — Phase D1
 - [ ] **Spotlight** — recipes indexed with `CoreSpotlight`, searchable from the
-  Home Screen, offline
+  Home Screen, offline — Phase D1 (the iOS 27 semantic index)
 
 #### Tier 3 — getting recipes in
 
-- [ ] **Share extension** — import from Safari/Instagram/Notes via the Share
-  Sheet (needs `/api/v1/import`, C0)
-- [ ] **Scan a cookbook page or recipe card** — VisionKit document camera +
-  on-device text recognition, then the existing parser/AI to structure it
-- [ ] **Barcode scanning** (`DataScannerViewController`) for shopping items,
-  and for the pantry once it has an API
-- [ ] **On-device Foundation Models** — free, private, offline help for small
-  jobs: tidy pasted recipe text, "what can I swap for crème fraîche?", unit
-  questions. The concierge and meal-plan generation stay on OpenAI server-side
+- [x] **Share extension** — import a recipe page from the Share Sheet
+  (v1.53.0, `DishesShare`, through `/api/v1/recipes/import-url`). Shared text
+  and screenshots: Phase D3
+- [ ] **Scan a cookbook page or recipe card** — Phase D3 (on-device image
+  input + `OCRTool`)
+- [ ] **Barcode scanning** for shopping items, and for the pantry once it has
+  an API — Phase D3
+- [ ] **On-device Foundation Models** — now Phase D2/D3: the device first for
+  every job it does well enough, the server only when it doesn't (decided
+  20 Oct 2026; replaces "the concierge and meal-plan generation stay on OpenAI")
 - [x] Cook-assist chat and AI recipe generation (v1.34.0: concierge, photo → recipe, plan generation, Ask about this step) once the A2 AI endpoints exist
   (they must stream; `URLSession.bytes` reads SSE directly)
 
@@ -716,6 +717,262 @@ numbers worth having in Health.
   iOS app should match the web's gradients rather than look stock-iOS
 - **Background Sync on the PWA** (open Phase B item) doesn't block this —
   the iOS app has `BGAppRefreshTask` and a real outbox regardless
+
+---
+
+## Phase D — iOS 27 (planned 20 Oct 2026)
+
+What iOS 27 adds that Dishes should use. API names below were checked against
+the iOS 27.1 SDK in Xcode 27.1 (installed on James's Mac), not just WWDC
+write-ups.
+
+### Decisions
+
+- **AI runs on the device first.** *Superseded:* "AI is server-side only" and
+  the Tier 3 line that kept the concierge on OpenAI. The rule is now: use the
+  on-device model when it's good enough for the job, and use the household's
+  OpenAI key on the server only when it isn't. "Good enough" is measured by
+  the D2 evaluation suite, not guessed. Keys still never leave the server; the
+  on-device model needs none
+- **Stay on iOS 26.1 as the minimum.** Everything here goes behind
+  `if #available(iOS 27, *)`, and the AI features also check that Apple
+  Intelligence is there (`SystemLanguageModel.default.availability`). Older OS
+  or older device → the server path the app uses today. Nothing gets worse on
+  a device that can't do it
+- **The household's AI settings still apply on the device.** The measurement
+  system, default prompt, kitchen equipment, members' dietary limits and the
+  taste profile all go into the on-device prompts as well, so a recipe read on
+  the iPad follows the same rules as one written on the server
+
+### D0. Groundwork
+
+- [ ] `GET /api/v1/ai/context` — the prompt inputs only, readable by any
+  member: `measurementSystem`, `defaultPrompt`, `kitchenEquipment`,
+  `webGrounding`, members with dietary constraints, the taste-profile summary
+  (`lib/services/taste-profile.ts`), the collection names. Never the key or the
+  budget (`ai.config` stays admin-only). Cached on the device and refreshed on
+  sync, so on-device AI works offline
+- [ ] `POST /api/v1/recipes/generated` — saves a `GeneratedRecipe`
+  (`lib/ai/recipe-generation.ts`) the way `saveGeneratedRecipe` does, with an
+  optional `collectionId` so the AI collection suggestion can be skipped when
+  the device already picked one. Saves the device turning `GeneratedRecipe`
+  into the full `/api/v1/recipes` write format itself
+- [ ] Add the endpoints above to `API.md`'s v1 section
+- [ ] **App Group** `group.uk.collco.dishes` on the app, `DishesWidgets` and
+  `DishesShare`. Needed by D4 (widgets read the store) and D3 (the share
+  extension uses the cached AI context). Move `dishes.sqlite` into the group
+  container with a one-time migration (`AppModel` currently opens
+  Application Support/Dishes/dishes.sqlite)
+- [ ] **Testing on the Mac:** the Mac is on macOS 26 (Darwin 25.6), and
+  FoundationModels' iOS 27 APIs need macOS 27 to run under `swift test`. Either
+  update the Mac or run the AI tests on the iPad. Decide before D2
+
+### D1. Siri, Spotlight and App Intents
+
+Today the app has one intent (`AddToShoppingListIntent`) and no Spotlight
+index. Everything here works without AI and offline.
+
+- [ ] **Entities** (`DishesCore` models → `AppEntity` + `IndexedEntity`) in a
+  new `Dishes/Intents/` folder: `RecipeEntity` (title, cuisine, tags, total
+  time, meal role, favourite, thumbnail), `PlannedMealEntity` (an entry or
+  group on a day), `ShoppingItemEntity`, `SavedMealEntity`. Queries read the
+  GRDB store, never the network
+- [ ] **Spotlight semantic index**: `CSSearchableIndex.indexAppEntities(_:)`
+  after each sync that changes recipes, and `deleteAppEntities` for tombstones.
+  Gets "find that chicken thing we had last week" from the Home Screen and
+  from Siri, with a link back. Replaces the Tier 2 Spotlight item
+- [ ] **Schema conformances** (`AppSchemaEntity` / `AppSchemaIntent`) where a
+  schema fits, so Siri understands requests worded freely without a list of
+  phrases. Check `AppSchema` for a domain matching recipes or lists; where none
+  fits, plain entities + intents still work through Shortcuts and App Shortcuts
+- [ ] **Intents:** "What's for dinner?" (answers with tonight's meal and serve
+  time; opens the plan), "Start cooking tonight's meal" / "Start cooking
+  {recipe}" (opens cooking mode through `CookLinkHandler`), "Add {recipe} to
+  the shopping list" (the existing `addRecipeToShopping`), "Add {day}'s meals
+  to the shopping list", "Plan {recipe} for {day}" (a `meal_plan_entry.add`
+  outbox mutation, so it works offline), "Tick off {item}". Replaces the Tier
+  2 "App Intents, the rest" item
+- [ ] **Siri understands the screen:** `appEntityIdentifier(_:)` and
+  `appEntityUIElements(_:)` on the recipe page, the plan's day cards and
+  cooking mode's current step. So "add this to Friday" on a recipe, or "how
+  much butter?" / "set a timer for this" on a step, refers to what's showing.
+  The timer goes through `CookTimers` (AlarmKit), as the in-app button does
+- [ ] **Tests:** an `AppIntentsTesting` target in `project.yml` that runs each
+  intent through the system on the simulator: entity lookup, the offline
+  outbox write, the cooking-mode deep link
+
+### D2. The local-first AI engine (`DishesCore/AI`)
+
+One place that decides where each AI job runs, so features don't each decide
+for themselves.
+
+- [ ] **`AIRouter`** — each job (`AITask`) says what it needs; the router picks
+  the first option that can do it:
+  1. **On the device:** `SystemLanguageModel.default`, guided generation into
+     `@Generable` types, with `OCRTool` / `BarcodeReaderTool`
+     (`_Vision_FoundationModels`) and `ImageAttachment` for photos
+  2. **Private Cloud Compute:** `PrivateCloudComputeLanguageModel`, if
+     `availability` says it's allowed and `quotaUsage` isn't at its limit.
+     Bigger model, 32K context, still no household key. Whether a TestFlight
+     app gets it is an open question (below); if not, the router skips this
+     step
+  3. **The server:** the household's OpenAI key, through D5's
+     `DishesServerModel` or the existing `/api/v1/ai/*` route
+- [ ] **When it falls back to the server:** Apple Intelligence unavailable
+  (device, setting, model still downloading, language); the job is marked
+  server-only (below); or the on-device attempt fails — `LanguageModelError`
+  (`contextSizeExceeded`, `guardrailViolation`, `refusal`, `timeout`), or the
+  result fails our own checks (every step's ingredient references exist,
+  amounts are numbers, metric units when the household is metric, no empty
+  steps). One automatic retry on the server, no prompt to the user
+- [ ] **Show where it ran:** a small "On this iPad" / "Finished on the server"
+  label on AI results, and a Settings → AI row saying whether this device can
+  run Dishes' AI on the device. Helps while tuning; can be quieter later
+- [ ] **Dynamic Profiles** (`LanguageModelSession.DynamicProfile`, `.model(_:)`)
+  so a conversation (cook assist) moves to the server mid-session without
+  losing the transcript, instead of restarting
+- [ ] **Shared Swift types:** `GeneratedRecipe`, `GeneratedIngredient`,
+  `GeneratedStep`, `RecipeConcept` as `@Generable` structs matching the
+  TypeScript `GeneratedRecipe` field for field (`ingredientName`, `amount`,
+  `unit`, `preparation`, `isOptional`, `groupLabel`…), with `@Guide`
+  descriptions taken from the server prompts. A JSON fixture shared with the
+  web tests keeps the two in step, as C2 does for sync
+- [ ] **Prompt copies:** the on-device prompts are Swift copies of the server
+  ones (`analyzeRecipePhoto`, `fullRecipeSystemPrompt`, `buildSystemAddendum`).
+  Put a comment on each side pointing at the other, so a change to one gets
+  made to both
+- [ ] **Evaluations** (`Evaluations.framework`, Xcode 27): a fixed set per job
+  — 20 cookbook photos and recipe cards (scanned, handwritten, two-column),
+  20 pasted-text pages, 30 ingredient lines, 15 cook-assist questions — scored
+  on structure (fields, references, units) and against expected answers. **A
+  job's default moves to the device only once the on-device model scores
+  within an agreed margin of the server on its set.** Re-run after each
+  iOS point release
+
+**Where each job starts** (the router's table, revised by the evaluations):
+
+| Job | First try | Why |
+|---|---|---|
+| Ingredient line → structured (editor, shopping add) | Device | Small, offline, instant |
+| Pasted / shared text → recipe | Device | Text-only, fits easily |
+| Photo or scan → recipe | Device (image + `OCRTool`) | iOS 27 multimodal; was `/ai/photo-recipe` |
+| Collection suggestion for a new recipe | Device | Picking from a short list |
+| Cook assist ("Ask about this step") | Device, server via Dynamic Profile | Short answers, offline in the kitchen |
+| Improve / heart-healthy / refine a recipe | Device if the evaluation passes | One recipe in, one out |
+| Concierge — 5 concepts | Device if the evaluation passes | Short output; uses the taste profile from D0 |
+| Concierge — full recipe | Server first; device if the evaluation passes | Long, quality matters most |
+| Meal-plan draft from saved recipes | Device, with a tool over the local store | Picking, not writing |
+| Meal-plan apply, new recipes written out | Server | Writes several recipes and saves them |
+| Web-grounded generation, recipe images, nutrition estimate, Wrapped, meal timeline | Server | Need the web, image models or server data |
+
+### D3. On-device AI features
+
+- [ ] **Scan a cookbook page or recipe card** (replaces the Tier 3 item):
+  VisionKit document camera or a photo → `ImageAttachment` + `OCRTool` →
+  `GeneratedRecipe` → review screen (the existing `RecipeEditor`, filled in) →
+  `POST /api/v1/recipes/generated`. Two-page recipes: several photos in one
+  session. Nutrition is then filled in by the server's `ai.estimateNutrition`
+  in the background, so the on-device model doesn't have to guess it
+- [ ] **Share extension, beyond web pages:** shared text (Notes, Messages,
+  Instagram captions) and screenshots go through the same device-first
+  pipeline. Web links still go to `/recipes/import-url`, which reads the page's
+  recipe data properly; the device handles the text when the server's reader
+  can't. Needs the App Group's cached AI context (D0) and staying inside the
+  extension's memory limit (check on the iPad)
+- [ ] **Ingredient lines as you type:** the recipe editor and the shopping add
+  card turn "2 tbsp finely chopped parsley" into amount / unit / name /
+  preparation, offline. Quick rules first (`DishesCore`), the model only for
+  what they can't read
+- [ ] **Cook assist on the device** (`CookAssistSheet`): the same context
+  `CookAssistContext` sends today, kept on the device and streamed with
+  `streamResponse`. Pairs with D1's "how much butter?" and with the Tier 1
+  hands-free cooking item
+- [ ] **Collection suggestion** at save time, on the device, from the cached
+  collection names
+- [ ] **Recipe tweaks** (improve, heart-healthy, refine) and **concierge
+  concepts** behind the router, defaulting to whatever the evaluations say
+- [ ] **Meal-plan draft on the device:** a `Tool` that searches the local
+  store (favourites, meal roles, recently cooked, cook ratings), so "plan next
+  week from favourites, nothing twice in a fortnight" never leaves the iPad.
+  Apply still goes to the server when it has new recipes to write
+- [ ] **Barcode scanning for shopping** (Tier 3): `BarcodeReaderTool` or
+  `DataScannerViewController` → product name → shopping item. The pantry
+  joins in once it has an API
+
+### D4. Widgets
+
+- [ ] **Configurable widgets through App Intents** (`AppIntentConfiguration`),
+  merging the Tier 2 interactive-widgets item: "Tonight" (meal, serve time,
+  Start cooking button), "This week" (iPad large/extra-large), "Shopping" (tick
+  items off with a button intent, as the Watch does). Choosing which list or
+  which meal type is a widget setting. Read from the App Group store;
+  `WidgetCenter.reloadAllTimelines()` after a sync that changes them
+- [ ] iOS 27 widget styling (tinted / clear modes) checked on the Home Screen
+  and Lock Screen; StandBy (Tier 2) falls out of the same widgets
+
+### D5. The server as a `LanguageModel`
+
+So the router's third step is the same Swift session code as the first two,
+not a separate set of REST calls.
+
+- [ ] **`DishesServerModel: LanguageModel`** + its `LanguageModelExecutor` in
+  `DishesCore/AI`: sends the `Transcript` (instructions, prompt, tool calls,
+  tool output) and the generation schema to the server, streams text back
+  through the `LanguageModelExecutorGenerationChannel`. Capabilities: tool
+  calling and guided generation. Errors mapped to `LanguageModelError`
+  (`rateLimited` for the monthly budget, `timeout`, `refusal`)
+- [ ] **`POST /api/v1/ai/respond`** on the server: transcript + optional JSON
+  schema in, streamed text out, through the household's key with
+  `buildSystemAddendum` added on the server. OpenAI structured outputs
+  (`json_schema`) when a schema is sent. Same budget checks and logging as the
+  other AI routes; Redis rate limit per member
+- [ ] The existing task routes (`/ai/concepts`, `/ai/recipes`,
+  `/ai/meal-plan*`, `/ai/photo-recipe`, `/cook-assist`) stay for the web and
+  for the server-only jobs; iOS stops calling `photo-recipe` and `cook-assist`
+  once D3's versions are in
+
+### D6. Smaller wins
+
+- [ ] **Drag to reorder in SwiftUI (iOS 27):** shopping items within an aisle,
+  and dragged *between* aisles to change the category (`shopping_item.update`
+  already carries `position` and `category`). The planner already drags meals
+  between days (`PlanScreen` `.draggable`/`.dropDestination`); move it to the
+  new reordering API for ordering within a day, the drop animation and the
+  iPad's multi-select drag
+- [ ] **Lazy subviews with prefetch** on the recipe rows (`RecipesBrowse`'s
+  `LazyHStack`, `RecipeCard`'s `LazyVStack`) and the cookbook pages, so
+  thumbnails load before they scroll into view
+- [ ] **MetricKit:** `MXMetricManager` subscriber in `AppModel`, with
+  app-defined states (`cooking`, `planning`, `shopping`, `ai`) so memory and
+  hang reports say where they happened, and memory-exception diagnostics.
+  Payloads go to the server's crash reports — needs a bearer version of
+  `/api/client-error` (it reads the Authelia browser session today), shown
+  under Settings → Crash reports with a "iOS" source
+- [x] **TabView selection (breaking in the iOS 27 SDK):** every tab in
+  `RootView.shell` is always visible, so `nav.tab` can't point at a hidden one.
+  Re-check if a tab is ever hidden conditionally (e.g. AI when the household
+  has no key)
+
+### Order
+
+1. **D0 + D1** — no AI decisions, works offline, uses the store as it is (v1.54.0)
+2. **D2 engine + evaluations**, with **scan a page** and **ingredient lines**
+   as its first jobs (v1.55.0)
+3. **D3's other jobs**, each switched to the device as its evaluation passes;
+   **D5** alongside, so falling back is the same code path (v1.56.0)
+4. **D4 widgets** (needs D0's App Group) and **D6** in any gaps
+
+### Open questions
+
+- **Which family devices can do it?** On-device AI needs an Apple
+  Intelligence device (iPhone 15 Pro or later, M-series iPads). Check the
+  kitchen iPad and each phone; a phone that can't simply uses the server
+- **Private Cloud Compute for a TestFlight app.** The free tier is for the App
+  Store Small Business Program. Try `PrivateCloudComputeLanguageModel`'s
+  `availability` in a TestFlight build; if it says unavailable, D2 skips it
+- **How big a gap is "close enough"?** Agree the evaluation margin before the
+  first job moves (proposed: structure checks must pass 100%; expected-answer
+  score within 10% of the server)
 
 ---
 
