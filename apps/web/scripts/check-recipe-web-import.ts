@@ -12,6 +12,8 @@ import assert from "node:assert/strict";
 import {
   cleanSourceUrl,
   extractRecipeFromHtml,
+  fallbackImageUrls,
+  largestFromSrcset,
   normaliseFractions,
   parseDurationMinutes,
   parseIngredientLines,
@@ -20,6 +22,7 @@ import {
   webRecipeToDefaults,
 } from "../lib/recipe-web-import";
 import { assertPublicUrl, isPrivateAddress, UnsafeUrlError } from "../lib/safe-fetch";
+import { normaliseServings } from "../lib/recipe-parser";
 
 const page = (head: string, body = "") =>
   `<!doctype html><html><head><title>Fallback title</title>${head}</head><body>${body}</body></html>`;
@@ -202,6 +205,58 @@ line two"}`;
   assert.doesNotMatch(out.pageText, /Home Shop|var x|© Shop/);
 }
 
+// ── 4b. Photos on pages without og:image or a recipe image ────────────────
+{
+  // The hero is a lazy <img> above <main>; the logo and a tracking pixel aren't photos.
+  const html = page(
+    "",
+    `<header><img src="/static/logo.svg" alt="Veg Box Co logo"></header>` +
+      `<div class="hero"><img src="/placeholder.gif" data-srcset="/img/pasta-400.jpg 400w, /img/pasta-1600.jpg 1600w" alt="A bowl of pasta"></div>` +
+      `<img src="/t.gif" width="1" height="1">` +
+      `<main><p>${"Method words. ".repeat(60)}</p></main>`
+  );
+  assert.deepEqual(extractRecipeFromHtml(html, "https://example.co.uk/recipes/pasta").imageUrls, [
+    "https://example.co.uk/img/pasta-1600.jpg",
+  ]);
+
+  assert.deepEqual(
+    fallbackImageUrls(`<meta itemprop="image" content="/a.jpg"><link rel="image_src" href="/b.jpg">` +
+      `<main><img src="/silicone-mat-brownies.jpg" class="recipe-photo"><img src="/icons/clock.png"></main>`),
+    ["/a.jpg", "/b.jpg", "/silicone-mat-brownies.jpg"],
+    "itemprop/image_src first; 'silicone' isn't an icon, /icons/ is"
+  );
+  assert.deepEqual(
+    fallbackImageUrls(`<main><video autoplay><source src="/hero.mp4" type="video/mp4"><source src="/hero.webm"></video>` +
+      `<picture><source srcset="/dish-800.webp 800w, /dish-1600.webp 1600w"><img src="/dish.jpg"></picture></main>`),
+    ["/dish-1600.webp", "/dish.jpg"],
+    "a hero video's sources aren't photos; a <picture>'s are"
+  );
+  // Shaped like abelandcole.co.uk: no og:image or JSON-LD; site icons in the
+  // head, the recipe writer's portrait before the photo, shop products after.
+  const abelAndCole = page(
+    `<link rel="apple-touch-icon" href="/src/images/site-icons/apple-touch-icon-180x180.jpg">` +
+      `<meta name="msapplication-square150x150logo" content="/src/images/site-icons/windows-150x150.jpg">` +
+      `<meta itemprop="image" content="/media/4468_55305_x.jpg">`,
+    `<img src="/src/images/layout/burger_menu_close.svg" alt="Close burger menu" />` +
+      `<img src="/Content/Photo library/Staff/Individual staff portraits/Recipe writers/Immy.jpg" alt="Imogen Mucklow" />` +
+      `<img src='/src/images/recipes/clock.svg' alt='Cooking time' class='icon info' />` +
+      `<img src="/media/4468_55305_x.jpg" alt="Creamy Cavolo Nero, Pancetta & Ricotta Strozzapreti">` +
+      `<img src="/src/images/shop/placeholder.png" data-src="/media/7817_26038_g.jpg" alt="Cavolo nero">`
+  );
+  const acImages = extractRecipeFromHtml(abelAndCole, "https://www.abelandcole.co.uk/recipes/x").imageUrls;
+  assert.equal(acImages[0], "https://www.abelandcole.co.uk/media/4468_55305_x.jpg", "the recipe photo comes first");
+  assert.ok(!acImages.some((u) => /portraits|site-icons/.test(u)), "no portrait or site icon is tried");
+  // The same page if the meta tag were name="image" instead of itemprop.
+  assert.equal(
+    fallbackImageUrls(`<meta name="image" content="/media/4468_55305_x.jpg">`)[0],
+    "/media/4468_55305_x.jpg"
+  );
+
+  assert.equal(largestFromSrcset("s.jpg 1x, m.jpg 2x"), "m.jpg");
+  assert.equal(largestFromSrcset("https://cdn.x/a.jpg?w=300,h=200 300w, https://cdn.x/a.jpg?w=1200,h=800 1200w"),
+    "https://cdn.x/a.jpg?w=1200,h=800");
+}
+
 // ── 5. UK ingredient formats ───────────────────────────────────────────────
 assert.deepEqual(
   parseIngredientLines([
@@ -219,6 +274,15 @@ assert.deepEqual(
     ["3-4", "tbsp", "olive oil", ""],
   ]
 );
+
+// ── 5b. Servings is a decimal column: "4-6" from the AI must not reach it ──
+assert.equal(normaliseServings("4-6"), "4");
+assert.equal(normaliseServings("Serves 4"), "4");
+assert.equal(normaliseServings("2.5"), "2.5");
+assert.equal(normaliseServings("12 squares"), "12");
+assert.equal(normaliseServings(""), null);
+assert.equal(normaliseServings(null), null);
+assert.equal(normaliseServings("a few"), null);
 
 // ── 6. Small parsers ───────────────────────────────────────────────────────
 assert.equal(parseDurationMinutes("PT1H30M"), 90);

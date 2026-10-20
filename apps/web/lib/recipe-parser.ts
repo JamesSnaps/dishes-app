@@ -240,3 +240,15 @@ export function parseStepsText(text: string): ParsedStep[] {
     .filter(Boolean)
     .map(toStep);
 }
+
+/**
+ * `servings` is a decimal column, but it arrives as text from the form, the
+ * API and the AI — and the AI or a recipe site will happily say "4-6" or
+ * "Serves 4". Keep the first number (the lower end of a range), or nothing.
+ */
+export function normaliseServings(v: string | null | undefined): string | null {
+  const m = v?.replace(",", ".").match(/\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return n > 0 && n < 1000 ? String(n) : null;
+}

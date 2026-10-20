@@ -211,8 +211,10 @@ function Shelf({
           </Link>
         )}
       </div>
+      {/* scroll-px matches px: snapping lines a card up with the scroll padding,
+          so without it the first card snaps flush to the screen edge. */}
       <div className="-mx-4 lg:-mx-8">
-        <div className="flex snap-x gap-3 overflow-x-auto px-4 pb-2 scrollbar-none lg:gap-4 lg:px-8">
+        <div className="flex snap-x gap-3 overflow-x-auto scroll-px-4 px-4 pb-2 scrollbar-none lg:gap-4 lg:scroll-px-8 lg:px-8">
           {items.slice(0, PER_SHELF).map(({ recipe, caption }) => (
             <div key={recipe.id} className="w-40 shrink-0 snap-start sm:w-48 lg:w-52">
               <RecipeCard {...recipe} />
