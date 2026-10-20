@@ -48,26 +48,6 @@ final class ShareModel {
         self.context = context
     }
 
-    // MARK: Server
-
-    /// Debug builds follow the app's dev server choice (App/Developer.swift),
-    /// which the app leaves in the shared Keychain group.
-    private static var devServer: URL? {
-        #if DEBUG
-        guard let group = Bundle.main.object(forInfoDictionaryKey: "DishesKeychainGroup") as? String,
-              !group.contains("$("),
-              let data = try? Keychain.read(account: "DishesDevServer", accessGroup: group) else { return nil }
-        return URL(string: String(decoding: data, as: UTF8.self))
-        #else
-        return nil
-        #endif
-    }
-
-    private static var realServer: URL {
-        URL(string: Bundle.main.object(forInfoDictionaryKey: "DishesAPIBase") as? String
-            ?? "https://dishes.collardserver.co.uk")!
-    }
-
     // MARK: Flow
 
     func start() async {
@@ -82,14 +62,11 @@ final class ShareModel {
 
     /// The API, signed in with the app's tokens — nil (and "Sign in first") when there are none.
     private func makeAPI() -> APIClient? {
-        let dev = Self.devServer
-        let store = KeychainTokenStore.dishes()
-        if dev == nil, (try? store.load()) == nil {
+        guard let api = ExtensionAPI.client() else {
             stage = .signedOut
             return nil
         }
-        let auth = AuthSession(oidc: OIDCClient(config: .dishesIOS()), store: store)
-        return APIClient(baseURL: dev ?? Self.realServer, tokens: dev == nil ? auth : nil)
+        return api
     }
 
     /// The router's two outcomes: a draft to check, or a recipe the server already saved.

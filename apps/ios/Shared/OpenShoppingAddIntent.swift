@@ -33,6 +33,8 @@ final class AppRequests {
     var cook: CookIntentRequest?
     /// "What's for dinner?": the planner on this week.
     var showPlan = false
+    /// The Shopping widget: the shopping list.
+    var showShopping = false
     /// A recipe tapped in Spotlight or Shortcuts (OpenRecipeIntent).
     var openRecipe: String?
 }
@@ -40,5 +42,47 @@ final class AppRequests {
 enum CookIntentRequest: Equatable {
     /// Tonight's meal, every dish of it.
     case tonight
+    /// Today's meal of this type (the Tonight widget set to lunch, say).
+    case today(mealType: String)
     case recipe(String)
+}
+
+/// Where a tap on a Home Screen widget goes (DishesWidgets/HomeWidgets.swift):
+///
+///   dishes://widget/cook?meal=dinner   cooking mode for today's dinner
+///   dishes://widget/plan               the planner, this week
+///   dishes://widget/shopping           the shopping list
+enum WidgetLink: Equatable {
+    case cook(mealType: String)
+    case plan
+    case shopping
+
+    var url: URL {
+        switch self {
+        case .cook(let meal): URL(string: "dishes://widget/cook?meal=\(meal)")!
+        case .plan: URL(string: "dishes://widget/plan")!
+        case .shopping: URL(string: "dishes://widget/shopping")!
+        }
+    }
+
+    init?(url: URL) {
+        guard url.scheme == "dishes", url.host == "widget" else { return nil }
+        switch url.path {
+        case "/cook":
+            let meal = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "meal" }?.value
+            self = .cook(mealType: meal ?? "dinner")
+        case "/plan": self = .plan
+        case "/shopping": self = .shopping
+        default: return nil
+        }
+    }
+
+    /// Hands the link to RootView, as Siri's requests are.
+    @MainActor func request() {
+        switch self {
+        case .cook(let meal): AppRequests.shared.cook = .today(mealType: meal)
+        case .plan: AppRequests.shared.showPlan = true
+        case .shopping: AppRequests.shared.showShopping = true
+        }
+    }
 }

@@ -1245,3 +1245,31 @@ Found on the way:
 **Not checked:** the share extension's text path by hand after the last prompt
 change, the fallbacks with a key set up, a device build, barcode scanning (not
 started: the product lookup needs a decision).
+
+### 20 Oct 2026 — iOS 27 Phase D4: Home Screen widgets (v1.59.0)
+
+Tonight, This week and Shopping (`DishesWidgets/HomeWidgets.swift`), read from
+the App Group database with the screens' own code (`Shared/HouseholdData.swift`,
+`Shared/Format.swift`). The widget extension now links DishesCore and shares the
+app's Keychain group, so a Shopping tick is sent straight away
+(`ExtensionAPI.client()`; the share sheet uses it too now). Widget taps open
+`dishes://widget/cook?meal=…`, `/plan` or `/shopping` (`WidgetLink`).
+
+To add them on the simulator: long-press the Home Screen → Edit (top left) →
+Add Widget → Dishes, and page through the sizes.
+
+Checked on the iPad Pro 11" simulator against the dev server: the gallery
+showed all seven sizes with real data (tonight's carbonara, the week's dinners
+with today picked out, 15 items to get); Tonight and Shopping on the Home
+Screen; ticking Broccoli on the widget checked it on the server within a few
+seconds and the widget showed 14 left (put back by hand); the cook link opened
+cooking mode on the carbonara.
+
+Found on the way: amounts came through raw ("300.000 ml") until `Format` was
+shared, and the medium Shopping widget's header was pushed off by a fourth row.
+In dev, a widget tap that cold-launches the app opens it without
+`-DishesDevServer`, so it lands on Sign in — relaunch with `sim.sh`.
+
+**Not checked:** the tinted and clear Home Screen styles, the Lock Screen
+slots, StandBy, a device build (the widget extension now needs the Keychain
+group on its provisioning profile).

@@ -227,8 +227,6 @@ struct ShoppingScreen: View {
     }
 }
 
-/// The web's CATEGORY_ORDER (shopping-list-client.tsx); anything else after, then uncategorised.
-let shoppingCategories = ["Produce", "Dairy", "Meat", "Fish", "Bakery", "Pantry", "Frozen", "Drinks", "Cleaning", "Other"]
 
 // MARK: Add
 
@@ -454,45 +452,5 @@ struct EditItemSheet: View {
                              optimistic: current.map { [.put(.shoppingItems, $0.merging(.object(fields)))] } ?? [])
             dismiss()
         }
-    }
-}
-
-// MARK: Data
-
-/// The active list and its items, grouped for display.
-struct ShoppingData: Sendable {
-    struct Group: Sendable { var name: String; var items: [ShoppingItem] }
-
-    var list: ShoppingList?
-    var all: [ShoppingItem] = []
-    var groups: [Group] = []
-    var checked: [ShoppingItem] = []
-    var recipeTitles: [String: String] = [:]
-
-    @Sendable static func load(_ r: StoreReader) throws -> ShoppingData {
-        let lists = try r.records(.shoppingLists).compactMap(ShoppingList.init)
-        let list = lists.first { $0.status == "active" }
-        let items = try r.records(.shoppingItems).compactMap(ShoppingItem.init)
-            // Items on the active list, plus any added before a list existed.
-            .filter { $0.listId == list?.id || $0.listId == "pending" }
-            .sorted { ($0.position, $0.name) < ($1.position, $1.name) }
-
-        var data = ShoppingData(list: list, all: items)
-        let open = items.filter { !$0.isChecked }
-        let byCategory = Dictionary(grouping: open) { $0.category?.isEmpty == false ? $0.category! : "" }
-        func rank(_ name: String) -> (Int, String) {
-            if name.isEmpty { return (2, "") }
-            if let i = shoppingCategories.firstIndex(of: name) { return (0, String(format: "%02d", i)) }
-            return (1, name)
-        }
-        data.groups = byCategory.keys.sorted { rank($0) < rank($1) }
-            .map { Group(name: $0.isEmpty ? "Uncategorised" : $0, items: byCategory[$0]!) }
-        data.checked = items.filter(\.isChecked)
-        let ids = Set(items.compactMap(\.recipeId))
-        if !ids.isEmpty {
-            data.recipeTitles = Dictionary(try r.records(.recipes).compactMap(Recipe.init)
-                .filter { ids.contains($0.id) }.map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
-        }
-        return data
     }
 }

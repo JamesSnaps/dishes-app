@@ -62,6 +62,23 @@ import Testing
         #expect(try await store.read { try $0.cursor() } == "def")
     }
 
+    @Test func aWidgetsTickIsSeenByTheAppAndQueued() async throws {
+        // Two connections to one file, as the app and the Shopping widget have (D4).
+        let path = folder.appending(path: "dishes.sqlite").path
+        let app = try LocalStore(sharedPath: path)
+        try await app.write { try $0.put(.shoppingItems, .object(["id": .string("milk"), "ingredientName": .string("Milk"),
+                                                                  "isChecked": .bool(false), "listId": .string("l")])) }
+        let widget = try LocalStore(sharedPath: path)
+        #expect(try await widget.setShoppingItem("milk", checked: true))
+        #expect(try await !widget.setShoppingItem("gone", checked: true))
+
+        let row = try await app.read { try $0.record(.shoppingItems, id: "milk") }
+        #expect(row.flatMap { ShoppingItem($0) }?.isChecked == true)
+        let queued = try await app.read { try $0.pendingMutations() }
+        #expect(queued.map(\.type) == ["shopping_item.toggle"])
+        try await app.noticeOtherProcesses()
+    }
+
     @Test func aiContextFixtureDecodesAndRoundTrips() throws {
         // fixtures/wire/ai-context.json: GET /api/v1/ai/context (scripts/check-ai-context.ts checks its fields).
         let url = URL(filePath: #filePath).deletingLastPathComponent()

@@ -18,6 +18,8 @@ struct CookLinkHandler: ViewModifier {
             .onOpenURL { url in
                 if let link = CookLink(url: url) {
                     pending = link
+                } else if let widget = WidgetLink(url: url) {
+                    widget.request()
                 } else if let page = WebImportLink(url: url) {
                     // A recipe page from a Shortcut (Recipes/WebImportSheet.swift).
                     nav.importLink = page

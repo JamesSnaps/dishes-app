@@ -8,5 +8,10 @@
 	<array>
 		<string>group.uk.collco.dishes</string>
 	</array>
+	<!-- The app's sign-in tokens, so the Shopping widget can send a tick at once (ExtensionAPI). -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)uk.collco.dishes.shared</string>
+	</array>
 </dict>
 </plist>

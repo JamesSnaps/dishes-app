@@ -203,9 +203,31 @@ public actor SyncEngine {
     /// isn't queued, or the other way round.
     @discardableResult
     public func mutate(_ type: String, payload: JSONValue, optimistic: [OptimisticChange] = []) async throws -> String {
-        let opId = UUID().uuidString.lowercased()
-        let queuedAt = Int(now().timeIntervalSince1970 * 1000)
+        try await store.queueMutation(type, payload: payload, optimistic: optimistic, at: now())
+    }
+
+    /// Patches a record locally without queueing anything, for writes that go
+    /// through a direct API call instead. The next pull overwrites it with the
+    /// server's row, so use it only where the server's answer is a foregone
+    /// conclusion.
+    public func patchLocal(_ collection: SyncCollection, id: String, _ patch: [String: JSONValue]) async throws {
         try await store.write { tx in
+            guard let existing = try tx.reader.record(collection, id: id) else { return }
+            try tx.put(collection, existing.merging(.object(patch)).merging(.object(["id": .string(id)])))
+        }
+    }
+}
+
+extension LocalStore {
+    /// `SyncEngine.mutate` without an engine, for a process that can't sync
+    /// itself every time — a widget's button (DishesWidgets): the change and
+    /// its queue entry in one transaction, sent by whichever process syncs next.
+    @discardableResult
+    public func queueMutation(_ type: String, payload: JSONValue, optimistic: [OptimisticChange] = [],
+                              at date: Date = Date()) async throws -> String {
+        let opId = UUID().uuidString.lowercased()
+        let queuedAt = Int(date.timeIntervalSince1970 * 1000)
+        try await write { tx in
             var temporary: [RecordRef] = []
             for change in optimistic {
                 switch change {
@@ -222,14 +244,14 @@ public actor SyncEngine {
         return opId
     }
 
-    /// Patches a record locally without queueing anything, for writes that go
-    /// through a direct API call instead. The next pull overwrites it with the
-    /// server's row, so use it only where the server's answer is a foregone
-    /// conclusion.
-    public func patchLocal(_ collection: SyncCollection, id: String, _ patch: [String: JSONValue]) async throws {
-        try await store.write { tx in
-            guard let existing = try tx.reader.record(collection, id: id) else { return }
-            try tx.put(collection, existing.merging(.object(patch)).merging(.object(["id": .string(id)])))
-        }
+    /// Ticks a shopping item off (or back on): the shopping screen, the Watch,
+    /// Siri and the Shopping widget all go through this. False when the item
+    /// has gone (deleted on another device).
+    @discardableResult
+    public func setShoppingItem(_ id: String, checked: Bool) async throws -> Bool {
+        guard let current = try await read({ try $0.record(.shoppingItems, id: id) }) else { return false }
+        try await queueMutation("shopping_item.toggle", payload: .object(["itemId": .string(id), "checked": .bool(checked)]),
+                                optimistic: [.put(.shoppingItems, current.merging(.object(["isChecked": .bool(checked)])))])
+        return true
     }
 }

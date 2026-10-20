@@ -278,6 +278,12 @@ struct RootView: View {
                 case .tonight:
                     // A double optional: an unreadable store, or nothing to cook tonight.
                     if let tonight = (try? await app.store.read(TonightMeal.load)) ?? nil { nav.cooking = tonight } else { nav.tab = .plan }
+                case .today(let mealType):
+                    if let meal = (try? await app.store.read { try TonightMeal.load($0, mealType: mealType) }) ?? nil {
+                        nav.cooking = meal
+                    } else {
+                        nav.tab = .plan
+                    }
                 case .recipe(let id):
                     await openCooking(id)
                 }
@@ -288,6 +294,12 @@ struct RootView: View {
             guard let id else { return }
             AppRequests.shared.openRecipe = nil
             nav.openRecipe(id)
+        }
+        // The Shopping widget.
+        .onChange(of: AppRequests.shared.showShopping, initial: true) { _, wanted in
+            guard wanted else { return }
+            AppRequests.shared.showShopping = false
+            nav.tab = .shopping
         }
         // "What's for dinner?": the planner, on this week.
         .onChange(of: AppRequests.shared.showPlan, initial: true) { _, wanted in
@@ -413,12 +425,12 @@ extension RootView {
 }
 
 enum TonightMeal {
-    @Sendable static func load(_ r: StoreReader) throws -> CookRequest? {
+    @Sendable static func load(_ r: StoreReader) throws -> CookRequest? { try load(r, mealType: nil) }
+
+    /// Today's meal of `mealType`; nil: dinner, or the last meal planned today.
+    static func load(_ r: StoreReader, mealType: String?) throws -> CookRequest? {
         let data = try PlanData.load(r)
-        let week = Week.containing(Date())
-        let today = (Calendar(identifier: .iso8601).component(.weekday, from: Date()) + 5) % 7
-        let meals = data.meals(on: today, in: week)
-        guard let meal = meals.first(where: { $0.mealType == "dinner" }) ?? meals.last else { return nil }
+        guard let meal = data.today(mealType) else { return nil }
         let dishes = CookDish.inStartOrder(meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty })
         return dishes.isEmpty ? nil : CookRequest(title: meal.title, groupId: meal.groupId, dishes: dishes)
     }

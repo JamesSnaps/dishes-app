@@ -9,8 +9,8 @@
 //                         Screen only through an ActivityConfiguration for its
 //                         AlarmAttributes, which has to live in an extension
 //
-// Home Screen widgets (tonight's meal, the shopping count) come later and will
-// need the App Group so they can read the store (TODO_MOBILE.md, C4 tier 2).
+// The Home Screen and Lock Screen widgets — Tonight, This week, Shopping —
+// are in HomeWidgets.swift (TODO_MOBILE.md, D4).
 //
 // Colours are copied from the app's Theme (the extension can't see app code):
 // orange-500 for the brand, the web's slate for muted text.
@@ -28,6 +28,9 @@ struct DishesWidgets: WidgetBundle {
         CookTimerAlarmActivity()
         MealScheduleLiveActivity()
         AddToShoppingControl()
+        TonightWidget()
+        WeekWidget()
+        ShoppingWidget()
     }
 }
 

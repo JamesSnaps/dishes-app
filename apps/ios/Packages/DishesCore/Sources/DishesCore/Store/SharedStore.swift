@@ -85,6 +85,13 @@ extension LocalStore {
         NotificationCenter.default.post(name: Database.resumeNotification, object: nil)
     }
 
+    /// Another process (a widget's tick) may have written while this one wasn't
+    /// looking, and GRDB's observations only see this process's own writes:
+    /// every observation reads again.
+    public func noticeOtherProcesses() async throws {
+        try await writer.write { db in try db.notifyChanges(in: DatabaseRegion.fullDatabase) }
+    }
+
     /// The database and its -wal / -shm files moved from `old` to `new`, once:
     /// nothing happens when `new` already exists or there's nothing at `old`.
     /// Call it before either is opened, so no connection holds the files. The

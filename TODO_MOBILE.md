@@ -1041,20 +1041,44 @@ for themselves.
   kept. Evaluation: 6 households (`fixtures/evals/meal-plans.json`), 0.903 and
   0.917, 6/6 both runs. Still weak: a preference for one day ("pasta on
   Friday") — the right dishes, the wrong days
-- [ ] **Barcode scanning for shopping** (Tier 3): `BarcodeReaderTool` or
-  `DataScannerViewController` → product name → shopping item. The pantry
-  joins in once it has an API
+- [ ] ~~**Barcode scanning for shopping**~~ — not for now (James, 20 Oct
+  2026). When it comes back: a barcode needs a product database (Open Food
+  Facts), so decide whether the lookup goes through the server first
 
 ### D4. Widgets
 
-- [ ] **Configurable widgets through App Intents** (`AppIntentConfiguration`),
+- [x] **Configurable widgets through App Intents** (`AppIntentConfiguration`),
   merging the Tier 2 interactive-widgets item: "Tonight" (meal, serve time,
   Start cooking button), "This week" (iPad large/extra-large), "Shopping" (tick
   items off with a button intent, as the Watch does). Choosing which list or
   which meal type is a widget setting. Read from the App Group store;
-  `WidgetCenter.reloadAllTimelines()` after a sync that changes them
+  `WidgetCenter.reloadAllTimelines()` after a sync that changes them.
+  *Done (v1.59.0):* `DishesWidgets/HomeWidgets.swift`.
+  - Tonight (small, medium, Lock Screen rectangular and inline; set to
+    tonight's, breakfast, lunch, dinner or dessert), with Start cooking and
+    Planner links (`dishes://widget/…`, `WidgetLink`)
+  - This week (large rows, extra-large columns on the iPad; every meal or one type)
+  - Shopping (small count, medium and large lists, Lock Screen circular; one
+    aisle or all). A tick is `LocalStore.setShoppingItem` — written and queued
+    in one go, as in the app — then sent at once through the app's tokens
+    (`ExtensionAPI`, the shared Keychain group) when that takes under 8
+    seconds; otherwise the app sends it next time
+  - The widgets read the same code as the screens: `PlanData`, `ShoppingData`,
+    `Week` and `Format` moved to `Shared/`, compiled into both. The widget
+    opens the database only once the app has made it (an empty one at the
+    group path would stop the app moving its own in). The app re-reads on
+    coming back (`noticeOtherProcesses`: GRDB only sees its own process's
+    writes) and reloads the widgets after a sync that changed anything and
+    after each local change
+  - Checked on the iPad simulator: all three in the gallery with real data;
+    Tonight and Shopping on the Home Screen; a tick on the widget reached the
+    server in a moment and the list went from 15 to 14; the cook link opened
+    cooking mode on tonight's dish
 - [ ] iOS 27 widget styling (tinted / clear modes) checked on the Home Screen
-  and Lock Screen; StandBy (Tier 2) falls out of the same widgets
+  and Lock Screen; StandBy (Tier 2) falls out of the same widgets. *Written:*
+  in the tinted and clear styles the gradients go and the headings and buttons
+  are accented (`widgetRenderingMode`, `widgetAccentable`). Not yet looked at
+  on a device or the simulator's tinted Home Screen, nor the Lock Screen slots
 
 ### D5. The server as a `LanguageModel`
 

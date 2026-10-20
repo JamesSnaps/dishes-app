@@ -15,6 +15,7 @@ import Foundation
 import Network
 import Observation
 import UIKit
+import WidgetKit
 
 struct SyncStatus: Equatable {
     enum State { case starting, idle, syncing, offline }
@@ -128,6 +129,8 @@ final class AppModel {
     func enteredForeground() {
         offScreen = false
         LocalStore.resume()
+        // A tick on the Shopping widget wrote to the database while the app was away.
+        Task { try? await store.noticeOtherProcesses() }
     }
 
     /// Off screen: send anything waiting first (a tick just before locking the
@@ -262,6 +265,7 @@ final class AppModel {
         do {
             let outcome = try await engine.sync(force: force)
             status.state = outcome.offline ? .offline : .idle
+            if outcome.pulled > 0 || outcome.pushed > 0 { WidgetCenter.shared.reloadAllTimelines() }
             if !outcome.offline { status.lastSyncedAt = Date() }
         } catch {
             // Only APIError.signedOut gets here. Local data and the outbox stay.
@@ -352,6 +356,7 @@ final class AppModel {
     func mutate(_ type: String, payload: JSONValue, optimistic: [OptimisticChange] = []) async -> Bool {
         do {
             try await engine.mutate(type, payload: payload, optimistic: optimistic)
+            WidgetCenter.shared.reloadAllTimelines()
             status.pending = (try? await store.read { try $0.pendingCount() }) ?? status.pending
             syncSoon()
             return true
@@ -417,10 +422,16 @@ final class AppModel {
     /// False when the item has gone (deleted on another device).
     @discardableResult
     func setShoppingItem(_ id: String, checked: Bool) async -> Bool {
-        guard let current = try? await store.read({ try $0.record(.shoppingItems, id: id) }) else { return false }
-        return await mutate("shopping_item.toggle",
-                            payload: .object(["itemId": .string(id), "checked": .bool(checked)]),
-                            optimistic: [.put(.shoppingItems, current.merging(.object(["isChecked": .bool(checked)])))])
+        do {
+            guard try await store.setShoppingItem(id, checked: checked) else { return false }
+            WidgetCenter.shared.reloadAllTimelines()
+            status.pending = (try? await store.read { try $0.pendingCount() }) ?? status.pending
+            syncSoon()
+            return true
+        } catch {
+            toast = "Couldn’t save that change on this device."
+            return false
+        }
     }
 
     private func explain(_ failures: [FailedMutation]) {
