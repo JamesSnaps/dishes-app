@@ -1,6 +1,6 @@
 {
   "name": "@dishes/web",
-  "version": "1.53.0",
+  "version": "1.54.0",
   "private": true,
   "scripts": {
     "check:share-scope": "tsx scripts/check-share-scope.ts",

@@ -7,6 +7,7 @@ import { withMealGroup } from "@/lib/integration-meal-groups";
 import { getDeliveryConfig, getNextOpenDelivery } from "@/lib/deliveries/schedule";
 import { nextDeliveryJson } from "@/lib/deliveries/json";
 import { localNow } from "@/lib/dinner-reminders/time";
+import { householdClock, todayDinner, weekServeTimes } from "@/lib/integration-meal-times";
 
 /** The next grocery order still open, or null when deliveries aren't set up. */
 async function nextDelivery(householdId: string) {
@@ -15,17 +16,13 @@ async function nextDelivery(householdId: string) {
   return nextDeliveryJson(report, localNow(config.timezone).date);
 }
 
-// Returns today's meal plan entries for the household's active plan.
+// Returns today's meal plan entries for the household's active plan, with
+// tonight's dinner and cooking start times on the household clock.
 export const GET = withIntegrationAuth(
   "read:meal_plan",
   async (_req: NextRequest, ctx) => {
-    const today = new Date();
-    // day_of_week: 0=Mon … 6=Sun (matching schema)
-    const dayOfWeek = (today.getDay() + 6) % 7;
-
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - dayOfWeek);
-    const weekStartDate = weekStart.toISOString().split("T")[0]!;
+    const clock = await householdClock(ctx.householdId);
+    const { today: date, dayOfWeek, weekStartDate } = clock;
 
     const [plan] = await db
       .select({ id: mealPlans.id })
@@ -38,46 +35,62 @@ export const GET = withIntegrationAuth(
       )
       .limit(1);
 
+    const [dinner, delivery] = await Promise.all([
+      todayDinner(ctx.householdId, clock),
+      nextDelivery(ctx.householdId),
+    ]);
+
     if (!plan) {
       return NextResponse.json({
-        date: today.toISOString().split("T")[0],
+        date,
+        timezone: clock.timezone,
         meals: [],
-        nextDelivery: await nextDelivery(ctx.householdId),
+        dinner,
+        nextDelivery: delivery,
       });
     }
 
-    const entries = await db
-      .select({
-        id: mealPlanEntries.id,
-        mealType: mealPlanEntries.mealType,
-        servings: mealPlanEntries.servings,
-        notes: mealPlanEntries.notes,
-        groupId: mealPlanGroups.id,
-        groupTitle: mealPlanGroups.title,
-        mealRole: mealPlanEntries.mealRole,
-        recipe: {
-          id: recipes.id,
-          title: recipes.title,
-          cuisine: recipes.cuisine,
-          prepTimeMinutes: recipes.prepTimeMinutes,
-          cookTimeMinutes: recipes.cookTimeMinutes,
-          calories: recipes.calories,
-        },
-      })
-      .from(mealPlanEntries)
-      .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
-      .leftJoin(mealPlanGroups, eq(mealPlanEntries.groupId, mealPlanGroups.id))
-      .where(
-        and(
-          eq(mealPlanEntries.mealPlanId, plan.id),
-          eq(mealPlanEntries.dayOfWeek, dayOfWeek)
-        )
-      );
+    const [entries, serveAt] = await Promise.all([
+      db
+        .select({
+          id: mealPlanEntries.id,
+          dayOfWeek: mealPlanEntries.dayOfWeek,
+          mealType: mealPlanEntries.mealType,
+          servings: mealPlanEntries.servings,
+          notes: mealPlanEntries.notes,
+          groupId: mealPlanGroups.id,
+          groupTitle: mealPlanGroups.title,
+          groupServeAt: mealPlanGroups.serveAt,
+          mealRole: mealPlanEntries.mealRole,
+          recipe: {
+            id: recipes.id,
+            title: recipes.title,
+            cuisine: recipes.cuisine,
+            prepTimeMinutes: recipes.prepTimeMinutes,
+            cookTimeMinutes: recipes.cookTimeMinutes,
+            calories: recipes.calories,
+          },
+        })
+        .from(mealPlanEntries)
+        .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
+        .leftJoin(mealPlanGroups, eq(mealPlanEntries.groupId, mealPlanGroups.id))
+        .where(
+          and(
+            eq(mealPlanEntries.mealPlanId, plan.id),
+            eq(mealPlanEntries.dayOfWeek, dayOfWeek)
+          )
+        ),
+      weekServeTimes(ctx.householdId, weekStartDate, clock.settings),
+    ]);
 
     return NextResponse.json({
-      date: today.toISOString().split("T")[0],
-      meals: entries.map(withMealGroup),
-      nextDelivery: await nextDelivery(ctx.householdId),
+      date,
+      timezone: clock.timezone,
+      meals: entries.map(({ dayOfWeek: _d, groupServeAt, ...entry }) =>
+        withMealGroup({ ...entry, serveAt: serveAt({ dayOfWeek, mealType: entry.mealType, groupServeAt }) })
+      ),
+      dinner,
+      nextDelivery: delivery,
     });
   }
 );

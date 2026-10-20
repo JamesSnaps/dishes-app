@@ -37,9 +37,10 @@ export type ParamDoc = {
 export type EndpointDoc = {
   /** Stable id; doubles as the OpenAPI operationId (what AI tools call it). */
   id: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PATCH" | "DELETE";
   path: string;
-  scope: TokenScope;
+  /** null: any valid token may call it. */
+  scope: TokenScope | null;
   summary: string;
   description: string;
   params?: ParamDoc[];
@@ -57,6 +58,7 @@ export const SCOPE_DESCRIPTIONS: Record<TokenScope, string> = {
   "write:shopping_list": "Add items to the active shopping list",
   "read:deliveries": "Read grocery delivery days and order status",
   "write:deliveries": "Record grocery orders (e.g. from retailer emails)",
+  "read:cooking": "See who is cooking right now: the dish, the step and the running timers",
 };
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
@@ -223,24 +225,44 @@ const DELIVERY_ENDPOINTS: EndpointDoc[] = [
 
 export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
   {
+    id: "getToken",
+    method: "GET",
+    path: "/api/integrations/token",
+    scope: null,
+    summary: "This token",
+    description:
+      "The calling token's name, household and scopes. Any valid token may call it — use it to check a token works and to offer only what its scopes allow.",
+    response: {
+      status: 200,
+      description: "The token.",
+      example: {
+        name: "Home Assistant",
+        household: "The Snaps",
+        scopes: ["read:meal_plan", "read:cooking", "read:shopping_list", "write:shopping_list"],
+      },
+    },
+  },
+  {
     id: "getToday",
     method: "GET",
     path: "/api/integrations/today",
     scope: "read:meal_plan",
     summary: "Today's meals",
     description:
-      "Every meal planned for today, across all meal types. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own. nextDelivery is the next grocery order still open (see getDeliveries), or null when delivery days aren't set up.",
+      "Every meal planned for today, across all meal types. \"Today\" is the household's date in its own timezone (Settings → Dinner reminders), not the server's. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own. serveAt is when the meal should be ready (its own ready-by time, else the day's dinner time for dinner; null otherwise). dinner is tonight's dinner time and when to start cooking it — the time the start-cooking reminder goes by; startCookingAt is null when no dinner is planned. nextDelivery is the next grocery order still open (see getDeliveries), or null when delivery days aren't set up.",
     response: {
       status: 200,
       description: "Today's meals. `meals` is empty when nothing is planned.",
       example: {
         date: "2026-10-03",
+        timezone: "Europe/London",
         meals: [
           {
             id: "3c59dc04-8f2b-4b7e-a1d0-6a2f4c9b7e01",
             mealType: "dinner",
             servings: "4",
             notes: null,
+            serveAt: "2026-10-03T16:30:00.000Z",
             mealGroup: null,
             recipe: RECIPE_SUMMARY_EXAMPLE,
           },
@@ -249,6 +271,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             mealType: "dinner",
             servings: "4",
             notes: null,
+            serveAt: "2026-10-03T16:30:00.000Z",
             mealGroup: {
               id: "1679091c-5a88-4faf-afb5-e6087eb1b2dc",
               title: "Sunday roast",
@@ -257,6 +280,12 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             recipe: { ...RECIPE_SUMMARY_EXAMPLE, title: "Roast Chicken", cuisine: "British" },
           },
         ],
+        dinner: {
+          time: "17:30",
+          serveAt: "2026-10-03T16:30:00.000Z",
+          startCookingAt: "2026-10-03T15:20:00.000Z",
+          reminderEnabled: true,
+        },
         nextDelivery: null,
       },
     },
@@ -268,14 +297,15 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     scope: "read:meal_plan",
     summary: "Week meal plan",
     description:
-      "All meal plan entries for one week. dayOfWeek runs 0 = Monday to 6 = Sunday. planStatus is draft, active or archived. Entries in a combined meal share a mealGroup { id, title, role } (null otherwise), as in getToday.",
+      "All meal plan entries for one week. dayOfWeek runs 0 = Monday to 6 = Sunday. planStatus is draft, active or archived. Entries in a combined meal share a mealGroup { id, title, role } (null otherwise), and serveAt is when the meal should be ready (null for meals with no time), as in getToday.",
     params: [
       {
         name: "week",
         in: "query",
         required: false,
         schema: { type: "string", format: "date" },
-        description: "Monday of the week to fetch (YYYY-MM-DD). Defaults to the current week.",
+        description:
+          "A date in the week to fetch (YYYY-MM-DD); its Monday is used. Defaults to the current week in the household's timezone.",
       },
     ],
     response: {
@@ -283,6 +313,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
       description: "The week's entries. `entries` is empty when no plan exists.",
       example: {
         weekStartDate: "2026-09-28",
+        timezone: "Europe/London",
         planStatus: "active",
         entries: [
           {
@@ -291,6 +322,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             mealType: "dinner",
             servings: "4",
             notes: null,
+            serveAt: "2026-09-28T16:30:00.000Z",
             mealGroup: null,
             recipe: { ...RECIPE_SUMMARY_EXAMPLE, title: "Pasta Carbonara", cuisine: "Italian" },
           },
@@ -364,6 +396,52 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
       },
     },
     errors: [{ status: 404, description: "No recipe with that id in this household." }],
+  },
+  {
+    id: "getCooking",
+    method: "GET",
+    path: "/api/integrations/cooking",
+    scope: "read:cooking",
+    summary: "Who's cooking now",
+    description:
+      "The cooks in progress in cooking mode, on any of the household's devices: who is cooking, the dish, the step on screen and its timers. A cook left open but untouched for 15 minutes, with no timer still running, isn't listed. members lists the household's active members with cooking: true for each one cooking now. Timer endsAt is set while a timer runs (null when paused or finished); remainingSeconds is as of the response. Read-only: cooks are only changed by the device cooking them.",
+    response: {
+      status: 200,
+      description: "`cooking` is false and `sessions` is empty when nobody is cooking.",
+      example: {
+        cooking: true,
+        members: [
+          { id: "45c48cce-2e2d-4fbd-8a5c-1b2c3d4e5f60", name: "James", cooking: true },
+          { id: "d3d94468-02a4-4b1e-9c3d-2e3f4a5b6c71", name: "Sam", cooking: false },
+        ],
+        sessions: [
+          {
+            id: "6512bd43-d9ca-4a6e-8e0f-3a4b5c6d7e82",
+            memberId: "45c48cce-2e2d-4fbd-8a5c-1b2c3d4e5f60",
+            memberName: "James",
+            title: "Sunday roast",
+            dish: "Roast Chicken",
+            step: 3,
+            totalSteps: 8,
+            instruction: "Baste the chicken and return it to the oven for 25 minutes.",
+            device: "iPad",
+            startedAt: "2026-10-04T15:05:00.000Z",
+            updatedAt: "2026-10-04T15:41:12.000Z",
+            timers: [
+              {
+                id: "roast-1",
+                label: "Roast",
+                dish: "Roast Chicken",
+                state: "running",
+                endsAt: "2026-10-04T16:06:00.000Z",
+                remainingSeconds: 1488,
+                durationSeconds: 1500,
+              },
+            ],
+          },
+        ],
+      },
+    },
   },
   {
     id: "getShoppingList",
@@ -467,6 +545,66 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
       },
     },
     errors: [{ status: 400, description: "Body isn't valid JSON or `text` is empty." }],
+  },
+  {
+    id: "updateShoppingItem",
+    method: "PATCH",
+    path: "/api/integrations/shopping-list/items/{id}",
+    scope: "write:shopping_list",
+    summary: "Tick off or rename an item",
+    description:
+      "Checks or unchecks an item on the household's shopping list, or renames it. Item ids come from getShoppingList.",
+    params: [
+      {
+        name: "id",
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
+        description: "Item id (items[].id from getShoppingList).",
+      },
+    ],
+    body: {
+      schema: {
+        type: "object",
+        properties: {
+          isChecked: { type: "boolean", description: "Ticked off (true) or still to buy (false)." },
+          ingredientName: { type: "string", description: "A new name for the item." },
+        },
+      },
+      example: { isChecked: true },
+    },
+    response: {
+      status: 200,
+      description: "The item id and the fields that changed.",
+      example: { id: "c4ca4238-a0b9-4382-8dcc-509a6f75849b", isChecked: true },
+    },
+    errors: [
+      { status: 400, description: "Bad JSON, a field of the wrong type, or nothing to update." },
+      { status: 404, description: "No item with that id on this household's lists." },
+    ],
+  },
+  {
+    id: "deleteShoppingItem",
+    method: "DELETE",
+    path: "/api/integrations/shopping-list/items/{id}",
+    scope: "write:shopping_list",
+    summary: "Remove an item",
+    description: "Removes an item from the household's shopping list.",
+    params: [
+      {
+        name: "id",
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
+        description: "Item id (items[].id from getShoppingList).",
+      },
+    ],
+    response: {
+      status: 200,
+      description: "The id of the removed item.",
+      example: { deleted: "c4ca4238-a0b9-4382-8dcc-509a6f75849b" },
+    },
+    errors: [{ status: 404, description: "No item with that id on this household's lists." }],
   },
   {
     id: "generateMealPlan",

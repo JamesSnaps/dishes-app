@@ -42,9 +42,10 @@ For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's f
 | `read:meal_plan` | Read meal plan entries and full recipes |
 | `write:meal_plan` | Create meal plan entries and trigger AI generation |
 | `read:shopping_list` | Read the active shopping list |
-| `write:shopping_list` | Add items to the active shopping list |
+| `write:shopping_list` | Add, tick off, rename and remove shopping list items |
 | `read:deliveries` | Read grocery delivery days and order status |
 | `write:deliveries` | Record grocery orders (e.g. from retailer emails) |
+| `read:cooking` | See who is cooking right now: the dish, the step and the running timers |
 
 ## Common error shape
 
@@ -56,9 +57,27 @@ For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's f
 
 ## Endpoints
 
+### `GET /api/integrations/token`
+
+The calling token itself: its name, household and scopes. Any valid token may call it, whatever its scopes — use it to check a token works and to offer only what the token allows. The Home Assistant integration uses it to decide which entities to create.
+
+**Scope:** any
+
+**Response `200`**
+
+```json
+{
+  "name": "Home Assistant",
+  "household": "The Snaps",
+  "scopes": ["read:meal_plan", "read:cooking", "read:shopping_list", "write:shopping_list"]
+}
+```
+
+---
+
 ### `GET /api/integrations/today`
 
-Returns today's meal plan entries across all meal types.
+Returns today's meal plan entries across all meal types, and tonight's dinner times.
 
 **Scope:** `read:meal_plan`
 
@@ -69,12 +88,14 @@ Returns today's meal plan entries across all meal types.
 ```json
 {
   "date": "2026-05-14",
+  "timezone": "Europe/London",
   "meals": [
     {
       "id": "uuid",
       "mealType": "dinner",
       "servings": "4",
       "notes": null,
+      "serveAt": "2026-05-14T16:30:00.000Z",
       "mealGroup": {
         "id": "uuid",
         "title": "Sunday roast",
@@ -90,9 +111,21 @@ Returns today's meal plan entries across all meal types.
       }
     }
   ],
+  "dinner": {
+    "time": "17:30",
+    "serveAt": "2026-05-14T16:30:00.000Z",
+    "startCookingAt": "2026-05-14T15:20:00.000Z",
+    "reminderEnabled": true
+  },
   "nextDelivery": null
 }
 ```
+
+`date` is today in the household's timezone (`timezone`, set under Settings → Dinner reminders), not the server's — so just after midnight it's already the new day.
+
+`serveAt` is when the meal should be ready, as an ISO instant: the meal's own ready-by time, else the day's dinner time for a dinner, else `null` (breakfasts and lunches usually have none).
+
+`dinner` is tonight's dinner on the household clock, whether or not one is planned: `time` (`"HH:MM"`, the day's dinner time), `serveAt` (the same as an instant), `startCookingAt` (when to start cooking to eat on time — the first step of the meal's cooking schedule, or the household's real cook time for the longest dish; `null` when no dinner is planned) and `reminderEnabled` (`false` when the day's reminders are switched off). `startCookingAt` is what the start-cooking reminder goes by.
 
 `nextDelivery` is the next grocery order that's still open, in the same shape as `next` from [`GET /api/integrations/deliveries`](#get-apiintegrationsdeliveries), or `null` when no delivery is coming (or delivery days aren't set up).
 
@@ -112,7 +145,7 @@ Returns all meal plan entries for a given week.
 
 | Param | Type | Default | Description |
 |---|---|---|---|
-| `week` | `YYYY-MM-DD` | current Monday | The Monday date of the week to fetch |
+| `week` | `YYYY-MM-DD` | current week | Any date in the week to fetch; its Monday is used. `400` if it isn't a date |
 
 **Example**
 
@@ -125,6 +158,7 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
 ```json
 {
   "weekStartDate": "2026-05-11",
+  "timezone": "Europe/London",
   "planStatus": "draft",
   "entries": [
     {
@@ -133,6 +167,7 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
       "mealType": "dinner",
       "servings": "4",
       "notes": null,
+      "serveAt": "2026-05-11T16:30:00.000Z",
       "mealGroup": null,
       "recipe": {
         "id": "uuid",
@@ -150,7 +185,8 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
 `dayOfWeek` values: `0` = Monday … `6` = Sunday.  
 `planStatus`: `"draft"` | `"active"` | `"archived"`.  
 `entries` is empty `[]` if no plan exists for the week.  
-`mealGroup`: `{ id, title, role }` for a dish in a combined meal, otherwise `null` — see `/today`.
+`mealGroup`: `{ id, title, role }` for a dish in a combined meal, otherwise `null` — see `/today`.  
+`serveAt`: when the meal should be ready, or `null` — see `/today`. The current week is the household's, in its own timezone.
 
 ---
 
@@ -343,6 +379,104 @@ Adds a single item from a plain-text string. Designed for Siri Shortcuts and voi
 5. Name the Shortcut **"Add to shopping list"** — Siri will pick it up automatically
 
 On an iPhone or iPad with the Dishes app, its own **Add to Shopping List** action (Siri: "Add to shopping in Dishes") does this without a token and works offline, and so does the Dishes Watch app on an **Apple Watch**. This Shortcut is still useful anywhere neither app is installed: it uses only built-in actions.
+
+---
+
+### `PATCH /api/integrations/shopping-list/items/{id}`
+
+Ticks an item off (or back on), or renames it. Item ids come from `GET /api/integrations/shopping-list`. The Home Assistant integration's shopping list to-do entity uses this.
+
+**Scope:** `write:shopping_list`
+
+**Request body** (at least one field)
+
+```json
+{ "isChecked": true }
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `isChecked` | boolean | `true` ticks the item off, `false` puts it back on the list |
+| `ingredientName` | string | A new name for the item (can't be empty) |
+
+**Response `200`** — the id and the fields that changed:
+
+```json
+{ "id": "uuid", "isChecked": true }
+```
+
+**Error `400`** — bad JSON, a field of the wrong type, or nothing to update.  
+**Error `404`** — no item with that id on this household's lists.
+
+---
+
+### `DELETE /api/integrations/shopping-list/items/{id}`
+
+Removes an item from the shopping list.
+
+**Scope:** `write:shopping_list`
+
+**Response `200`**
+
+```json
+{ "deleted": "uuid" }
+```
+
+**Error `404`** — no item with that id on this household's lists.
+
+---
+
+### `GET /api/integrations/cooking`
+
+Who's cooking right now: every cook in progress in cooking mode, on any of the household's devices (web, iPhone, iPad), with the dish, the step on screen and its timers. Built for Home Assistant — "James is cooking", flash the kitchen lights when a timer ends.
+
+**Scope:** `read:cooking`
+
+**Query params:** none
+
+**Response `200`**
+
+```json
+{
+  "cooking": true,
+  "members": [
+    { "id": "uuid", "name": "James", "cooking": true },
+    { "id": "uuid", "name": "Sam", "cooking": false }
+  ],
+  "sessions": [
+    {
+      "id": "uuid",
+      "memberId": "uuid",
+      "memberName": "James",
+      "title": "Sunday roast",
+      "dish": "Roast Chicken",
+      "step": 3,
+      "totalSteps": 8,
+      "instruction": "Baste the chicken and return it to the oven for 25 minutes.",
+      "device": "iPad",
+      "startedAt": "2026-10-04T15:05:00.000Z",
+      "updatedAt": "2026-10-04T15:41:12.000Z",
+      "timers": [
+        {
+          "id": "roast-1",
+          "label": "Roast",
+          "dish": "Roast Chicken",
+          "state": "running",
+          "endsAt": "2026-10-04T16:06:00.000Z",
+          "remainingSeconds": 1488,
+          "durationSeconds": 1500
+        }
+      ]
+    }
+  ]
+}
+```
+
+`cooking` is `true` while anyone is cooking. `members` is every active household member, with `cooking: true` for each one with a cook in progress — enough to make a "is cooking" sensor per person. A cook is its meal (`title`); cooking dinner and dessert at once is two sessions. `step` counts from 1, as shown in cooking mode.
+
+Timer `state` is `"running"`, `"paused"` or `"finished"`; `endsAt` is set only while it runs, and `remainingSeconds` is as of the response.
+
+Cooks are published by the device cooking them every time the screen changes and every 5 minutes while it doesn't. A cook not heard from for 15 minutes is left out unless one of its timers is still running — so a cooking mode left open on a closed laptop drops off rather than showing someone cooking for hours. Read-only: nothing here can change a cook.
 
 ---
 
