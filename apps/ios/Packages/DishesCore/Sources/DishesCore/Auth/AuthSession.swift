@@ -10,6 +10,11 @@
 // If a refresh is refused, the tokens are dropped and requests throw
 // APIError.signedOut; local data and the outbox stay, and the app asks the
 // person to sign in again.
+//
+// The share extension signs in with the same stored tokens (a shared Keychain
+// group), so another process may have refreshed since these were loaded. A
+// refresh therefore reads the store first: refreshing with a refresh token
+// that's already been used would get it refused, and sign everyone out.
 
 import Foundation
 
@@ -74,6 +79,12 @@ public actor AuthSession: TokenProvider {
 
     private func refreshOnce() async throws -> TokenSet? {
         if let refreshing { return try await refreshing.value }
+        // Another process (the app, or its share extension) may have refreshed already.
+        if let stored = try store.load(), stored != tokens {
+            tokens = stored
+            loaded = true
+            if !stored.isExpiring(now: now()) { return stored }
+        }
         guard let refreshToken = try current()?.refreshToken else {
             try signOut()
             return nil

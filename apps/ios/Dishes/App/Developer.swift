@@ -9,6 +9,7 @@
 // The change applies the next time the app opens. Switching server removes
 // this device's copy (AppModel.forgetOtherServer), so nothing goes to the wrong one.
 
+import DishesCore
 import SwiftUI
 
 enum Developer {
@@ -28,6 +29,20 @@ enum Developer {
     static var configured: URL? {
         get { UserDefaults.standard.string(forKey: key).flatMap(URL.init(string:)) }
         set { UserDefaults.standard.set(newValue?.absoluteString, forKey: key) }
+    }
+
+    /// The share extension can't read the app's UserDefaults, so the dev server
+    /// in use goes in the shared Keychain group for it (DishesShare/ShareModel).
+    static func shareServerWithExtension() {
+        #if DEBUG
+        guard let group = Bundle.main.object(forInfoDictionaryKey: "DishesKeychainGroup") as? String,
+              !group.contains("$(") else { return }
+        if let server {
+            try? Keychain.write(Data(server.absoluteString.utf8), account: key, accessGroup: group)
+        } else {
+            try? Keychain.delete(account: key, accessGroup: group)
+        }
+        #endif
     }
 }
 

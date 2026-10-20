@@ -37,6 +37,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>DishesAPIBase</key>
 	<string>https://dishes.collardserver.co.uk</string>
+	<key>DishesKeychainGroup</key>
+	<string>$(AppIdentifierPrefix)uk.collco.dishes.shared</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSAlarmKitUsageDescription</key>

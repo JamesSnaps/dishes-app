@@ -110,6 +110,29 @@ UPLOAD=0 apps/ios/scripts/testflight.sh   # archive and export an .ipa only
 - Privacy manifest: `Dishes/Resources/PrivacyInfo.xcprivacy` (no tracking;
   UserDefaults, CA92.1).
 
+## Share extension
+
+`DishesShare` (`uk.collco.dishes.share`) puts **Dishes** on the share sheet:
+a recipe page from Safari, or a link another app shares as text, is sent to
+`POST /api/v1/recipes/import-url` and saved; the app picks it up on its next sync.
+
+- It signs in with the app's tokens. Both targets list the Keychain group
+  `$(AppIdentifierPrefix)uk.collco.dishes.shared` (entitlements) and name it
+  in Info.plist (`DishesKeychainGroup`); `KeychainTokenStore.dishes()` uses it.
+  Tokens saved before the group existed are moved into it the first time the
+  app loads them, so updating doesn't sign anyone out — but the extension
+  only sees them once the updated app has been opened.
+- Authelia rotates refresh tokens, so the two processes must never refresh
+  with a spent one: `AuthSession` reads the store before refreshing and uses
+  a pair the other process saved (AuthSessionTests).
+- A build signed without the group (errSecMissingEntitlement) keeps the
+  tokens in the app's own group: the app works, the extension says "Sign in
+  to Dishes first".
+- Debug builds: the app leaves its dev server choice in the shared group
+  (`Developer.shareServerWithExtension`), so the extension follows it.
+- Adding the entitlement means the cached provisioning profile is stale:
+  press Run once in Xcode (see "On a device" above) before command-line builds.
+
 ## Apple Watch
 
 `DishesWatch` (watchOS 26, `uk.collco.dishes.watchkitapp`) is embedded in the
@@ -998,4 +1021,23 @@ check on the iPad simulator against the dev server: the sheet from New Recipe,
 the Paste button, a real recipe link (the dev server needs outbound internet),
 an error (`http://192.168.1.1` → "That address can't be imported from."), and
 `xcrun simctl openurl booted "dishes://import?url=https%3A%2F%2Fwww.bbcgoodfood.com%2Frecipes%2Feasy-chocolate-cake"`.
+
+### 20 Oct 2026 — Dishes on the share sheet (v1.53.0)
+
+The share extension the last entry left for later (`DishesShare/`, RUNBOOK
+"Share extension"). Share a recipe page → Dishes → it imports there and then
+and says what it saved (or why not); Cancel while it works, Try again on an
+error. Behind it:
+- `KeychainTokenStore` takes an access group and moves pre-group tokens into
+  it on first load; the app uses `KeychainTokenStore.dishes()`.
+- `AuthSession.refreshOnce` reads the store first (another process may have
+  refreshed). New `AuthSessionTests` cover it.
+
+Written in a cloud session with no Xcode: **not built, run or `swift test`ed
+yet.** To check: `swift test` in Packages/DishesCore; Run once in Xcode for the
+new entitlement and target; on the simulator, sign in (or use the dev server),
+then Safari → a recipe page → Share → Dishes; share a link from Notes as text;
+share with the app never opened since updating (expect "Sign in to Dishes
+first" until it is); and confirm an existing install stays signed in after
+updating (the Keychain move).
 

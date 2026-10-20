@@ -8,5 +8,10 @@
 	<!-- Apple Push (Push.swift). Xcode switches this to "production" when exporting for TestFlight. -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- Sign-in tokens shared with the share extension (DishesShare, KeychainTokenStore.dishes). -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)uk.collco.dishes.shared</string>
+	</array>
 </dict>
 </plist>
