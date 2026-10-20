@@ -47,6 +47,8 @@ struct RecipeTweakSheet: View {
     @State private var draft: DraftRecipe?
     @State private var summary: String?
     @State private var working = false
+    /// Where the change shown was made, for the line under its summary.
+    @State private var engine: AIEngine?
 
     private static let starters = ["Make it vegetarian", "Make it quicker", "Less spicy", "Dairy-free", "Use the air fryer", "Feed 6 instead"]
 
@@ -104,9 +106,15 @@ struct RecipeTweakSheet: View {
     private func preview(_ d: DraftRecipe) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if let summary {
-                Label(summary, systemImage: "sparkles").font(.system(size: 14)).foregroundStyle(Color(hex: 0x6D28D9))
-                    .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Theme.violet50, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(summary, systemImage: "sparkles").font(.system(size: 14)).foregroundStyle(Color(hex: 0x6D28D9))
+                    if engine == .device {
+                        Label("Changed on this \(UIDevice.current.model)", systemImage: "apple.intelligence")
+                            .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                    }
+                }
+                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.violet50, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             Text(d.title).font(.system(size: 20, weight: .bold))
             let before = Set(recipe.ingredients.map { $0.name.lowercased() })
@@ -151,12 +159,11 @@ struct RecipeTweakSheet: View {
         defer { working = false }
         do {
             let reply: TweakReply
-            if let draft {
-                reply = try await app.api.action("ai.refine", [arg(draft), .string(instruction)], as: TweakReply.self)
-            } else if kind == .improve {
-                reply = try await app.api.action("ai.improve", [.string(recipe.id), .string(instruction)], as: TweakReply.self)
+            if kind == .improve || draft != nil {
+                reply = try await improve()
             } else {
                 reply = try await app.api.action("ai.heartHealthy", [.string(recipe.id)], as: TweakReply.self)
+                engine = .server
             }
             draft = reply.recipe
             summary = reply.summary ?? (kind == .heartHealthy ? (reply.heartHealthy == true ? "Rewritten to the heart-healthy targets." : "Lighter, but it may still miss a target.") : nil)
@@ -164,6 +171,40 @@ struct RecipeTweakSheet: View {
         } catch {
             app.toast = WebAction.explain(error)
         }
+    }
+
+    /// Improve or refine: the edits from the on-device model (RecipeTweaker)
+    /// when it can and they pass their checks, the household's AI otherwise.
+    private func improve() async throws -> TweakReply {
+        struct Proposed: Sendable { var reply: TweakReply; var problems: [String] }
+        let (api, recipeId, instruction, current) = (app.api, recipe.id, instruction, draft)
+        let context = AIContext.cached
+        let run = try await AIRouter.run(
+            .improveRecipe,
+            onDevice: {
+                guard #available(iOS 27, *) else { throw CancellationError() }
+                var base = current
+                if base == nil { base = try await api.action("recipes.generated", [.string(recipeId)], as: DraftRecipe.self) }
+                guard let base else { throw CancellationError() }
+                let original = try JSONDecoder().decode(GeneratedRecipe.self, from: JSONEncoder().encode(base))
+                let tweak = try await RecipeTweaker.improve(original, instruction: instruction, context: context)
+                var tweaked = try JSONDecoder().decode(DraftRecipe.self, from: JSONEncoder().encode(tweak.recipe))
+                tweaked.nutrition = tweak.nutritionStale ? nil : base.nutrition
+                tweaked.mealRole = base.mealRole
+                let metric = (context?.measurementSystem ?? "metric") == "metric"
+                return Proposed(reply: TweakReply(recipe: tweaked, summary: tweak.summary),
+                                problems: TweakChecks.problems(tweak, original: original, metric: metric))
+            },
+            check: { $0.problems },
+            fallback: {
+                if let current {
+                    return Proposed(reply: try await api.action("ai.refine", [arg(current), .string(instruction)], as: TweakReply.self), problems: [])
+                }
+                return Proposed(reply: try await api.action("ai.improve", [.string(recipeId), .string(instruction)], as: TweakReply.self),
+                                problems: [])
+            })
+        engine = run.engine
+        return run.value.reply
     }
 
     private func apply(copy: Bool) async {

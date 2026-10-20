@@ -19,7 +19,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     # Keep in step with "version" in apps/web/package.json (one version for the product).
-    MARKETING_VERSION: "1.57.0"
+    MARKETING_VERSION: "1.58.0"
     CURRENT_PROJECT_VERSION: "1"
     # James Collard's individual membership, as Keepsake: a personal app, kept off
     # the Snapdragons company team.
@@ -150,10 +150,12 @@ targets:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: ShareViewController
           NSExtensionAttributes:
-            # A web page from Safari, or a link another app shares as text.
+            # A web page from Safari, a link or recipe shared as text, or
+            # screenshots / photos of a recipe (read on the device, D3).
             NSExtensionActivationRule:
               NSExtensionActivationSupportsWebURLWithMaxCount: 1
               NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsImageWithMaxCount: 4
 
   # Siri, Shortcuts and Spotlight's view of the app (Dishes/Intents, Phase D1),
   # run through the system on the simulator with AppIntentsTesting (Xcode 27):

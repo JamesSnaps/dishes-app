@@ -1201,3 +1201,47 @@ Found on the way:
 **Not checked:** the document camera (no camera in the simulator), Paste import
 by hand, real cookbook photos, the server's score on the same sets (needs a
 key), the fallback with a key set up, a device build.
+
+### 20 Oct 2026 — iOS 27 Phase D3: the rest of the on-device jobs (v1.57.0–1.58.0)
+
+v1.57.0 filed device-read recipes into a collection on the device
+(`CollectionPicker`, 0.80 on 20 recipes). v1.58.0:
+
+- Share extension: shared text and screenshots read on the device
+  (`RecipeReader.read(text:)`, Vision for images), a preview to check, filed
+  and saved through `POST /api/v1/recipes/generated`; the fallback is the new
+  `POST /api/v1/ai/text-recipe` or photo-recipe
+- Cook assist on the device (`CookAssist`, `AIRouter.stream`); substitution
+  questions go to the server when there's a key
+- Generate plan on the device (`MealPlanDrafter`): the library chosen by code
+  from the local store, the model filling each slot from what suits it
+- "Improve with AI" (`RecipeTweaker`) and recipe ideas (`ConceptWriter`) built
+  and evaluated, but they start on the server — the evaluations said so
+- `recipes.generated` action; a tweak saved without nutrition gets it estimated
+- `Recipe.mealTypes` read from sync
+
+Evaluations (this Mac, AFM 3 Core), with what each run turned up, are in
+TODO_MOBILE.md D2/D3 and `fixtures/evals/results/`. Run one sample with
+`DISHES_EVAL_ONLY=<part of its name>` (that run doesn't overwrite the record).
+
+Checked on the iPad Pro 11" simulator against the dev server (no AI key):
+Generate plan for five dinners next week drafted on the device in about
+20 seconds — five library recipes, no request to `/ai/meal-plan`; Ask about
+this step on carbonara step 1 answered on the device ("Answered on this
+iPad"), right but loose ("skip ahead to step 2"). The test conversation was
+deleted.
+
+Found on the way:
+- The model drops a name and keeps its preparation ("salt, to taste" →
+  [] [to taste]); the name is read back from the printed line
+- Small-model edits by number point at lines that aren't there; picking from
+  the recipe's own lines (a schema built per recipe) fixes that, not the
+  quality of the edits
+- The guardrails stop a child's breakfast ideas on the device whatever the
+  wording; the router sends those to the server
+- Plan sheet (not new): "Draft 7 lunchs", and the chosen meal pill hardly
+  looks chosen
+
+**Not checked:** the share extension's text path by hand after the last prompt
+change, the fallbacks with a key set up, a device build, barcode scanning (not
+started: the product lookup needs a decision).

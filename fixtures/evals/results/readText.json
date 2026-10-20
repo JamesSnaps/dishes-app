@@ -1,0 +1,192 @@
+{
+  "date" : "2026-10-20T16:15:51Z",
+  "deviceScore" : 0.9082323139025725,
+  "job" : "readText",
+  "model" : "AFM 3 Core, 4,096 tokens",
+  "passes" : true,
+  "perSample" : [
+    {
+      "deviceScore" : 0.9575,
+      "engine" : "device",
+      "name" : "01 Banana Bread (blog)",
+      "problems" : [
+
+      ],
+      "seconds" : 15.581936001777649
+    },
+    {
+      "deviceScore" : 0.8384920634920634,
+      "engine" : "device",
+      "name" : "02 Chocolate Chip Cookies (message)",
+      "problems" : [
+
+      ],
+      "seconds" : 20.736667037010193
+    },
+    {
+      "deviceScore" : 0.8705952380952381,
+      "engine" : "device",
+      "name" : "03 Classic Beef Bolognese (caption)",
+      "problems" : [
+
+      ],
+      "seconds" : 32.51880097389221
+    },
+    {
+      "deviceScore" : 0.8888888888888891,
+      "engine" : "device",
+      "name" : "04 Creamy Tomato Soup (notes)",
+      "problems" : [
+
+      ],
+      "seconds" : 17.008331060409546
+    },
+    {
+      "deviceScore" : 0.975,
+      "engine" : "device",
+      "name" : "05 Fish Tacos (blog)",
+      "problems" : [
+
+      ],
+      "seconds" : 20.191942930221558
+    },
+    {
+      "deviceScore" : 0.8250000000000002,
+      "engine" : "device",
+      "name" : "06 Greek Salad (message)",
+      "problems" : [
+
+      ],
+      "seconds" : 12.56123697757721
+    },
+    {
+      "deviceScore" : 0.95,
+      "engine" : "device",
+      "name" : "07 Mushroom Risotto (caption)",
+      "problems" : [
+
+      ],
+      "seconds" : 18.942328929901123
+    },
+    {
+      "deviceScore" : 0.913888888888889,
+      "engine" : "device",
+      "name" : "08 Shakshuka (notes)",
+      "problems" : [
+
+      ],
+      "seconds" : 39.36782705783844
+    },
+    {
+      "deviceScore" : 0.9887499999999999,
+      "engine" : "device",
+      "name" : "09 Smash Burgers (blog)",
+      "problems" : [
+
+      ],
+      "seconds" : 26.593693017959595
+    },
+    {
+      "deviceScore" : 0.95,
+      "engine" : "device",
+      "name" : "10 Spaghetti Carbonara (message)",
+      "problems" : [
+
+      ],
+      "seconds" : 22.594766974449158
+    },
+    {
+      "deviceScore" : 0.9388888888888889,
+      "engine" : "device",
+      "name" : "11 Thai Green Curry (caption)",
+      "problems" : [
+
+      ],
+      "seconds" : 26.20320200920105
+    },
+    {
+      "deviceScore" : 0.9166666666666667,
+      "engine" : "device",
+      "name" : "12 Weeknight Chicken Stir-Fry (notes)",
+      "problems" : [
+
+      ],
+      "seconds" : 32.16490995883942
+    },
+    {
+      "deviceScore" : 0.9575,
+      "engine" : "device",
+      "name" : "13 Banana Bread (blog)",
+      "problems" : [
+
+      ],
+      "seconds" : 13.625764012336731
+    },
+    {
+      "deviceScore" : 0.8284920634920636,
+      "engine" : "device",
+      "name" : "14 Chocolate Chip Cookies (message)",
+      "problems" : [
+
+      ],
+      "seconds" : 20.55211102962494
+    },
+    {
+      "deviceScore" : 0.8416666666666667,
+      "engine" : "device",
+      "name" : "15 Classic Beef Bolognese (caption)",
+      "problems" : [
+
+      ],
+      "seconds" : 47.74832904338837
+    },
+    {
+      "deviceScore" : 0.8527777777777779,
+      "engine" : "device",
+      "name" : "16 Creamy Tomato Soup (notes)",
+      "problems" : [
+
+      ],
+      "seconds" : 17.066962957382202
+    },
+    {
+      "deviceScore" : 0.9999999999999999,
+      "engine" : "device",
+      "name" : "17 Fish Tacos (blog)",
+      "problems" : [
+
+      ],
+      "seconds" : 13.52493691444397
+    },
+    {
+      "deviceScore" : 0.7941502463054189,
+      "engine" : "device",
+      "name" : "18 Greek Salad (message)",
+      "problems" : [
+
+      ],
+      "seconds" : 12.262910962104797
+    },
+    {
+      "deviceScore" : 0.95,
+      "engine" : "device",
+      "name" : "19 Mushroom Risotto (caption)",
+      "problems" : [
+
+      ],
+      "seconds" : 18.287503004074097
+    },
+    {
+      "deviceScore" : 0.9263888888888889,
+      "engine" : "device",
+      "name" : "20 Shakshuka (notes)",
+      "problems" : [
+
+      ],
+      "seconds" : 17.407737016677856
+    }
+  ],
+  "samples" : 20,
+  "serverIs" : "not measured: no household key where this ran",
+  "structurePassed" : 20
+}

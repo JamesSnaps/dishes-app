@@ -111,6 +111,8 @@ public struct Recipe: Hashable, Sendable, Identifiable {
     public var servingsUnit: String?
     public var difficulty: Difficulty?
     public var mealRole: String?
+    /// breakfast, lunch, dinner, dessert, snack — which meals it suits; empty when untagged.
+    public var mealTypes: [String]
     public var imageUrl: String?
     public var thumbnailUrl: String?
     public var isFavourite: Bool
@@ -158,6 +160,7 @@ public struct Recipe: Hashable, Sendable, Identifiable {
         servingsUnit = json.string("servingsUnit")
         difficulty = json.string("difficulty").flatMap(Difficulty.init(rawValue:))
         mealRole = json.string("mealRole")
+        mealTypes = json.strings("mealTypes")
         imageUrl = json.string("imageUrl")
         thumbnailUrl = json.string("thumbnailUrl")
         isFavourite = json.bool("isFavourite") ?? false

@@ -925,21 +925,28 @@ for themselves.
     everything worse). Seen on the simulator: "1 tsp dried oregano" can lose
     its "tsp" — the review screen is there for that **Real photos still wanted:** drop `<name>.jpg` + `<name>.json`
     (GeneratedRecipe) into `fixtures/evals/recipe-photos/` and they join the set
-  - Pasted text and cook assist get their sets with their jobs (D3)
+  - D3's sets, run on this Mac (AFM 3 Core) on 20 Oct, server not measured:
+    shared text 0.908 (20 messages, blog posts, captions and notes; 20/20
+    checks) → device; recipe cards again 0.971 (20/20, once a name the model
+    dropped — "salt, to taste" read as [] [to taste] — is read back from the
+    printed line); cook assist 0.917 (12 questions, 12/12) → device, with
+    substitutions sent to the server; "Improve with AI" 0.776 (13 tweaks), then 6 of 13 failing
+    the tightened checks → server; recipe ideas 0.64–0.68 (12 requests) → server; a draft week 0.917
+    (6 households, 6/6, twice) → device. See D3 for what each took
 
 **Where each job starts** (the router's table, revised by the evaluations):
 
 | Job | First try | Why |
 |---|---|---|
 | Ingredient line → structured (editor, shopping add) | Device | Small, offline, instant |
-| Pasted / shared text → recipe | Device | Text-only, fits easily |
+| Pasted / shared text → recipe | Device | Text-only, fits easily (0.908) |
 | Photo or scan → recipe | Device (Vision text, + the image when there's little) | iOS 27 multimodal; was `/ai/photo-recipe` |
 | Collection suggestion for a new recipe | Device | Picking from a short list |
-| Cook assist ("Ask about this step") | Device, server via Dynamic Profile | Short answers, offline in the kitchen |
-| Improve / heart-healthy / refine a recipe | Device if the evaluation passes | One recipe in, one out |
-| Concierge — 5 concepts | Device if the evaluation passes | Short output; uses the taste profile from D0 |
+| Cook assist ("Ask about this step") | Device; substitutions to the server when there's a key | Short answers, offline in the kitchen (0.917); the device's substitutes were wrong |
+| Improve / refine a recipe | Server (the evaluation said so) | The device's edits read badly (6 of 13 fail the checks); heart-healthy rests on nutrition targets and stays on the server |
+| Concierge — 5 concepts | Server (the evaluation said so) | 0.64–0.68: the request got lost under the household's preferences, and the guardrails stop some |
 | Concierge — full recipe | Server first; device if the evaluation passes | Long, quality matters most |
-| Meal-plan draft from saved recipes | Device, with a tool over the local store | Picking, not writing |
+| Meal-plan draft from saved recipes | Device, the library chosen by code from the local store | Picking, not writing (0.917) |
 | Meal-plan apply, new recipes written out | Server | Writes several recipes and saves them |
 | Web-grounded generation, recipe images, nutrition estimate, Wrapped, meal timeline | Server | Need the web, image models or server data |
 
@@ -958,12 +965,20 @@ for themselves.
   it (pages stacked into one image) and saves it as before. Saved without
   nutrition, the server estimates it with the household's key in `after()`
   and it follows in the next sync
-- [ ] **Share extension, beyond web pages:** shared text (Notes, Messages,
+- [x] **Share extension, beyond web pages:** shared text (Notes, Messages,
   Instagram captions) and screenshots go through the same device-first
   pipeline. Web links still go to `/recipes/import-url`, which reads the page's
-  recipe data properly; the device handles the text when the server's reader
-  can't. Needs the App Group's cached AI context (D0) and staying inside the
-  extension's memory limit (check on the iPad)
+  recipe data properly. *Done (v1.58.0):* the share sheet reads text
+  (`RecipeReader.read(text:)`, the server's prompt in its text form) or up to
+  four images (Vision, as for a scan) on the device, shows the recipe to check,
+  files it (`CollectionPicker`) and saves it through `POST
+  /api/v1/recipes/generated`; falling back, the server reads it — `POST
+  /api/v1/ai/text-recipe` (new, the text twin of photo-recipe) or
+  photo-recipe. Evaluation: 20 texts in four styles, 0.908, 20/20 checks.
+  Seen on the simulator: a screenshot read and filed into "Quick & Easy" in
+  the extension's memory. The model once copied "nutmeg, to taste" out of the
+  prompt's own example into a recipe: the example's gone, and every
+  ingredient must now be in what was read (`RecipeChecks`)
 - [x] **Ingredient lines as you type:** the recipe editor and the shopping add
   card turn "2 tbsp finely chopped parsley" into amount / unit / name /
   preparation, offline. Quick rules first (`DishesCore`), the model only for
@@ -971,9 +986,18 @@ for themselves.
   The shopping add card splits "500g beef mince" into its fields; the recipe
   editor's Paste import reads on the device, offline (it was the server's
   `import.parse`). The editor's own rows still take the parts separately
-- [ ] **Cook assist on the device** (`CookAssistSheet`): the same context
+- [x] **Cook assist on the device** (`CookAssistSheet`): the same context
   `CookAssistContext` sends today, kept on the device and streamed with
-  `streamResponse`. Pairs with D1's "how much butter?" and with the Tier 1
+  `streamResponse`. *Done (v1.58.0):* `CookAssist` (the server's prompt,
+  copied) through `AIRouter.stream`, which shows the answer as it's written and
+  swaps in the server's if the device's throws or fails `CookAssistChecks`
+  (empty, "check the recipe", a refusal, over 140 words). "Answered on this
+  iPad" under it. Evaluation: 15 questions on the seed recipes
+  (`fixtures/evals/cook-assist.json`); timings, doneness, what's next and
+  quantities right, but two of three substitutions confidently wrong ("use
+  480 ml red wine + red wine concentrate" for no red wine) — so substitution
+  questions go to the server when the household has a key, and the rest score
+  0.917, 12/12. Pairs with D1's "how much butter?" and with the Tier 1
   hands-free cooking item
 - [x] **Collection suggestion** at save time, on the device, from the cached
   collection names. *Done (v1.57.0):* `CollectionPicker` (a dynamic schema of
@@ -981,12 +1005,42 @@ for themselves.
   `collectionSuggestionFor`'s). A reviewed draft goes to the server with its
   `collectionId` (or null), so the server skips its own call. Evaluation (20
   recipes, `fixtures/evals/collections.json`): 0.80 → device
-- [ ] **Recipe tweaks** (improve, heart-healthy, refine) and **concierge
-  concepts** behind the router, defaulting to whatever the evaluations say
-- [ ] **Meal-plan draft on the device:** a `Tool` that searches the local
-  store (favourites, meal roles, recently cooked, cook ratings), so "plan next
-  week from favourites, nothing twice in a fortnight" never leaves the iPad.
-  Apply still goes to the server when it has new recipes to write
+- [x] **Recipe tweaks** (improve, heart-healthy, refine) and **concierge
+  concepts** behind the router, defaulting to whatever the evaluations say.
+  *Done (v1.58.0), both on the server for now:*
+  - `RecipeTweaker`: the model lists edits (remove this line, change that
+    one, rewrite step 2), each picked from the recipe's own lines by a schema
+    made for it, and code applies them, so nothing else changes and the answer
+    fits the context. Numbered, the model pointed at "ingredient 10" of eight;
+    picked from its lines, it scored 0.776 with every check passing — but the
+    edits read badly (bananas swapped for avocado to leave out walnuts, "add a
+    red pepper" leaving only the pepper, the guanciale step kept for bacon).
+    `TweakChecks` now catches those (most of the recipe gone, a step still
+    using what was removed) — 6 of the 13 fail them — and `AITask.improveRecipe` starts on the server.
+    `recipes.generated` (new action) gives the device the recipe as the AI
+    tools take it; a tweak saved without nutrition has it estimated afterwards
+  - Heart-healthy isn't tried on the device: it's checked and revised against
+    nutrition targets the device doesn't estimate
+  - `ConceptWriter`: the concierge's five ideas from the cached context
+    (`Prompts.concepts`, with Swift copies of `buildMemberConstraints` and the
+    taste-profile addendum). 0.64, then 0.68, on 12 requests: "a cosy pasta dish" came
+    back as five sauces and dips until the side-dish sentence was reworded,
+    and then "a risotto" for someone who loves spicy food as five spicy
+    dishes; the guardrails stop a child's breakfast every time. Restating the
+    request made the guardrails worse. `AITask.recipeIdeas` starts on the server
+- [x] **Meal-plan draft on the device:** "plan next week from favourites,
+  nothing twice in a fortnight" never leaves the iPad; apply still goes to the
+  server, which writes out any new recipes. *Done (v1.58.0):* `MealPlanDrafter`.
+  Not a `Tool`: the library is chosen by code from the local store with the
+  server's own rules (mains, favourites, 2★-or-less out, three-week cooldown
+  relaxed when short, heart-healthy numbers, a random sample — 30 recipes, not
+  the server's 120, to fit), plus a diet filter the server leaves to its model
+  (the device gave a vegetarian prawn noodles). The model fills one field per
+  slot, choosing only among recipes that suit that slot's meal type (it put a
+  salad at breakfast), and a dish picked twice is asked again with the rest
+  kept. Evaluation: 6 households (`fixtures/evals/meal-plans.json`), 0.903 and
+  0.917, 6/6 both runs. Still weak: a preference for one day ("pasta on
+  Friday") — the right dishes, the wrong days
 - [ ] **Barcode scanning for shopping** (Tier 3): `BarcodeReaderTool` or
   `DataScannerViewController` → product name → shopping item. The pantry
   joins in once it has an API

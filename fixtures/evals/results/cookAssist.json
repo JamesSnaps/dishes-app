@@ -1,0 +1,120 @@
+{
+  "date" : "2026-10-20T16:37:03Z",
+  "deviceScore" : 0.9166666666666666,
+  "job" : "cookAssist",
+  "model" : "AFM 3 Core, 4,096 tokens",
+  "passes" : true,
+  "perSample" : [
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Banana Bread 2: What temperature did the oven need to be? → The oven was heated to 175°C.",
+      "problems" : [
+
+      ],
+      "seconds" : 1.0927060842514038
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Banana Bread 4: How do I know it's done? → Bake for 55–65 minutes and check if a skewer inserted into the loaf comes out clean. The timing ensures proper doneness.",
+      "problems" : [
+
+      ],
+      "seconds" : 1.819817066192627
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Chocolate Chip Cookies 3: How long does the dough chill for? → The dough chills for 30 minutes.",
+      "problems" : [
+
+      ],
+      "seconds" : 1.05315101146698
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Classic Beef Bolognese 4: How long does this need to simmer? → Simmer uncovered on the lowest heat for 2–3 hours, stirring occasionally.",
+      "problems" : [
+
+      ],
+      "seconds" : 1.6875540018081665
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Classic Beef Bolognese 5: Do I leave the bay leaves in? → Yes — discard the bay leaves before serving.",
+      "problems" : [
+
+      ],
+      "seconds" : 1.443213939666748
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Mushroom Risotto 3: How much stock should I have in total? → You've used 1.2 l vegetable stock so far, and the recipe calls for 1.2 l total. You still have 0.2 l left to use.",
+      "problems" : [
+
+      ],
+      "seconds" : 1.9885050058364868
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Mushroom Risotto 4: What happens to the mushrooms I set aside? → The chestnut mushrooms you browned in step 1 are stirred back in with the parmesan and a knob of butter in step 4. This combines their flavor with the creamy finish. You’ll use all 400 g of mushrooms at this point.",
+      "problems" : [
+
+      ],
+      "seconds" : 2.563323974609375
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Shakshuka 3: How do I know when the eggs are ready? → Cover and cook the eggs until the whites are set — that’s when they’re ready. The recipe uses 6 eggs, so you’ll need to monitor all 6. This step follows step 2, where the sauce thickened, so timing depends on how thick the sauce is by now.",
+      "problems" : [
+
+      ],
+      "seconds" : 7.965054988861084
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Smash Burgers 2: How long before I flip them? → Follow step 2: smash each ball flat, season hard, and don’t touch for 2 minutes until a crust forms. Then proceed to step 3, where you’ll flip and top with cheese and onions.",
+      "problems" : [
+
+      ],
+      "seconds" : 5.1230469942092896
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Spaghetti Carbonara 4: How do I stop the eggs scrambling? → Stir in the egg mixture with small splashes of reserved pasta water while the guanciale is off the heat — the residual heat and liquid help prevent scrambling. The recipe relies on the pasta water’s starch to emulsify the eggs, so adding it gradually keeps everything glossy without curdling. You’ll use 150 g guanciale and 4 egg yolks + 1 whole egg + 80 g pecorino romano in this final blend.",
+      "problems" : [
+
+      ],
+      "seconds" : 3.8111770153045654
+    },
+    {
+      "deviceScore" : 0,
+      "engine" : "device",
+      "name" : "Thai Green Curry 1: What does split mean here? → Here, “split” means cooking the curry paste in the coconut milk until it softens and releases its fragrance. Next, you’ll add the chicken and seal it in the curry before pouring in the remaining coconut milk. Timing-wise, this softens the paste for about 2–3 minutes before moving to step 2.",
+      "problems" : [
+
+      ],
+      "seconds" : 3.067278027534485
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Weeknight Chicken Stir-Fry 3: And after that? → After adding the garlic and ginger and tossing for 30 seconds, return the chicken with the soy sauce and sesame oil, then stir-fry for 1 minute. Add the broccoli, peppers and carrot (already used in step 2) and stir-fry until crisp-tender. Serve with sliced spring onions and rice.",
+      "problems" : [
+
+      ],
+      "seconds" : 7.546112895011902
+    }
+  ],
+  "samples" : 12,
+  "serverIs" : "not measured: no household key where this ran",
+  "structurePassed" : 12
+}

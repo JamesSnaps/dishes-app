@@ -1,0 +1,24 @@
+{
+  "about": "Concierge requests for five ideas (TODO_MOBILE.md, D3). An idea is on topic when its title, description or tags contain one of `each`; it's clean when it contains none of `avoid`. `eating` names members below, whose diets and dislikes go in the prompt (and ConceptChecks).",
+  "members": [
+    { "id": "sam", "displayName": "Sam", "role": "adult", "birthYear": 1988, "dietaryFlags": ["Vegetarian"], "dislikes": [], "preferences": [], "customNotes": null },
+    { "id": "alex", "displayName": "Alex", "role": "adult", "birthYear": 1985, "dietaryFlags": [], "dislikes": ["mushrooms"], "preferences": ["spicy food"], "customNotes": null },
+    { "id": "rosie", "displayName": "Rosie", "role": "child", "birthYear": 2020, "dietaryFlags": [], "dislikes": [], "preferences": [], "customNotes": null },
+    { "id": "jo", "displayName": "Jo", "role": "adult", "birthYear": 1990, "dietaryFlags": ["Vegan"], "dislikes": [], "preferences": [], "customNotes": null },
+    { "id": "pat", "displayName": "Pat", "role": "adult", "birthYear": 1960, "dietaryFlags": ["Cholesterol-lowering"], "dislikes": [], "preferences": [], "customNotes": null }
+  ],
+  "requests": [
+    { "prompt": "Something quick with chicken for a weeknight", "each": ["chicken"], "avoid": [] },
+    { "prompt": "A cosy pasta dish", "each": ["pasta", "spaghetti", "penne", "linguine", "rigatoni", "tagliatelle", "lasagne", "lasagna", "fusilli", "orzo", "gnocchi", "macaroni", "ravioli", "pappardelle", "tortellini", "conchiglie", "farfalle", "bucatini", "orecchiette"], "avoid": [] },
+    { "prompt": "Vegetarian curry", "each": ["curry", "dal", "dhal", "daal", "korma", "masala", "tikka", "biryani", "jalfrezi", "saag", "balti", "madras", "vindaloo", "rogan", "makhani", "massaman", "rendang", "laksa", "chana", "aloo"], "avoid": ["chicken", "beef", "lamb", "pork", "prawn", "fish"] },
+    { "prompt": "Breakfast for the kids", "mealType": "breakfast", "eating": ["rosie"], "each": ["egg", "pancake", "porridge", "oat", "toast", "muffin", "yoghurt", "yogurt", "granola", "waffle", "smoothie", "banana", "omelette", "frittata", "breakfast", "crumpet", "bagel", "fruit", "berry", "cereal", "bircher", "crepe"], "avoid": ["curry", "steak", "chilli"] },
+    { "prompt": "Something with salmon", "each": ["salmon"], "avoid": [] },
+    { "prompt": "Dinner for the family tonight", "eating": ["sam", "alex"], "each": [], "avoid": ["chicken", "beef", "pork", "lamb", "bacon", "ham", "prawn", "fish", "salmon", "mushroom"] },
+    { "prompt": "A risotto", "eating": ["alex"], "each": ["risotto"], "avoid": ["mushroom"] },
+    { "prompt": "A hearty stew", "heartHealthy": true, "eating": ["pat"], "each": ["stew", "casserole", "hotpot", "tagine", "chilli", "goulash", "ragu", "ragout", "cassoulet", "braise", "pot"], "avoid": ["cream", "butter", "bacon", "sausage", "chorizo", "pork belly", "cheese"] },
+    { "prompt": "Easy Mexican dinner", "each": ["taco", "burrito", "enchilada", "quesadilla", "fajita", "chilli", "chili", "nacho", "tostada", "mexican", "salsa", "tortilla", "chipotle", "mole", "pozole", "tamale", "carnitas", "elote", "huevos", "frijoles"], "avoid": [] },
+    { "prompt": "Pizza night", "eating": ["jo"], "each": ["pizza", "flatbread", "calzone", "focaccia"], "avoid": ["pepperoni", "ham", "chicken", "beef", "bacon", "anchov", "prosciutto", "mozzarella", "parmesan", "egg"] },
+    { "prompt": "A light lunch", "mealType": "lunch", "each": [], "avoid": ["roast", "steak", "lasagne", "pie", "stew"] },
+    { "prompt": "Something to impress at a dinner party", "each": [], "avoid": [] }
+  ]
+}

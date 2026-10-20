@@ -2,7 +2,9 @@
 // step on screen ("can I use butter instead?", "how do I know it's done?"),
 // with the whole recipe as context. The answer streams in as it's written.
 // Each conversation is saved after every answer (cook_assist_threads, shared
-// with the web), and earlier ones for the step show above it.
+// with the web), and earlier ones for the step show above it. The answer
+// comes from the on-device model when it can (CookAssist, TODO_MOBILE.md D3),
+// the server otherwise.
 
 import DishesCore
 import SwiftUI
@@ -25,6 +27,8 @@ struct CookAssistSheet: View {
     @State private var draft = ""
     @State private var answering = false
     @State private var error: String?
+    /// Where the last answer came from, for the line under it.
+    @State private var engine: AIEngine?
     @FocusState private var focused: Bool
 
     static func key(recipeId: String, stepIndex: Int) -> String { "\(recipeId)#\(stepIndex)" }
@@ -71,6 +75,11 @@ struct CookAssistSheet: View {
                             }
                             ForEach(Array(messages.enumerated()), id: \.offset) { index, message in
                                 bubble(message).id(index)
+                            }
+                            if engine == .device, messages.last?.role == "assistant" {
+                                Label("Answered on this \(UIDevice.current.model)", systemImage: "apple.intelligence")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.mutedForeground)
                             }
                             if let error {
                                 Text(error).font(.system(size: 14)).foregroundStyle(Theme.destructive)
@@ -192,9 +201,15 @@ struct CookAssistSheet: View {
             allSteps: recipe.steps.enumerated().map { .init(number: $0.offset + 1, instruction: $0.element.instruction) },
             servingsSummary: dish.scale == 1 ? nil : "Scaled ×\(Format.amount(String(dish.scale)) ?? "")",
             messages: history)
+        let api = app.api
         do {
-            for try await chunk in app.api.cookAssist(context) {
-                session.assist[key]?.messages[reply].content += chunk
+            for try await event in CookAssist.ask(context, serverReady: AIContext.cached?.configured == true,
+                                                       server: { api.cookAssist(context) }) {
+                switch event {
+                case .engine(let source, _): engine = source
+                case .restart: session.assist[key]?.messages[reply].content = ""
+                case .text(let chunk): session.assist[key]?.messages[reply].content += chunk
+                }
             }
             if session.assist[key]?.messages[reply].content.isEmpty == true {
                 session.assist[key]?.messages[reply].content = "No answer came back."

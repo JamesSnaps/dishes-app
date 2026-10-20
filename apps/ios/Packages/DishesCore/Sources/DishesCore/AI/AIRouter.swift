@@ -36,12 +36,35 @@ public enum AITask: String, CaseIterable, Sendable {
     case scanRecipe
     /// Which collection a new recipe belongs in, from the cached names.
     case fileRecipe
+    /// Shared or pasted text → a recipe.
+    case readText
+    /// "Ask about this step" in cooking mode: a short answer, streamed.
+    case cookAssist
+    /// "Improve with AI": a recipe changed as asked (not heart-healthy, which
+    /// rests on nutrition targets the server checks and revises against).
+    case improveRecipe
+    /// The concierge's five ideas (writing the chosen one stays on the server).
+    case recipeIdeas
+    /// A draft week from the library on the device (adding it stays on the server).
+    case mealPlan
 
     public var firstTry: AIEngine {
         switch self {
         case .ingredientLine: .device
         case .scanRecipe: .device
         case .fileRecipe: .device
+        case .readText: .device
+        case .cookAssist: .device
+        // 0.776 and every check passed (20 Oct), but the edits read badly —
+        // the bananas swapped for avocado to leave out walnuts — and the
+        // checks that now catch those fail 6 of the 13. The server's model
+        // rewrites the whole recipe and does it well.
+        case .improveRecipe: .server
+        // 0.64–0.68 (20 Oct): the request got lost under the household's
+        // preferences ("a risotto" → five spicy dishes), and the guardrails
+        // stopped a child's breakfast. Restating the request made it worse.
+        case .recipeIdeas: .server
+        case .mealPlan: .device
         }
     }
 
@@ -49,7 +72,7 @@ public enum AITask: String, CaseIterable, Sendable {
     public var fallback: AIEngine {
         switch self {
         case .ingredientLine: .rules
-        case .scanRecipe, .fileRecipe: .server
+        case .scanRecipe, .fileRecipe, .readText, .cookAssist, .improveRecipe, .recipeIdeas, .mealPlan: .server
         }
     }
 }
@@ -105,4 +128,66 @@ public enum AIRouter {
         }
         return AIRun(value: try await fallback(), engine: task.fallback, fallbackReason: reason)
     }
+
+    /// `run` for an answer that streams. The device's answer shows as it's
+    /// written; if the model throws partway or the whole answer fails `check`,
+    /// `.restart` says to clear what's shown and the server's answer follows.
+    /// `skipDevice`: why this one goes straight to the fallback.
+    public static func stream(
+        _ task: AITask,
+        onDevice: @escaping @Sendable () -> AsyncThrowingStream<String, Error>,
+        check: @escaping @Sendable (String) -> [String] = { _ in [] },
+        fallback: @escaping @Sendable () -> AsyncThrowingStream<String, Error>,
+        skipDevice: String? = nil
+    ) -> AsyncThrowingStream<AIStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let work = Task {
+                do {
+                    var reason: String?
+                    if task.firstTry == .device {
+                        if let skipDevice {
+                            reason = skipDevice
+                        } else if let unavailable = DeviceAI.unavailableReason {
+                            reason = unavailable
+                        } else {
+                            continuation.yield(.engine(.device))
+                            var answer = ""
+                            do {
+                                for try await chunk in onDevice() {
+                                    answer += chunk
+                                    continuation.yield(.text(chunk))
+                                }
+                                let problems = check(answer)
+                                if problems.isEmpty {
+                                    log.info("\(task.rawValue, privacy: .public): on the device")
+                                    continuation.finish()
+                                    return
+                                }
+                                reason = "The answer didn’t pass its checks: " + problems.joined(separator: "; ")
+                            } catch {
+                                if Task.isCancelled || error is CancellationError { throw CancellationError() }
+                                reason = DeviceAI.describe(error)
+                            }
+                            if !answer.isEmpty { continuation.yield(.restart) }
+                        }
+                        log.info("\(task.rawValue, privacy: .public): to \(task.fallback.rawValue, privacy: .public) — \(reason ?? "", privacy: .public)")
+                    }
+                    continuation.yield(.engine(task.fallback, fallbackReason: reason))
+                    for try await chunk in fallback() { continuation.yield(.text(chunk)) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in work.cancel() }
+        }
+    }
+}
+
+/// What `AIRouter.stream` sends: where the answer is coming from, the answer
+/// a piece at a time, and `.restart` when the device's is being replaced.
+public enum AIStreamEvent: Sendable, Equatable {
+    case engine(AIEngine, fallbackReason: String? = nil)
+    case text(String)
+    case restart
 }

@@ -407,9 +407,25 @@ struct ConciergeSheet: View {
     private func askForIdeas() async {
         stage = .thinking
         chosen = []
+        let (api, prompt, members, mealType, heartHealthy) = (app.api, prompt, members, mealType, heartHealthy)
+        let context = AIContext.cached
         do {
-            let concepts = try await app.api.recipeConcepts(.init(
-                prompt: prompt, memberIds: members, mealType: mealType, heartHealthy: heartHealthy ? true : nil))
+            // On the device first (ConceptWriter), from the cached context; the
+            // chosen ones are still written out by the server.
+            let concepts = try await AIRouter.run(
+                .recipeIdeas,
+                onDevice: {
+                    guard #available(iOS 27, *) else { throw CancellationError() }
+                    return try await ConceptWriter.ideas(.init(prompt: prompt, memberIds: members ?? [], mealType: mealType,
+                                                               heartHealthy: heartHealthy), context: context)
+                },
+                check: { ideas in
+                    ConceptChecks.problems(ideas, eating: (context?.members ?? []).filter { (members ?? []).contains($0.id) })
+                },
+                fallback: {
+                    try await api.recipeConcepts(.init(prompt: prompt, memberIds: members, mealType: mealType,
+                                                       heartHealthy: heartHealthy ? true : nil))
+                }).value
             stage = concepts.isEmpty ? .failed("No ideas came back. Try describing it differently.") : .ideas(concepts)
         } catch {
             stage = .failed(Self.explain(error))

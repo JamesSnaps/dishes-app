@@ -47,7 +47,7 @@ struct ShareView: View {
                 .background(Self.brand, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text("Import to Dishes").font(.system(size: 22, weight: .bold))
-                Text("Ingredients, method, timings and the photo.")
+                Text("A recipe page, a screenshot or its text.")
                     .font(.system(size: 14)).foregroundStyle(.secondary)
             }
         }
@@ -69,6 +69,41 @@ struct ShareView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 36)
+
+        case .reading(let onDevice):
+            VStack(spacing: 14) {
+                ProgressView().controlSize(.large).tint(Self.orange)
+                Text(onDevice ? "Reading the recipe on this device…" : "Reading the recipe…")
+                    .font(.system(size: 17, weight: .semibold))
+                Text(onDevice ? "Usually under half a minute. You check it before it’s saved." : "Up to a minute.")
+                    .font(.system(size: 14)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 36)
+
+        case .preview(let recipe):
+            card {
+                Label("Read on this \(UIDevice.current.model)", systemImage: "apple.intelligence")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Self.orange)
+                Text(recipe.title).font(.system(size: 18, weight: .bold))
+                Text("\(recipe.ingredients.count) ingredients · \(recipe.steps.count) steps"
+                     + (recipe.servings.isEmpty ? "" : " · serves \(recipe.servings)"))
+                    .font(.system(size: 14)).foregroundStyle(.secondary)
+                ForEach(Array(recipe.ingredients.prefix(6).enumerated()), id: \.offset) { _, i in
+                    Text("• " + [i.amount, i.unit, i.ingredientName].filter { !$0.isEmpty }.joined(separator: " "))
+                        .font(.system(size: 14))
+                }
+                if recipe.ingredients.count > 6 {
+                    Text("and \(recipe.ingredients.count - 6) more").font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+                Text("Check it over in Dishes after saving — it can be edited there.")
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
+            }
+            primary("Save to Dishes") { Task { await model.save(recipe) } }
+
+        case .saving:
+            ProgressView("Saving…").frame(maxWidth: .infinity).padding(.vertical, 40)
 
         case .done(let title, let notice):
             card {

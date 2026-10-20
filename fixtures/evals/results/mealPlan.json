@@ -1,0 +1,66 @@
+{
+  "date" : "2026-10-20T17:02:31Z",
+  "deviceScore" : 0.9166666666666666,
+  "job" : "mealPlan",
+  "model" : "AFM 3 Core, 4,096 tokens",
+  "passes" : true,
+  "perSample" : [
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Favourites, four dinners → Thai Green Curry · Mushroom Risotto · Spaghetti Carbonara · Roasted Vegetable & Lentil Stew (new)",
+      "problems" : [
+
+      ],
+      "seconds" : 12.767353057861328
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Five dinners → Ten-Minute Prawn Noodles · Mushroom Risotto · Fish Tacos · Thai Green Curry · Spaghetti Carbonara",
+      "problems" : [
+
+      ],
+      "seconds" : 12.53549599647522
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Four dinners for a vegetarian → Mushroom Risotto · Creamy Tomato Soup · Vegetarian Lentil Stew (new) · Chickpea and Spinach Curry (new)",
+      "problems" : [
+
+      ],
+      "seconds" : 13.99733304977417
+    },
+    {
+      "deviceScore" : 0.8333333333333334,
+      "engine" : "device",
+      "name" : "Heart-healthy, four dinners → Ten-Minute Prawn Noodles · Fish Tacos · Thai Green Curry · Grilled Salmon with Lentil Pilaf (new)",
+      "problems" : [
+
+      ],
+      "seconds" : 16.656543970108032
+    },
+    {
+      "deviceScore" : 0.6666666666666666,
+      "engine" : "device",
+      "name" : "Pasta on Friday → Fish Tacos · Ten-Minute Prawn Noodles · Mushroom Risotto · Spaghetti Carbonara · Thai Green Curry",
+      "problems" : [
+
+      ],
+      "seconds" : 15.480885982513428
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Three breakfasts → Shakshuka · Egg muffins (new) · Fruit and yoghurt bowl (new)",
+      "problems" : [
+
+      ],
+      "seconds" : 12.048174977302551
+    }
+  ],
+  "samples" : 6,
+  "serverIs" : "not measured: no household key where this ran",
+  "structurePassed" : 6
+}

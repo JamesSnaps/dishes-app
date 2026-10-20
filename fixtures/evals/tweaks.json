@@ -1,0 +1,18 @@
+{
+  "about": "\"Improve with AI\" requests on the seed recipes (fixtures/evals/recipe-cards.json; TODO_MOBILE.md, D3). After the tweak, nothing in `absent` may be in the ingredients or method, each entry of `present` (any one of its words) must be, `servings` (when given) must be the new servings, and the ingredients the request didn't touch must still be there.",
+  "tweaks": [
+    { "recipe": "Classic Beef Bolognese", "instruction": "Make it vegetarian", "absent": ["beef", "pork"], "present": [["lentil", "mushroom", "soya", "vegetarian mince", "plant-based", "quorn", "bean", "aubergine", "veggie"]] },
+    { "recipe": "Spaghetti Carbonara", "instruction": "Use bacon instead of guanciale", "absent": ["guanciale"], "present": [["bacon", "pancetta"]] },
+    { "recipe": "Banana Bread", "instruction": "Leave out the walnuts", "absent": ["walnut"], "present": [] },
+    { "recipe": "Chocolate Chip Cookies", "instruction": "Use milk chocolate instead of dark", "absent": ["dark chocolate"], "present": [["milk chocolate"]] },
+    { "recipe": "Creamy Tomato Soup", "instruction": "Dairy-free", "absent": ["double cream"], "present": [["coconut", "oat", "cashew", "soy", "plant"]] },
+    { "recipe": "Fish Tacos", "instruction": "Use flour tortillas instead of corn ones", "absent": ["corn tortilla"], "present": [["flour tortilla"]] },
+    { "recipe": "Greek Salad", "instruction": "Add a red pepper", "absent": [], "present": [["pepper"]] },
+    { "recipe": "Mushroom Risotto", "instruction": "Make it without wine", "absent": ["wine"], "present": [] },
+    { "recipe": "Shakshuka", "instruction": "Add some spinach", "absent": [], "present": [["spinach"]] },
+    { "recipe": "Smash Burgers", "instruction": "Make them with chicken mince", "absent": ["beef"], "present": [["chicken"]] },
+    { "recipe": "Thai Green Curry", "instruction": "Use tofu instead of chicken", "absent": ["chicken"], "present": [["tofu"]] },
+    { "recipe": "Weeknight Chicken Stir-Fry", "instruction": "No garlic please", "absent": ["garlic"], "present": [] },
+    { "recipe": "Creamy Tomato Soup", "instruction": "Halve it to serve 2", "absent": [], "present": [["400"]], "servings": "2" }
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "date" : "2026-10-20T17:11:28Z",
+  "deviceScore" : 0.8462383770076076,
+  "job" : "improveRecipe",
+  "model" : "AFM 3 Core, 4,096 tokens",
+  "passes" : false,
+  "perSample" : [
+    {
+      "deviceScore" : 0.42857142857142855,
+      "engine" : "device",
+      "name" : "Banana Bread: Leave out the walnuts → I've removed walnuts and replaced bananas with pumpkin puree to make the banana bread nut-free.",
+      "problems" : [
+        "“Heat the oven to 175°C and line a loaf t…” still uses ripe bananas"
+      ],
+      "seconds" : 5.531254053115845
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Chocolate Chip Cookies: Use milk chocolate instead of dark → I've swapped the dark chocolate for milk chocolate to create a lighter chocolate chip cookie.",
+      "problems" : [
+
+      ],
+      "seconds" : 5.371719002723694
+    },
+    {
+      "deviceScore" : 0.8653846153846154,
+      "engine" : "device",
+      "name" : "Classic Beef Bolognese: Make it vegetarian → I've swapped the meat and animal products for lentils, vegetables, and plant-based milk to make this vegetarian.",
+      "problems" : [
+        "“onion onion”: the unit repeats the name",
+        "“cup” in a metric household",
+        "only 1 of 15 ingredients kept",
+        "“Heat the vegetable oil and vegan butter …” still uses onions"
+      ],
+      "seconds" : 37.868913888931274
+    },
+    {
+      "deviceScore" : 0.8571428571428571,
+      "engine" : "device",
+      "name" : "Creamy Tomato Soup: Dairy-free → I've swapped dairy and tomato-based ingredients for a creamy, plant-based version.",
+      "problems" : [
+        "only 2 of 8 ingredients kept",
+        "“Heat 1 onion, finely chopped, and 2 garl…” still uses onions"
+      ],
+      "seconds" : 9.052151083946228
+    },
+    {
+      "deviceScore" : 0.9166666666666666,
+      "engine" : "device",
+      "name" : "Creamy Tomato Soup: Halve it to serve 2 → I've halved the recipe to serve 2 by reducing the quantities of key ingredients and adjusting the method.",
+      "problems" : [
+        "only 3 of 8 ingredients kept",
+        "“Soften the finely chopped onion in 15ml …” still uses onions"
+      ],
+      "seconds" : 10.61355996131897
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Fish Tacos: Use flour tortillas instead of corn ones → I've swapped the tortillas from corn to flour to better match the requested change.",
+      "problems" : [
+        "“Prepare 250g flour tortillas by wrapping…” still uses corn tortillas"
+      ],
+      "seconds" : 5.212309956550598
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Greek Salad: Add a red pepper → I've added red pepper to the Greek salad for extra warmth.",
+      "problems" : [
+
+      ],
+      "seconds" : 4.767140030860901
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Mushroom Risotto: Make it without wine → I've swapped the wine for mushroom broth and adjusted the ingredients to eliminate alcohol.",
+      "problems" : [
+
+      ],
+      "seconds" : 7.3907999992370605
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Shakshuka: Add some spinach → I've added spinach to the shakshuka.",
+      "problems" : [
+
+      ],
+      "seconds" : 4.48907995223999
+    },
+    {
+      "deviceScore" : 0.6666666666666666,
+      "engine" : "device",
+      "name" : "Smash Burgers: Make them with chicken mince → I've swapped the beef for chicken mince.",
+      "problems" : [
+
+      ],
+      "seconds" : 5.1378480195999146
+    },
+    {
+      "deviceScore" : 0.6,
+      "engine" : "device",
+      "name" : "Spaghetti Carbonara: Use bacon instead of guanciale → I've swapped the beef for bacon and updated the recipe accordingly.",
+      "problems" : [
+        "“Boil the spaghetti in well-salted water …” still uses spaghetti"
+      ],
+      "seconds" : 5.911159992218018
+    },
+    {
+      "deviceScore" : 0.6666666666666666,
+      "engine" : "device",
+      "name" : "Thai Green Curry: Use tofu instead of chicken → I've swapped the chicken for tofu and adjusted the recipe accordingly.",
+      "problems" : [
+
+      ],
+      "seconds" : 5.418744921684265
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Weeknight Chicken Stir-Fry: No garlic please → I've swapped garlic for shallots to eliminate the flavor.",
+      "problems" : [
+
+      ],
+      "seconds" : 5.6934850215911865
+    }
+  ],
+  "samples" : 13,
+  "serverIs" : "not measured: no household key where this ran",
+  "structurePassed" : 7
+}

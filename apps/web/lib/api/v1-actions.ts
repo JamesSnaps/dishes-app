@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { MEAL_ROLES } from "@dishes/shared";
@@ -120,6 +121,18 @@ async function asGenerated(session: Session, recipeId: string): Promise<Generate
   } as GeneratedRecipe;
 }
 
+/**
+ * A tweak made on the iOS device comes without nutrition when its ingredients
+ * or servings changed (the on-device model doesn't estimate it): the
+ * household's AI does, once the reply has gone, as for /recipes/generated.
+ */
+function estimateIfMissing(recipeId: string, tweaked: Record<string, unknown>) {
+  if (tweaked.nutrition) return;
+  after(async () => {
+    await ai.estimateNutrition(recipeId);
+  });
+}
+
 export const actions: Record<string, Handler> = {
   // ── Pantry ────────────────────────────────────────────────────────────────
   "pantry.list": async (s) => {
@@ -207,8 +220,18 @@ export const actions: Record<string, Handler> = {
   "ai.heartHealthy": async (s, [recipeId]) => ai.makeRecipeHeartHealthy(await asGenerated(s, str(recipeId))),
   "recipes.setMealRole": (_s, [recipeId, role]) =>
     recipeActions.setRecipeMealRole(str(recipeId), z.enum(MEAL_ROLES).nullable().parse(role ?? null)),
-  "ai.applyTweak": (_s, [recipeId, tweaked]) => recipeActions.applyTweakToRecipe(str(recipeId), obj(tweaked) as never),
-  "ai.saveTweakAsCopy": (_s, [recipeId, tweaked]) => recipeActions.saveRecipeAsCopy(str(recipeId), obj(tweaked) as never),
+  "ai.applyTweak": async (_s, [recipeId, tweaked]) => {
+    const r = await recipeActions.applyTweakToRecipe(str(recipeId), obj(tweaked) as never);
+    if (!r.error) estimateIfMissing(str(recipeId), obj(tweaked));
+    return r;
+  },
+  "ai.saveTweakAsCopy": async (_s, [recipeId, tweaked]) => {
+    const r = await recipeActions.saveRecipeAsCopy(str(recipeId), obj(tweaked) as never);
+    if (r.recipeId) estimateIfMissing(r.recipeId, obj(tweaked));
+    return r;
+  },
+  /** The recipe as the AI tools take it, for the iOS app's on-device tweaks. */
+  "recipes.generated": (s, [recipeId]) => asGenerated(s, str(recipeId)),
   "ai.estimateNutrition": (_s, [recipeId]) => ai.estimateNutrition(str(recipeId)),
   "ai.similar": (_s, [recipeId, note]) => ai.generateSimilarConcepts(str(recipeId), optStr(note)),
   "ai.sides": (_s, [recipeIds, note]) => ai.generateSideConcepts(ids(recipeIds), optStr(note)),

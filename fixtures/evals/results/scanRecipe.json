@@ -1,6 +1,6 @@
 {
-  "date" : "2026-10-20T15:36:32Z",
-  "deviceScore" : 0.9644470514507277,
+  "date" : "2026-10-20T16:36:24Z",
+  "deviceScore" : 0.9708689851814853,
   "job" : "scanRecipe",
   "model" : "AFM 3 Core, 4,096 tokens",
   "passes" : true,
@@ -12,7 +12,7 @@
       "problems" : [
 
       ],
-      "seconds" : 30.462777018547058
+      "seconds" : 28.505949020385742
     },
     {
       "deviceScore" : 0.9887499999999999,
@@ -21,25 +21,25 @@
       "problems" : [
 
       ],
-      "seconds" : 14.97868800163269
+      "seconds" : 14.861032009124756
     },
     {
-      "deviceScore" : 0.9823529411764705,
+      "deviceScore" : 0.9542307692307691,
       "engine" : "device",
       "name" : "03 Classic Beef Bolognese (card, Avenir Next)",
       "problems" : [
 
       ],
-      "seconds" : 32.09172797203064
+      "seconds" : 27.338220953941345
     },
     {
-      "deviceScore" : 0.9874999999999999,
+      "deviceScore" : 0.9999999999999999,
       "engine" : "device",
       "name" : "04 Creamy Tomato Soup (card, Noteworthy, tilted)",
       "problems" : [
 
       ],
-      "seconds" : 13.079596042633057
+      "seconds" : 13.83949100971222
     },
     {
       "deviceScore" : 0.9999999999999999,
@@ -48,16 +48,16 @@
       "problems" : [
 
       ],
-      "seconds" : 13.317991971969604
+      "seconds" : 14.05050504207611
     },
     {
-      "deviceScore" : 0.9035714285714285,
+      "deviceScore" : 0.9749999999999999,
       "engine" : "device",
       "name" : "06 Greek Salad (twoColumn, Georgia, tilted)",
       "problems" : [
 
       ],
-      "seconds" : 11.976971983909607
+      "seconds" : 11.844807982444763
     },
     {
       "deviceScore" : 0.975,
@@ -66,16 +66,16 @@
       "problems" : [
 
       ],
-      "seconds" : 21.0428569316864
+      "seconds" : 14.102415919303894
     },
     {
-      "deviceScore" : 0.97,
+      "deviceScore" : 0.9874999999999999,
       "engine" : "device",
       "name" : "08 Shakshuka (page, Helvetica Neue)",
       "problems" : [
 
       ],
-      "seconds" : 13.16570496559143
+      "seconds" : 12.960409998893738
     },
     {
       "deviceScore" : 0.950654761904762,
@@ -84,34 +84,34 @@
       "problems" : [
 
       ],
-      "seconds" : 12.153198003768921
+      "seconds" : 12.26400899887085
     },
     {
-      "deviceScore" : 0.9833333333333333,
+      "deviceScore" : 0.9999999999999999,
       "engine" : "device",
       "name" : "10 Spaghetti Carbonara (page, Courier New)",
       "problems" : [
 
       ],
-      "seconds" : 12.048858046531677
+      "seconds" : 12.84588897228241
     },
     {
-      "deviceScore" : 0.985185185185185,
+      "deviceScore" : 0.9888888888888888,
       "engine" : "device",
       "name" : "11 Thai Green Curry (page, Noteworthy, tilted)",
       "problems" : [
 
       ],
-      "seconds" : 14.448821067810059
+      "seconds" : 15.176814079284668
     },
     {
-      "deviceScore" : 0.9799999999999999,
+      "deviceScore" : 0.9999999999999999,
       "engine" : "device",
       "name" : "12 Weeknight Chicken Stir-Fry (card, Georgia)",
       "problems" : [
 
       ],
-      "seconds" : 23.719475030899048
+      "seconds" : 16.093714952468872
     },
     {
       "deviceScore" : 0.9472727272727273,
@@ -120,7 +120,7 @@
       "problems" : [
 
       ],
-      "seconds" : 18.07643496990204
+      "seconds" : 14.377608060836792
     },
     {
       "deviceScore" : 0.9331944444444445,
@@ -129,16 +129,16 @@
       "problems" : [
 
       ],
-      "seconds" : 15.977594017982483
+      "seconds" : 25.598452925682068
     },
     {
-      "deviceScore" : 0.9596153846153846,
+      "deviceScore" : 0.9529487179487178,
       "engine" : "device",
       "name" : "15 Classic Beef Bolognese (card, Helvetica Neue, tilted)",
       "problems" : [
 
       ],
-      "seconds" : 25.681336998939514
+      "seconds" : 26.397208094596863
     },
     {
       "deviceScore" : 0.9999999999999999,
@@ -147,7 +147,7 @@
       "problems" : [
 
       ],
-      "seconds" : 12.92034900188446
+      "seconds" : 13.165734052658081
     },
     {
       "deviceScore" : 0.9916666666666666,
@@ -156,16 +156,16 @@
       "problems" : [
 
       ],
-      "seconds" : 13.79326593875885
+      "seconds" : 13.328776001930237
     },
     {
-      "deviceScore" : 0.9035714285714285,
+      "deviceScore" : 0.9749999999999999,
       "engine" : "device",
       "name" : "18 Greek Salad (twoColumn, Noteworthy, tilted)",
       "problems" : [
 
       ],
-      "seconds" : 11.525070071220398
+      "seconds" : 11.861560940742493
     },
     {
       "deviceScore" : 0.9999999999999999,
@@ -174,16 +174,16 @@
       "problems" : [
 
       ],
-      "seconds" : 13.80239999294281
+      "seconds" : 14.032919049263
     },
     {
-      "deviceScore" : 0.9,
+      "deviceScore" : 0.8500000000000001,
       "engine" : "device",
       "name" : "20 Shakshuka (twoColumn, Bradley Hand, tilted)",
       "problems" : [
 
       ],
-      "seconds" : 12.588720083236694
+      "seconds" : 12.33977198600769
     }
   ],
   "samples" : 20,

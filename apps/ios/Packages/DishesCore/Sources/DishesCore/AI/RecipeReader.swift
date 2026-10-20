@@ -43,6 +43,17 @@ public enum RecipeReader {
         public var pageText: String
     }
 
+    /// A recipe from text — shared from a message, notes or a caption.
+    @available(iOS 27, macOS 27, *)
+    public static func read(text: String, context: AIContext?) async throws -> Reading {
+        let session = LanguageModelSession(instructions: Prompts.readRecipe(context, from: .text))
+        let draft = try await session.respond(generating: RecipeDraft.self) {
+            "The text:\n\(text)"
+            "Extract the complete recipe."
+        }.content
+        return Reading(recipe: recoverNames(draft.recipe, from: text), pageText: text)
+    }
+
     @available(iOS 27, macOS 27, *)
     public static func read(_ pages: [CGImage], context: AIContext?) async throws -> Reading {
         let text = try await text(of: pages)
@@ -55,7 +66,25 @@ public enum RecipeReader {
             }
             "Extract the complete recipe."
         }.content
-        return Reading(recipe: draft.recipe, pageText: text)
+        return Reading(recipe: recoverNames(draft.recipe, from: text), pageText: text)
+    }
+
+    /// The small model sometimes keeps a line's preparation and drops its name
+    /// — "salt, to taste" comes back as [] [to taste] — whatever the prompt
+    /// says. The printed line is on the page: read the name from it with the
+    /// ingredient rules, so it's the page's word, not a guess.
+    static func recoverNames(_ recipe: GeneratedRecipe, from text: String) -> GeneratedRecipe {
+        var out = recipe
+        var lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        for n in out.ingredients.indices where out.ingredients[n].ingredientName.isEmpty {
+            let prep = out.ingredients[n].preparation.lowercased()
+            guard !prep.isEmpty,
+                  let at = lines.firstIndex(where: { $0.lowercased().hasSuffix(", " + prep) }),
+                  let parsed = IngredientRules.parse(lines[at]), !parsed.ingredientName.isEmpty else { continue }
+            out.ingredients[n].ingredientName = parsed.ingredientName
+            lines.remove(at: at)
+        }
+        return out
     }
 }
 
@@ -66,7 +95,7 @@ public enum RecipeReader {
 @available(iOS 27, macOS 27, *)
 @Generable(description: "A recipe read from a cookbook page or recipe card")
 struct RecipeDraft {
-    @Guide(description: "The recipe's title as printed")
+    @Guide(description: "The recipe's title as printed, or the dish's plain name when none is given")
     var title: String
     @Guide(description: "One or two sentences on the dish, from the page; empty if there's none")
     var description: String
@@ -98,7 +127,8 @@ struct RecipeDraft {
             cookTimeMinutes: cookTimeMinutes.flatMap { $0 > 0 ? $0 : nil },
             servings: trim(servings).isEmpty ? "4" : trim(servings),
             mealTypes: Array(Set(mealTypes.map(\.rawValue))).sorted(),
-            ingredients: ingredients.map {
+            // Likewise a blank ingredient row; one with a quantity and no name stays, for RecipeChecks to refuse.
+            ingredients: ingredients.filter { !(trim($0.name) + trim($0.quantity) + trim($0.preparation)).isEmpty }.map {
                 let (amount, unit) = IngredientRules.splitQuantity($0.quantity)
                 return GeneratedRecipe.Ingredient(ingredientName: trim($0.name), amount: amount, unit: unit,
                                                   preparation: trim($0.preparation), isOptional: $0.optional, groupLabel: trim($0.section))

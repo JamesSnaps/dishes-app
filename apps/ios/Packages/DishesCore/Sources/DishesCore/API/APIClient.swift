@@ -667,6 +667,12 @@ public final class APIClient: SyncTransport, Sendable {
         try await slowPost("/recipes/generated", json: recipe, timeout: 60)
     }
 
+    /// Text that holds a recipe (a message, notes, a caption), read and saved.
+    public func recipeFromText(_ text: String) async throws -> CreatedRecipe {
+        struct Body: Encodable { var text: String }
+        return try await slowPost("/ai/text-recipe", json: Body(text: text))
+    }
+
     /// A photo of a cookbook page or recipe card, read and saved as a recipe.
     public func recipeFromPhoto(_ image: Data, mime: String = "image/jpeg") async throws -> CreatedRecipe {
         struct Body: Encodable { var image: String; var mimeType: String }

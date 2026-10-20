@@ -933,10 +933,11 @@ seconds, so clients should allow a long timeout.
 - `POST /api/v1/ai/recipes` `{ concept, mealType?, memberIds?, heartHealthy? }` → 201
   `{ recipeId, title, collectionName? }` — written out in full and saved (it syncs down)
 - `POST /api/v1/ai/photo-recipe` `{ image: <base64>, mimeType }` → 201 `{ recipeId, title }`
+- `POST /api/v1/ai/text-recipe` `{ text }` (20–30,000 characters: a message, notes, a caption) → 201 `{ recipeId, title, collectionName? }` — read and saved, as photo-recipe does for a photo; 422 when there's no recipe in it
 - `POST /api/v1/ai/meal-plan` `{ weekStartDate, slots: [{ dayOfWeek, mealType }], preferences, memberIds?, favouritesOnly?, heartHealthy? }`
   → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId? }] }` — a draft, nothing saved
 - `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
-- `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text
+- `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text. The iOS app answers on the device first (iOS 27) and comes here when it can't
 
 ### `GET /api/v1/ai/context`
 
@@ -1034,7 +1035,8 @@ The per-action adapters are in `apps/web/lib/api/v1-actions.ts`.
 | `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear`; `shift` — `[groupId, minutes]` moves the meal's serve time by whole minutes (its own, or that date's dinner time when it follows it), marks cues already due at the new time as sent, and answers the new schedule — cooking mode's "I started earlier, move dinner" ; `freeze` — `[groupId]` keeps the schedule in use fixed for a cook in progress (24 h), so recipe edits mid-cook don't move cues, pushes or the Live Activity |
 | `cookAssist` (cooking mode's "Ask about this step") | `list` — `[recipeId]` → every saved conversation for the recipe, `[{ id, stepNumber, messages }]`; `save` — `[recipeId, stepNumber, messages]` → `{ id }`; `update` — `[id, messages]` replaces a conversation's messages as it grows; `delete` — `[id]`. `messages` is `[{ role: "user" \| "assistant", content }]` — the same threads the web's cooking mode keeps |
 | `mealCooks` | `log` — `[{ groupId, rating?, memberRatings?, cookedFor?, occasion?, notes?, actualDuration?, dishes?: [{ recipeId, rating?, notes? }] }]` → `{ id, cookIds }`: the whole-meal review, one cook entry per dish |
-| `ai` | `improve`, `refine`, `heartHealthy`, `applyTweak`, `saveTweakAsCopy`, `estimateNutrition`, `similar`, `sides`, `recipeImage`, `recipeImageJob` (`[recipeId, style?, instructions?]` → `{ jobId }`, made in the background like the web's Generate image), `suggestMealComponents`, `config`, `saveConfig` |
+| `recipes` | `setMealRole` — `[recipeId, role \| null]`; `generated` — `[recipeId]` → the recipe as the AI tools take it (a `GeneratedRecipe`, nutrition included), for tweaks made on the iOS device |
+| `ai` | `improve`, `refine`, `heartHealthy`, `applyTweak`, `saveTweakAsCopy` (both estimate the nutrition afterwards with the household's AI when the tweak comes without it, as one made on the device does when its ingredients changed), `estimateNutrition`, `similar`, `sides`, `recipeImage`, `recipeImageJob` (`[recipeId, style?, instructions?]` → `{ jobId }`, made in the background like the web's Generate image), `suggestMealComponents`, `config`, `saveConfig` |
 | `import` | `parse` — `[ingredientText, methodText]` → `{ ingredients, steps }` |
 | `stats` · `wrapped` · `taste` | `stats.report`, `wrapped.report`, `wrapped.recap`, `taste.get`, `taste.refresh`, `taste.clear` |
 | `notes` | `list`, `create`, `update`, `delete` |

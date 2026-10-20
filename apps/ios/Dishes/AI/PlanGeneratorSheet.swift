@@ -204,15 +204,38 @@ struct PlanGeneratorSheet: View {
 
     private func makeDraft() async {
         stage = .drafting
+        let (api, store) = (app.api, app.store)
+        let context = AIContext.cached
+        let ask = MealPlanDrafter.Ask(weekStartDate: week.key, slots: days.sorted().map { .init(dayOfWeek: $0, mealType: mealType) },
+                                      preferences: preferences, memberIds: Array(eating), favouritesOnly: favouritesOnly,
+                                      heartHealthy: heartHealthy)
         do {
-            draft = try await app.api.draftMealPlan(.init(
-                weekStartDate: week.key,
-                slots: days.sorted().map { ($0, mealType) },
-                preferences: preferences,
-                memberIds: eating.isEmpty ? nil : Array(eating),
-                favouritesOnly: favouritesOnly ? true : nil,
-                heartHealthy: heartHealthy ? true : nil))
-                .sorted { $0.dayOfWeek < $1.dayOfWeek }
+            // On the device first, from what's in the local store
+            // (MealPlanDrafter); adding the draft still goes to the server.
+            let run = try await AIRouter.run(
+                .mealPlan,
+                onDevice: { () async throws -> (slots: [APIClient.PlanSlot], problems: [String]) in
+                    guard #available(iOS 27, *) else { throw CancellationError() }
+                    let household = try await store.read { r in
+                        MealPlanDrafter.Household(recipes: try r.records(.recipes).compactMap(Recipe.init),
+                                                  plans: try r.records(.mealPlans).compactMap(MealPlan.init),
+                                                  entries: try r.records(.mealPlanEntries).compactMap(MealPlanEntry.init),
+                                                  cooks: try r.records(.cookHistory).compactMap(CookEntry.init))
+                    }
+                    let eating = (context?.members ?? []).filter { ask.memberIds.contains($0.id) }
+                    let slots = try await MealPlanDrafter.draft(ask, household: household, context: context)
+                    let library = MealPlanDrafter.library(ask, household: household, eating: eating.map(\.displayName), today: .now,
+                                                          diets: eating.flatMap(\.dietaryFlags))
+                    return (slots, PlanChecks.problems(slots, ask: ask, library: library, eating: eating))
+                },
+                check: { $0.problems },
+                fallback: {
+                    (try await api.draftMealPlan(.init(
+                        weekStartDate: ask.weekStartDate, slots: ask.slots.map { ($0.dayOfWeek, $0.mealType) },
+                        preferences: ask.preferences, memberIds: ask.memberIds.isEmpty ? nil : ask.memberIds,
+                        favouritesOnly: ask.favouritesOnly ? true : nil, heartHealthy: ask.heartHealthy ? true : nil)), [])
+                })
+            draft = run.value.slots.sorted { $0.dayOfWeek < $1.dayOfWeek }
             stage = draft.isEmpty ? .failed("No meals came back. Try fewer constraints.") : .draft
         } catch {
             stage = .failed(ConciergeSheet.explain(error))

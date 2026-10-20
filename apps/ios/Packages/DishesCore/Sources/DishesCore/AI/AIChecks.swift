@@ -15,6 +15,17 @@ public enum RecipeChecks {
         "pint", "pints", "pt", "quart", "quarts", "qt", "gallon", "gallons", "gl",
     ]
 
+    /// Most of the name's words are on the page, allowing plurals and one-letter slips.
+    static func isOnPage(_ name: String, words: Set<String>) -> Bool {
+        let parts = name.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init).filter { $0.count > 2 }
+        guard !parts.isEmpty else { return true }
+        let found = parts.filter { part in
+            words.contains(part) || words.contains(part + "s") || words.contains(part + "es") || words.contains(String(part.dropLast()))
+                || (part.count >= 4 && words.contains { $0.count == part.count && zip($0, part).filter { $0 != $1 }.count == 1 })
+        }
+        return found.count * 2 >= parts.count
+    }
+
     /// The page as Vision read it, ready to look things up in: Vision reads 0
     /// as "o" and 1 as "l" next to other digits ("6oml" is 60 ml), which the
     /// model rightly corrects.
@@ -42,6 +53,12 @@ public enum RecipeChecks {
                 i.amount.split(whereSeparator: { !$0.isNumber }).contains { !page.contains($0) }
             }) {
                 out.append("“\(bad.amount) \(bad.ingredientName)”: the amount isn’t on the page")
+            }
+            // Every ingredient is on the page: the model has copied an ingredient out
+            // of its own prompt's examples before. A one-letter slip is Vision's
+            // ("teta" for feta), not the model's.
+            if let bad = recipe.ingredients.first(where: { !Self.isOnPage($0.ingredientName, words: words) }) {
+                out.append("“\(bad.ingredientName)” isn’t on the page")
             }
         }
         if recipe.title.trimmingCharacters(in: .whitespaces).isEmpty { out.append("no title") }
