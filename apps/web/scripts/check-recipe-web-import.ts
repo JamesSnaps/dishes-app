@@ -240,7 +240,12 @@ assert.equal(
 for (const ip of ["127.0.0.1", "10.1.2.3", "172.20.0.5", "192.168.1.10", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:192.168.0.1"]) {
   assert.equal(isPrivateAddress(ip), true, `${ip} is private`);
 }
-for (const ip of ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946", "::ffff:8.8.8.8"]) {
+// The hex forms of IPv4-mapped addresses — what the URL parser turns
+// [::ffff:127.0.0.1] into — and IPv4-compatible ones.
+for (const ip of ["::ffff:7f00:1", "::ffff:c0a8:1", "::ffff:a00:5", "::7f00:1", "0:0:0:0:0:ffff:a9fe:a9fe"]) {
+  assert.equal(isPrivateAddress(ip), true, `${ip} is private`);
+}
+for (const ip of ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946", "::ffff:8.8.8.8", "::ffff:808:808"]) {
   assert.equal(isPrivateAddress(ip), false, `${ip} is public`);
 }
 
@@ -254,6 +259,9 @@ await Promise.all([
   rejects("http://minio/bucket"),
   rejects("http://10.0.0.5/"),
   rejects("http://[::1]/"),
+  rejects("http://[::ffff:127.0.0.1]/"),
+  rejects("http://[::ffff:7f00:1]/"),
+  rejects("http://[::ffff:c0a8:1]/"),
   rejects("http://169.254.169.254/latest/meta-data"),
   rejects("https://example.com:8443/"),
   rejects("https://user:pass@example.com/"),

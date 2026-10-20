@@ -1957,7 +1957,8 @@ function mergeTidied(source: WebRecipe, ai: GeneratedRecipe): RecipeFormDefaults
   const tidy = recipeToDefaults(ai);
   // A model that drops lines loses ingredients from the shopping list without
   // anyone noticing; fall back to the plain parse for that part.
-  const keepIngredients = ai.ingredients.length >= Math.ceil(source.rawIngredients.length * 0.9);
+  // Count against the parsed lines: rawIngredients still holds section headings.
+  const keepIngredients = ai.ingredients.length >= Math.ceil(source.ingredients.length * 0.9);
   const keepSteps = ai.steps.length >= Math.ceil(source.steps.length * 0.8);
   return {
     ...base,

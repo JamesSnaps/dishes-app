@@ -58,14 +58,34 @@ for (const [net, prefix] of [
   blocked.addSubnet(net, prefix, "ipv6");
 }
 
+/** An IPv6 address as its eight 16-bit groups ("::ffff:1.2.3.4" included). */
+function ipv6Groups(address: string): number[] {
+  let text = address.toLowerCase().replace(/%.*$/, "");
+  const dotted = text.match(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (dotted) {
+    const [a, b, c, d] = dotted.slice(1).map(Number) as [number, number, number, number];
+    text = text.slice(0, dotted.index) + `${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head, tail] = text.includes("::") ? text.split("::") : [text, undefined];
+  const parse = (s: string | undefined) => (s ? s.split(":").map((g) => parseInt(g, 16)) : []);
+  const front = parse(head);
+  const back = parse(tail);
+  return [...front, ...Array<number>(8 - front.length - back.length).fill(0), ...back];
+}
+
 /** True for loopback, private, link-local, CGNAT, multicast and reserved addresses. */
 export function isPrivateAddress(address: string): boolean {
   const family = isIP(address);
   if (family === 4) return blocked.check(address, "ipv4");
   if (family === 6) {
-    // IPv4-mapped (::ffff:10.0.0.1) is the IPv4 address in disguise.
-    const mapped = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-    if (mapped) return blocked.check(mapped[1]!, "ipv4");
+    // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d) addresses
+    // are the IPv4 address in disguise — and the URL parser writes them in hex
+    // ([::ffff:127.0.0.1] becomes [::ffff:7f00:1]), so unwrap by value.
+    const g = ipv6Groups(address);
+    if (g.slice(0, 5).every((x) => x === 0) && (g[5] === 0xffff || g[5] === 0)) {
+      const v4 = [g[6]! >> 8, g[6]! & 0xff, g[7]! >> 8, g[7]! & 0xff].join(".");
+      return blocked.check(v4, "ipv4");
+    }
     return blocked.check(address, "ipv6");
   }
   return true;
