@@ -99,8 +99,25 @@ public actor AuthSession: TokenProvider {
             tokens = fresh
             return fresh
         } catch OIDCError.invalidGrant {
+            // Refused because the other process spent this refresh token first?
+            // Then its new pair is (or is about to be) in the store: use that
+            // rather than sign out, which would clear the store and sign out both.
+            if let theirs = try await pairSavedElsewhere(replacing: refreshToken) {
+                tokens = theirs
+                return theirs
+            }
             try signOut()
             return nil
         }
+    }
+
+    /// A pair another process saved in place of `spent`, allowing it a moment
+    /// to finish saving after its own refresh succeeded.
+    private func pairSavedElsewhere(replacing spent: String) async throws -> TokenSet? {
+        for attempt in 0..<2 {
+            if let stored = try store.load(), stored.refreshToken != spent { return stored }
+            if attempt == 0 { try? await Task.sleep(for: .seconds(1)) }
+        }
+        return nil
     }
 }
