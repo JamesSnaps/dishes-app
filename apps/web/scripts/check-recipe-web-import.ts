@@ -225,6 +225,33 @@ line two"}`;
     ["/a.jpg", "/b.jpg", "/silicone-mat-brownies.jpg"],
     "itemprop/image_src first; 'silicone' isn't an icon, /icons/ is"
   );
+  assert.deepEqual(
+    fallbackImageUrls(`<main><video autoplay><source src="/hero.mp4" type="video/mp4"><source src="/hero.webm"></video>` +
+      `<picture><source srcset="/dish-800.webp 800w, /dish-1600.webp 1600w"><img src="/dish.jpg"></picture></main>`),
+    ["/dish-1600.webp", "/dish.jpg"],
+    "a hero video's sources aren't photos; a <picture>'s are"
+  );
+  // Shaped like abelandcole.co.uk: no og:image or JSON-LD; site icons in the
+  // head, the recipe writer's portrait before the photo, shop products after.
+  const abelAndCole = page(
+    `<link rel="apple-touch-icon" href="/src/images/site-icons/apple-touch-icon-180x180.jpg">` +
+      `<meta name="msapplication-square150x150logo" content="/src/images/site-icons/windows-150x150.jpg">` +
+      `<meta itemprop="image" content="/media/4468_55305_x.jpg">`,
+    `<img src="/src/images/layout/burger_menu_close.svg" alt="Close burger menu" />` +
+      `<img src="/Content/Photo library/Staff/Individual staff portraits/Recipe writers/Immy.jpg" alt="Imogen Mucklow" />` +
+      `<img src='/src/images/recipes/clock.svg' alt='Cooking time' class='icon info' />` +
+      `<img src="/media/4468_55305_x.jpg" alt="Creamy Cavolo Nero, Pancetta & Ricotta Strozzapreti">` +
+      `<img src="/src/images/shop/placeholder.png" data-src="/media/7817_26038_g.jpg" alt="Cavolo nero">`
+  );
+  const acImages = extractRecipeFromHtml(abelAndCole, "https://www.abelandcole.co.uk/recipes/x").imageUrls;
+  assert.equal(acImages[0], "https://www.abelandcole.co.uk/media/4468_55305_x.jpg", "the recipe photo comes first");
+  assert.ok(!acImages.some((u) => /portraits|site-icons/.test(u)), "no portrait or site icon is tried");
+  // The same page if the meta tag were name="image" instead of itemprop.
+  assert.equal(
+    fallbackImageUrls(`<meta name="image" content="/media/4468_55305_x.jpg">`)[0],
+    "/media/4468_55305_x.jpg"
+  );
+
   assert.equal(largestFromSrcset("s.jpg 1x, m.jpg 2x"), "m.jpg");
   assert.equal(largestFromSrcset("https://cdn.x/a.jpg?w=300,h=200 300w, https://cdn.x/a.jpg?w=1200,h=800 1200w"),
     "https://cdn.x/a.jpg?w=1200,h=800");

@@ -451,7 +451,7 @@ export function largestFromSrcset(srcset: string): string | undefined {
 }
 
 const NOT_A_PHOTO =
-  /\.svg(\?|$)|^data:|(^|[\W_])(logos?|icons?|sprites?|avatars?|badges?|pixel|placeholder|spinner|payments?|flags?)([\W_]|$)/i;
+  /\.svg(\?|$)|^data:|(^|[\W_])(logos?|icons?|sprites?|avatars?|badges?|pixel|placeholder|spinner|payments?|flags?|portraits?|headshots?|authors?|profiles?|byline)([\W_]|$)/i;
 
 /**
  * Where else a page keeps its photo when it has no og:image or recipe image:
@@ -465,11 +465,15 @@ export function fallbackImageUrls(html: string): string[] {
     const itemprop = attr(tag, "itemprop")?.toLowerCase();
     const name = attr(tag, "name")?.toLowerCase();
     const rel = attr(tag, "rel")?.toLowerCase();
-    if (itemprop === "image" || name === "thumbnail") urls.push(attr(tag, "content") ?? attr(tag, "href") ?? "");
+    const property = attr(tag, "property")?.toLowerCase();
+    if (itemprop === "image" || name === "image" || property === "image" || name === "thumbnail") {
+      urls.push(attr(tag, "content") ?? attr(tag, "href") ?? "");
+    }
     if (rel === "image_src") urls.push(attr(tag, "href") ?? "");
   }
 
-  const body = html.replace(/<(script|style|noscript|svg|template|head|header|nav|footer)\b[\s\S]*?<\/\1>/gi, " ");
+  // <video>/<audio> <source>s are media files, not photos.
+  const body = html.replace(/<(script|style|noscript|svg|template|head|header|nav|footer|video|audio)\b[\s\S]*?<\/\1>/gi, " ");
   const region =
     body.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1] ??
     body.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] ??
@@ -482,11 +486,13 @@ export function fallbackImageUrls(html: string): string[] {
       const width = Number(attr(tag, "width") ?? 0);
       if (width > 0 && width < 200) continue;
       const srcset = attr(tag, "data-srcset") || attr(tag, "srcset");
+      // A <picture> <source> always has a srcset; one with only src is media.
+      if (/^<source/i.test(tag) && !srcset) continue;
       const src =
         (srcset && largestFromSrcset(srcset)) ||
         attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "data-original") || attr(tag, "src");
       const label = `${attr(tag, "alt") ?? ""} ${attr(tag, "class") ?? ""}`;
-      if (!src || NOT_A_PHOTO.test(src) || NOT_A_PHOTO.test(label)) continue;
+      if (!src || NOT_A_PHOTO.test(src) || NOT_A_PHOTO.test(label) || /\.(mp4|webm|mov|m3u8|mp3)(\?|$)/i.test(src)) continue;
       out.push(src);
     }
     return out;
