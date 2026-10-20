@@ -1041,3 +1041,17 @@ share with the app never opened since updating (expect "Sign in to Dishes
 first" until it is); and confirm an existing install stays signed in after
 updating (the Keychain move).
 
+
+Checked on the iPad Pro 11" simulator against the dev server, after #52 and
+#53 merged: `swift test` passes (33, AuthSessionTests included); the app and
+`DishesShare` build. Safari → BBC Good Food "Easy chocolate cake" → Share →
+Dishes → "Saved to your recipes" (201; the photo notice is the dev server's
+missing S3), and the app showed it after a sync. The v1.52.0 sheet:
+`dishes://import?url=http%3A%2F%2F192.168.1.1` → "That address can't be
+imported from." with Try again. **Not checked:** sharing a link from Notes as
+text, the Keychain move on an existing signed-in install, the "Sign in to
+Dishes first" case, the iPhone layout.
+
+Uploaded to TestFlight as 1.53.0 (build 202610200826) from main. The command
+line signed the new target and entitlement without a Run in Xcode first; the
+archive's app and extension both carry `C729B84RYG.uk.collco.dishes.shared`.
