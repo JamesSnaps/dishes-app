@@ -457,6 +457,29 @@ public final class APIClient: SyncTransport, Sendable {
         _ = try await request("/push/test", method: "POST", json: Body(token: token), as: Reply.self)
     }
 
+    /// A crash, hang or memory report from MetricKit for Settings → Crash
+    /// reports on the web (POST /api/v1/client-error, answered 204).
+    public struct ClientError: Encodable, Sendable {
+        public var message: String
+        public var stack: String?
+        public var source: String
+        public var appVersion: String?
+        public var url: String?
+        public init(message: String, stack: String?, source: String, appVersion: String?, url: String? = nil) {
+            self.message = message; self.stack = stack; self.source = source; self.appVersion = appVersion; self.url = url
+        }
+    }
+
+    public func reportClientError(_ report: ClientError) async throws {
+        let body = try JSONEncoder().encode(report)
+        _ = try await send { token in
+            var r = authorisedRequest(url("/client-error"), method: "POST", token: token)
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            r.httpBody = body
+            return r
+        }
+    }
+
     // MARK: Notification actions
 
     public struct Snoozed: Decodable, Sendable { public var dinnerTime: String; public var remindAt: String? }

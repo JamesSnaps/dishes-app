@@ -101,16 +101,20 @@ struct ShoppingScreen: View {
                     }
 
                     let groups = data.value.groups.map { ($0.name, $0.items) }
-                        + (showChecked && checked > 0 ? [("Checked", data.value.checked)] : [])
-                    if twoColumns {
-                        let (left, right) = balanced(groups)
-                        HStack(alignment: .top, spacing: 20) {
-                            VStack(spacing: 16) { ForEach(left, id: \.0) { groupCard($0.0, $0.1) } }
-                            VStack(spacing: 16) { ForEach(right, id: \.0) { groupCard($0.0, $0.1) } }
+                        + (showChecked && checked > 0 ? [(Self.checkedAisle, data.value.checked)] : [])
+                    Group {
+                        if twoColumns {
+                            let (left, right) = balanced(groups)
+                            HStack(alignment: .top, spacing: 20) {
+                                VStack(spacing: 16) { ForEach(left, id: \.0) { groupCard($0.0, $0.1) } }
+                                VStack(spacing: 16) { ForEach(right, id: \.0) { groupCard($0.0, $0.1) } }
+                            }
+                        } else {
+                            ForEach(groups, id: \.0) { groupCard($0.0, $0.1) }
                         }
-                    } else {
-                        ForEach(groups, id: \.0) { groupCard($0.0, $0.1) }
                     }
+                    // iOS 27: drag an item within its aisle, or onto another to change its category (D6).
+                    .modifier(ReorderAisles { sources, aisle, before in reorder(sources, to: aisle, before: before) })
                 }
                 .padding(.horizontal, width == .regular ? 32 : 16)
                 .padding(.vertical, 20)
@@ -140,12 +144,23 @@ struct ShoppingScreen: View {
                 .foregroundStyle(Theme.mutedForeground)
                 .padding(.leading, 2)
             VStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    if index > 0 { Rectangle().fill(Theme.border).frame(height: 1) }
-                    row(item)
+                // Ticked items stay where they are; the aisles can be reordered.
+                if #available(iOS 27, *), name != Self.checkedAisle {
+                    ForEach(items) { divided($0, first: $0.id == items.first?.id) }
+                        .reorderable(collectionID: name)
+                } else {
+                    ForEach(items) { divided($0, first: $0.id == items.first?.id) }
                 }
             }
             .card()
+        }
+    }
+
+    static let checkedAisle = "Checked"
+
+    private func divided(_ item: ShoppingItem, first: Bool) -> some View {
+        row(item).overlay(alignment: .top) {
+            if !first { Rectangle().fill(Theme.border).frame(height: 1) }
         }
     }
 
@@ -209,6 +224,25 @@ struct ShoppingScreen: View {
         ticks += 1
         let checked = !item.isChecked
         Task { await app.setShoppingItem(item.id, checked: checked) }
+    }
+
+    /// A drop: each item whose place or aisle changed, updated offline-first
+    /// (ShoppingReorder works out which).
+    private func reorder(_ sources: [String], to aisle: String, before: String?) {
+        guard aisle != Self.checkedAisle else { return }
+        let aisles = data.value.groups.map { (name: $0.name, items: $0.items) }
+        let byId = Dictionary(data.value.all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let changes = ShoppingReorder.changes(aisles, moving: sources, to: aisle, before: before)
+        Task {
+            for change in changes {
+                guard let current = try? await app.store.read({ try $0.record(.shoppingItems, id: change.itemId) }),
+                      byId[change.itemId] != nil else { continue }
+                var fields: [String: JSONValue] = ["position": .number(Double(change.position))]
+                if let category = change.category { fields["category"] = category.map(JSONValue.string) ?? .null }
+                await app.mutate("shopping_item.update", payload: .object(fields.merging(["itemId": .string(change.itemId)]) { a, _ in a }),
+                                 optimistic: [.put(.shoppingItems, current.merging(.object(fields)))])
+            }
+        }
     }
 
     private func delete(_ item: ShoppingItem) {
@@ -451,6 +485,26 @@ struct EditItemSheet: View {
                              payload: JSONValue.object(["itemId": .string(item.id)]).merging(.object(fields)),
                              optimistic: current.map { [.put(.shoppingItems, $0.merging(.object(fields)))] } ?? [])
             dismiss()
+        }
+    }
+}
+
+/// The iOS 27 reorder container around the aisles: hands a drop to `move` as
+/// (the dragged items, the aisle, the item they went in front of — nil at the end).
+private struct ReorderAisles: ViewModifier {
+    let move: ([String], String, String?) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 27, *) {
+            content.reorderContainer(for: ShoppingItem.self, in: String.self) { difference in
+                let before: String? = switch difference.destination.position {
+                case .before(let id): id
+                case .end: nil
+                }
+                move(difference.sources, difference.destination.collectionID, before)
+            }
+        } else {
+            content
         }
     }
 }

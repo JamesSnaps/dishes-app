@@ -105,24 +105,30 @@ struct WeekWidgetIntent: WidgetConfigurationIntent {
     @Parameter(title: "Meals", default: .dinner) var meals: WidgetWeekMeals
 }
 
-/// The aisles the shopping list groups by (`shoppingCategories`), or all of them.
-enum WidgetAisle: String, AppEnum {
-    case all, produce, dairy, meat, fish, bakery, pantry, frozen, drinks, cleaning, other
-
+/// An aisle as the list has it. Categories are free text ("Meat & Fish" as
+/// well as "Meat"), so the choices are the list's own aisles, then the usual ones.
+struct AisleEntity: AppEntity {
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "Aisle" }
-    static var caseDisplayRepresentations: [WidgetAisle: DisplayRepresentation] {
-        [.all: "Every aisle", .produce: "Produce", .dairy: "Dairy", .meat: "Meat", .fish: "Fish", .bakery: "Bakery",
-         .pantry: "Pantry", .frozen: "Frozen", .drinks: "Drinks", .cleaning: "Cleaning", .other: "Other"]
-    }
+    static var defaultQuery: AisleQuery { AisleQuery() }
+    var id: String
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(id)") }
+}
 
-    /// The category name as items carry it; nil for every aisle.
-    var category: String? { self == .all ? nil : rawValue.capitalized }
+struct AisleQuery: EntityQuery {
+    func entities(for identifiers: [String]) async throws -> [AisleEntity] { identifiers.map(AisleEntity.init) }
+
+    func suggestedEntities() async throws -> [AisleEntity] {
+        let onList = await WidgetStore.read(ShoppingData.load)?.groups.map(\.name) ?? []
+        var seen = Set<String>()
+        return (onList + shoppingCategories).filter { seen.insert($0).inserted }.map(AisleEntity.init)
+    }
 }
 
 struct ShoppingWidgetIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource { "Shopping" }
     static var description: IntentDescription { "What’s left on the shopping list. Tick things off from here." }
-    @Parameter(title: "Aisle", default: .all) var aisle: WidgetAisle
+    /// Empty for every aisle.
+    @Parameter(title: "Aisle") var aisle: AisleEntity?
 }
 
 // MARK: Tonight
@@ -415,10 +421,10 @@ struct ShoppingProvider: AppIntentTimelineProvider {
         return Timeline(entries: [entry], policy: .never)
     }
 
-    func entry(_ aisle: WidgetAisle) async -> ShoppingEntry? {
+    func entry(_ aisle: AisleEntity?) async -> ShoppingEntry? {
         guard let data = await WidgetStore.read(ShoppingData.load) else { return nil }
-        let open = data.groups.filter { aisle.category == nil || $0.name == aisle.category }.flatMap(\.items)
-        return ShoppingEntry(date: .now, aisle: aisle.category ?? "Shopping", left: open.count, items: open.map {
+        let open = data.groups.filter { aisle == nil || $0.name == aisle?.id }.flatMap(\.items)
+        return ShoppingEntry(date: .now, aisle: aisle?.id ?? "Shopping", left: open.count, items: open.map {
             .init(id: $0.id, name: $0.name, quantity: Format.quantity($0.amount, $0.unit).nilIfEmpty)
         })
     }

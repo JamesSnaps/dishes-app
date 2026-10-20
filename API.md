@@ -940,6 +940,15 @@ seconds, so clients should allow a long timeout.
 - `POST /api/v1/ai/respond` `{ messages: [{ role: "system" | "user" | "assistant", content }], schema?: <JSON Schema>, settings?: boolean, maxTokens?: number }` → the answer as streamed plain text (JSON text when `schema` is sent: OpenAI structured outputs, non-strict). A plain model call through the household's key, for the iOS app's `DishesServerModel` — the device's own prompts and schemas run on the server. `settings: true` adds the household's AI settings (measurements, default prompt, equipment) to the system message. 30 calls a minute per member: past that, 429 with `Retry-After`
 - `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text. The iOS app answers on the device first (iOS 27) and comes here when it can't
 
+### `POST /api/v1/client-error`
+
+The iOS app's crash, hang and memory reports (MetricKit, iOS 27) into the same
+`client_errors` table as the browser's `/api/client-error`, read back under
+Settings → Crash reports: `{ message, stack?, source?, appVersion?, url? }`, with
+`source` like `ios: hang` and the message saying what the app was doing ("iOS
+hang: 3.2 s — while cooking"). Bearer auth; 204 whatever happens, so a reporter
+never retries.
+
 ### `GET /api/v1/ai/context`
 
 The household's AI prompt inputs, for AI on the device (the iOS app's
@@ -1554,7 +1563,7 @@ Supported `type` values:
 | Type | Payload |
 |---|---|
 | `shopping_item.add` | `ingredientName` (required), `amount`, `unit`, `category`, `notes`, `id`, `listId`, `position` |
-| `shopping_item.update` | `itemId` + any of `ingredientName`, `amount`, `unit`, `notes`, `category` |
+| `shopping_item.update` | `itemId` + any of `ingredientName`, `amount`, `unit`, `notes`, `category`, `position` (the iOS app's drag to reorder sends `position`, and `category` when an item is dragged to another aisle) |
 | `shopping_item.toggle` | `itemId`, `checked` |
 | `shopping_item.delete` | `itemId` |
 | `shopping_list.clear_checked` | `listId` |

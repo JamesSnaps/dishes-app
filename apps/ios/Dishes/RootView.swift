@@ -29,7 +29,23 @@ final class AppNav {
     enum Tab: String, CaseIterable { case recipes, plan, ai, shopping, more }
 
     var tab: Tab = Tab(rawValue: UserDefaults.standard.string(forKey: "tab") ?? "") ?? .recipes {
-        didSet { UserDefaults.standard.set(tab.rawValue, forKey: "tab") }
+        didSet {
+            UserDefaults.standard.set(tab.rawValue, forKey: "tab")
+            reportActivity()
+        }
+    }
+
+    /// For MetricKit's reports: what the person is doing (Diagnostics).
+    func reportActivity() {
+        let activity: AppActivity = if cookingShown { .cooking } else {
+            switch tab {
+            case .recipes, .more: .browsing
+            case .plan: .planning
+            case .ai: .ai
+            case .shopping: .shopping
+            }
+        }
+        Diagnostics.entered(activity)
     }
     var favouritesOnly = false
     var recipeSearch = ""
@@ -55,7 +71,10 @@ final class AppNav {
     /// Whether cooking mode is on screen; false while minimised. Minimising
     /// saves where every cook is up to.
     var cookingShown = false {
-        didSet { if !cookingShown { SavedCooks.save(sessions) } }
+        didSet {
+            if !cookingShown { SavedCooks.save(sessions) }
+            reportActivity()
+        }
     }
     /// The resume bar's stack fanned out into every cook (CookStackFan).
     var cooksFanned = false

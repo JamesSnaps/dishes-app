@@ -171,6 +171,8 @@ final class AppModel {
         }
         watchNetwork()
         await forgetOtherServer()
+        // Crash, hang and memory reports to the web's Settings → Crash reports (iOS 27, D6).
+        Diagnostics.start(api: api)
         // Spotlight follows the database from here on, signed in or not (signed out, it empties).
         Task { await SpotlightIndex.shared.follow(store) }
         me = try? await store.read { r in try r.meta("me").flatMap { try JSONDecoder().decode(WhoAmI.self, from: Data($0.utf8)) } }

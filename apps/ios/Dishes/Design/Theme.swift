@@ -361,6 +361,12 @@ struct HeartButton: View {
 
 // MARK: Recipe image
 
+extension Recipe {
+    /// Its card photo, for ImageCache.prefetch.
+    @MainActor var thumbnailURL: URL? { AppModel.shared.imageURL(thumbnailUrl ?? imageUrl) }
+    @MainActor var photoURL: URL? { AppModel.shared.imageURL(imageUrl) }
+}
+
 /// A recipe photo, or the web's placeholder: bg-muted with a faint utensils icon.
 struct RecipeImage: View {
     @Environment(AppModel.self) private var app
@@ -380,9 +386,7 @@ struct RecipeImage: View {
         Color.clear
             .overlay {
                 if let url = app.imageURL(thumbnail ? (recipe.thumbnailUrl ?? recipe.imageUrl) : recipe.imageUrl) {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image { image.resizable().scaledToFill() } else { placeholder }
-                    }
+                    CachedImage(url: url) { placeholder }
                 } else {
                     placeholder
                 }

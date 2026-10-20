@@ -71,7 +71,8 @@ struct RecipesBrowse: View {
                 SectionHeader(title: title, icon: icon, iconColor: iconColor, action: seeAll)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: width == .regular ? 18 : 12) {
-                        ForEach(recipes.prefix(Self.perShelf)) { recipe in
+                        let shown = Array(recipes.prefix(Self.perShelf))
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, recipe in
                             NavigationLink(value: recipe.id) {
                                 VStack(alignment: .leading, spacing: 6) {
                                     RecipeCard(recipe: recipe)
@@ -87,6 +88,8 @@ struct RecipesBrowse: View {
                                 .frame(width: cardWidth)
                             }
                             .buttonStyle(.plain)
+                            // The next few cards' photos, before they scroll in.
+                            .onAppear { ImageCache.shared.prefetch(shown.dropFirst(index + 1).prefix(4).compactMap(\.thumbnailURL)) }
                         }
                     }
                     .padding(.vertical, 4)

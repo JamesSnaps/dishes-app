@@ -1122,21 +1122,46 @@ not a separate set of REST calls.
 
 ### D6. Smaller wins
 
-- [ ] **Drag to reorder in SwiftUI (iOS 27):** shopping items within an aisle,
+- [x] **Drag to reorder in SwiftUI (iOS 27):** shopping items within an aisle,
   and dragged *between* aisles to change the category (`shopping_item.update`
   already carries `position` and `category`). The planner already drags meals
   between days (`PlanScreen` `.draggable`/`.dropDestination`); move it to the
   new reordering API for ordering within a day, the drop animation and the
-  iPad's multi-select drag
-- [ ] **Lazy subviews with prefetch** on the recipe rows (`RecipesBrowse`'s
+  iPad's multi-select drag. *Done (v1.61.0) for shopping:* each aisle's
+  `ForEach` is `.reorderable(collectionID: aisle)` inside a
+  `.reorderContainer(for: ShoppingItem.self, in: String.self)`;
+  `ShoppingReorder.changes` renumbers only the aisle dropped into, reusing its
+  own positions, and the screen sends one `shopping_item.update` per item that
+  moved (with `category` when it changed aisle). `shopping_item.update` did
+  *not* carry `position` — added on the server. Ticked items don't move.
+  *Not done for the planner:* meals have no order within a day (they sort by
+  meal type), so there's nothing to reorder without a new field; its drag
+  between days stays. *Not checked:* a real drag — the simulator's synthetic
+  drags don't lift (as with the planner before); needs a device
+- [x] **Lazy subviews with prefetch** on the recipe rows (`RecipesBrowse`'s
   `LazyHStack`, `RecipeCard`'s `LazyVStack`) and the cookbook pages, so
-  thumbnails load before they scroll into view
-- [ ] **MetricKit:** `MXMetricManager` subscriber in `AppModel`, with
+  thumbnails load before they scroll into view. *Done (v1.61.0), by hand:* the
+  iOS 27 SDK has no prefetching for SwiftUI's lazy stacks. `ImageCache` keeps
+  decoded photos in memory and downloads in a 300 MB URL cache (the shared one
+  holds 10 MB); `RecipeImage` draws from it; a shelf card asks for the next 4
+  photos as it appears, a grid row for the next 2 rows', and a page turn in
+  the cookbook for the photos on the next 4 pages. *Not checked:* the dev
+  seed has no photos
+- [x] **MetricKit:** `MXMetricManager` subscriber in `AppModel`, with
   app-defined states (`cooking`, `planning`, `shopping`, `ai`) so memory and
   hang reports say where they happened, and memory-exception diagnostics.
   Payloads go to the server's crash reports — needs a bearer version of
   `/api/client-error` (it reads the Authelia browser session today), shown
-  under Settings → Crash reports with a "iOS" source
+  under Settings → Crash reports with a "iOS" source. *Done (v1.61.0):*
+  iOS 27's Swift `MetricManager` (`Diagnostics`), its diagnostic reports
+  (crash, hang, CPU, disk writes, slow launch, memory) each sent to the new
+  `POST /api/v1/client-error` with source "ios: …", the blamed thread's top
+  frames as the stack, and the states from StateReporting (`AppNav` reports
+  browsing / planning / ai / shopping / cooking as the screen changes). The
+  storing is shared with the browser's route (`lib/client-errors.ts`).
+  Metric reports (not diagnostics) aren't sent anywhere yet. *Not checked:*
+  a real report — MetricKit doesn't deliver in the simulator; the route was
+  checked by curl
 - [x] **TabView selection (breaking in the iOS 27 SDK):** every tab in
   `RootView.shell` is always visible, so `nav.tab` can't point at a hidden one.
   Re-check if a tab is ever hidden conditionally (e.g. AI when the household

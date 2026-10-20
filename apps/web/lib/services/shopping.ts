@@ -480,6 +480,8 @@ export type UpdateItemInput = {
   unit?: string | null;
   notes?: string | null;
   category?: string | null;
+  /** Its place in the list; the app sends one per moved item when it's dragged. */
+  position?: number;
 };
 
 export async function updateItem(
@@ -501,6 +503,7 @@ export async function updateItem(
   if ("unit" in input) updates.unit = input.unit || null;
   if ("notes" in input) updates.notes = input.notes || null;
   if ("category" in input) updates.category = input.category || null;
+  if (input.position !== undefined) updates.position = input.position;
 
   if (Object.keys(updates).length === 0) {
     throw new ShoppingValidationError("No fields to update");

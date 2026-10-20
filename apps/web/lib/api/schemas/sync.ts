@@ -46,6 +46,8 @@ export const mutationSchema = z.discriminatedUnion("type", [
         unit: z.string().nullable().optional(),
         notes: z.string().nullable().optional(),
         category: z.string().nullable().optional(),
+        /** Where it sits in the list (the app's drag to reorder). */
+        position: z.number().int().min(0).optional(),
       })
       .refine((v) => Object.keys(v).length > 1, "No fields to update"),
   }),

@@ -1289,3 +1289,24 @@ server for 400, 422 (no key) and 429 (the 31st call in a minute).
 
 **Not checked:** a real answer from OpenAI (no key on the dev household),
 streaming a long answer through the session on the device.
+
+### 20 Oct 2026 — iOS 27 Phase D6: drag to reorder, photo prefetch, MetricKit (v1.61.0)
+
+- Shopping: drag within an aisle or onto another (`ShoppingReorder`, the iOS 27
+  `reorderable` / `reorderContainer`); `shopping_item.update` takes `position`
+- `ImageCache`: recipe photos ahead of the scroll on the shelves, the grid and
+  the cookbook; `RecipeImage` draws from it
+- `Diagnostics`: MetricKit's diagnostic reports to `POST /api/v1/client-error`
+  (Settings → Crash reports on the web), labelled with what the app was doing
+- The Shopping widget's aisle setting lists the list's own aisles (they're
+  free text: the seed has "Meat & Fish", the app's list has "Meat" and "Fish")
+
+Checked: `ShoppingReorderTests` (within an aisle, across, to uncategorised, a
+drop in place, clashing positions); both crash routes by curl into
+`client_errors` (rows removed after); the app launches and runs with MetricKit
+started.
+
+**Not checked:** a real drag (the simulator's drags don't lift), prefetching
+with real photos (the seed has none), a real MetricKit report (none in the
+simulator), the planner's ordering within a day (not built: meals have no
+order field).
