@@ -129,7 +129,8 @@ export function parseIngredientLine(line: string): ParsedIngredient | null {
       const m = rest.match(pattern);
       if (m) {
         unit = m[0].toLowerCase();
-        rest = rest.slice(m[0].length).trim();
+        // "2 cups of flour" — the name is "flour".
+        rest = rest.slice(m[0].length).trim().replace(/^of\s+/i, "");
         break;
       }
     }

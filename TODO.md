@@ -142,6 +142,16 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] AI vision extracts full structured recipe (title, cuisine, ingredients, steps, times)
 - [x] Pre-fills the recipe form for review before saving
 
+## Recipe Import from the Web
+- [x] "Import from web" on the New Recipe page — fetch a recipe page server-side and pre-fill the form (v1.52.0)
+- [x] Read schema.org `Recipe` JSON-LD (`@graph`, HowToSection groups, ISO durations, yields, nutrition, framework app state) without AI
+- [x] Copy the recipe photo into our own storage (AVIF/oversized images converted to JPEG)
+- [x] With an AI key: tidy-up pass (ingredient splitting, timers, cuisine, meal types) and full extraction for pages without recipe data
+- [x] SSRF guard — public http(s) only, every redirect re-checked, size and time limits
+- [x] `?importUrl=` deep link (bookmarklet / iOS Shortcut) and PWA share target
+- [ ] Import from web in the iOS app (share extension → same server action via `/api/v1`)
+- [ ] Re-import / refresh a recipe from its source link
+
 ## Household & Settings
 - [x] Household settings page (`/settings`) — name, members
 - [x] Invite / add member (links Authelia username to household)

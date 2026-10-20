@@ -10,7 +10,16 @@ import { NewRecipeClient } from "./new-recipe-client";
 
 export const metadata = { title: "New Recipe" };
 
-export default async function NewRecipePage() {
+type Props = {
+  // `importUrl` from a bookmarklet or Shortcut; `importText`/`url` from the
+  // PWA share target, where Android often puts the link in the text.
+  searchParams: Promise<{ importUrl?: string; importText?: string; url?: string }>;
+};
+
+export default async function NewRecipePage({ searchParams }: Props) {
+  const { importUrl, importText, url } = await searchParams;
+  const sharedUrl =
+    importUrl?.trim() || url?.trim() || importText?.match(/https?:\/\/\S+/)?.[0] || undefined;
   const user = await getAutheliaUser();
   const { householdId, role } = await requireHousehold(user);
   const [aiConfig, allTagRows] = await Promise.all([
@@ -37,6 +46,7 @@ export default async function NewRecipePage() {
         hasAi={!!aiConfig?.hasKey}
         defaultImageStyle={aiConfig?.imageStyle as import("@/lib/image-styles").ImageStyleValue | undefined}
         allTags={allTagRows.map((r) => r.tag)}
+        importUrl={sharedUrl}
       />
     </div>
   );
