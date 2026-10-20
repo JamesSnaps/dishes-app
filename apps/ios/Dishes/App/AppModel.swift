@@ -65,10 +65,12 @@ final class AppModel {
             store = try! LocalStore(path: path.path)
         }
         self.store = store
-        auth = AuthSession(oidc: OIDCClient(config: .dishesIOS()), store: KeychainTokenStore())
+        // In the Keychain group the share extension also reads (DishesShare).
+        auth = AuthSession(oidc: OIDCClient(config: .dishesIOS()), store: KeychainTokenStore.dishes())
         // A dev server signs a token-less request in as its stand-in user.
         api = APIClient(baseURL: Self.serverURL, tokens: Developer.server == nil ? auth : nil)
         engine = SyncEngine(store: store, transport: api)
+        Developer.shareServerWithExtension()
     }
 
     /// Application Support/Dishes/dishes.sqlite, left out of backups: the server is the copy that matters.

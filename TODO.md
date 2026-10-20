@@ -150,7 +150,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] SSRF guard — public http(s) only, every redirect re-checked, size and time limits
 - [x] `?importUrl=` deep link (bookmarklet / iOS Shortcut) and PWA share target
 - [x] Import from web in the iOS app — New Recipe → From a website…, `POST /api/v1/recipes/import-url`, `dishes://import?url=` for a Safari share-sheet Shortcut (v1.52.0)
-- [ ] iOS share extension, so Dishes appears in Safari's share sheet without a Shortcut
+- [x] iOS share extension (`DishesShare`): Dishes on the share sheet imports the shared page, signed in through a shared Keychain group (v1.53.0)
 - [ ] Re-import / refresh a recipe from its source link
 
 ## Household & Settings

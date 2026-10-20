@@ -19,7 +19,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     # Keep in step with "version" in apps/web/package.json (one version for the product).
-    MARKETING_VERSION: "1.52.0"
+    MARKETING_VERSION: "1.53.0"
     CURRENT_PROJECT_VERSION: "1"
     # James Collard's individual membership, as Keepsake: a personal app, kept off
     # the Snapdragons company team.
@@ -43,6 +43,8 @@ targets:
     dependencies:
       - package: DishesCore
       - target: DishesWidgets
+      # "Import to Dishes" on Safari's share sheet (RUNBOOK.md, Share extension).
+      - target: DishesShare
       # The Watch app, embedded so it installs with the phone's (TODO_MOBILE.md, Watch).
       - target: DishesWatch
     settings:
@@ -77,6 +79,9 @@ targets:
             CFBundleURLSchemes: [dishes]
         # Server for this build. Debug builds can override it in the Developer menu.
         DishesAPIBase: https://dishes.collardserver.co.uk
+        # The Keychain group the sign-in tokens live in, shared with DishesShare
+        # (KeychainTokenStore.dishes; the entitlement lists the same group).
+        DishesKeychainGroup: $(AppIdentifierPrefix)uk.collco.dishes.shared
         # Plain http to the Mac's dev server (Debug builds' Developer menu). Doesn't
         # loosen anything for internet hosts.
         NSAppTransportSecurity:
@@ -111,6 +116,41 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
+
+  # "Import to Dishes" on the share sheet: a recipe page from Safari (or any app
+  # that shares a link) read in and saved by the server's web import, signed in
+  # with the app's own tokens through a shared Keychain group. The recipe syncs
+  # down the next time the app opens.
+  DishesShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: DishesShare
+    dependencies:
+      - package: DishesCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.collco.dishes.share
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: DishesShare/DishesShare.entitlements
+    info:
+      path: DishesShare/Info.plist
+      properties:
+        CFBundleDisplayName: Dishes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        DishesAPIBase: https://dishes.collardserver.co.uk
+        DishesKeychainGroup: $(AppIdentifierPrefix)uk.collco.dishes.shared
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: ShareViewController
+          NSExtensionAttributes:
+            # A web page from Safari, or a link another app shares as text.
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
 
   # The Watch app: the shopping list, tonight's meal and the cook in progress,
   # all from the phone over WatchConnectivity — the Watch never signs in itself
