@@ -5,6 +5,7 @@ export const ALL_SCOPES = [
   "write:shopping_list",
   "read:deliveries",
   "write:deliveries",
+  "read:cooking",
 ] as const;
 
 export type TokenScope = (typeof ALL_SCOPES)[number];

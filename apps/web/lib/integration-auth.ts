@@ -46,7 +46,8 @@ type RouteHandler = (
   ctx: IntegrationContext
 ) => Promise<NextResponse>;
 
-export function withIntegrationAuth(requiredScope: string, handler: RouteHandler) {
+/** `requiredScope: null` lets any valid token through, whatever its scopes. */
+export function withIntegrationAuth(requiredScope: string | null, handler: RouteHandler) {
   return async (req: NextRequest): Promise<NextResponse> => {
     const authHeader = req.headers.get("authorization") ?? "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -60,7 +61,7 @@ export function withIntegrationAuth(requiredScope: string, handler: RouteHandler
       return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
     }
 
-    if (!ctx.scopes.includes(requiredScope)) {
+    if (requiredScope && !ctx.scopes.includes(requiredScope)) {
       return NextResponse.json(
         { error: `Token missing required scope: ${requiredScope}` },
         { status: 403 }

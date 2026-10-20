@@ -29,8 +29,10 @@ function operation(ep: EndpointDoc) {
   return {
     operationId: ep.id,
     summary: ep.summary,
-    description: `${ep.description}\n\nRequired token scope: \`${ep.scope}\`.`,
-    "x-required-scope": ep.scope,
+    description: ep.scope
+      ? `${ep.description}\n\nRequired token scope: \`${ep.scope}\`.`
+      : `${ep.description}\n\nAny valid token, whatever its scopes.`,
+    ...(ep.scope ? { "x-required-scope": ep.scope } : {}),
     parameters: ep.params?.map((p) => ({
       name: p.name,
       in: p.in,

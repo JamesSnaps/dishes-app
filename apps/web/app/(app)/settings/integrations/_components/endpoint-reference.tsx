@@ -62,7 +62,7 @@ function EndpointCard({ ep, origin }: { ep: EndpointDoc; origin: string }) {
           <p className="truncate text-xs text-muted-foreground">{ep.summary}</p>
         </div>
         <code className="hidden shrink-0 rounded-full bg-orange-500/10 px-2 py-0.5 text-[11px] font-medium text-orange-700 sm:inline dark:text-orange-300">
-          {ep.scope}
+          {ep.scope ?? "any token"}
         </code>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
@@ -73,7 +73,7 @@ function EndpointCard({ ep, origin }: { ep: EndpointDoc; origin: string }) {
         </p>
         <p className="mt-2 text-sm">{ep.description}</p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Scope: <code className="rounded bg-muted px-1">{ep.scope}</code>
+          Scope: <code className="rounded bg-muted px-1">{ep.scope ?? "any token"}</code>
           {" · "}operationId: <code className="rounded bg-muted px-1">{ep.id}</code>
         </p>
 

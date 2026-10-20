@@ -170,6 +170,8 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] `GET /api/integrations/recipes/{id}` — full recipe (ingredients, steps, nutrition) for AI assistants (v1.13.0)
 - [x] `GET /api/integrations/openapi.json` — public OpenAPI 3.1 spec generated from `lib/integrations-catalog.ts` (v1.13.0)
 - [x] API reference page at Settings → Integrations — per-endpoint docs with example bodies/responses, curl for your domain, Try-it console, AI-assistant setup guide (v1.13.0)
+- [x] Home Assistant upgrade — `GET /api/integrations/token` (a token's own scopes), `GET /api/integrations/cooking` + `read:cooking` scope (who's cooking, step, timers); `PATCH`/`DELETE /api/integrations/shopping-list/items/{id}` for a two-way HA to-do list; `serveAt` per meal, `timezone`, and `today.dinner` (serve + start-cooking times); `today`/`week` use the household's timezone instead of UTC (v1.54.0)
+- [ ] Push cook changes to Home Assistant (webhook from `lib/cooking-sessions.ts` notify) instead of HA polling every 30s
 
 ## Pantry
 - [x] `pantry_staples` table — household-scoped list of always-available ingredients
