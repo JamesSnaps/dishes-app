@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import * as recipeService from "@/lib/services/recipes";
+import * as collectionService from "@/lib/services/collections";
 import type {
   IngredientInput,
   RecipeFields,
@@ -131,19 +132,28 @@ export async function deleteRecipe(recipeId: string) {
 }
 
 export async function saveGeneratedRecipe(
-  recipe: GeneratedRecipe
+  recipe: GeneratedRecipe,
+  /** A collection already chosen (the iOS app picks one on the device); null files it nowhere. */
+  options?: { collectionId: string | null }
 ): Promise<{ recipeId?: string; collectionName?: string; error?: string }> {
   try {
     const session = await requireSession();
 
     // File it into an existing collection when the AI is confident it belongs.
-    const suggestion = await suggestCollectionForRecipe({
-      title: recipe.title,
-      description: recipe.description,
-      cuisine: recipe.cuisine,
-      tags: recipe.tags,
-      mealTypes: recipe.mealTypes,
-    });
+    const suggestion = options
+      ? {
+          collectionId: options.collectionId ?? undefined,
+          collectionName: options.collectionId
+            ? ((await collectionService.collectionName(session, options.collectionId)) ?? undefined)
+            : undefined,
+        }
+      : await suggestCollectionForRecipe({
+          title: recipe.title,
+          description: recipe.description,
+          cuisine: recipe.cuisine,
+          tags: recipe.tags,
+          mealTypes: recipe.mealTypes,
+        });
 
     const { recipeId, linkedCollectionId } = await recipeService.createRecipe(
       session,

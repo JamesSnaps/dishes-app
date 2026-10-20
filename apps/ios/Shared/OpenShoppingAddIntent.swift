@@ -24,9 +24,21 @@ struct OpenShoppingAddIntent: AppIntent {
     }
 }
 
-/// Requests from outside the app's screens (a control), for RootView to act on and clear.
+/// Requests from outside the app's screens (a control, Siri), for RootView to act on and clear.
 @MainActor @Observable
 final class AppRequests {
     static let shared = AppRequests()
     var shoppingAdd = false
+    /// "Start cooking …": cooking mode for this (Dishes/Intents/DishesIntents.swift).
+    var cook: CookIntentRequest?
+    /// "What's for dinner?": the planner on this week.
+    var showPlan = false
+    /// A recipe tapped in Spotlight or Shortcuts (OpenRecipeIntent).
+    var openRecipe: String?
+}
+
+enum CookIntentRequest: Equatable {
+    /// Tonight's meal, every dish of it.
+    case tonight
+    case recipe(String)
 }

@@ -17,6 +17,7 @@
 //
 //   nav.cooking = CookRequest(…)   // starts (or resumes) and shows it
 
+import AppIntents
 import DishesCore
 import SwiftUI
 import UIKit
@@ -196,6 +197,12 @@ struct CookingView: View {
                 }
             }
             .background(Theme.background.ignoresSafeArea())
+            // The step on screen, at the scale being cooked, for Siri: "how much
+            // butter?", "set a timer for this" (StartStepTimerIntent). Inside the
+            // recipe, so "add this to the shopping list" still finds that too.
+            .appEntityIdentifier(EntityIdentifier(for: CookingStepEntity.self,
+                                                  identifier: CookingStepEntity.id(recipeId: dish.recipe.id, stepIndex: stepIndex, scale: dish.scale)))
+            .appEntityIdentifier(EntityIdentifier(for: RecipeEntity.self, identifier: dish.recipe.id))
             .environment(\.goToStep, goToStep)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }

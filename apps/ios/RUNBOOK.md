@@ -11,9 +11,16 @@ two apps are worked on the same way.
 
 ```bash
 brew install xcodegen
+sudo /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -license accept   # after each Xcode update
 sudo xcodebuild -runFirstLaunch          # CoreSimulator; without it simctl/xcodebuild fail early
 xcodebuild -downloadPlatform iOS          # the simulator runtime
 ```
+
+If `xcode-select -p` says `/Library/Developer/CommandLineTools`, plain
+`xcodebuild` / `xcrun` can't find Xcode: prefix commands with
+`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, or point it at Xcode
+for good with `sudo xcode-select -s /Applications/Xcode.app`. `swift test` in
+`Packages/DishesCore` needs Xcode's toolchain too (Swift Testing's macros).
 
 ## Build and run (the quick way)
 
@@ -181,6 +188,38 @@ Simulator limits (Xcode 27.1):
 - A fresh pair takes minutes to boot the first time, and with many simulators
   booted on 16 GB the Watch never finished — shut down the others first.
 - Logs: `xcrun simctl spawn <phone> log stream --level debug --predicate 'subsystem == "uk.collco.dishes" AND category == "watch"'`.
+
+## The App Group, Siri and Spotlight (Phase D0, D1)
+
+- **The database is in the App Group** `group.uk.collco.dishes`
+  (`<group>/Library/Application Support/Dishes/dishes.sqlite`), so the widgets
+  and the share extension can read it. The first launch after v1.55.0 moves
+  the old copy there with its -wal and -shm (`LocalStore.moveDatabase`). A
+  build signed without the group keeps the old place. The cached AI context
+  (`ai-context.json`) sits in the group's root.
+- **Writes in the background go inside `AppModel.awake { }`.** iOS kills an
+  app that's suspended while holding a lock on a file in a shared container
+  (0xDEAD10CC), so the store is suspended when the app goes off screen
+  (after sending anything waiting) and resumed for each piece of background
+  work: BGAppRefreshTask, silent pushes, notification buttons, the Watch,
+  Siri. A suspended store still reads; a write throws. New background entry
+  points must use it.
+- **Siri and Shortcuts** are `Dishes/Intents/`: the entities (read from the
+  store, never the network), the intents, and the App Shortcuts' phrases
+  (`DishesShortcuts`, ten at most, one parameter per phrase, never "my …
+  shopping list"). Recipes are in Spotlight (`SpotlightIndex`, following the
+  store; only changes are sent).
+- **Testing them:** `DishesIntentTests` runs the intents through the system
+  with AppIntentsTesting (iOS 27 simulators only), launching the app against
+  the dev server first, so start `pnpm dev`:
+
+  ```bash
+  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test -project Dishes.xcodeproj -scheme Dishes \
+    -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M5)' -derivedDataPath build/dd
+  ```
+
+  By hand: Shortcuts → Dishes shows every action; Spotlight (swipe down on
+  the Home Screen) finds a recipe by an ingredient.
 
 ## Things worth knowing
 
@@ -1057,3 +1096,44 @@ Dishes first" case, the iPhone layout.
 Uploaded to TestFlight as 1.53.0 (build 202610200826) from main. The command
 line signed the new target and entitlement without a Run in Xcode first; the
 archive's app and extension both carry `C729B84RYG.uk.collco.dishes.shared`.
+
+### 20 Oct 2026 — iOS 27 Phase D0 + D1: App Group, Siri, Spotlight (v1.55.0)
+
+D0: `GET /api/v1/ai/context` and `POST /api/v1/recipes/generated` on the
+server; the App Group `group.uk.collco.dishes` on the app, widgets and share
+extension, with the database moved into it and suspended in the background
+(see "The App Group, Siri and Spotlight" above); the AI context cached as
+`ai-context.json` after each sync. D1: `Dishes/Intents/` — entities for
+recipes, planned meals, shopping items, saved meals and the step being
+cooked; nine new intents and eight App Shortcuts; recipes in Spotlight;
+the recipe page, the planner's cards and cooking mode's step annotated for
+Siri.
+
+Checked on the iPad Pro 11" (M5) simulator, iOS 27.1, against the dev server:
+- `swift test`: 42 pass (six new: the move, persistent WAL, suspended reads
+  and refused writes, the AI context fixture). Web: `tsc`, `check:ai-context`
+- `DishesIntentTests`: all six pass — lookup by name and id, Spotlight query,
+  planning through the outbox, Start Cooking opening cooking mode with its
+  step visible to Siri, OpenRecipeIntent opening the page with the recipe
+  visible to Siri. App Shortcuts registered: 8, 120 phrases
+- Spotlight on the Home Screen: "green curry" shows a Dishes section with Thai
+  Green Curry, its cuisine, time and ingredients. "coconut" alone didn't bring
+  it up (web results crowd it out); ingredient keywords may need a look
+- Updating in place from a v1.54.1 install: the database moved to the group
+  (old folder empty, no fresh download — the cursor carried on) and a change
+  queued in the old outbox reached the server
+- Off screen and back, then a tick on the shopping list: saved and sent
+- The endpoints, by curl: context with no AI key; a saved recipe with the
+  collection omitted, chosen, unknown and null; an unknown field refused (400)
+
+**Not checked:** Siri by voice (the simulator has none), the AI context on a
+household with a taste profile, a Watch action or a silent push arriving
+while the store is suspended, the widgets and share extension reading the
+group (nothing reads it until D3/D4), a device build (the App Group must be
+registered on the developer account — automatic signing should do it on the
+first build with `-allowProvisioningUpdates`).
+
+This Mac, after the macOS 27 update: no simulator runtimes and no xcodegen —
+see One-time setup. The dev database made with `drizzle-kit push` alone has
+no sync triggers, so a device only ever sees its first snapshot; the README's
+local-dev step now applies them.

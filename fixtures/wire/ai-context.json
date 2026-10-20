@@ -1,0 +1,42 @@
+{
+  "configured": true,
+  "measurementSystem": "metric",
+  "defaultPrompt": "We like big flavours but nothing too spicy for the kids.",
+  "kitchenEquipment": "Air fryer, slow cooker, 28cm frying pan",
+  "webGrounding": false,
+  "members": [
+    {
+      "id": "6f1d2c3b-4a5e-4f60-8b7a-9c0d1e2f3a4b",
+      "displayName": "James",
+      "role": "admin",
+      "birthYear": 1988,
+      "dietaryFlags": ["cholesterol-lowering"],
+      "dislikes": ["olives"],
+      "preferences": ["Thai food"],
+      "customNotes": null
+    },
+    {
+      "id": "7a2e3d4c-5b6f-4071-9c8b-0d1e2f3a4b5c",
+      "displayName": "Ella",
+      "role": "child",
+      "birthYear": null,
+      "dietaryFlags": [],
+      "dislikes": [],
+      "preferences": [],
+      "customNotes": "Won't eat anything with visible herbs."
+    }
+  ],
+  "tasteProfile": {
+    "ratedCookCount": 14,
+    "preferredCuisines": [
+      { "name": "Italian", "score": 4.8 },
+      { "name": "Thai", "score": 4.5 }
+    ],
+    "lovedIngredients": ["garlic", "lime"],
+    "dislikedIngredients": ["coriander"]
+  },
+  "collections": [
+    { "id": "0b8f2c1e-5d4a-4c3b-9a2e-7f6d5c4b3a21", "name": "Soups", "description": null },
+    { "id": "1c9a3d2f-6e5b-4d4c-8b3f-8a7e6d5c4b32", "name": "Weeknight", "description": "Done in 30 minutes" }
+  ]
+}

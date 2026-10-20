@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 import { getStyleSuffix } from "@/lib/image-styles";
 import { createLogger } from "@/lib/logger";
 import { FREQUENT_MIN_USES } from "@/lib/services/recipe-library";
+import { summariseTasteProfile } from "@/lib/ai/taste-summary";
 import { getWrappedReport } from "@/lib/services/wrapped";
 import { cacheRecap, getCachedRecap, recapSourceLines } from "@/lib/services/wrapped-recap";
 import { ratingsByPerson, sameName, type PersonRating } from "@/lib/cook-ratings";
@@ -191,32 +192,23 @@ async function buildTasteProfileAddendum(householdId: string): Promise<string> {
     .where(eq(tasteProfiles.householdId, householdId))
     .limit(1);
 
-  if (!profile || profile.ratedCookCount < 10) return "";
+  const summary = summariseTasteProfile(
+    profile
+      ? {
+          cuisines: profile.cuisines as Record<string, number>,
+          ingredients: profile.ingredients as Record<string, number>,
+          ratedCookCount: profile.ratedCookCount,
+        }
+      : null
+  );
+  if (!summary) return "";
 
-  const cuisines = profile.cuisines as Record<string, number>;
-  const ingredients = profile.ingredients as Record<string, number>;
+  const topCuisines = summary.preferredCuisines.map(({ name, score }) => `${name} (${score}/5)`);
 
-  const topCuisines = Object.entries(cuisines)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([name, score]) => `${name} (${score}/5)`);
-
-  const likedIngredients = Object.entries(ingredients)
-    .filter(([, s]) => s >= 3.0)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10)
-    .map(([name]) => name);
-
-  const dislikedIngredients = Object.entries(ingredients)
-    .filter(([, s]) => s <= 1.5)
-    .sort(([, a], [, b]) => a - b)
-    .slice(0, 5)
-    .map(([name]) => name);
-
-  const lines: string[] = [`\n\nHousehold taste profile (from ${profile.ratedCookCount} rated cooks):`];
+  const lines: string[] = [`\n\nHousehold taste profile (from ${summary.ratedCookCount} rated cooks):`];
   if (topCuisines.length) lines.push(`- Preferred cuisines: ${topCuisines.join(", ")}`);
-  if (likedIngredients.length) lines.push(`- Loved ingredients: ${likedIngredients.join(", ")}`);
-  if (dislikedIngredients.length) lines.push(`- Disliked ingredients: ${dislikedIngredients.join(", ")}`);
+  if (summary.lovedIngredients.length) lines.push(`- Loved ingredients: ${summary.lovedIngredients.join(", ")}`);
+  if (summary.dislikedIngredients.length) lines.push(`- Disliked ingredients: ${summary.dislikedIngredients.join(", ")}`);
   lines.push("Lean towards their preferred cuisines and loved ingredients. Strictly avoid their disliked ingredients.");
 
   return lines.join("\n");

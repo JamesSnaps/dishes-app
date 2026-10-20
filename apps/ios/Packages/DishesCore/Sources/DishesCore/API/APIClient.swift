@@ -169,6 +169,20 @@ public final class APIClient: SyncTransport, Sendable {
         return try await request("/meal-plan/generate-shopping", method: "POST", json: Body(mealPlanId: mealPlanId))
     }
 
+    /// One planned dish (not part of a combined meal) onto the list, at its servings.
+    public func addEntryToShopping(entryId: String) async throws -> ShoppingAddResult {
+        struct Body: Encodable {}
+        return try await request("/meal-plan/entries/\(entryId)/shopping-list", method: "POST", json: Body())
+    }
+
+    // MARK: AI
+
+    /// The household's AI prompt inputs, for AI on the device. Cached by the
+    /// app after each sync (AIContext.save) so it works offline.
+    public func aiContext() async throws -> AIContext {
+        try await request("/ai/context")
+    }
+
     // MARK: Household
 
     public struct Member: Codable, Hashable, Sendable, Identifiable {

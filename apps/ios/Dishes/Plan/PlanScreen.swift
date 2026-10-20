@@ -11,6 +11,7 @@
 // they work offline too; "Add N meals to list" calls the server, as on the
 // web, because pantry stock decides what it adds; so does AI planning.
 
+import AppIntents
 import DishesCore
 import SwiftUI
 
@@ -264,11 +265,14 @@ struct PlanScreen: View {
                 EmptyBox(message: "No meals planned for this day")
             }
             ForEach(meals) { meal in
-                if meal.title != nil {
-                    MealGroupCard(meal: meal, delete: delete, cook: cook)
-                } else if let dish = meal.dishes.first {
-                    EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete) { cook(meal) }
+                Group {
+                    if meal.title != nil {
+                        MealGroupCard(meal: meal, delete: delete, cook: cook)
+                    } else if let dish = meal.dishes.first {
+                        EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete) { cook(meal) }
+                    }
                 }
+                .appEntityIdentifier(EntityIdentifier(for: PlannedMealEntity.self, identifier: meal.id))
             }
 
             Button { adding = true } label: { Label("Add meal", systemImage: "plus") }
@@ -310,6 +314,8 @@ struct PlanScreen: View {
                     ForEach(data.value.meals(on: day, in: week)) { meal in
                         WeekMealCard(meal: meal, link: MealLink(id: meal.id, week: week, day: day), delete: delete, cook: cook)
                             .draggable((meal.title == nil ? "entry:" : "group:") + meal.id)
+                            // For Siri: "add this to the shopping list" about the card on screen.
+                            .appEntityIdentifier(EntityIdentifier(for: PlannedMealEntity.self, identifier: meal.id))
                     }
 
                     Button {
@@ -1021,22 +1027,8 @@ struct AddMealSheet: View {
     }
 
     private func add(_ recipe: Recipe) {
-        let planId = plan?.id ?? "temp-plan-\(UUID().uuidString.lowercased())"
-        var optimistic: [OptimisticChange] = []
-        if plan == nil {
-            optimistic.append(.put(.mealPlans, .object(["id": .string(planId), "weekStartDate": .string(week.key)]),
-                                   temporary: true))
-        }
-        optimistic.append(.put(.mealPlanEntries, .object([
-            "id": .string("temp-entry-\(UUID().uuidString.lowercased())"),
-            "mealPlanId": .string(planId), "recipeId": .string(recipe.id),
-            "dayOfWeek": .number(Double(day)), "mealType": .string(mealType),
-        ]), temporary: true))
         Task {
-            await app.mutate("meal_plan_entry.add",
-                             payload: .object(["weekStartDate": .string(week.key), "recipeId": .string(recipe.id),
-                                               "dayOfWeek": .number(Double(day)), "mealType": .string(mealType)]),
-                             optimistic: optimistic)
+            await app.planRecipe(recipe.id, week: week, day: day, mealType: mealType)
             app.toast = "Added \(recipe.title)."
             dismiss()
         }
@@ -1116,7 +1108,10 @@ struct Week: Hashable, Sendable {
     }
 
     /// Today as 0 (Monday) to 6 (Sunday).
-    static var todayIndex: Int { (Calendar(identifier: .iso8601).component(.weekday, from: Date()) + 5) % 7 }
+    static var todayIndex: Int { dayIndex(of: Date()) }
+
+    /// A date's day as 0 (Monday) to 6 (Sunday).
+    static func dayIndex(of date: Date) -> Int { (Calendar(identifier: .iso8601).component(.weekday, from: date) + 5) % 7 }
 
     /// In the local calendar: an ISO-8601 formatter writes UTC, which turns
     /// midnight on a British Summer Time Monday into Sunday's date.

@@ -13,6 +13,7 @@
 // Scaling multiplies amounts and shows kitchen fractions; unit promotion
 // (1000 g → 1 kg) comes with the lib/scale-ingredient.ts port (C2).
 
+import AppIntents
 import DishesCore
 import SwiftUI
 
@@ -57,6 +58,8 @@ struct RecipeDetailView: View {
             }
         }
         .background(Theme.background)
+        // What's on screen, for Siri: "add this to Friday", "add this to the shopping list".
+        .appEntityIdentifier(EntityIdentifier(for: RecipeEntity.self, identifier: recipeId))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             let id = recipeId

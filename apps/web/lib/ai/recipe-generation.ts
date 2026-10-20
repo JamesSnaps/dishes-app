@@ -124,6 +124,25 @@ export const generatedRecipeSchema = z.object({
     .strict(),
 }).strict();
 
+/**
+ * A `GeneratedRecipe` written somewhere else — the iOS app's on-device model —
+ * sent to `POST /api/v1/recipes/generated` to be saved. Looser than what the
+ * server's own model must return: nutrition (the server estimates it later)
+ * and the meal role may be left out.
+ */
+export const savedGeneratedRecipeSchema = generatedRecipeSchema
+  .extend({
+    mealRole: generatedRecipeSchema.shape.mealRole.optional(),
+    nutrition: generatedRecipeSchema.shape.nutrition.nullable().optional(),
+    references: z.array(z.object({ title: z.string(), url: z.string().url() })).optional(),
+    /**
+     * Omitted: the server suggests a collection, as the concierge does. A uuid:
+     * file it there (ignored unless it's this household's). null: don't file it.
+     */
+    collectionId: z.string().uuid().nullable().optional(),
+  })
+  .strict();
+
 // --- Prompt fragments -------------------------------------------------------
 
 // Shared prompt fragment for the meal-types array. Drives meal-plan slot

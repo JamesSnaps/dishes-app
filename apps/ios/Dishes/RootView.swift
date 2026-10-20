@@ -268,6 +268,33 @@ struct RootView: View {
             nav.tab = .shopping
             nav.focusShoppingAdd = true
         }
+        // Siri / Shortcuts: "Start cooking …". Held until the cooks saved at the
+        // last launch are back, so it doesn't start a second copy of one.
+        .onChange(of: AppRequests.shared.cook == nil || !nav.cooksRestored, initial: true) { _, waiting in
+            guard !waiting, let request = AppRequests.shared.cook else { return }
+            AppRequests.shared.cook = nil
+            Task {
+                switch request {
+                case .tonight:
+                    // A double optional: an unreadable store, or nothing to cook tonight.
+                    if let tonight = (try? await app.store.read(TonightMeal.load)) ?? nil { nav.cooking = tonight } else { nav.tab = .plan }
+                case .recipe(let id):
+                    await openCooking(id)
+                }
+            }
+        }
+        // A recipe tapped in Spotlight.
+        .onChange(of: AppRequests.shared.openRecipe, initial: true) { _, id in
+            guard let id else { return }
+            AppRequests.shared.openRecipe = nil
+            nav.openRecipe(id)
+        }
+        // "What's for dinner?": the planner, on this week.
+        .onChange(of: AppRequests.shared.showPlan, initial: true) { _, wanted in
+            guard wanted else { return }
+            AppRequests.shared.showPlan = false
+            nav.tab = .plan
+        }
         // A tapped notification opens the tab its web path belongs to.
         .onChange(of: Push.shared.openedLink, initial: true) { _, link in
             guard let link else { return }

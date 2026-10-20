@@ -938,6 +938,55 @@ seconds, so clients should allow a long timeout.
 - `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
 - `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text
 
+### `GET /api/v1/ai/context`
+
+The household's AI prompt inputs, for AI on the device (the iOS app's
+on-device model): everything the server's own prompts fold in, never the key,
+model or budget (those stay in the admin-only `ai.config` action). Any member;
+works whether or not a key is set up (`configured` says which). The app caches
+it after each sync, so on-device AI works offline.
+
+```json
+{
+  "configured": true,
+  "measurementSystem": "metric",
+  "defaultPrompt": "Nothing too spicy for the kids.",
+  "kitchenEquipment": "Air fryer, slow cooker",
+  "webGrounding": false,
+  "members": [
+    { "id": "uuid", "displayName": "James", "role": "admin", "birthYear": 1988,
+      "dietaryFlags": ["cholesterol-lowering"], "dislikes": ["olives"], "preferences": [], "customNotes": null }
+  ],
+  "tasteProfile": {
+    "ratedCookCount": 14,
+    "preferredCuisines": [{ "name": "Italian", "score": 4.8 }],
+    "lovedIngredients": ["garlic"],
+    "dislikedIngredients": ["coriander"]
+  },
+  "collections": [{ "id": "uuid", "name": "Soups", "description": null }]
+}
+```
+
+`members` are the active members with what the prompts use about them (age,
+diet, dislikes, loves, notes) — unlike `GET /api/v1/members`, which leaves the
+notes out. `tasteProfile` is null below ten rated cooks, as in the server's
+prompts. `fixtures/wire/ai-context.json` is the example the Swift tests decode.
+
+### `POST /api/v1/recipes/generated`
+
+Saves a recipe written somewhere else — the iOS app's on-device model — the
+way the concierge saves its own: the `GeneratedRecipe` shape (`title`,
+`description`, `cuisine`, `difficulty`, `prepTimeMinutes`, `cookTimeMinutes`,
+`servings`, `servingsUnit`, `mealTypes`, `tags`, `ingredients[]`
+`{ ingredientName, amount, unit, preparation, isOptional, groupLabel }`,
+`steps[]` `{ instruction, durationMinutes, timerLabel, groupLabel }`, `notes`),
+with `nutrition` and `mealRole` optional. Unknown fields are refused (400).
+
+`collectionId`: left out, the server picks a collection with the household's AI
+(as the concierge does; none without a key); a uuid files it there (ignored
+unless it's this household's); `null` files it nowhere. → 201
+`{ recipeId, title, collectionName? }`; the recipe syncs down.
+
 ### `POST /api/v1/recipes/import-url`
 
 A recipe page read in and saved, as the web's New Recipe → Import from web:

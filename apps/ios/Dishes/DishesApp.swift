@@ -25,9 +25,12 @@ struct DishesApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                AppModel.shared.enteredForeground()
                 AppModel.shared.syncSoon(after: .zero)
                 Task { await MealScheduleActivity.shared.refresh() }
-            case .background: BackgroundRefresh.schedule()
+            case .background:
+                BackgroundRefresh.schedule()
+                AppModel.shared.enteredBackground()
             default: break
             }
         }
@@ -71,14 +74,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async
         -> UIBackgroundFetchResult {
-        await AppModel.shared.start()
-        // A cook changed on another device (lib/cooking-sessions.ts): only the Watch cares.
-        if userInfo["kind"] as? String == "cooking" {
-            await WatchLink.shared.cookingChanged()
+        let cooking = userInfo["kind"] as? String == "cooking"
+        return await AppModel.shared.awake {
+            await AppModel.shared.start()
+            // A cook changed on another device (lib/cooking-sessions.ts): only the Watch cares.
+            if cooking {
+                await WatchLink.shared.cookingChanged()
+                return .newData
+            }
+            await AppModel.shared.syncNow()
             return .newData
         }
-        await AppModel.shared.syncNow()
-        return .newData
     }
 }
 
@@ -91,8 +97,10 @@ enum BackgroundRefresh {
             MainActor.assumeIsolated {
                 schedule()
                 let work = Task { @MainActor in
-                    await AppModel.shared.start()
-                    await AppModel.shared.syncNow()
+                    await AppModel.shared.awake {
+                        await AppModel.shared.start()
+                        await AppModel.shared.syncNow()
+                    }
                     box.task.setTaskCompleted(success: !Task.isCancelled)
                 }
                 box.task.expirationHandler = { work.cancel() }

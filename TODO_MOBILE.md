@@ -600,10 +600,10 @@ don't exist there.
 - [x] **App Intents / Siri / Shortcuts** — "add milk to the shopping list"
   (v1.40.0: `AddToShoppingListIntent`, runs in the background, queues an
   outbox mutation so it works offline; Action button and NFC automations too)
-- [ ] **App Intents, the rest** — "what's for dinner", "start cooking
-  tonight's meal" — Phase D1
-- [ ] **Spotlight** — recipes indexed with `CoreSpotlight`, searchable from the
-  Home Screen, offline — Phase D1 (the iOS 27 semantic index)
+- [x] **App Intents, the rest** — "what's for dinner", "start cooking
+  tonight's meal" — Phase D1 (v1.55.0)
+- [x] **Spotlight** — recipes indexed with `CoreSpotlight`, searchable from the
+  Home Screen, offline — Phase D1 (the iOS 27 semantic index, v1.55.0)
 
 #### Tier 3 — getting recipes in
 
@@ -746,60 +746,89 @@ write-ups.
 
 ### D0. Groundwork
 
-- [ ] `GET /api/v1/ai/context` — the prompt inputs only, readable by any
+- [x] `GET /api/v1/ai/context` — the prompt inputs only, readable by any
   member: `measurementSystem`, `defaultPrompt`, `kitchenEquipment`,
   `webGrounding`, members with dietary constraints, the taste-profile summary
   (`lib/services/taste-profile.ts`), the collection names. Never the key or the
   budget (`ai.config` stays admin-only). Cached on the device and refreshed on
-  sync, so on-device AI works offline
-- [ ] `POST /api/v1/recipes/generated` — saves a `GeneratedRecipe`
+  sync, so on-device AI works offline. *Done (v1.55.0):* `lib/services/ai-context.ts`;
+  members carry everything `buildMemberConstraints` uses, notes included (which
+  `/api/v1/members` leaves out). The taste summary moved to
+  `lib/ai/taste-summary.ts`, shared with the server's prompts so the two can't
+  drift. The app caches it as `ai-context.json` in the App Group
+  (`DishesCore/Models/AIContext.swift`), refreshed after each sync
+- [x] `POST /api/v1/recipes/generated` — saves a `GeneratedRecipe`
   (`lib/ai/recipe-generation.ts`) the way `saveGeneratedRecipe` does, with an
   optional `collectionId` so the AI collection suggestion can be skipped when
   the device already picked one. Saves the device turning `GeneratedRecipe`
-  into the full `/api/v1/recipes` write format itself
-- [ ] Add the endpoints above to `API.md`'s v1 section
-- [ ] **App Group** `group.uk.collco.dishes` on the app, `DishesWidgets` and
+  into the full `/api/v1/recipes` write format itself. *Done (v1.55.0):*
+  `savedGeneratedRecipeSchema` (nutrition and meal role optional, unknown
+  fields refused); `collectionId` omitted → the server suggests one, a uuid →
+  filed there, null → nowhere. `pnpm --filter @dishes/web check:ai-context`
+- [x] Add the endpoints above to `API.md`'s v1 section
+- [x] **App Group** `group.uk.collco.dishes` on the app, `DishesWidgets` and
   `DishesShare`. Needed by D4 (widgets read the store) and D3 (the share
   extension uses the cached AI context). Move `dishes.sqlite` into the group
   container with a one-time migration (`AppModel` currently opens
-  Application Support/Dishes/dishes.sqlite)
-- [ ] **Testing on the Mac:** the Mac is on macOS 26 (Darwin 25.6), and
+  Application Support/Dishes/dishes.sqlite). *Done (v1.55.0):* opened as GRDB
+  advises for a shared container (`DishesCore/Store/SharedStore.swift`:
+  persistent WAL, busy timeout, file coordination), and suspended whenever the
+  app is in the background with nothing running, so iOS can't kill it for
+  holding a lock there (0xDEAD10CC); background work goes in
+  `AppModel.awake { }`. Checked on the iPad simulator: a v1.54.1 install
+  updated in place moved its database and sent the change it had queued
+- [x] **Testing on the Mac:** the Mac is on macOS 26 (Darwin 25.6), and
   FoundationModels' iOS 27 APIs need macOS 27 to run under `swift test`. Either
-  update the Mac or run the AI tests on the iPad. Decide before D2
+  update the Mac or run the AI tests on the iPad. Decide before D2. *Settled
+  (20 Oct 2026):* the Mac is on macOS 27.0.1 now, so `swift test` runs them
 
 ### D1. Siri, Spotlight and App Intents
 
 Today the app has one intent (`AddToShoppingListIntent`) and no Spotlight
 index. Everything here works without AI and offline.
 
-- [ ] **Entities** (`DishesCore` models → `AppEntity` + `IndexedEntity`) in a
+- [x] **Entities** (`DishesCore` models → `AppEntity` + `IndexedEntity`) in a
   new `Dishes/Intents/` folder: `RecipeEntity` (title, cuisine, tags, total
   time, meal role, favourite, thumbnail), `PlannedMealEntity` (an entry or
   group on a day), `ShoppingItemEntity`, `SavedMealEntity`. Queries read the
-  GRDB store, never the network
-- [ ] **Spotlight semantic index**: `CSSearchableIndex.indexAppEntities(_:)`
+  GRDB store, never the network. *Done (v1.55.0):* plus `CookingStepEntity`
+  (the step being cooked, at its scale). Only recipes are indexed: a saved meal
+  has no screen of its own to open on
+- [x] **Spotlight semantic index**: `CSSearchableIndex.indexAppEntities(_:)`
   after each sync that changes recipes, and `deleteAppEntities` for tombstones.
   Gets "find that chicken thing we had last week" from the Home Screen and
-  from Siri, with a link back. Replaces the Tier 2 Spotlight item
-- [ ] **Schema conformances** (`AppSchemaEntity` / `AppSchemaIntent`) where a
+  from Siri, with a link back. Replaces the Tier 2 Spotlight item. *Done
+  (v1.55.0):* `SpotlightIndex` follows the store rather than sync, sends only
+  what changed and removes what's gone; a tap runs `OpenRecipeIntent`
+- [x] **Schema conformances** (`AppSchemaEntity` / `AppSchemaIntent`) where a
   schema fits, so Siri understands requests worded freely without a list of
   phrases. Check `AppSchema` for a domain matching recipes or lists; where none
-  fits, plain entities + intents still work through Shortcuts and App Shortcuts
-- [ ] **Intents:** "What's for dinner?" (answers with tonight's meal and serve
+  fits, plain entities + intents still work through Shortcuts and App Shortcuts.
+  *Checked (20 Oct 2026):* none fits — the 27.1 SDK's domains are mail,
+  photos, reminders, notes, journal, books, browser and the like. Reminders is
+  the nearest and is the grammar Siri already confused the shopping list with
+- [x] **Intents:** "What's for dinner?" (answers with tonight's meal and serve
   time; opens the plan), "Start cooking tonight's meal" / "Start cooking
   {recipe}" (opens cooking mode through `CookLinkHandler`), "Add {recipe} to
   the shopping list" (the existing `addRecipeToShopping`), "Add {day}'s meals
   to the shopping list", "Plan {recipe} for {day}" (a `meal_plan_entry.add`
   outbox mutation, so it works offline), "Tick off {item}". Replaces the Tier
-  2 "App Intents, the rest" item
-- [ ] **Siri understands the screen:** `appEntityIdentifier(_:)` and
+  2 "App Intents, the rest" item. *Done (v1.55.0):* `Dishes/Intents/`. Start
+  cooking goes through `AppRequests` → `RootView.openCooking` rather than
+  `CookLinkHandler`, which would change what tapping an old Live Activity does.
+  An App Shortcut phrase can hold one parameter, so "Plan {recipe} for {day}"
+  is spoken as "Plan {recipe} in Dishes" and Siri asks the day
+- [x] **Siri understands the screen:** `appEntityIdentifier(_:)` and
   `appEntityUIElements(_:)` on the recipe page, the plan's day cards and
   cooking mode's current step. So "add this to Friday" on a recipe, or "how
   much butter?" / "set a timer for this" on a step, refers to what's showing.
-  The timer goes through `CookTimers` (AlarmKit), as the in-app button does
-- [ ] **Tests:** an `AppIntentsTesting` target in `project.yml` that runs each
+  The timer goes through `CookTimers` (AlarmKit), as the in-app button does.
+  *Done (v1.55.0):* `appEntityIdentifier` on each; `appEntityUIElements` is for
+  custom-drawn views, which none of these are
+- [x] **Tests:** an `AppIntentsTesting` target in `project.yml` that runs each
   intent through the system on the simulator: entity lookup, the offline
-  outbox write, the cooking-mode deep link
+  outbox write, the cooking-mode deep link. *Done (v1.55.0):*
+  `DishesIntentTests`, six tests, passing on the iPad Pro 11" simulator
 
 ### D2. The local-first AI engine (`DishesCore/AI`)
 
@@ -955,11 +984,12 @@ not a separate set of REST calls.
 
 ### Order
 
-1. **D0 + D1** — no AI decisions, works offline, uses the store as it is (v1.54.0)
+1. **D0 + D1** — no AI decisions, works offline, uses the store as it is (v1.55.0;
+   v1.54 went to the web import fixes first)
 2. **D2 engine + evaluations**, with **scan a page** and **ingredient lines**
-   as its first jobs (v1.55.0)
+   as its first jobs (v1.56.0)
 3. **D3's other jobs**, each switched to the device as its evaluation passes;
-   **D5** alongside, so falling back is the same code path (v1.56.0)
+   **D5** alongside, so falling back is the same code path (v1.57.0)
 4. **D4 widgets** (needs D0's App Group) and **D6** in any gaps
 
 ### Open questions

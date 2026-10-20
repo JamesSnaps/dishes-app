@@ -24,6 +24,15 @@
         "3001"
       ],
       "port": 3001
+    },
+    {
+      "name": "dishes-web-next",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/web && exec ./node_modules/.bin/next dev --turbopack"
+      ],
+      "port": 3000
     }
   ]
 }
