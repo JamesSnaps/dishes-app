@@ -42,6 +42,23 @@ import type { BatchJobItem, BatchJobProgress, ConceptsJobResult, MealPlanJobResu
 import { startAiJob } from "@/lib/ai-jobs";
 import { requireSession } from "@/lib/session";
 import * as recipeService from "@/lib/services/recipes";
+import sharp from "sharp";
+import { safeFetch, FetchFailedError, UnsafeUrlError } from "@/lib/safe-fetch";
+import {
+  ALLOWED_TYPES as UPLOAD_ALLOWED_TYPES,
+  MAX_SIZE_BYTES as UPLOAD_MAX_SIZE_BYTES,
+  uploadRecipeImage,
+} from "@/lib/services/upload";
+import { recipeToDefaults } from "@/lib/ai/recipe-defaults";
+import {
+  cleanSourceUrl,
+  extractRecipeFromHtml,
+  webRecipeAsText,
+  webRecipeToDefaults,
+  type WebImportResult,
+  type WebRecipe,
+} from "@/lib/recipe-web-import";
+import type { RecipeFormDefaults } from "@/app/(app)/recipes/_components/recipe-form";
 
 const log = createLogger("ai");
 
@@ -1868,6 +1885,216 @@ If a value is not present in the image use null for nullable fields or an empty 
   } catch (err) {
     return { error: classifyError(err) };
   }
+}
+
+// ── Import a recipe from a web page ───────────────────────────────────────────
+//
+// Lives here rather than in its own module because the AI passes need this
+// file's private client helpers — but AI is optional: a page with schema.org
+// recipe data imports without it.
+
+const PAGE_MAX_BYTES = 5 * 1024 * 1024;
+const IMAGE_MAX_BYTES = 20 * 1024 * 1024;
+
+/** Copy the page's photo into our own storage, so the recipe never hotlinks. */
+async function importWebImage(
+  householdId: string,
+  memberId: string,
+  urls: string[]
+): Promise<{ url: string; thumbnailUrl: string | null } | null> {
+  for (const imageUrl of urls.slice(0, 3)) {
+    try {
+      const res = await safeFetch(imageUrl, {
+        accept: "image/webp,image/jpeg,image/png,image/*;q=0.8",
+        maxBytes: IMAGE_MAX_BYTES,
+      });
+      let body = res.body;
+      let type = res.contentType;
+      // AVIF, octet-stream CDNs and oversized originals all go through sharp,
+      // which also rejects anything that isn't really an image.
+      if (!UPLOAD_ALLOWED_TYPES.includes(type) || body.byteLength > UPLOAD_MAX_SIZE_BYTES) {
+        body = await sharp(body)
+          .rotate()
+          .resize(2000, 2000, { fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+        type = "image/jpeg";
+      }
+      return await uploadRecipeImage({ householdId, memberId }, body, type);
+    } catch (err) {
+      log.warn("web import: could not copy recipe image", { imageUrl, err });
+    }
+  }
+  return null;
+}
+
+const WEB_TIDY_SYSTEM_PROMPT = `You are a recipe digitisation assistant. You are given a recipe exactly as a website published it. Restructure it into the JSON schema without changing the recipe.
+
+Rules:
+- Keep every ingredient, in the source order, with the quantities and units the source uses. Do not convert units, scale, substitute, merge or add ingredients.
+- Split each ingredient line into amount, unit, ingredientName and preparation (e.g. "2 garlic cloves, finely chopped" → amount "2", unit "", ingredientName "garlic cloves", preparation "finely chopped"). Use empty strings, never "none". Mark "optional"/"to serve, optional" lines isOptional. Carry section headings into groupLabel.
+- Keep the method wording and order. Do not drop steps or add new ones. Where a step states a time, set durationMinutes and a short timerLabel (e.g. "simmer").
+- Infer cuisine, difficulty, mealRole and a few short lowercase tags from the recipe itself.
+- mealTypes: which meals this dish genuinely suits — any of "breakfast","lunch","dinner","dessert","snack". Be realistic.
+- nutrition: use the published per-serving values when given; otherwise give a realistic per-serving estimate.
+- notes: any tips, storage advice or variations in the source; otherwise null.`;
+
+const WEB_EXTRACT_SYSTEM_PROMPT = `You are a recipe digitisation assistant. You are given the text of a web page. Extract the recipe it contains into the JSON schema.
+
+Rules:
+- Use only what the page says. Never invent ingredients, quantities or steps. Keep the source's quantities and units — do not convert them.
+- Split each ingredient into amount, unit, ingredientName and preparation; empty strings when absent, never "none". Carry section headings ("For the sauce") into groupLabel on both ingredients and steps.
+- Where a step states a time, set durationMinutes and a short timerLabel.
+- Infer cuisine, difficulty, mealRole, realistic mealTypes and a few short lowercase tags from the recipe.
+- nutrition: the page's per-serving values if shown, otherwise a realistic estimate.
+- notes: tips, storage advice or variations from the page; otherwise null.
+- Ignore navigation, adverts, comments and other recipes linked from the page.
+- If the page does not contain a recipe, set title to "NO_RECIPE" and give one placeholder ingredient and step.`;
+
+/** The AI's restructure of a site's own recipe — trusted only where it kept everything. */
+function mergeTidied(source: WebRecipe, ai: GeneratedRecipe): RecipeFormDefaults {
+  const base = webRecipeToDefaults(source);
+  const tidy = recipeToDefaults(ai);
+  // A model that drops lines loses ingredients from the shopping list without
+  // anyone noticing; fall back to the plain parse for that part.
+  // Count against the parsed lines: rawIngredients still holds section headings.
+  const keepIngredients = ai.ingredients.length >= Math.ceil(source.ingredients.length * 0.9);
+  const keepSteps = ai.steps.length >= Math.ceil(source.steps.length * 0.8);
+  return {
+    ...base,
+    cuisine: base.cuisine || tidy.cuisine,
+    difficulty: tidy.difficulty,
+    mealRole: base.mealRole ?? tidy.mealRole,
+    mealTypes: base.mealTypes?.length ? base.mealTypes : tidy.mealTypes,
+    // Site keywords are SEO lists (author names, "Easy", "Midweek meals"); the
+    // AI's few short tags match how the household tags things.
+    tags: tidy.tags?.length ? tidy.tags : base.tags,
+    notes: tidy.notes,
+    ingredients: keepIngredients ? tidy.ingredients : base.ingredients,
+    steps: keepSteps ? tidy.steps : base.steps,
+    // Published nutrition wins over an estimate.
+    ...(source.nutrition
+      ? {}
+      : {
+          calories: tidy.calories,
+          proteinG: tidy.proteinG,
+          carbsG: tidy.carbsG,
+          fatG: tidy.fatG,
+          saturatedFatG: tidy.saturatedFatG,
+          fiberG: tidy.fiberG,
+          sugarG: tidy.sugarG,
+          sodiumMg: tidy.sodiumMg,
+        }),
+  };
+}
+
+export async function importRecipeFromUrl(rawUrl: string): Promise<WebImportResult> {
+  const { householdId, memberId } = await requireSession();
+
+  const input = rawUrl.trim();
+  if (!input) return { error: "Paste a link to a recipe page." };
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(input) ? input : `https://${input}`;
+
+  let page;
+  try {
+    page = await safeFetch(withScheme, {
+      accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+      maxBytes: PAGE_MAX_BYTES,
+    });
+  } catch (err) {
+    if (err instanceof UnsafeUrlError || err instanceof FetchFailedError) return { error: err.message };
+    log.warn("web import: fetch failed", { url: withScheme, err });
+    return { error: "Couldn't load that page." };
+  }
+  if (page.contentType && !/html|xml/.test(page.contentType)) {
+    return { error: "That link isn't a web page. Paste the link to the recipe page itself." };
+  }
+
+  const sourceUrl = cleanSourceUrl(page.url);
+  const extraction = extractRecipeFromHtml(page.body.toString("utf8"), page.url);
+
+  const [aiConfig] = await db
+    .select({ id: aiConfigurations.id })
+    .from(aiConfigurations)
+    .where(eq(aiConfigurations.householdId, householdId))
+    .limit(1);
+  const hasAi = !!aiConfig;
+
+  let draft: RecipeFormDefaults;
+  let via: WebImportResult["via"];
+  const notices: string[] = [];
+
+  if (extraction.recipe) {
+    draft = webRecipeToDefaults(extraction.recipe);
+    via = "recipe-data";
+    if (hasAi) {
+      // Best-effort: better ingredient splitting, timers, cuisine and meal
+      // types. The plain parse is already a complete draft if this fails.
+      try {
+        const { client, model } = await getOpenAiClient(householdId);
+        const tidied = await createStructuredRecipe(client, model, [
+          { role: "system", content: WEB_TIDY_SYSTEM_PROMPT },
+          { role: "user", content: webRecipeAsText(extraction.recipe) },
+        ]);
+        draft = mergeTidied(extraction.recipe, tidied);
+        via = "recipe-data+ai";
+      } catch (err) {
+        log.warn("web import: AI tidy-up failed, using the plain parse", { url: sourceUrl, err });
+      }
+    }
+  } else if (hasAi) {
+    if (extraction.pageText.length < 200 && !extraction.partialRecipeJson) {
+      return { error: "That page has almost no readable text — it may need a browser to load. Try copying the recipe and using Import from text." };
+    }
+    try {
+      const { client, model } = await getOpenAiClient(householdId);
+      const extracted = await createStructuredRecipe(client, model, [
+        { role: "system", content: WEB_EXTRACT_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            `Page title: ${extraction.pageTitle}`,
+            `URL: ${sourceUrl}`,
+            extraction.partialRecipeJson &&
+              `Incomplete recipe data published by the page (schema.org JSON):\n${extraction.partialRecipeJson}`,
+            `Page text:\n${extraction.pageText}`,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      ]);
+      if (extracted.title.trim() === "NO_RECIPE") {
+        return { error: "Couldn't find a recipe on that page." };
+      }
+      draft = recipeToDefaults(extracted);
+      via = "ai";
+    } catch (err) {
+      return { error: classifyError(err) };
+    }
+  } else {
+    return {
+      error:
+        "This site doesn't publish its recipe in a form Dishes can read on its own. Set up AI in Settings → AI to import from any page, or copy the recipe and use Import from text.",
+    };
+  }
+
+  draft.sourceUrl = sourceUrl;
+
+  if (extraction.imageUrls.length > 0) {
+    if (!isStorageAvailable()) {
+      notices.push("The photo wasn't copied because image storage isn't configured.");
+    } else {
+      const image = await importWebImage(householdId, memberId, extraction.imageUrls);
+      if (image) {
+        draft.imageUrl = image.url;
+        draft.thumbnailUrl = image.thumbnailUrl;
+      } else {
+        notices.push("The recipe photo couldn't be downloaded — add one before saving if you like.");
+      }
+    }
+  }
+
+  return { draft, via, notice: notices.join(" ") || undefined };
 }
 
 // ── Review a dish photo with AI vision ────────────────────────────────────────

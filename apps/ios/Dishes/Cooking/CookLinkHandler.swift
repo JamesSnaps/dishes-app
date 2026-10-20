@@ -16,7 +16,12 @@ struct CookLinkHandler: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onOpenURL { url in
-                if let link = CookLink(url: url) { pending = link }
+                if let link = CookLink(url: url) {
+                    pending = link
+                } else if let page = WebImportLink(url: url) {
+                    // A recipe page from a Shortcut (Recipes/WebImportSheet.swift).
+                    nav.importLink = page
+                }
             }
             .onChange(of: pending == nil || !nav.cooksRestored, initial: true) { _, waiting in
                 guard !waiting, let link = pending else { return }

@@ -975,3 +975,27 @@ Earlier; a follow-up updates the same row with the whole history sent.
 Uploaded to TestFlight as 1.51.1 (build 202610191617) from the PR branch; the
 saving and Earlier list need the server side, which goes live once PR #51 is
 merged and deployed.
+
+### 20 Oct 2026 — Import a recipe from a website (v1.52.0)
+
+The web's new **Import from web**, in the app:
+- New Recipe → **From a website…** (`Recipes/WebImportSheet.swift`): paste a
+  link (or the Paste button, which reads the clipboard only when tapped, so no
+  paste prompt), Import. The server reads it and saves it —
+  `POST /api/v1/recipes/import-url` → `{ recipeId, title, via, notice }` — then
+  the app syncs and opens the recipe, as the photo import does. A `notice`
+  ("the photo couldn't be downloaded") rides along in the toast.
+- `dishes://import?url=<page>` opens that sheet and imports at once
+  (`WebImportLink`, routed through `CookLinkHandler`'s `onOpenURL` into
+  `AppNav.importLink`, which switches to Recipes). That's for a Shortcut on
+  Safari's share sheet: *Receive URLs from Share Sheet → URL Encode → Text
+  `dishes://import?url=<Encoded>` → Open URLs*.
+- Works without an AI key on sites that publish schema.org recipe data; the
+  server's 422 message is shown as is otherwise.
+
+Written in a cloud session with no Xcode, so **not built or run yet**. To
+check on the iPad simulator against the dev server: the sheet from New Recipe,
+the Paste button, a real recipe link (the dev server needs outbound internet),
+an error (`http://192.168.1.1` → "That address can't be imported from."), and
+`xcrun simctl openurl booted "dishes://import?url=https%3A%2F%2Fwww.bbcgoodfood.com%2Frecipes%2Feasy-chocolate-cake"`.
+

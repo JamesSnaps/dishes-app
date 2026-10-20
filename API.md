@@ -804,6 +804,15 @@ seconds, so clients should allow a long timeout.
 - `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
 - `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text
 
+### `POST /api/v1/recipes/import-url`
+
+A recipe page read in and saved, as the web's New Recipe → Import from web:
+`{ url }` → 201 `{ recipeId, title, via, notice }` (it syncs down). `via` is
+`recipe-data`, `recipe-data+ai` or `ai`; `notice` says when the photo couldn't
+be copied. Works without AI for sites that publish schema.org recipe data; 422
+with the reason otherwise (no AI key and no recipe data, a private address, the
+site refused). Takes up to a minute with the AI tidy-up.
+
 ### `POST /api/v1/cook-history/{id}/feedback`
 
 The AI's take on how the cook's photo looks → `{ feedback }`. 404 without a
