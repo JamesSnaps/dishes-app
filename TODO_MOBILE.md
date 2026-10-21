@@ -1117,8 +1117,12 @@ not a separate set of REST calls.
   for the server-only jobs; iOS stops calling `photo-recipe` and `cook-assist`
   once D3's versions are in. *Done for cook assist:* its fallback is the same
   session on `DishesServerModel` (`CookAssist.onServer`, the server's prompt
-  via `Prompts.cookAssist`). `photo-recipe` stays until images can go
-  through `/ai/respond`
+  via `Prompts.cookAssist`). *And photos (v1.62.0):* `/ai/respond` takes
+  images with a user turn, the executor sends attachments as JPEGs (≤2,000 px),
+  and a scan or a shared photo or text that the device can't read goes to the
+  same `RecipeReader` on `DishesServerModel` (every page attached) — so it
+  comes back as a draft to check, as the device's does. iOS 26 keeps
+  `/ai/photo-recipe` and `/ai/text-recipe`
 
 ### D6. Smaller wins
 
@@ -1134,9 +1138,11 @@ not a separate set of REST calls.
   own positions, and the screen sends one `shopping_item.update` per item that
   moved (with `category` when it changed aisle). `shopping_item.update` did
   *not* carry `position` — added on the server. Ticked items don't move.
-  *Not done for the planner:* meals have no order within a day (they sort by
-  meal type), so there's nothing to reorder without a new field; its drag
-  between days stays. *Not checked:* a real drag — the simulator's synthetic
+  *The planner (v1.62.0):* `position` on entries and groups (migration
+  `0045`), a `meal_plan_day.reorder` mutation, and both planners sort a day by
+  position then meal type (all 0 until someone reorders, so nothing moved on
+  its own). The selected day's meals are `.reorderable()`; the drag between
+  days stays as it was. *Not checked:* a real drag — the simulator's synthetic
   drags don't lift (as with the planner before); needs a device
 - [x] **Lazy subviews with prefetch** on the recipe rows (`RecipesBrowse`'s
   `LazyHStack`, `RecipeCard`'s `LazyVStack`) and the cookbook pages, so

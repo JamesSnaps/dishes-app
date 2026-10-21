@@ -162,6 +162,17 @@ export const mutationSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     opId,
+    type: z.literal("meal_plan_day.reorder"),
+    payload: z.object({
+      /** A day's loose recipes and combined meals, in the order they're to show. */
+      items: z
+        .array(z.object({ kind: z.enum(["entry", "group"]), id: z.string().uuid() }))
+        .min(1)
+        .max(40),
+    }),
+  }),
+  z.object({
+    opId,
     type: z.literal("meal_plan_group.delete"),
     payload: z.object({
       groupId: z.string().uuid(),

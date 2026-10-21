@@ -105,7 +105,7 @@ struct PlanGeneratorSheet: View {
             Toggle("Only from our favourites", isOn: $favouritesOnly).tint(Theme.brand).font(.system(size: 15))
             Toggle("Heart-healthy (lower saturated fat)", isOn: $heartHealthy).tint(Theme.brand).font(.system(size: 15))
             Button { Task { await makeDraft() } } label: {
-                Label("Draft \(days.count) \(mealType)\(days.count == 1 ? "" : "s")", systemImage: "sparkles")
+                Label("Draft \(days.count) \(days.count == 1 ? mealType : Self.plural(mealType))", systemImage: "sparkles")
             }
             .buttonStyle(.gradient(.violetOrange))
             .disabled(days.isEmpty)
@@ -187,6 +187,11 @@ struct PlanGeneratorSheet: View {
                 .foregroundStyle(Theme.mutedForeground)
             content()
         }
+    }
+
+    /// "lunches", not "lunchs".
+    static func plural(_ mealType: String) -> String {
+        mealType.hasSuffix("ch") || mealType.hasSuffix("sh") ? mealType + "es" : mealType + "s"
     }
 
     private func pill(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {

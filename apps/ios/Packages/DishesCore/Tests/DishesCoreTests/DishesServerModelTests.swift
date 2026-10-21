@@ -2,6 +2,7 @@
 // against a stubbed POST /api/v1/ai/respond — what it sends, and that the
 // session reads the answer back, text or guided.
 
+import CoreGraphics
 import Foundation
 import FoundationModels
 import Testing
@@ -79,5 +80,21 @@ final class StubRespond: URLProtocol, @unchecked Sendable {
         let sent = try JSONDecoder().decode(JSONValue.self, from: try #require(StubRespond.bodies.last))
         #expect(sent.array("messages").first?.string("content")?.contains("Recipe: Bolognese") == true)
         #expect(sent.array("messages").last?.string("content") == "I've got no red wine.")
+    }
+
+    @Test func aScannedPageGoesToTheServerWithItsPhoto() async throws {
+        guard #available(macOS 27, iOS 27, *) else { return }
+        StubRespond.answer = #"{"title":"Greek Salad","description":"","cuisine":"Greek","difficulty":"easy","servings":"4","mealTypes":["lunch"],"ingredients":[{"quantity":"200g","name":"feta","preparation":"","optional":false,"section":""}],"steps":[{"instruction":"Top with the feta.","timerLabel":"","section":""}],"notes":""}"#
+        StubRespond.bodies = []
+        let page = CGContext(data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 0,
+                             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!.makeImage()!
+        let reading = try await RecipeReader.read([page], context: nil, model: DishesServerModel(api: api), alwaysAttach: true)
+        #expect(reading.recipe.title == "Greek Salad")
+        #expect(reading.recipe.ingredients.first.map { "\($0.amount)\($0.unit) \($0.ingredientName)" } == "200g feta")
+
+        let sent = try JSONDecoder().decode(JSONValue.self, from: try #require(StubRespond.bodies.last))
+        let image = sent.array("messages").last?.array("images").first
+        #expect(image?.string("mimeType") == "image/jpeg")
+        #expect((image?.string("data")?.count ?? 0) > 100)
     }
 }

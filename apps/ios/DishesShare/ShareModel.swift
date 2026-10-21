@@ -99,6 +99,18 @@ final class ShareModel {
                 },
                 fallback: {
                     stage = .reading(onDevice: false)
+                    // iOS 27: the same reader on the household's AI (DishesServerModel, D5),
+                    // so it comes back as a draft to check like the device's.
+                    if #available(iOS 27, *) {
+                        let server = DishesServerModel(api: api)
+                        switch shared {
+                        case .text(let text): return Read.draft(try await RecipeReader.read(text: text, context: context, model: server))
+                        case .images(let images):
+                            return Read.draft(try await RecipeReader.read(images.compactMap { $0.cgImage }, context: context,
+                                                                          model: server, alwaysAttach: true))
+                        case .link: throw CancellationError()
+                        }
+                    }
                     switch shared {
                     case .text(let text): return Read.saved(try await api.recipeFromText(text))
                     case .images(let images):

@@ -482,7 +482,8 @@ struct ConciergeSheet: View {
 
     /// One photo or a scan's pages: read on the device into a draft for the
     /// editor, or — with no on-device model, or an answer that fails its
-    /// checks — by the server, which saves it (the pages joined into one image).
+    /// checks — by the household's AI: the same reader on DishesServerModel
+    /// (iOS 27), or on iOS 26 /ai/photo-recipe, which saves it.
     private func readPhotos(_ images: [UIImage]) async {
         let pages = images.compactMap { $0.uprightCGImage(maxDimension: 2400) }
         guard !pages.isEmpty else { return }
@@ -502,6 +503,12 @@ struct ConciergeSheet: View {
                 },
                 fallback: {
                     if stage == .reading { stage = .writing("Reading the recipe from your photo…") }
+                    // iOS 27: the same reader on the household's AI (DishesServerModel, D5),
+                    // every page attached, back as a draft to check.
+                    if #available(iOS 27, *) {
+                        return Read.draft(try await RecipeReader.read(pages, context: context, model: DishesServerModel(api: app.api),
+                                                                      alwaysAttach: true))
+                    }
                     guard let jpeg = CookReviewSheet.jpeg(UIImage.stacked(images)) else { throw CancellationError() }
                     return Read.saved(try await app.api.recipeFromPhoto(jpeg))
                 })

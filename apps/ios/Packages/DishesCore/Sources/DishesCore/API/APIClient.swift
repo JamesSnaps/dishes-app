@@ -800,9 +800,18 @@ public final class APIClient: SyncTransport, Sendable {
     /// server to add the household's AI settings to the instructions.
     public struct RespondRequest: Encodable, Sendable {
         public struct Message: Encodable, Sendable, Hashable {
+            public struct Image: Encodable, Sendable, Hashable {
+                public var mimeType: String
+                /// Base64.
+                public var data: String
+                public init(mimeType: String, data: String) { self.mimeType = mimeType; self.data = data }
+            }
             public var role: String
             public var content: String
-            public init(role: String, content: String) { self.role = role; self.content = content }
+            public var images: [Image]?
+            public init(role: String, content: String, images: [Image]? = nil) {
+                self.role = role; self.content = content; self.images = images
+            }
         }
         public var messages: [Message]
         public var schema: JSONValue?

@@ -51,6 +51,8 @@ struct PlannedMeal: Identifiable {
     var serveAt: String?
     var sourceMealId: String? = nil
     var dishes: [(entry: MealPlanEntry, recipe: Recipe?)]
+    /// Its place in the day as arranged (0 until someone reorders).
+    var position = 0
 
     /// One servings figure when every dish agrees on it.
     var servings: Double? {
@@ -95,14 +97,17 @@ struct PlanData: Sendable {
         for group in groups where group.mealPlanId == plan.id && group.dayOfWeek == day {
             let dishes = todays.filter { $0.groupId == group.id }.map { ($0, $0.recipeId.flatMap { recipes[$0] }) }
             meals.append(PlannedMeal(id: group.id, groupId: group.id, mealType: group.mealType, title: group.title, serveAt: group.serveAt,
-                                     sourceMealId: group.sourceMealId, dishes: dishes))
+                                     sourceMealId: group.sourceMealId, dishes: dishes, position: group.position))
         }
         for entry in todays where entry.groupId == nil || !groups.contains(where: { $0.id == entry.groupId }) {
             meals.append(PlannedMeal(id: entry.id, mealType: entry.mealType, title: nil, serveAt: nil,
-                                     dishes: [(entry, entry.recipeId.flatMap { recipes[$0] })]))
+                                     dishes: [(entry, entry.recipeId.flatMap { recipes[$0] })], position: entry.position))
         }
+        // As the household arranged the day, then by meal type — the only order
+        // until someone reorders (the web sorts the same way).
         return meals.sorted {
-            (mealTypeOrder.firstIndex(of: $0.mealType) ?? 9, $0.id) < (mealTypeOrder.firstIndex(of: $1.mealType) ?? 9, $1.id)
+            ($0.position, mealTypeOrder.firstIndex(of: $0.mealType) ?? 9, $0.id)
+                < ($1.position, mealTypeOrder.firstIndex(of: $1.mealType) ?? 9, $1.id)
         }
     }
 }

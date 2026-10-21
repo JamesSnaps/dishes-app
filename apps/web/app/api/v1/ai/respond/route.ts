@@ -25,6 +25,16 @@ const schema = z.object({
       z.object({
         role: z.enum(["system", "user", "assistant"]),
         content: z.string().max(60_000),
+        /** Photos with a user message (a scanned recipe page), base64. */
+        images: z
+          .array(
+            z.object({
+              mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+              data: z.string().max(8_000_000),
+            })
+          )
+          .max(4)
+          .optional(),
       })
     )
     .min(1)
@@ -56,8 +66,9 @@ function forOpenAI(value: unknown): unknown {
  * POST — a model call through the household's own key, for the iOS app's
  * `DishesServerModel` (TODO_MOBILE.md, D5): the device's AI code runs the same
  * session against the server when its own model can't do the job. The
- * conversation in, the answer out as streamed plain text (JSON text when a
- * schema was sent). 422 when AI isn't set up, 429 past the member's limit.
+ * conversation in (photos with a user turn, for a scanned recipe page), the
+ * answer out as streamed plain text (JSON text when a schema was sent). 422
+ * when AI isn't set up, 429 past the member's limit.
  */
 export async function POST(request: NextRequest) {
   let session;
@@ -92,13 +103,29 @@ export async function POST(request: NextRequest) {
     .limit(1);
   if (!config) return apiError("invalid_request", "AI not configured. Add your API key in Settings → AI.", 422);
 
-  const messages = input.messages.map((m) => ({ ...m }));
+  const turns = input.messages.map(({ role, content, images }) => ({ role, content, images }));
   if (input.settings) {
     const addendum = buildSystemAddendum(config.defaultPrompt, config.measurementSystem, config.kitchenEquipment);
-    const system = messages.find((m) => m.role === "system");
+    const system = turns.find((m) => m.role === "system");
     if (system) system.content += addendum;
-    else if (addendum) messages.unshift({ role: "system", content: addendum.trim() });
+    else if (addendum) turns.unshift({ role: "system", content: addendum.trim(), images: undefined });
   }
+  // A user turn with photos becomes OpenAI's text + image parts.
+  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = turns.map(({ role, content, images }) =>
+    role === "user" && images?.length
+      ? {
+          role,
+          content: [
+            { type: "text" as const, text: content },
+            ...images.map((image) => ({
+              type: "image_url" as const,
+              image_url: { url: `data:${image.mimeType};base64,${image.data}` },
+            })),
+          ],
+        }
+      : { role, content }
+  );
+  const imageCount = turns.reduce((n, t) => n + (t.images?.length ?? 0), 0);
 
   // Native fetch — node-fetch breaks streaming with "Premature close" on Node 22.23+
   const client = new OpenAI({ apiKey: decrypt(config.encryptedApiKey), fetch: globalThis.fetch });
@@ -129,7 +156,7 @@ export async function POST(request: NextRequest) {
     return apiError("invalid_request", status === 429 ? "OpenAI rate limit or quota exceeded. Try again shortly." : message, status);
   }
 
-  log.info(`respond: ${messages.length} messages, schema ${input.schema ? "yes" : "no"}, model ${config.model}`);
+  log.info(`respond: ${messages.length} messages, ${imageCount} images, schema ${input.schema ? "yes" : "no"}, model ${config.model}`);
   const encoder = new TextEncoder();
   const body = new ReadableStream({
     async start(controller) {

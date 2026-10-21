@@ -193,14 +193,27 @@ struct GradientButtonStyle: ButtonStyle {
     var height: CGFloat = 46
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: height)
-            .padding(.horizontal, 14)
-            .background(gradient.linear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 5, y: 3)
-            .opacity(configuration.isPressed ? 0.88 : 1)
+        Filled(configuration: configuration, gradient: gradient, height: height)
+    }
+
+    /// A disabled one fades, with no shadow, so it doesn't look ready to tap
+    /// ("Draft 0 dinners" with the week already planned).
+    private struct Filled: View {
+        @Environment(\.isEnabled) private var enabled
+        let configuration: Configuration
+        let gradient: Theme.Gradient
+        let height: CGFloat
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: height)
+                .padding(.horizontal, 14)
+                .background(gradient.linear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .shadow(color: .black.opacity(enabled ? 0.12 : 0), radius: 5, y: 3)
+                .opacity(!enabled ? 0.45 : configuration.isPressed ? 0.88 : 1)
+        }
     }
 }
 

@@ -147,6 +147,7 @@ function toGroup(g: SyncRow): PlannedGroup {
     dayOfWeek: num(g.dayOfWeek) ?? 0,
     mealType: mealType(g.mealType),
     sourceMealId: str(g.sourceMealId),
+    position: num(g.position) ?? 0,
   };
 }
 
@@ -159,6 +160,7 @@ function toEntry(e: SyncRow, recipe: SyncRow): Entry {
     addedToShoppingListAt: date(e.addedToShoppingListAt),
     groupId: str(e.groupId),
     mealRole: isMealRole(e.mealRole) ? e.mealRole : null,
+    position: num(e.position) ?? 0,
     recipe: {
       id: recipe.id,
       title: str(recipe.title) ?? "",

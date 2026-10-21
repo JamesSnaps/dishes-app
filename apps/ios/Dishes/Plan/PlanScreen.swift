@@ -264,20 +264,51 @@ struct PlanScreen: View {
             if meals.isEmpty {
                 EmptyBox(message: "No meals planned for this day")
             }
-            ForEach(meals) { meal in
-                Group {
-                    if meal.title != nil {
-                        MealGroupCard(meal: meal, delete: delete, cook: cook)
-                    } else if let dish = meal.dishes.first {
-                        EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete) { cook(meal) }
-                    }
+            // iOS 27: drag a meal up or down to arrange the day (D6).
+            VStack(alignment: .leading, spacing: 12) {
+                if #available(iOS 27, *) {
+                    ForEach(meals) { mealCard($0) }.reorderable()
+                } else {
+                    ForEach(meals) { mealCard($0) }
                 }
-                .appEntityIdentifier(EntityIdentifier(for: PlannedMealEntity.self, identifier: meal.id))
             }
+            .modifier(ReorderDay { sources, before in reorder(sources, before: before, in: meals) })
 
             Button { adding = true } label: { Label("Add meal", systemImage: "plus") }
                 .buttonStyle(.gradient(.violetIndigo))
                 .padding(.top, 4)
+        }
+    }
+
+    private func mealCard(_ meal: PlannedMeal) -> some View {
+        Group {
+            if meal.title != nil {
+                MealGroupCard(meal: meal, delete: delete, cook: cook)
+            } else if let dish = meal.dishes.first {
+                EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete) { cook(meal) }
+            }
+        }
+        .appEntityIdentifier(EntityIdentifier(for: PlannedMealEntity.self, identifier: meal.id))
+    }
+
+    /// A drop: the day's meals in their new order, offline-first — each
+    /// recipe or combined meal numbered 1, 2, 3… (`meal_plan_day.reorder`).
+    private func reorder(_ sources: [String], before: String?, in meals: [PlannedMeal]) {
+        let moving = meals.filter { sources.contains($0.id) }
+        let staying = meals.filter { !sources.contains($0.id) }
+        let at = before.flatMap { b in staying.firstIndex { $0.id == b } } ?? staying.count
+        let order = Array(staying[..<at]) + moving + Array(staying[at...])
+        guard order.map(\.id) != meals.map(\.id) else { return }
+        Task {
+            var optimistic: [OptimisticChange] = []
+            for (n, meal) in order.enumerated() {
+                let collection: SyncCollection = meal.groupId == nil ? .mealPlanEntries : .mealPlanGroups
+                if let record = try? await app.store.read({ try $0.record(collection, id: meal.id) }) {
+                    optimistic.append(.put(collection, record.merging(.object(["position": .number(Double(n + 1))]))))
+                }
+            }
+            let items = order.map { JSONValue.object(["kind": .string($0.groupId == nil ? "entry" : "group"), "id": .string($0.id)]) }
+            await app.mutate("meal_plan_day.reorder", payload: .object(["items": .array(items)]), optimistic: optimistic)
         }
     }
 
@@ -1090,6 +1121,26 @@ struct SavedMealChooser: View {
         } else {
             for other in slot.options { chosen.remove(other.id) }
             chosen.insert(option.id)
+        }
+    }
+}
+
+/// The iOS 27 reorder container around a day's meals: hands a drop to `move`
+/// as (the dragged meals, the meal they went in front of — nil at the end).
+private struct ReorderDay: ViewModifier {
+    let move: ([String], String?) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 27, *) {
+            content.reorderContainer(for: PlannedMeal.self) { difference in
+                let before: String? = switch difference.destination.position {
+                case .before(let id): id
+                case .end: nil
+                }
+                move(difference.sources, before)
+            }
+        } else {
+            content
         }
     }
 }

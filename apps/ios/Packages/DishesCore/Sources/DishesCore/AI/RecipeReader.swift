@@ -44,9 +44,11 @@ public enum RecipeReader {
     }
 
     /// A recipe from text — shared from a message, notes or a caption.
+    /// `model`: the device's, or DishesServerModel when it falls back.
     @available(iOS 27, macOS 27, *)
-    public static func read(text: String, context: AIContext?) async throws -> Reading {
-        let session = LanguageModelSession(instructions: Prompts.readRecipe(context, from: .text))
+    public static func read(text: String, context: AIContext?,
+                            model: some LanguageModel = SystemLanguageModel.default) async throws -> Reading {
+        let session = LanguageModelSession(model: model, instructions: Prompts.readRecipe(context, from: .text))
         let draft = try await session.respond(generating: RecipeDraft.self) {
             "The text:\n\(text)"
             "Extract the complete recipe."
@@ -54,11 +56,15 @@ public enum RecipeReader {
         return Reading(recipe: recoverNames(draft.recipe, from: text), pageText: text)
     }
 
+    /// `alwaysAttach`: send the photos however much text there is — the
+    /// server's model reads a photo well, and the context isn't small there.
     @available(iOS 27, macOS 27, *)
-    public static func read(_ pages: [CGImage], context: AIContext?) async throws -> Reading {
+    public static func read(_ pages: [CGImage], context: AIContext?,
+                            model: some LanguageModel = SystemLanguageModel.default,
+                            alwaysAttach: Bool = false) async throws -> Reading {
         let text = try await text(of: pages)
-        let withImages = text.count < littleText
-        let session = LanguageModelSession(instructions: Prompts.readRecipe(context))
+        let withImages = alwaysAttach || text.count < littleText
+        let session = LanguageModelSession(model: model, instructions: Prompts.readRecipe(context))
         let draft = try await session.respond(generating: RecipeDraft.self) {
             "Text recognised on the page:\n\(text.isEmpty ? "(none)" : text)"
             if withImages {

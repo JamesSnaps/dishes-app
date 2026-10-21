@@ -937,7 +937,7 @@ seconds, so clients should allow a long timeout.
 - `POST /api/v1/ai/meal-plan` `{ weekStartDate, slots: [{ dayOfWeek, mealType }], preferences, memberIds?, favouritesOnly?, heartHealthy? }`
   → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId? }] }` — a draft, nothing saved
 - `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
-- `POST /api/v1/ai/respond` `{ messages: [{ role: "system" | "user" | "assistant", content }], schema?: <JSON Schema>, settings?: boolean, maxTokens?: number }` → the answer as streamed plain text (JSON text when `schema` is sent: OpenAI structured outputs, non-strict). A plain model call through the household's key, for the iOS app's `DishesServerModel` — the device's own prompts and schemas run on the server. `settings: true` adds the household's AI settings (measurements, default prompt, equipment) to the system message. 30 calls a minute per member: past that, 429 with `Retry-After`
+- `POST /api/v1/ai/respond` `{ messages: [{ role: "system" | "user" | "assistant", content, images?: [{ mimeType, data: <base64> }] }], schema?: <JSON Schema>, settings?: boolean, maxTokens?: number }` → the answer as streamed plain text (JSON text when `schema` is sent: OpenAI structured outputs, non-strict). A plain model call through the household's key, for the iOS app's `DishesServerModel` — the device's own prompts and schemas run on the server, photos included (up to 4 per message, as a scanned recipe page). `settings: true` adds the household's AI settings (measurements, default prompt, equipment) to the system message. 30 calls a minute per member: past that, 429 with `Retry-After`
 - `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text. The iOS app answers on the device first (iOS 27) and comes here when it can't
 
 ### `POST /api/v1/client-error`
@@ -1574,6 +1574,7 @@ Supported `type` values:
 | `meal_plan_group.add_from_meal` | `mealId`, `weekStartDate`, `dayOfWeek`; optional `mealType` (default: the meal's own), `optionIds` (chosen options across all slots — omit for each slot's defaults; a slot with none listed is left out), `servings`. Returns the new group's `id`; the group and its entries arrive in the next pull. The choices become the saved meal's next defaults, as on the web |
 | `meal_plan_group.update` | `groupId` + any of `title`, `dayOfWeek`, `mealType`, `servings` |
 | `meal_plan_group.delete` | `groupId`; `keepRecipes` leaves its recipes on the plan as separate meals |
+| `meal_plan_day.reorder` | `items: [{ kind: "entry" \| "group", id }]` — a day's loose recipes and combined meals in the order to show them; each gets `position` 1, 2, 3… The planners sort by `position`, then meal type (all 0 until someone reorders) |
 
 Recipe and saved-meal edits are deliberately absent: they are rare offline and much larger to
 merge. Create and edit recipes through `/api/v1/recipes` while connected.

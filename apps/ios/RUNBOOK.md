@@ -1310,3 +1310,24 @@ started.
 with real photos (the seed has none), a real MetricKit report (none in the
 simulator), the planner's ordering within a day (not built: meals have no
 order field).
+
+### 21 Oct 2026 — Loose ends: plan sheet, photos on the server model, a day's order (v1.62.0)
+
+- Plan sheet: "Draft 7 lunches", and a disabled gradient button now looks
+  disabled (it was "Draft 0 dinners" at full colour). The "unselected pill"
+  seen before was a lagging screenshot, not the app
+- Photos through `/ai/respond`: the scan and share fallbacks run `RecipeReader`
+  on `DishesServerModel` with the pages attached, back as a draft (iOS 27)
+- A day's meals in the order you drag them: `position` (migration `0045`,
+  applied to the dev database by hand), `meal_plan_day.reorder`, both planners
+  sort by it
+
+Checked: `DishesServerModelTests` (a scanned page goes with its JPEG and comes
+back as a draft); the reorder mutation through `/api/v1/sync` by curl, then the
+app showing Sunday as risotto, shakshuka, salad (positions put back after).
+
+Simulator screenshots from the control tool can lag by several seconds — use
+`xcrun simctl io <udid> screenshot` when a check depends on it.
+
+**Not checked:** a real drag on the planner (the simulator can't), a photo read
+by the household's AI for real (no key in dev).

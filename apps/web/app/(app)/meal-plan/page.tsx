@@ -62,6 +62,7 @@ export default async function MealPlanPage({
             addedToShoppingListAt: mealPlanEntries.addedToShoppingListAt,
             groupId: mealPlanEntries.groupId,
             mealRole: mealPlanEntries.mealRole,
+            position: mealPlanEntries.position,
             recipe: {
               id: recipes.id,
               title: recipes.title,
@@ -124,6 +125,7 @@ export default async function MealPlanPage({
             dayOfWeek: mealPlanGroups.dayOfWeek,
             mealType: mealPlanGroups.mealType,
             sourceMealId: mealPlanGroups.sourceMealId,
+            position: mealPlanGroups.position,
           })
           .from(mealPlanGroups)
           .where(eq(mealPlanGroups.mealPlanId, plan.id))
