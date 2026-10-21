@@ -193,11 +193,11 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
   }
 
   // As the iOS app's RecipeDetailView.relative: "today", "3 days ago", "12 Mar 2026".
+  // Local days (as getTonight's "cooked today"), not UTC ones, so a cook just
+  // after midnight in summer time isn't "yesterday".
   function formatCookedAgo(iso: string): string {
-    const day = iso.slice(0, 10);
-    const days = Math.round(
-      (new Date(today + "T00:00:00").getTime() - new Date(day + "T00:00:00").getTime()) / (24 * 60 * 60 * 1000)
-    );
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days = Math.round((startOfDay(new Date()) - startOfDay(new Date(iso))) / (24 * 60 * 60 * 1000));
     if (days < 1) return "today";
     if (days === 1) return "yesterday";
     if (days < 7) return `${days} days ago`;

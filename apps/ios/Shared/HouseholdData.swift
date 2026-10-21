@@ -105,9 +105,13 @@ struct PlanData: Sendable {
     /// Tonight's meal, minding what's been cooked today (`cooked`, recipe ids
     /// from `cookedToday`): dinner, or the last meal planned today, until it's
     /// cooked; then the next meal after it with something still to cook
-    /// (dessert after dinner); else that meal again, `cooked` set.
+    /// (dessert after dinner); else that meal again, `cooked` set. Walks the
+    /// day by meal type, not as arranged, so a dessert dragged above dinner
+    /// still comes after it — as the web's getTonight.
     func tonight(cooked: Set<String>, now: Date = Date()) -> (meal: PlannedMeal, cooked: Bool)? {
-        let meals = meals(on: Week.dayIndex(of: now), in: Week.containing(now))
+        let meals = meals(on: Week.dayIndex(of: now), in: Week.containing(now)).sorted {
+            (mealTypeOrder.firstIndex(of: $0.mealType) ?? 9, $0.id) < (mealTypeOrder.firstIndex(of: $1.mealType) ?? 9, $1.id)
+        }
         guard let start = meals.firstIndex(where: { $0.mealType == "dinner" }) ?? meals.indices.last else { return nil }
         if !meals[start].isCooked(by: cooked) { return (meals[start], false) }
         let next = meals[(start + 1)...].first { $0.hasStepsToCook && !$0.isCooked(by: cooked) }
