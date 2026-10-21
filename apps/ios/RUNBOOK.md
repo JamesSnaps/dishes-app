@@ -1471,4 +1471,4 @@ tonight's dinner (card green, no pill); web banner checked the same way.
   one), each person's own rating in amber after their name; no chips
 
 Checked on the iPad Pro 11-inch simulator with seeded cooks (two columns,
-menu and tap-to-edit both work); iPhone builds but wasn't looked at.
+menu and tap-to-edit both work) and the iPhone 18 Pro (one column, menu works).
