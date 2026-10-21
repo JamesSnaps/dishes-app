@@ -102,8 +102,18 @@ apps/ios/scripts/testflight.sh            # archive (Release, app + widgets) and
 UPLOAD=0 apps/ios/scripts/testflight.sh   # archive and export an .ipa only
 ```
 
-- Run it from your own terminal: it signs with the Apple account in Xcode
-  (team C729B84RYG, automatic signing), which a sandboxed shell can't see.
+- It signs and uploads with an **App Store Connect API key** (Admin role) when
+  `~/.appstoreconnect/dishes.env` names one (`ASC_KEY_ID`, `ASC_ISSUER_ID`;
+  the key at `~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8`, never in the
+  repo). Xcode 27.1 stopped sharing its signed-in account with `xcodebuild`
+  ("No Accounts", even from your own Terminal), so the key is what works.
+  Without one it falls back to Xcode's account (team C729B84RYG).
+- A new capability (App Groups, HealthKit…) has to be on the App ID first:
+  with a key, `xcodebuild` can't switch one on and says "Authentication
+  failed". Open the target's Signing & Capabilities in Xcode once and it
+  registers them.
+- The script puts `/usr/bin` first on the PATH: Homebrew's rsync 3.x breaks
+  Xcode's export ("Copy failed").
 - The build number is the UTC time (`yyyymmddHHMM`); the version is
   `MARKETING_VERSION` in `project.yml`.
 - Needs the app in App Store Connect once: Apps → ＋ → New App, iOS, bundle id
@@ -1366,3 +1376,10 @@ against the app's; the association file served; `DishesLink` on sample URLs.
 two devices), Health on a device. The Lock Screen card's text sometimes
 captures white-on-white in simulator screenshots, the cooking card too; it
 draws correctly a moment later.
+
+Uploaded to TestFlight as 1.63.0 (build 202610210831) from main, after PR #59
+merged — the first upload since 1.53.0, so it carries all of Phase D too. On
+the way: Xcode 27.1's account wasn't visible to `xcodebuild`, so the script now
+takes an App Store Connect API key; the App IDs lacked App Groups, HealthKit
+and Associated Domains until Xcode's Signing & Capabilities registered them;
+and Homebrew's rsync broke the export.
