@@ -1404,4 +1404,6 @@ and Homebrew's rsync broke the export.
   along to it, and glows for a couple of seconds (`spotlight`); a success haptic
 
 Checked: built and launched on the iPhone 18 Pro simulator. **Not checked:**
-the flows by hand on a device — needs a new TestFlight build.
+the flows by hand on a device.
+
+Uploaded to TestFlight as 1.63.1 (build 202610211640) from the PR #61 branch.
