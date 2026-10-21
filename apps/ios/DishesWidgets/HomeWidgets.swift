@@ -48,7 +48,11 @@ enum WidgetTheme {
     static let violet = Color(red: 0.486, green: 0.227, blue: 0.929)   // #7C3AED
     static let blue = Color(red: 0.145, green: 0.388, blue: 0.922)     // #2563EB
     static let sky = Color(red: 0.055, green: 0.647, blue: 0.914)      // #0EA5E9
+    static let emerald = Color(red: 0.020, green: 0.588, blue: 0.412)  // #059669
+    static let teal = Color(red: 0.078, green: 0.722, blue: 0.651)     // #14B8A6
     static let tonight = LinearGradient(colors: [brand, rose], startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// Tonight's meal, cooked: the Recipes tab's card goes green too.
+    static let cooked = LinearGradient(colors: [emerald, teal], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let week = LinearGradient(colors: [violet, brand], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let shopping = LinearGradient(colors: [blue, sky], startPoint: .topLeading, endPoint: .bottomTrailing)
 }
@@ -142,6 +146,8 @@ struct TonightEntry: TimelineEntry {
     var serveAt: String?
     var minutes: Int?
     var link: URL
+    /// Made already (a cook logged today for every dish): ticked, green, no Start cooking.
+    var cooked = false
     /// The app hasn't made its database yet: open it once.
     var noData = false
 }
@@ -169,16 +175,21 @@ struct TonightProvider: AppIntentTimelineProvider {
     }
 
     func entry(_ meal: WidgetMeal, now: Date) async -> TonightEntry? {
-        guard let data = await WidgetStore.read(PlanData.load) else { return nil }
-        let planned = data.today(meal.mealType, now: now)
+        guard case let (data, cookedToday)? = await WidgetStore.read({ r in (try PlanData.load(r), try PlanData.cookedToday(r, now: now)) })
+        else { return nil }
+        // Tonight's moves on to the next meal once it's cooked (dessert after dinner), as in the app.
+        let tonight = meal.mealType == nil ? data.tonight(cooked: cookedToday, now: now) : nil
+        let planned = tonight?.meal ?? data.today(meal.mealType, now: now)
+        let cooked = tonight?.cooked ?? planned?.isCooked(by: cookedToday) ?? false
         let type = planned?.mealType ?? meal.mealType ?? "dinner"
-        let heading = meal == .tonight ? "Tonight · \(type.capitalized)" : "Today · \(type.capitalized)"
+        let heading = cooked ? "Cooked · \(type.capitalized)"
+            : meal == .tonight ? "Tonight · \(type.capitalized)" : "Today · \(type.capitalized)"
         guard let planned else { return TonightEntry(date: now, heading: heading, link: WidgetLink.plan.url) }
         let recipes = planned.dishes.compactMap(\.recipe)
         let minutes = recipes.compactMap(\.totalMinutes).max()
         return TonightEntry(date: now, heading: heading, title: planned.title ?? recipes.map(\.title).joined(separator: " + "),
-                            dishes: recipes.map(\.title), serveAt: planned.serveAt, minutes: minutes,
-                            link: WidgetLink.cook(mealType: planned.mealType).url)
+                            dishes: recipes.map(\.title), serveAt: cooked ? nil : planned.serveAt, minutes: cooked ? nil : minutes,
+                            link: cooked ? WidgetLink.plan.url : WidgetLink.cook(mealType: planned.mealType).url, cooked: cooked)
     }
 }
 
@@ -201,7 +212,7 @@ struct TonightView: View {
     var body: some View {
         switch family {
         case .accessoryInline:
-            Label(entry.title ?? "Nothing planned", systemImage: "fork.knife")
+            Label(entry.title ?? "Nothing planned", systemImage: entry.cooked ? "checkmark.circle" : "fork.knife")
                 .widgetURL(entry.link)
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 1) {
@@ -246,8 +257,12 @@ struct TonightView: View {
                 Spacer(minLength: 0)
                 if family == .systemMedium {
                     HStack(spacing: 8) {
-                        Link(destination: entry.link) { pill("Start cooking", icon: "frying.pan.fill", solid: true) }
-                        Link(destination: WidgetLink.plan.url) { pill("Planner", icon: "calendar", solid: false) }
+                        if entry.cooked {
+                            Link(destination: WidgetLink.plan.url) { pill("Planner", icon: "calendar", solid: true) }
+                        } else {
+                            Link(destination: entry.link) { pill("Start cooking", icon: "frying.pan.fill", solid: true) }
+                            Link(destination: WidgetLink.plan.url) { pill("Planner", icon: "calendar", solid: false) }
+                        }
                     }
                 }
             } else {
@@ -257,7 +272,7 @@ struct TonightView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .widgetBackground(WidgetTheme.tonight)
+        .widgetBackground(entry.cooked ? WidgetTheme.cooked : WidgetTheme.tonight)
         .widgetURL(entry.link)
     }
 
@@ -267,7 +282,7 @@ struct TonightView: View {
         Label(title, systemImage: icon)
             .font(.system(size: 13, weight: .bold))
             .padding(.horizontal, 12).frame(height: 32)
-            .foregroundStyle(mode == .fullColor ? (solid ? WidgetTheme.brand : .white) : .primary)
+            .foregroundStyle(mode == .fullColor ? (solid ? (entry.cooked ? WidgetTheme.emerald : WidgetTheme.brand) : .white) : .primary)
             .background(mode == .fullColor ? Color.white.opacity(solid ? 1 : 0.25) : Color.primary.opacity(0.12), in: Capsule())
             .widgetAccentable(solid)
     }

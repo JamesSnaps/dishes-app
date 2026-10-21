@@ -79,7 +79,16 @@ struct NutritionPanel: View {
     }
 
     /// 🔥 520 kcal per serving · Heart-healthy · Nutrition ⌄ — the always-visible line.
+    /// When that doesn't fit on one line the badge shrinks to just its heart.
     private var summary: some View {
+        ViewThatFits(in: .horizontal) {
+            summaryRow(compactBadge: false)
+            summaryRow(compactBadge: true)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func summaryRow(compactBadge: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: "flame").foregroundStyle(Color(hex: 0x9A3412))
             if let kcal = recipe.calories {
@@ -89,14 +98,23 @@ struct NutritionPanel: View {
             Text("per serving").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
             Spacer(minLength: 6)
             if recipe.isHeartHealthy {
-                Label("Heart-healthy", systemImage: "heart.text.square.fill")
-                    .labelStyle(TightLabel())
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 3)
-                    .background(LinearGradient(colors: [Color(hex: 0xF43F5E), Color(hex: 0xEC4899)],
-                                               startPoint: .leading, endPoint: .trailing), in: Capsule())
+                Group {
+                    if compactBadge {
+                        Image(systemName: "heart.fill")
+                            .frame(width: 24, height: 24)
+                            .accessibilityLabel("Heart-healthy")
+                    } else {
+                        Label("Heart-healthy", systemImage: "heart.fill")
+                            .labelStyle(TightLabel())
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 3)
+                    }
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .background(LinearGradient(colors: [Color(hex: 0xF43F5E), Color(hex: 0xEC4899)],
+                                           startPoint: .leading, endPoint: .trailing), in: Capsule())
             }
             if !open {
                 Text("Nutrition").font(.system(size: 13, weight: .medium)).foregroundStyle(Color(hex: 0x9A3412))
@@ -106,7 +124,6 @@ struct NutritionPanel: View {
                 .foregroundStyle(Color(hex: 0x9A3412))
                 .rotationEffect(.degrees(open ? 180 : 0))
         }
-        .contentShape(Rectangle())
     }
 
     @ViewBuilder

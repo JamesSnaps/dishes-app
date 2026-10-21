@@ -27,6 +27,8 @@ import SwiftUI
 @MainActor @Observable
 final class AppNav {
     enum Tab: String, CaseIterable { case recipes, plan, ai, shopping, more }
+    /// A cuisine or difficulty badge tapped on a recipe page.
+    enum RecipeTag: Equatable { case cuisine(String), difficulty(Difficulty) }
 
     var tab: Tab = Tab(rawValue: UserDefaults.standard.string(forKey: "tab") ?? "") ?? .recipes {
         didSet {
@@ -51,6 +53,11 @@ final class AppNav {
     var recipeSearch = ""
     /// A recipe for Recipes to open, which it clears once shown.
     var openedRecipe: String?
+    /// Recipes sharing a tapped badge, for Recipes to show as its grid; it
+    /// clears it once applied.
+    var recipeTag: RecipeTag? {
+        didSet { if recipeTag != nil { tab = .recipes } }
+    }
     /// A recipe page sent as dishes://import?url=…, for Recipes to import; it
     /// clears it once the import sheet is up.
     var importLink: WebImportLink? {
@@ -300,7 +307,7 @@ struct RootView: View {
                 switch request {
                 case .tonight:
                     // A double optional: an unreadable store, or nothing to cook tonight.
-                    if let tonight = (try? await app.store.read(TonightMeal.load)) ?? nil { nav.cooking = tonight } else { nav.tab = .plan }
+                    if let tonight = (try? await app.store.read(TonightMeal.loadAny)) ?? nil { nav.cooking = tonight } else { nav.tab = .plan }
                 case .today(let mealType):
                     if let meal = (try? await app.store.read { try TonightMeal.load($0, mealType: mealType) }) ?? nil {
                         nav.cooking = meal
@@ -437,7 +444,7 @@ extension RootView {
     /// recipe is part of it (every dish's timers together), else just that recipe.
     func openCooking(_ recipeId: String) async {
         let request = try? await app.store.read { r -> CookRequest? in
-            if let tonight = try TonightMeal.load(r), tonight.dishes.contains(where: { $0.recipe.id == recipeId }) {
+            if let tonight = try TonightMeal.load(r, mealType: nil), tonight.dishes.contains(where: { $0.recipe.id == recipeId }) {
                 return tonight
             }
             guard let recipe = try r.record(.recipes, id: recipeId).flatMap(Recipe.init), !recipe.steps.isEmpty else { return nil }
@@ -448,12 +455,26 @@ extension RootView {
 }
 
 enum TonightMeal {
-    @Sendable static func load(_ r: StoreReader) throws -> CookRequest? { try load(r, mealType: nil) }
+    /// Tonight's meal still to cook (PlanData.tonight): nil once it's cooked,
+    /// so the pill goes; the Recipes tab's card shows it done instead.
+    @Sendable static func load(_ r: StoreReader) throws -> CookRequest? {
+        guard let tonight = try PlanData.load(r).tonight(cooked: PlanData.cookedToday(r)), !tonight.cooked else { return nil }
+        return request(tonight.meal)
+    }
 
-    /// Today's meal of `mealType`; nil: dinner, or the last meal planned today.
+    /// The one still to cook, else tonight's meal even though it's been cooked:
+    /// for asking to cook it (Siri, the Watch), which shouldn't come up empty.
+    @Sendable static func loadAny(_ r: StoreReader) throws -> CookRequest? {
+        try load(r) ?? load(r, mealType: nil)
+    }
+
+    /// Today's meal of `mealType`, cooked or not; nil: dinner, or the last meal planned today.
     static func load(_ r: StoreReader, mealType: String?) throws -> CookRequest? {
-        let data = try PlanData.load(r)
-        guard let meal = data.today(mealType) else { return nil }
+        guard let meal = try PlanData.load(r).today(mealType) else { return nil }
+        return request(meal)
+    }
+
+    private static func request(_ meal: PlannedMeal) -> CookRequest? {
         let dishes = CookDish.inStartOrder(meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty })
         return dishes.isEmpty ? nil : CookRequest(title: meal.title, groupId: meal.groupId, dishes: dishes)
     }

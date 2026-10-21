@@ -205,6 +205,18 @@ struct RecipesScreen: View {
                 nav.openedRecipe = nil
                 path.append(id)
             }
+            // A cuisine or difficulty badge tapped on a recipe page: back to the
+            // grid, showing the recipes that share it.
+            .onChange(of: nav.recipeTag, initial: true) { _, tag in
+                guard let tag else { return }
+                nav.recipeTag = nil
+                clear()
+                switch tag {
+                case .cuisine(let name): cuisine = name
+                case .difficulty(let level): filters.difficulty = level
+                }
+                path = NavigationPath()
+            }
             .sheet(item: $photo) { photo in
                 ConciergeSheet(photos: photo.pages) { id in path.append(id) }
                     .presentationSizing(.page)

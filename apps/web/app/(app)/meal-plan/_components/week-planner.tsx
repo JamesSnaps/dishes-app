@@ -11,6 +11,9 @@ import {
   Plus,
   Lightbulb,
   Truck,
+  Heart,
+  AlertTriangle,
+  Check,
 } from "lucide-react";
 import {
   DndContext,
@@ -25,7 +28,18 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { Button, ToastAction } from "@dishes/ui";
+import {
+  ToastAction,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@dishes/ui";
 import {
   generateShoppingFromWeek,
   moveMealEntry,
@@ -45,16 +59,15 @@ import { DinnerTimeChip, useWeekDinnerSchedule } from "./dinner-time-chip";
 import { DeliveryChip, useWeekDeliveries } from "./delivery-chip";
 import { NextDeliveryCard } from "@/components/deliveries/next-delivery-card";
 import { EntryCard } from "./entry-card";
-import { MealGroupCard, groupTotalMinutes } from "./meal-group-card";
+import { MealGroupCard } from "./meal-group-card";
 import { CombineMealDialog } from "./combine-meal-dialog";
 import { BuildMealDialog } from "./build-meal-dialog";
 import { defaultSelection, needsChoices, selectionToComponents } from "@/lib/saved-meals";
 import { usePlanWriter } from "./plan-writer";
 import { WeekNutritionPanel } from "./week-nutrition-card";
-import { summariseMeals } from "@/lib/meal-stats";
+import { summariseMeals, meetsTarget, WEEKLY_PROTEIN_TARGETS, type ProteinKind } from "@/lib/meal-stats";
 import { suggestSwaps, type SwapSuggestion } from "@/lib/meal-swaps";
 
-const NUTRITION_OPEN_KEY = "dishes:meal-plan:nutrition-open";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "dessert", "snack"];
@@ -242,11 +255,21 @@ function formatDayHeading(weekStart: string, dayIndex: number): string {
   return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }
 
-function formatTotalTime(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+/** Checklist lines still to do for the next order — as the iOS app's NextDeliveryCard.toDo. */
+function deliveryToDo(next: {
+  unplannedCount: number;
+  mealsNotOnList: number;
+  unticked: number;
+  addedSinceOrder: string[];
+  belowMinimum?: string | null;
+}): number {
+  return [
+    next.unplannedCount > 0,
+    next.mealsNotOnList > 0,
+    next.unticked > 0,
+    next.addedSinceOrder.length > 0,
+    !!next.belowMinimum,
+  ].filter(Boolean).length;
 }
 
 // Module-level: persists across client-side navigations so the incoming page
@@ -996,14 +1019,6 @@ export function WeekPlanner({
   // the dishes cook alongside each other.
   const dayItems = useMemo(() => groupEntries(localEntries, localGroups), [localEntries, localGroups]);
   const totalMeals = dayItems.length;
-  const totalTime = dayItems.reduce(
-    (sum, item) =>
-      sum +
-      (item.kind === "group"
-        ? groupTotalMinutes(item.entries)
-        : (item.entry.recipe.prepTimeMinutes ?? 0) + (item.entry.recipe.cookTimeMinutes ?? 0)),
-    0
-  );
 
   // Nutrition summary and swap suggestions, recomputed as entries move.
   const recipeById = useMemo(() => new Map(recipes.map((r) => [r.id, r])), [recipes]);
@@ -1044,19 +1059,11 @@ export function WeekPlanner({
     [suggestions]
   );
 
-  // Collapsed by default; remembered per device.
+  // Opened from the heart pill under the week title (or a day's 💡).
   const [nutritionOpen, setNutritionOpen] = useState(false);
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(NUTRITION_OPEN_KEY) === "1") setNutritionOpen(true);
-    } catch {}
-  }, []);
-  function changeNutritionOpen(open: boolean) {
-    setNutritionOpen(open);
-    try {
-      localStorage.setItem(NUTRITION_OPEN_KEY, open ? "1" : "0");
-    } catch {}
-  }
+  const changeNutritionOpen = setNutritionOpen;
+  const [adding, setAdding] = useState(false);
+  const [deliveryOpen, setDeliveryOpen] = useState(false);
   function showSuggestions() {
     changeNutritionOpen(true);
     requestAnimationFrame(() =>
@@ -1259,6 +1266,46 @@ export function WeekPlanner({
               onClick={() => navigate(nextWeek, "next")}
             />
 
+            {/* The orange +: add a meal, generate a plan, or send the week to the list */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex-shrink-0 h-9 w-9 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md transition-colors ml-1"
+                  aria-label="Add or plan"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem disabled={recipes.length === 0} onSelect={() => setAdding(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add meal
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => router.push("/ai-concierge?tab=plan")}>
+                  <Sparkles className="mr-2 h-4 w-4 text-violet-500" />
+                  Generate plan…
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {totalMeals > 0 && planId && pendingShoppingCount > 0 ? (
+                  <DropdownMenuItem disabled={shoppingPending} onSelect={handleGenerateShopping}>
+                    <ShoppingCart className="mr-2 h-4 w-4 text-sky-600" />
+                    {shoppingPending
+                      ? "Adding…"
+                      : `Add ${pendingShoppingCount} meal${pendingShoppingCount === 1 ? "" : "s"} to shopping list`}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={() => router.push("/shopping")}>
+                    {totalMeals > 0 ? (
+                      <Check className="mr-2 h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <ShoppingCart className="mr-2 h-4 w-4 text-sky-600" />
+                    )}
+                    {totalMeals > 0 ? "All on the list — " : ""}
+                    {shoppingItemCount > 0 ? `${shoppingItemCount} to buy` : "Shopping list"}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
             {recipes.length > 0 && (
               <AddEntryDialog
                 weekStartDate={weekStartDate}
@@ -1268,27 +1315,88 @@ export function WeekPlanner({
                 onAdd={mutations?.addEntry}
                 savedMeals={savedMeals}
                 onAddSavedMeal={handleAddSavedMeal}
-                trigger={
-                  <button
-                    className="flex-shrink-0 h-9 w-9 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md transition-colors ml-1"
-                    aria-label="Add meal"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                }
+                open={adding}
+                onOpenChange={setAdding}
               />
             )}
           </div>
 
-          <p className="text-sm text-muted-foreground mb-5 pl-9">
-            {[
-              isCurrentWeek ? formatWeekRange(weekStartDate) : null,
-              totalMeals > 0 ? `${totalMeals} meal${totalMeals === 1 ? "" : "s"}` : null,
-              totalTime > 0 ? `${formatTotalTime(totalTime)} cooking` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+          {/* Next order and the week's nutrition, as small pills — the order
+              only while it has something to do */}
+          {(() => {
+            const next = deliveryPanel?.next;
+            const toDo = next ? deliveryToDo(next) : 0;
+            const showDelivery = !!next && (next.status !== "ordered" || toDo > 0);
+            const showNutrition = nutritionSummary.meals > 0;
+            if (!showDelivery && !showNutrition) return <div className="mb-4" />;
+            const offTargets = heartFocus
+              ? (Object.keys(WEEKLY_PROTEIN_TARGETS) as ProteinKind[]).filter(
+                  (k) => meetsTarget(k, nutritionSummary.proteins[k]) === false
+                ).length
+              : 0;
+            return (
+              <div className="mb-4 flex flex-wrap items-center gap-2 pl-9">
+                {showDelivery && next && (
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryOpen(true)}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-300/70 bg-emerald-50 px-2.5 text-xs font-semibold shadow-sm transition-colors hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70"
+                  >
+                    <Truck className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
+                    {next.status === "ordered" ? `Ordered for ${next.day}` : `Order for ${next.day}`}
+                    {toDo > 0 && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="h-3 w-3" />
+                          {toDo} to do
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )}
+                {showNutrition && (
+                  <button
+                    type="button"
+                    onClick={() => changeNutritionOpen(!nutritionOpen)}
+                    aria-expanded={nutritionOpen}
+                    aria-label={`${
+                      nutritionSummary.withNutrition
+                        ? `${nutritionSummary.heartHealthy} of ${nutritionSummary.withNutrition} meals heart-healthy`
+                        : "This week’s nutrition"
+                    }${suggestions.length ? `, ${suggestions.length} swaps suggested` : ""}`}
+                    className={`inline-flex h-7 items-center gap-1.5 rounded-full border bg-rose-50 px-2.5 text-xs font-semibold shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/70 ${
+                      offTargets > 0
+                        ? "border-amber-300 dark:border-amber-700/70"
+                        : "border-rose-200 dark:border-rose-900/60"
+                    } ${nutritionOpen ? "ring-2 ring-rose-300/60" : ""}`}
+                  >
+                    <Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />
+                    {nutritionSummary.withNutrition
+                      ? `${nutritionSummary.heartHealthy}/${nutritionSummary.withNutrition}`
+                      : "Nutrition"}
+                    {suggestions.length > 0 ? (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400">
+                          <Lightbulb className="h-3 w-3" />
+                          {suggestions.length} swap{suggestions.length === 1 ? "" : "s"}
+                        </span>
+                      </>
+                    ) : offTargets > 0 ? (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="h-3 w-3" />
+                          {offTargets} off
+                        </span>
+                      </>
+                    ) : null}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── Day strip — droppable chips ── */}
           <div className="grid grid-cols-7 gap-1.5 mb-5">
@@ -1315,60 +1423,34 @@ export function WeekPlanner({
             })}
           </div>
 
-          {/* ── Actions ── */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <Button
-              className="h-auto py-3 justify-center gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white shadow-md"
-              onClick={() => router.push("/ai-concierge?tab=plan")}
-            >
-              <Sparkles className="h-4 w-4" />
-              Generate plan
-            </Button>
-
-            {totalMeals > 0 && planId && pendingShoppingCount > 0 ? (
-              <Button
-                className="h-auto py-3 justify-center gap-2 bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 border-0 text-white shadow-md"
-                onClick={handleGenerateShopping}
-                disabled={shoppingPending}
-              >
-                <ShoppingCart className="h-4 w-4" />
-                {shoppingPending
-                  ? "Adding…"
-                  : `Add ${pendingShoppingCount} meal${pendingShoppingCount === 1 ? "" : "s"} to list`}
-              </Button>
-            ) : (
-              <Button
-                className="h-auto py-3 justify-center gap-2 bg-blue-50 dark:bg-blue-950/40 bg-gradient-to-br from-blue-500/15 to-sky-500/10 hover:from-blue-500/25 hover:to-sky-500/20 border border-blue-300/60 dark:border-blue-800/60 text-blue-800 dark:text-blue-200 shadow-sm"
-                onClick={() => router.push("/shopping")}
-              >
-                <ShoppingCart className="h-4 w-4" />
-                {shoppingItemCount > 0 ? `${shoppingItemCount} to buy` : "Shopping list"}
-                <ChevronRight className="h-4 w-4 opacity-60" />
-              </Button>
-            )}
-          </div>
-
-          {deliveryPanel?.next && (
-            <div className="mb-4">
-              <NextDeliveryCard
-                next={deliveryPanel.next}
-                canEdit={deliveryPanel.canEdit}
-                onChanged={reloadDeliveries}
-              />
-            </div>
+          {nutritionOpen && (
+            <WeekNutritionPanel
+              summary={nutritionSummary}
+              heartFocus={heartFocus}
+              suggestions={suggestions}
+              topIngredients={topIngredients}
+              open
+              onOpenChange={changeNutritionOpen}
+              weekStartDate={weekStartDate}
+              mutations={mutations}
+              onSelectDay={setSelectedDay}
+            />
           )}
 
-          <WeekNutritionPanel
-            summary={nutritionSummary}
-            heartFocus={heartFocus}
-            suggestions={suggestions}
-            topIngredients={topIngredients}
-            open={nutritionOpen}
-            onOpenChange={changeNutritionOpen}
-            weekStartDate={weekStartDate}
-            mutations={mutations}
-            onSelectDay={setSelectedDay}
-          />
+          {deliveryPanel?.next && (
+            <Dialog open={deliveryOpen} onOpenChange={setDeliveryOpen}>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Next order</DialogTitle>
+                </DialogHeader>
+                <NextDeliveryCard
+                  next={deliveryPanel.next}
+                  canEdit={deliveryPanel.canEdit}
+                  onChanged={reloadDeliveries}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
 
           {/* ── Selected day ── */}
           <div>

@@ -29,7 +29,7 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
         var tonight: CookRequest?
 
         @Sendable static func load(_ r: StoreReader) throws -> Source {
-            Source(shopping: try ShoppingData.load(r), tonight: try TonightMeal.load(r))
+            Source(shopping: try ShoppingData.load(r), tonight: try TonightMeal.loadAny(r))
         }
     }
 

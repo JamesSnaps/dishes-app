@@ -6,7 +6,7 @@
 // of behind a tab — decided by the space, not the device.
 //
 // Below the header: the household's rating and how often it's been cooked and
-// planned, with Log a cook; the full nutrition panel; Add to shopping list on
+// planned; the full nutrition panel; Add to shopping list on
 // the ingredients; and, after the method, every logged cook and a few
 // recipes like this one — all from the device's copy.
 //
@@ -237,15 +237,25 @@ struct RecipeDetailView: View {
             }
             FlowLayout(spacing: 10) {
                 RecipeRoleBadge(role: recipe.mealRole) { choosingRole = true }
-                if let cuisine = recipe.cuisine { BadgeView(text: cuisine) }
-                if let difficulty = recipe.difficulty { BadgeView(text: difficulty.rawValue.capitalized, style: .outline) }
+                if let cuisine = recipe.cuisine {
+                    Button { nav.recipeTag = .cuisine(cuisine) } label: { BadgeView(text: cuisine) }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Shows other \(cuisine) recipes")
+                }
+                if let difficulty = recipe.difficulty {
+                    Button { nav.recipeTag = .difficulty(difficulty) } label: {
+                        BadgeView(text: difficulty.rawValue.capitalized, style: .outline)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Shows other \(difficulty.rawValue) recipes")
+                }
                 if let time = Format.shortMinutes(recipe.totalMinutes) {
                     Label(time, systemImage: "clock").labelStyle(TightLabel())
                 }
                 if let base = recipe.servings {
-                    Label("\(Format.amount(String(servings ?? base)) ?? "") \(recipe.servingsUnit ?? "servings")",
-                          systemImage: "person.2")
+                    Label(Self.servingsText(servings ?? base, unit: recipe.servingsUnit), systemImage: "person.2")
                         .labelStyle(TightLabel())
+                        .accessibilityLabel("\(Format.amount(String(servings ?? base)) ?? "") \(recipe.servingsUnit ?? "servings")")
                 }
             }
             .font(.system(size: 14))
@@ -262,9 +272,10 @@ struct RecipeDetailView: View {
                     Button { servings = max(1, current - 1) } label: { Image(systemName: "minus") }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Fewer servings")
-                    Text("\(Format.amount(String(current)) ?? "") \(recipe.servingsUnit ?? "servings")")
+                    Text(Self.servingsText(current, unit: recipe.servingsUnit))
                         .font(.system(size: 15, weight: .semibold))
                         .monospacedDigit()
+                        .accessibilityLabel("\(Format.amount(String(current)) ?? "") \(recipe.servingsUnit ?? "servings")")
                     Button { servings = min(50, current + 1) } label: { Image(systemName: "plus") }
                         .buttonStyle(.plain)
                         .accessibilityLabel("More servings")
@@ -337,7 +348,8 @@ struct RecipeDetailView: View {
 
     // MARK: Rating, history, related
 
-    /// ★★★★½ 4.5/5 · Cooked 3 times · On the menu twice — and Log a cook.
+    /// ★★★★½ 4.5/5, then "Cooked 3×, last today · Planned 2×". Log a cook
+    /// lives in Cook history further down and in the More menu.
     private func ratingRow(_ recipe: Recipe) -> some View {
         let e = extras.value
         return VStack(alignment: .leading, spacing: 8) {
@@ -348,23 +360,17 @@ struct RecipeDetailView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.mutedForeground)
                 }
-                Button { logging = true } label: {
-                    Label("Log a cook", systemImage: "square.and.pencil")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Theme.foreground)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 6)
             }
             let parts = [
-                e.cookCount > 0 ? "Cooked \(Self.times(e.cookCount))" + (e.lastCooked.map { " · last \(Self.relative($0))" } ?? "") : nil,
-                e.plannedCount > 0 ? "On the menu \(Self.times(e.plannedCount))" + (e.lastPlannedWeek.map { " · last planned week of \($0)" } ?? "") : nil,
+                e.cookCount > 0 ? "Cooked \(e.cookCount)×" + (e.lastCooked.map { ", last \(Self.relative($0))" } ?? "") : nil,
+                e.plannedCount > 0 ? "Planned \(e.plannedCount)×" : nil,
             ].compactMap { $0 }
             if !parts.isEmpty {
                 Label(parts.joined(separator: " · "), systemImage: "calendar")
                     .labelStyle(TightLabel())
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.mutedForeground)
+                    .lineLimit(1)
             }
         }
     }
@@ -419,7 +425,15 @@ struct RecipeDetailView: View {
         }
     }
 
-    static func times(_ n: Int) -> String { n == 1 ? "once" : n == 2 ? "twice" : "\(n) times" }
+    /// "4" beside the people icon, which says servings on its own; a unit
+    /// that isn't people (12 muffins) keeps its word.
+    static func servingsText(_ n: Double, unit: String?) -> String {
+        let count = Format.amount(String(n)) ?? ""
+        guard let unit = unit?.trimmingCharacters(in: .whitespaces), !unit.isEmpty,
+              !["serving", "servings", "people", "person", "persons", "portion", "portions"].contains(unit.lowercased())
+        else { return count }
+        return "\(count) \(unit)"
+    }
 
     static func relative(_ date: Date) -> String {
         let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: date),
@@ -571,7 +585,6 @@ struct RecipeExtras: Sendable {
     var lastCooked: Date?
     var averageRating: Double?
     var plannedCount = 0
-    var lastPlannedWeek: String?
     var related: [Recipe] = []
 
     static func load(_ r: StoreReader, recipeId: String) throws -> RecipeExtras {
@@ -591,9 +604,6 @@ struct RecipeExtras: Sendable {
             .filter { $0.recipeId == recipeId }
             .compactMap { plans[$0.mealPlanId] }
         x.plannedCount = weeks.count
-        if let last = weeks.max(), let date = try? Date.ISO8601FormatStyle().year().month().day().parse(last) {
-            x.lastPlannedWeek = date.formatted(.dateTime.day().month(.abbreviated))
-        }
 
         let all = try r.records(.recipes).compactMap(Recipe.init)
         if let this = all.first(where: { $0.id == recipeId }) {

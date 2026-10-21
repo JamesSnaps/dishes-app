@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useAsyncBusy } from "@/lib/ai-jobs-client";
-import { Flame, Sparkles, Loader2, ChevronDown } from "lucide-react";
+import { Flame, Sparkles, Loader2, ChevronDown, Heart } from "lucide-react";
 import { cn } from "@dishes/ui";
+import { isHeartHealthy } from "@/lib/heart-healthy";
 
 /** Remembered per device: whether the macros are shown or just the calories. */
 const OPEN_KEY = "dishes-nutrition-open";
@@ -158,6 +159,17 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
             <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
               <Sparkles className="h-3 w-3" />
               AI estimate
+            </span>
+          )}
+          {isHeartHealthy(data) && (
+            // Just the heart on a phone, where the line is short of room.
+            <span
+              title="Heart-healthy: low saturated fat, good fibre"
+              aria-label="Heart-healthy"
+              className="inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-1.5 text-[11px] font-semibold text-white shadow-sm sm:px-2.5"
+            >
+              <Heart className="h-3 w-3 fill-current" />
+              <span className="hidden whitespace-nowrap sm:inline">Heart-healthy</span>
             </span>
           )}
           {!open && "Nutrition"}

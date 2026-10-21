@@ -27,3 +27,15 @@ export function formatQuantity(
 
   return { amount: formatNumber(num), unit };
 }
+
+const PEOPLE_UNITS = new Set(["serving", "servings", "people", "person", "persons", "portion", "portions"]);
+
+/**
+ * The word to show after a serving count beside the people icon — none when
+ * the unit just means people ("4" says servings on its own), the unit itself
+ * when it's something else ("12 muffins").
+ */
+export function servingsUnitLabel(unit: string | null | undefined): string | null {
+  const u = unit?.trim();
+  return u && !PEOPLE_UNITS.has(u.toLowerCase()) ? u : null;
+}

@@ -374,54 +374,49 @@ struct PlanWeekStrips: View {
             }
     }
 
+    /// Small pills, so the day's meals stay near the top. The order pill only
+    /// shows while there's something to do for it; the nutrition one always
+    /// does when the week has meals, as the way into the swaps.
     @ViewBuilder private func strips(next: DeliveryOverview.Next?, nutrition: WeekNutrition?) -> some View {
-        if let next {
+        if let next, next.status != "ordered" || NextDeliveryCard.toDo(next) > 0 {
             let toDo = NextDeliveryCard.toDo(next)
-            strip(icon: "truck.box",
-                  text: next.status == "ordered" ? "Ordered for \(next.day)" : "Order for \(next.day) · \(next.cutoffLabel)",
-                  badge: toDo > 0 ? "\(toDo) to do" : nil,
-                  tint: Color(hex: 0x047857), fill: Theme.emerald100.opacity(0.7), border: Color(hex: 0xA7F3D0)) { showing = .delivery }
+            pill(icon: "truck.box", text: next.status == "ordered" ? "Ordered for \(next.day)" : "Order for \(next.day)",
+                 note: toDo > 0 ? "\(toDo) to do" : nil, noteIcon: "exclamationmark.triangle.fill", noteTint: Color(hex: 0xB45309),
+                 tint: Color(hex: 0x047857), fill: Theme.emerald100.opacity(0.7), border: Color(hex: 0xA7F3D0)) { showing = .delivery }
+            .accessibilityLabel("Next order, \(next.day)" + (toDo > 0 ? ", \(toDo) to do" : ""))
         }
         if let nutrition {
             let s = nutrition.summary
-            let off = nutrition.targets.filter { !$0.ok }.count
-            strip(icon: "heart.text.square",
-                  text: s.withNutrition > 0 ? "\(s.heartHealthy)/\(s.withNutrition) heart-healthy" : "Nutrition",
-                  badge: nutrition.heartFocus ? (off > 0 ? "\(off) target\(off == 1 ? "" : "s") off" : "Targets met") : nil,
-                  badgeWarns: off > 0,
-                  extra: nutrition.suggestions.isEmpty ? nil : "\(nutrition.suggestions.count) swap\(nutrition.suggestions.count == 1 ? "" : "s")",
-                  tint: Color(hex: 0xBE123C), fill: Theme.rose50, border: Color(hex: 0xFECDD3)) { showing = .nutrition }
+            let off = nutrition.heartFocus ? nutrition.targets.filter { !$0.ok }.count : 0
+            let swaps = nutrition.suggestions.count
+            pill(icon: "heart.fill", text: s.withNutrition > 0 ? "\(s.heartHealthy)/\(s.withNutrition)" : "Nutrition",
+                 note: swaps > 0 ? "\(swaps) swap\(swaps == 1 ? "" : "s")" : off > 0 ? "\(off) off" : nil,
+                 noteIcon: swaps > 0 ? "lightbulb.fill" : "exclamationmark.triangle.fill",
+                 noteTint: swaps > 0 ? Color(hex: 0x7C3AED) : Color(hex: 0xB45309),
+                 tint: Color(hex: 0xE11D48), fill: Theme.rose50, border: off > 0 ? Color(hex: 0xFCD34D) : Color(hex: 0xFECDD3)) { showing = .nutrition }
+            .accessibilityLabel("\(s.heartHealthy) of \(s.withNutrition) meals heart-healthy"
+                                + (off > 0 ? ", \(off) target\(off == 1 ? "" : "s") off" : "")
+                                + (swaps > 0 ? ", \(swaps) swap\(swaps == 1 ? "" : "s") suggested" : ""))
         }
     }
 
-    private func strip(icon: String, text: String, badge: String?, badgeWarns: Bool = true, extra: String? = nil,
-                       tint: Color, fill: Color, border: Color, tap: @escaping () -> Void) -> some View {
+    private func pill(icon: String, text: String, note: String?, noteIcon: String, noteTint: Color,
+                      tint: Color, fill: Color, border: Color, tap: @escaping () -> Void) -> some View {
         Button(action: tap) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: icon).foregroundStyle(tint)
-                Text(text).foregroundStyle(Theme.foreground).lineLimit(1)
-                if let badge {
-                    Label(badge, systemImage: badgeWarns ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                        .labelStyle(TightLabel())
-                        .font(.system(size: 11, weight: .semibold))
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .foregroundStyle(badgeWarns ? Color(hex: 0x92400E) : Color(hex: 0x065F46))
-                        .background(badgeWarns ? Color(hex: 0xFEF3C7) : Color(hex: 0xD1FAE5), in: Capsule())
+                Text(text).foregroundStyle(Theme.foreground)
+                if let note {
+                    Text("·").foregroundStyle(Theme.mutedForeground)
+                    Label(note, systemImage: noteIcon).labelStyle(TightLabel()).foregroundStyle(noteTint)
                 }
-                if let extra {
-                    Label(extra, systemImage: "lightbulb.fill")
-                        .labelStyle(TightLabel())
-                        .font(.system(size: 11, weight: .semibold))
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .foregroundStyle(.white)
-                        .background(Theme.Gradient.violetOrange.linear, in: Capsule())
-                }
-                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.mutedForeground)
             }
-            .font(.system(size: 13, weight: .semibold))
-            .padding(.horizontal, 12).frame(minHeight: 36)
-            .background(fill, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(border))
+            .font(.system(size: 12, weight: .semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(fill, in: Capsule())
+            .overlay(Capsule().strokeBorder(border))
         }
         .buttonStyle(.plain)
     }

@@ -1,6 +1,7 @@
-// The meal planner, as the web's /meal-plan: week arrows and the orange +, a
-// strip of seven day pills, the gradient action buttons, then the chosen day's
-// meals as the web's entry cards — a combined meal as one card with its dishes.
+// The meal planner, as the web's /meal-plan: week arrows and the orange + menu
+// (Add meal, Generate plan, add the week to the list), small pills for the next
+// order and the week's nutrition, a strip of seven day pills, then the chosen
+// day's meals as the web's entry cards — a combined meal as one card with its dishes.
 //
 // With room for it (≥1000pt: an iPad in landscape, or the 13-inch either way)
 // the whole week shows at once instead — seven day columns, each with its
@@ -38,13 +39,9 @@ struct PlanScreen: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                     if wholeWeek {
-                        actions.frame(maxWidth: 640)
-                        weekStrips
                         weekGrid
                     } else {
                         dayStrip
-                        actions
-                        weekStrips
                         dayDetail
                     }
                 }
@@ -98,7 +95,7 @@ struct PlanScreen: View {
         await extras.load(week: week.key, dinnerRecipeIds: dinnerRecipes.flatMap { $0 }.map(\.id))
     }
 
-    /// Heart-healthy and next-order banners for the week.
+    /// Next-order and heart-healthy pills for the week.
     private var weekStrips: some View {
         PlanWeekStrips(extras: extras, reload: reloadExtras, swapped: reloadExtras)
     }
@@ -120,9 +117,7 @@ struct PlanScreen: View {
     // MARK: Header
 
     private var header: some View {
-        let entries = data.value.entries(in: week)
-        let minutes = entries.compactMap { $0.recipeId.flatMap { data.value.recipes[$0]?.totalMinutes } }.reduce(0, +)
-        return VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 // Spring-loaded: drag a meal over an arrow and the week flips,
                 // so it can be dropped into another week.
@@ -144,16 +139,38 @@ struct PlanScreen: View {
                     .springLoadingBehavior(.enabled)
                     .buttonStyle(.plain)
                     .accessibilityLabel("Next week")
-                RoundAddButton { adding = true }
+                addMenu
             }
             .foregroundStyle(Theme.foreground)
-            Text(entries.isEmpty
-                 ? "Nothing planned yet"
-                 : "\(entries.count) meal\(entries.count == 1 ? "" : "s")" + (Format.shortMinutes(minutes).map { " · \($0) cooking" } ?? ""))
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.mutedForeground)
-                .padding(.leading, 28)
+            weekStrips.padding(.leading, 46)
         }
+    }
+
+    /// The orange +: add a meal to the chosen day, generate a plan, or put
+    /// the week's meals on the shopping list.
+    private var addMenu: some View {
+        let plan = data.value.plan(for: week)
+        let notOnList = data.value.entries(in: week).filter { $0.addedToShoppingListAt == nil }.count
+        return Menu {
+            Button("Add meal", systemImage: "plus") { adding = true }
+            Button("Generate plan…", systemImage: "sparkles") { generating = true }
+            Divider()
+            Button(sending ? "Adding…" : notOnList > 0 ? "Add \(notOnList) meal\(notOnList == 1 ? "" : "s") to shopping list" : "All on the shopping list",
+                   systemImage: notOnList > 0 ? "cart.badge.plus" : "checkmark") {
+                guard let plan else { return }
+                Task { await addToList(plan) }
+            }
+            .disabled(plan == nil || notOnList == 0 || sending)
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 38, height: 38)
+                .background(Theme.brand, in: Circle())
+                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add or plan")
     }
 
     private func move(_ weeks: Int) {
@@ -199,30 +216,6 @@ struct PlanScreen: View {
     }
 
     // MARK: Actions
-
-    private var actions: some View {
-        let plan = data.value.plan(for: week)
-        let notOnList = data.value.entries(in: week).filter { $0.addedToShoppingListAt == nil }.count
-        return HStack(spacing: 10) {
-            Button { generating = true } label: {
-                Label("Generate plan", systemImage: "sparkles")
-            }
-            .buttonStyle(.gradient(.violetOrange))
-
-            Button {
-                guard let plan else { return }
-                Task { await addToList(plan) }
-            } label: {
-                Label(sending ? "Adding…" : notOnList > 0 ? "Add \(notOnList) meal\(notOnList == 1 ? "" : "s") to list" : "All on the list",
-                      systemImage: "cart")
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .buttonStyle(.gradient(.blueSky))
-            .disabled(plan == nil || notOnList == 0 || sending)
-            .opacity(plan == nil || notOnList == 0 ? 0.6 : 1)
-        }
-    }
 
     private func addToList(_ plan: MealPlan) async {
         sending = true

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Clock, ExternalLink, Minus, Plus, RotateCcw } from "lucide-react";
 import { Badge } from "@dishes/ui";
 import { scaleAmount, servingsScale } from "@/lib/scale-ingredient";
+import { servingsUnitLabel } from "@/lib/format-quantity";
+import { AddCookReviewSheet } from "./add-cook-review-sheet";
 import { AddToShoppingButton } from "./add-to-shopping-button";
 import { CookHistoryEntryCard } from "./cook-history-entry";
 import type { CookHistoryEntry } from "@/lib/services/cook-history";
@@ -98,9 +100,7 @@ export function RecipeTabs({
     { id: "ingredients", label: `Ingredients${ingredients.length > 0 ? ` (${ingredients.length})` : ""}` },
     { id: "steps", label: `Steps${steps.length > 0 ? ` (${steps.length})` : ""}` },
     ...(notes ? [{ id: "notes" as Tab, label: "Notes" }] : []),
-    ...(cookHistory.length > 0
-      ? [{ id: "history" as Tab, label: `History (${cookHistory.length})` }]
-      : []),
+    { id: "history", label: `History${cookHistory.length > 0 ? ` (${cookHistory.length})` : ""}` },
   ];
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -204,7 +204,9 @@ export function RecipeTabs({
                         <Plus className="h-4 w-4" />
                       </button>
                     </div>
-                    <span className="text-sm text-muted-foreground">{servingsUnit ?? "servings"}</span>
+                    {servingsUnitLabel(servingsUnit) && (
+                      <span className="text-sm text-muted-foreground">{servingsUnitLabel(servingsUnit)}</span>
+                    )}
                     {isScaled && (
                       <button
                         type="button"
@@ -304,8 +306,17 @@ export function RecipeTabs({
 
         {activeTab === "history" && (
           <div className="space-y-4">
+            <AddCookReviewSheet
+              recipeId={recipeId}
+              recipeTitle={recipeTitle}
+              pendingCookId={null}
+              pendingEntry={null}
+              members={members}
+              ownName={ownName}
+              storageAvailable={storageAvailable}
+            />
             {cookHistory.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No cook history yet.</p>
+              <p className="text-sm text-muted-foreground">Not cooked yet — log it after you make it.</p>
             ) : (
               <>
                 <p className="text-xs text-muted-foreground/70">

@@ -12,11 +12,13 @@ import {
   mealPlans,
   mealPlanEntries,
   mealPlanGroups,
+  recipeSteps,
+  cookHistory,
 } from "@dishes/db/schema";
 import { getCookStatsByRecipe } from "@/lib/services/cook-history";
 import { heartHealthyCondition } from "@/lib/services/recipes";
 import { isHeartHealthy } from "@/lib/heart-healthy";
-import { eq, and, ilike, isNotNull, or, inArray, count, sql, desc } from "drizzle-orm";
+import { eq, and, ilike, isNotNull, or, inArray, count, sql, desc, gte } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
@@ -59,6 +61,11 @@ const MEAL_ORDER = ["breakfast", "lunch", "dinner", "dessert", "snack"];
  * (PlanData.meals): each meal group is one meal and each ungrouped dish its
  * own, ordered by meal type then id; the first dinner, else the day's last
  * meal. A grouped meal cooks all its dishes together (`?meal=`).
+ *
+ * Once it's cooked — a cook logged today for every dish with steps (or every
+ * dish, when none has any) — the next meal after it still to cook takes its
+ * place (dessert after dinner); with none, it stays, marked `cooked`. The iOS
+ * app's PlanData.tonight does the same.
  */
 async function getTonight(householdId: string): Promise<BrowseTonight> {
   const { weekStartDate, dayOfWeek } = today();
@@ -77,6 +84,7 @@ async function getTonight(householdId: string): Promise<BrowseTonight> {
       thumbnailUrl: recipes.thumbnailUrl,
       prepTimeMinutes: recipes.prepTimeMinutes,
       cookTimeMinutes: recipes.cookTimeMinutes,
+      hasSteps: sql<boolean>`exists (select 1 from ${recipeSteps} where ${recipeSteps.recipeId} = ${recipes.id})`,
     })
     .from(mealPlanEntries)
     .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
@@ -101,8 +109,38 @@ async function getTonight(householdId: string): Promise<BrowseTonight> {
   const sorted = [...meals.values()].sort(
     (a, b) => order(a.mealType) - order(b.mealType) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
   );
-  const meal = sorted.find((m) => m.mealType === "dinner") ?? sorted.at(-1);
-  if (!meal) return null;
+  const dinner = sorted.findIndex((m) => m.mealType === "dinner");
+  let index = dinner >= 0 ? dinner : sorted.length - 1;
+  if (index < 0) return null;
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const cookedRows = await db
+    .selectDistinct({ recipeId: cookHistory.recipeId })
+    .from(cookHistory)
+    .where(
+      and(
+        eq(cookHistory.householdId, householdId),
+        eq(cookHistory.source, "cook"),
+        inArray(cookHistory.recipeId, [...new Set(rows.map((r) => r.recipeId))]),
+        gte(cookHistory.cookedAt, startOfToday)
+      )
+    );
+  const cookedToday = new Set(cookedRows.map((r) => r.recipeId));
+  const isCooked = (m: (typeof sorted)[number]) => {
+    const cookable = m.dishes.filter((d) => d.hasSteps);
+    return (cookable.length ? cookable : m.dishes).every((d) => cookedToday.has(d.recipeId));
+  };
+
+  let cooked = isCooked(sorted[index]);
+  if (cooked) {
+    const next = sorted.findIndex((m, i) => i > index && m.dishes.some((d) => d.hasSteps) && !isCooked(m));
+    if (next >= 0) {
+      index = next;
+      cooked = false;
+    }
+  }
+  const meal = sorted[index];
 
   const main = meal.dishes.find((d) => d.mealRole === "main") ?? meal.dishes[0];
   const pictured = meal.dishes.find((d) => d.imageUrl) ?? main;
@@ -112,6 +150,8 @@ async function getTonight(householdId: string): Promise<BrowseTonight> {
     serveAt: main.serveAt ?? null,
     dishCount: meal.dishes.length,
     cookHref: `/recipes/${main.recipeId}/cook${main.groupId ? `?meal=${main.groupId}` : ""}`,
+    recipeHref: `/recipes/${main.recipeId}`,
+    cooked,
     imageUrl: pictured.thumbnailUrl ?? pictured.imageUrl,
     totalMinutes: (main.prepTimeMinutes ?? 0) + (main.cookTimeMinutes ?? 0) || null,
   };
