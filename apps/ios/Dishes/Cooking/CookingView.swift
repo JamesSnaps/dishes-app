@@ -119,6 +119,8 @@ struct CookingView: View {
     @State private var stepLayout: Text.Layout?
     @State private var tipWidth: CGFloat = 0
     @State private var addingTimer = false
+    /// Bumped as a step's timer starts, for the haptic.
+    @State private var timerStarts = 0
     /// "When did you start?" for a scheduled meal (MealStartSheet).
     @State private var startPrompt: MealStartPrompt?
     @State private var reviewingMeal = false
@@ -250,8 +252,7 @@ struct CookingView: View {
         .sheet(isPresented: $reviewingMeal) {
             MealReviewSheet(groupId: request.groupId ?? "", title: session.title, dishes: request.dishes.map(\.recipe),
                             minutes: max(1, Int(Date().timeIntervalSince(session.startedAt) / 60))) {
-                for timer in mealTimers { CookTimers.shared.cancel(timer) }
-                end()
+                nav.end(session, cancelTimers: true)
             }
             .presentationSizing(.page)
         }
@@ -265,6 +266,7 @@ struct CookingView: View {
             .presentationSizing(.page)
         }
         .sensoryFeedback(.impact(weight: .light), trigger: stepChanges)
+        .sensoryFeedback(.success, trigger: timerStarts)
         .onAppear {
             keys = true
             showActivity()
@@ -308,10 +310,10 @@ struct CookingView: View {
         return CookTimers.shared.timers.filter { $0.state != .finished && $0.dish.map(dishes.contains) == true }
     }
 
-    /// A dish is done (saved or "Review later"): its timers go. In a meal the
-    /// next unfinished dish comes up; after the last, the cook ends.
+    /// A dish is done (saved or "Review later"): its timers go, finished ones
+    /// too. In a meal the next unfinished dish comes up; after the last, the cook ends.
     private func finish(_ recipe: Recipe) {
-        for timer in CookTimers.shared.timers where timer.dish == recipe.title { CookTimers.shared.cancel(timer) }
+        withAnimation(.easeOut(duration: 0.35)) { CookTimers.shared.clear(dishes: [recipe.title]) }
         session.finished.insert(recipe.id)
         if let next = request.dishes.firstIndex(where: { !session.finished.contains($0.recipe.id) }) {
             withAnimation { session.dishIndex = next }
@@ -344,10 +346,7 @@ struct CookingView: View {
         ToolbarItem(placement: .topBarLeading) {
             Button("Exit", systemImage: "xmark") { exit() }
                 .confirmationDialog("Stop cooking?", isPresented: $confirmExit, titleVisibility: .visible) {
-                    Button("End cooking and cancel timers", role: .destructive) {
-                        for timer in mealTimers { CookTimers.shared.cancel(timer) }
-                        end()
-                    }
+                    Button("End cooking and cancel timers", role: .destructive) { nav.end(session, cancelTimers: true) }
                     Button("End cooking, keep timers") { end() }
                     Button("Minimise instead") { minimise() }
                 } message: {
@@ -590,23 +589,48 @@ struct CookingView: View {
                          scale: Binding(get: { dish.scale }, set: { session.scales[dish.recipe.id] = $0 }))
     }
 
+    /// Starts the step's timer; if it's already going, CookTimers points to it instead.
     private func startTimer(_ step: RecipeStep, minutes: Int) {
         // Taken now: by the time the task runs, Next may have moved the step on.
         let (index, recipe) = (stepIndex, dish.recipe)
         Task {
-            await CookTimers.shared.start(label: step.timerLabel ?? "Step \(index + 1)",
-                                          dish: recipe.title, seconds: TimeInterval(minutes * 60),
-                                          recipeId: recipe.id, stepIndex: index)
+            if await CookTimers.shared.start(label: step.timerLabel ?? "Step \(index + 1)",
+                                             dish: recipe.title, seconds: TimeInterval(minutes * 60),
+                                             recipeId: recipe.id, stepIndex: index) {
+                timerStarts += 1
+            }
         }
     }
 
+    /// The step's timer: Start, then — once it's going — its countdown, so
+    /// it's plain it started and a second tap only points to it.
     private func timerButton(_ step: RecipeStep, minutes: Int) -> some View {
-        Button { startTimer(step, minutes: minutes) } label: {
-            Label("\(step.timerLabel ?? "Timer") · \(Format.minutes(minutes) ?? "")", systemImage: "timer")
-                .font(.title3.weight(.semibold))
-                .frame(maxWidth: .infinity)
+        let running = CookTimers.shared.timer(recipeId: dish.recipe.id, stepIndex: stepIndex)
+        return Button { startTimer(step, minutes: minutes) } label: {
+            Group {
+                if let running {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Label {
+                            Text("\(running.state == .paused ? "Paused" : "Timer running") · \(TimerRow.clock(running.secondsLeft(at: context.date)))")
+                                .monospacedDigit()
+                                .contentTransition(.numericText(countsDown: true))
+                        } icon: {
+                            Image(systemName: running.state == .paused ? "pause.circle.fill" : "checkmark.circle.fill")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+                } else {
+                    Label("\(step.timerLabel ?? "Timer") · \(Format.minutes(minutes) ?? "")", systemImage: "timer")
+                        .frame(maxWidth: .infinity)
+                        .transition(.scale(scale: 0.92).combined(with: .opacity))
+                }
+            }
+            .font(.title3.weight(.semibold))
         }
-        .buttonStyle(.brand)
+        .buttonStyle(TimerButtonStyle(running: running != nil))
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: running?.id)
+        .accessibilityHint(running == nil ? "Starts the timer" : "Shows the timer that's running")
     }
 
     /// Fixed below the step, never scrolled away: the timer for this step, then Back and Next.
@@ -685,7 +709,9 @@ struct CookingView: View {
         case .read:
             readStep()
         case .startTimer:
-            if cueIsStep, let step, let minutes = step.durationMinutes, minutes > 0 {
+            if cueIsStep, CookTimers.shared.timer(recipeId: dish.recipe.id, stepIndex: stepIndex) != nil {
+                handsFree.say("That timer’s already running.")
+            } else if cueIsStep, let step, let minutes = step.durationMinutes, minutes > 0 {
                 startTimer(step, minutes: minutes)
                 handsFree.say("Timer started for \(Format.minutes(minutes) ?? "\(minutes) minutes").")
             } else {
@@ -723,6 +749,27 @@ struct CookingView: View {
         guard dish.recipe.steps.indices.contains(next) else { return }
         withAnimation(.snappy) { session.steps[dish.recipe.id] = next }
         stepChanges += 1
+    }
+}
+
+/// The step's timer button: the brand gradient to start it; once it's going,
+/// a tinted, outlined countdown — still plainly a button (it points to the timer).
+private struct TimerButtonStyle: ButtonStyle {
+    let running: Bool
+
+    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
+        if running {
+            configuration.label
+                .foregroundStyle(Theme.brandDeep)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .padding(.horizontal, 14)
+                .background(LinearGradient(colors: [Theme.orange50, Theme.amber50], startPoint: .leading, endPoint: .trailing),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.brand, lineWidth: 2))
+                .opacity(configuration.isPressed ? 0.8 : 1)
+        } else {
+            GradientButtonStyle().makeBody(configuration: configuration)
+        }
     }
 }
 
@@ -888,6 +935,7 @@ struct TimersPanel: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -916,10 +964,16 @@ struct TimersPanel: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .card()
+                        .spotlit(timers.spotlight == timer.id)
+                        .id(timer.id)
                         .transition(.poof)
                 }
             }
             .padding(16)
+        }
+        .onChange(of: timers.spotlight) { _, id in
+            if let id { withAnimation(.snappy) { proxy.scrollTo(id) } }
+        }
         }
         .background(Theme.muted.opacity(0.35))
     }
@@ -1027,9 +1081,33 @@ extension AnyTransition {
         .asymmetric(insertion: .scale(scale: 0.9).combined(with: .opacity),
                     removal: .modifier(active: PoofModifier(gone: true), identity: PoofModifier(gone: false)))
     }
+
+    /// The iPhone strip's way in: slides along from the side; leaves with a poof.
+    static var slideIn: AnyTransition {
+        .asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .modifier(active: PoofModifier(gone: true), identity: PoofModifier(gone: false)))
+    }
 }
 
-/// iPhone: running timers as a strip under the step.
+/// A timer just started, or pointed to by tapping its step's timer again: a
+/// brand ring and glow for a couple of seconds (CookTimers.spotlight).
+private struct Spotlit: ViewModifier {
+    let on: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.brand, lineWidth: on ? 2.5 : 0))
+            .shadow(color: Theme.brand.opacity(on ? 0.45 : 0), radius: on ? 10 : 0)
+            .scaleEffect(on ? 1.04 : 1)
+    }
+}
+
+private extension View {
+    func spotlit(_ on: Bool) -> some View { modifier(Spotlit(on: on)) }
+}
+
+/// iPhone: running timers as a strip under the step. A new one slides in and
+/// the strip scrolls along to it, lit up, so it's plain it started.
 struct TimerStrip: View {
     private var timers = CookTimers.shared
     let add: () -> Void
@@ -1037,7 +1115,7 @@ struct TimerStrip: View {
     init(add: @escaping () -> Void) { self.add = add }
 
     var body: some View {
-        Group {
+        ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     Button(action: add) {
@@ -1055,13 +1133,18 @@ struct TimerStrip: View {
                             .padding(.vertical, 10)
                             .frame(width: 210)
                             .card()
-                            .transition(.poof)
+                            .spotlit(timers.spotlight == timer.id)
+                            .id(timer.id)
+                            .transition(.slideIn)
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
             }
             .background(.bar)
+            .onChange(of: timers.spotlight) { _, id in
+                if let id { withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) { proxy.scrollTo(id, anchor: .trailing) } }
+            }
         }
     }
 }

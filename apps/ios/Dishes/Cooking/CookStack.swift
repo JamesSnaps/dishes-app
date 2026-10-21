@@ -102,7 +102,9 @@ struct CookingBar: View {
     @Environment(AppNav.self) private var nav
     let session: CookSession
 
-    private var others: Int { nav.sessions.count - 1 }
+    /// Never below 0: the bar draws once more as the last cook ends, with no
+    /// cooks left (that -1 crashed CookIcon's range, 21 Oct 2026).
+    private var others: Int { max(nav.sessions.count - 1, 0) }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -143,9 +145,12 @@ private struct CookIcon: View {
     let stacked: Int
     var size: CGFloat = 28
 
+    /// The pans drawn behind: up to two, never a negative range.
+    private var behind: Int { min(max(stacked, 0), 2) }
+
     var body: some View {
         ZStack {
-            ForEach(Array(0..<min(stacked, 2)).reversed(), id: \.self) { i in
+            ForEach(Array(0..<behind).reversed(), id: \.self) { i in
                 Circle()
                     .fill(Theme.brand.opacity(i == 0 ? 0.45 : 0.25))
                     .frame(width: size, height: size)
@@ -157,7 +162,7 @@ private struct CookIcon: View {
                 .frame(width: size, height: size)
                 .background(Theme.brandGradient, in: Circle())
         }
-        .frame(width: size + CGFloat(min(stacked, 2)) * 5, alignment: .leading)
+        .frame(width: size + CGFloat(behind) * 5, alignment: .leading)
         .overlay(alignment: .topTrailing) {
             if stacked > 0 {
                 Text("\(stacked + 1)")
