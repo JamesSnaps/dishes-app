@@ -117,7 +117,7 @@ final class Push {
             if let url { openedLink = url }
         case Action.snooze:
             guard let date = data["snoozeDate"] as? String else { return }
-            await AppModel.shared.start()
+            await AppModel.shared.awake { await AppModel.shared.start() }
             do {
                 let result = try await AppModel.shared.api.snoozeDinner(date: date)
                 let when = result.remindAt.map { " I’ll remind you at \($0)." } ?? ""
@@ -127,7 +127,7 @@ final class Push {
             }
         case Action.deliveryOrdered:
             guard let date = data["deliveryDate"] as? String else { return }
-            await AppModel.shared.start()
+            await AppModel.shared.awake { await AppModel.shared.start() }
             do {
                 try await AppModel.shared.api.markDeliveryOrdered(date: date)
                 await confirm("Order marked as placed", body: "No more deadline reminders for this delivery.", tag: "delivery-\(date)")

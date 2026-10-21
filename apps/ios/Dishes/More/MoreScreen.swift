@@ -51,6 +51,12 @@ struct MoreScreen: View {
                         .foregroundStyle(Theme.foreground)
                     }
 
+                    if HealthLog.available {
+                        section("Apple Health", footer: "Writes the nutrition of meals logged as eaten by this person to Health on this device — nothing is read. Leave it off on a shared kitchen iPad: Health belongs to whoever’s signed in to it.") {
+                            HealthSettings()
+                        }
+                    }
+
                     section("Sync", footer: "Everything here works offline. Changes are sent when there’s a connection.") {
                         row("Status") { SyncLine() }
                         if let last = app.status.lastSyncedAt {
@@ -181,5 +187,46 @@ struct MoreScreen: View {
             value()
         }
         .padding(14)
+    }
+}
+
+/// Settings → Apple Health: on or off for this device, and whose meals.
+private struct HealthSettings: View {
+    @Environment(AppModel.self) private var app
+    @State private var health = HealthLog.shared
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Toggle(isOn: Binding(get: { health.enabled }, set: { on in
+                if on {
+                    Task {
+                        // Asked here, the first time it's useful — not at launch.
+                        if await health.authorise() {
+                            health.enabled = true
+                            if health.eater == nil { health.eater = app.me?.user.displayName }
+                        }
+                    }
+                } else {
+                    health.enabled = false
+                }
+            })) {
+                Label("Add meals I eat to Health", systemImage: "heart.fill")
+            }
+            .tint(Theme.brand)
+            .padding(14)
+            if health.enabled {
+                Rectangle().fill(Theme.border).frame(height: 1)
+                HStack {
+                    Text("Who uses this device?")
+                    Spacer()
+                    Picker("Who uses this device?", selection: Binding(get: { health.eater ?? "" }, set: { health.eater = $0.isEmpty ? nil : $0 })) {
+                        Text("Choose…").tag("")
+                        ForEach(app.members) { Text($0.displayName).tag($0.displayName) }
+                    }
+                    .labelsHidden()
+                }
+                .padding(14)
+            }
+        }
     }
 }

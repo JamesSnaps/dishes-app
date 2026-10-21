@@ -1,7 +1,11 @@
-// What the share sheet's "Dishes" does: find the link that was shared, send
-// it to the server's web import (POST /api/v1/recipes/import-url, as the app's
-// New Recipe → From a website), and say how it went. The recipe is saved on
-// the server; the app picks it up on its next sync.
+// What the share sheet's "Dishes" does:
+//   - a link: the server's web import (POST /api/v1/recipes/import-url, as
+//     the app's New Recipe → From a website), which reads recipe pages best
+//   - a screenshot or text (a message, notes, a caption): read on the device
+//     when it can (DishesCore/AI/RecipeReader, TODO_MOBILE.md D3), shown to
+//     check, then saved (POST /api/v1/recipes/generated); otherwise the
+//     server reads and saves it (ai/photo-recipe, ai/text-recipe)
+// and says how it went. The app picks the recipe up on its next sync.
 //
 // It signs in with the app's own tokens, read from the Keychain group the two
 // share (KeychainTokenStore.dishes) — so it works once the app has been opened
@@ -10,6 +14,7 @@
 import DishesCore
 import Foundation
 import Observation
+import UIKit
 import UniformTypeIdentifiers
 
 @MainActor @Observable
@@ -17,9 +22,23 @@ final class ShareModel {
     enum Stage: Equatable {
         case finding
         case importing(URL)
+        /// Reading a screenshot or text, on the device or the server.
+        case reading(onDevice: Bool)
+        /// Read on the device: shown before it's saved.
+        case preview(GeneratedRecipe)
+        case saving
         case done(title: String, notice: String?)
         case signedOut
         case failed(String)
+    }
+
+    /// What was shared, once found.
+    private enum Shared {
+        case link(URL)
+        case images([UIImage])
+        case text(String)
+
+        var isText: Bool { if case .text = self { true } else { false } }
     }
 
     private(set) var stage = Stage.finding
@@ -29,65 +48,132 @@ final class ShareModel {
         self.context = context
     }
 
-    // MARK: Server
-
-    /// Debug builds follow the app's dev server choice (App/Developer.swift),
-    /// which the app leaves in the shared Keychain group.
-    private static var devServer: URL? {
-        #if DEBUG
-        guard let group = Bundle.main.object(forInfoDictionaryKey: "DishesKeychainGroup") as? String,
-              !group.contains("$("),
-              let data = try? Keychain.read(account: "DishesDevServer", accessGroup: group) else { return nil }
-        return URL(string: String(decoding: data, as: UTF8.self))
-        #else
-        return nil
-        #endif
-    }
-
-    private static var realServer: URL {
-        URL(string: Bundle.main.object(forInfoDictionaryKey: "DishesAPIBase") as? String
-            ?? "https://dishes.collardserver.co.uk")!
-    }
-
     // MARK: Flow
 
     func start() async {
         guard stage == .finding else { return }
-        guard let page = await Self.sharedLink(in: context?.inputItems as? [NSExtensionItem] ?? []) else {
-            stage = .failed("There’s no web link in what was shared. Share the recipe page itself.")
-            return
+        switch await Self.shared(in: context?.inputItems as? [NSExtensionItem] ?? []) {
+        case .link(let page)?: await run(page)
+        case .images(let images)?: await read(.images(images))
+        case .text(let text)?: await read(.text(text))
+        case nil: stage = .failed("There’s no recipe in what was shared. Share a recipe page, a screenshot or its text.")
         }
-        await run(page)
+    }
+
+    /// The API, signed in with the app's tokens — nil (and "Sign in first") when there are none.
+    private func makeAPI() -> APIClient? {
+        guard let api = ExtensionAPI.client() else {
+            stage = .signedOut
+            return nil
+        }
+        return api
+    }
+
+    /// The router's two outcomes: a draft to check, or a recipe the server already saved.
+    private enum Read: Sendable {
+        case draft(RecipeReader.Reading)
+        case saved(APIClient.CreatedRecipe)
+    }
+
+    private func read(_ shared: Shared) async {
+        guard let api = makeAPI() else { return }
+        stage = .reading(onDevice: DeviceAI.isAvailable)
+        let context = AIContext.cached
+        let metric = (context?.measurementSystem ?? "metric") == "metric"
+        do {
+            let run = try await AIRouter.run(
+                shared.isText ? .readText : .scanRecipe,
+                onDevice: {
+                    guard #available(iOS 27, *) else { throw CancellationError() }
+                    switch shared {
+                    case .text(let text): return Read.draft(try await RecipeReader.read(text: text, context: context))
+                    case .images(let images):
+                        let pages = images.compactMap { $0.cgImage }
+                        return Read.draft(try await RecipeReader.read(pages, context: context))
+                    case .link: throw CancellationError()
+                    }
+                },
+                check: {
+                    guard case .draft(let reading) = $0 else { return [] }
+                    return RecipeChecks.problems(reading.recipe, metric: metric, pageText: reading.pageText)
+                },
+                fallback: {
+                    stage = .reading(onDevice: false)
+                    // iOS 27: the same reader on the household's AI (DishesServerModel, D5),
+                    // so it comes back as a draft to check like the device's.
+                    if #available(iOS 27, *) {
+                        let server = DishesServerModel(api: api)
+                        switch shared {
+                        case .text(let text): return Read.draft(try await RecipeReader.read(text: text, context: context, model: server))
+                        case .images(let images):
+                            return Read.draft(try await RecipeReader.read(images.compactMap { $0.cgImage }, context: context,
+                                                                          model: server, alwaysAttach: true))
+                        case .link: throw CancellationError()
+                        }
+                    }
+                    switch shared {
+                    case .text(let text): return Read.saved(try await api.recipeFromText(text))
+                    case .images(let images):
+                        guard let jpeg = images.first?.jpegData(compressionQuality: 0.8) else { throw CancellationError() }
+                        return Read.saved(try await api.recipeFromPhoto(jpeg))
+                    case .link: throw CancellationError()
+                    }
+                })
+            switch run.value {
+            case .draft(let reading): stage = .preview(reading.recipe)
+            case .saved(let made): stage = .done(title: made.title, notice: nil)
+            }
+        } catch {
+            fail(error)
+        }
+    }
+
+    /// Save the draft shown, filed in a collection on the device when it can.
+    func save(_ recipe: GeneratedRecipe) async {
+        guard let api = makeAPI() else { return }
+        stage = .saving
+        var recipe = recipe
+        // Filed on the device (nil: none fits); if it can't, the server chooses.
+        if #available(iOS 27, *), DeviceAI.isAvailable, let collections = AIContext.cached?.collections, !collections.isEmpty {
+            do { recipe.collectionId = .some(try await CollectionPicker.pick(for: recipe, from: collections)?.id) } catch {}
+        }
+        do {
+            let made = try await api.saveGeneratedRecipe(recipe)
+            stage = .done(title: made.title, notice: made.collectionName.map { "Filed in \($0)." })
+        } catch {
+            fail(error)
+        }
+    }
+
+    private func fail(_ error: Error) {
+        switch error {
+        case APIError.signedOut: stage = .signedOut
+        case APIError.http(_, _, let message): stage = .failed(message)
+        default:
+            stage = .failed((error as? URLError)?.code == .timedOut
+                ? "That took too long. Try again in a moment."
+                : "Couldn’t reach Dishes. Check your connection and try again.")
+        }
     }
 
     func retry() async {
-        if case .importing = stage { return }
+        switch stage {
+        case .importing, .reading, .saving: return
+        default: break
+        }
         stage = .finding
         await start()
     }
 
     private func run(_ page: URL) async {
-        let dev = Self.devServer
-        let store = KeychainTokenStore.dishes()
         // A dev server signs a token-less request in as its stand-in user.
-        if dev == nil, (try? store.load()) == nil {
-            stage = .signedOut
-            return
-        }
+        guard let api = makeAPI() else { return }
         stage = .importing(page)
-        let auth = AuthSession(oidc: OIDCClient(config: .dishesIOS()), store: store)
-        let api = APIClient(baseURL: dev ?? Self.realServer, tokens: dev == nil ? auth : nil)
         do {
             let made = try await api.recipeFromWeb(page.absoluteString)
             stage = .done(title: made.title, notice: made.notice)
-        } catch APIError.signedOut {
-            stage = .signedOut
-        } catch APIError.http(_, _, let message) {
-            stage = .failed(message)
         } catch {
-            stage = .failed((error as? URLError)?.code == .timedOut
-                ? "That took too long. Try again in a moment."
-                : "Couldn’t reach Dishes. Check your connection and try again.")
+            fail(error)
         }
     }
 
@@ -99,7 +185,26 @@ final class ShareModel {
         context?.cancelRequest(withError: NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError))
     }
 
-    // MARK: Finding the link
+    // MARK: Finding what was shared
+
+    /// A link first (the server reads pages best), then images, then text
+    /// long enough to hold a recipe.
+    private static func shared(in items: [NSExtensionItem]) async -> Shared? {
+        if let link = await sharedLink(in: items) { return .link(link) }
+        let providers = items.flatMap { $0.attachments ?? [] }
+        var images: [UIImage] = []
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            if let image = await loadImage(provider) { images.append(image) }
+        }
+        if !images.isEmpty { return .images(images) }
+        var texts: [String] = []
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+            if let text = await loadText(provider) { texts.append(text) }
+        }
+        texts += items.compactMap { $0.attributedContentText?.string }
+        let text = texts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.count >= 40 ? .text(text) : nil
+    }
 
     /// The first http(s) link: a shared URL (Safari), else one inside shared
     /// text ("Look at this recipe https://…", as many apps share).
@@ -131,6 +236,12 @@ final class ShareModel {
     private static func loadURL(_ provider: NSItemProvider) async -> URL? {
         await withCheckedContinuation { continuation in
             _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
+        }
+    }
+
+    private static func loadImage(_ provider: NSItemProvider) async -> UIImage? {
+        await withCheckedContinuation { continuation in
+            _ = provider.loadObject(ofClass: UIImage.self) { image, _ in continuation.resume(returning: image as? UIImage) }
         }
     }
 

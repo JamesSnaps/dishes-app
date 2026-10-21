@@ -1,0 +1,1251 @@
+{
+ "about": "Planning a week on the device (TODO_MOBILE.md, D3) from a household's library, cooks and plans. Today is `today`; plans are for the week of `weekStartDate`. A scenario scores on: no dish twice, nothing recent or disliked, the share of slots reusing the library (at least `libraryShare`), every meal vegetarian when `vegetarian`, none of `avoid`, every meal one of `each`, and each `slotMentions` day (0 = Monday) mentioning one of its words.",
+ "today": "2026-10-20",
+ "weekStartDate": "2026-10-26",
+ "recipes": [
+  {
+   "id": "r01",
+   "title": "Banana Bread",
+   "description": "Dense, moist and freckled with brown spots. Best the next day.",
+   "cuisine": "American",
+   "tags": [
+    "baking",
+    "sweet"
+   ],
+   "mealTypes": [
+    "breakfast",
+    "snack"
+   ],
+   "mealRole": "other",
+   "isFavourite": false,
+   "difficulty": "easy",
+   "ingredients": [
+    {
+     "id": "r01i0",
+     "position": 0,
+     "ingredientName": "ripe bananas"
+    },
+    {
+     "id": "r01i1",
+     "position": 1,
+     "ingredientName": "plain flour"
+    },
+    {
+     "id": "r01i2",
+     "position": 2,
+     "ingredientName": "caster sugar"
+    },
+    {
+     "id": "r01i3",
+     "position": 3,
+     "ingredientName": "unsalted butter"
+    },
+    {
+     "id": "r01i4",
+     "position": 4,
+     "ingredientName": "eggs"
+    },
+    {
+     "id": "r01i5",
+     "position": 5,
+     "ingredientName": "baking soda"
+    },
+    {
+     "id": "r01i6",
+     "position": 6,
+     "ingredientName": "vanilla extract"
+    },
+    {
+     "id": "r01i7",
+     "position": 7,
+     "ingredientName": "walnuts"
+    }
+   ],
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 60
+  },
+  {
+   "id": "r02",
+   "title": "Chocolate Chip Cookies",
+   "description": "Crisp edges, chewy middles, puddles of dark chocolate.",
+   "cuisine": "American",
+   "tags": [
+    "baking",
+    "sweet"
+   ],
+   "mealTypes": [
+    "snack",
+    "dessert"
+   ],
+   "mealRole": "other",
+   "isFavourite": false,
+   "difficulty": "easy",
+   "ingredients": [
+    {
+     "id": "r02i0",
+     "position": 0,
+     "ingredientName": "plain flour"
+    },
+    {
+     "id": "r02i1",
+     "position": 1,
+     "ingredientName": "unsalted butter"
+    },
+    {
+     "id": "r02i2",
+     "position": 2,
+     "ingredientName": "brown sugar"
+    },
+    {
+     "id": "r02i3",
+     "position": 3,
+     "ingredientName": "caster sugar"
+    },
+    {
+     "id": "r02i4",
+     "position": 4,
+     "ingredientName": "eggs"
+    },
+    {
+     "id": "r02i5",
+     "position": 5,
+     "ingredientName": "dark chocolate"
+    },
+    {
+     "id": "r02i6",
+     "position": 6,
+     "ingredientName": "baking soda"
+    },
+    {
+     "id": "r02i7",
+     "position": 7,
+     "ingredientName": "vanilla extract"
+    },
+    {
+     "id": "r02i8",
+     "position": 8,
+     "ingredientName": "sea salt"
+    }
+   ],
+   "prepTimeMinutes": 20,
+   "cookTimeMinutes": 12
+  },
+  {
+   "id": "r03",
+   "title": "Classic Beef Bolognese",
+   "description": "A rich, slow-simmered ragù with beef and pork, built on a proper soffritto. Worth the time.",
+   "cuisine": "Italian",
+   "tags": [
+    "pasta",
+    "slow-cooked"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": true,
+   "difficulty": "medium",
+   "saturatedFatG": 11,
+   "fiberG": 4,
+   "ingredients": [
+    {
+     "id": "r03i0",
+     "position": 0,
+     "ingredientName": "olive oil"
+    },
+    {
+     "id": "r03i1",
+     "position": 1,
+     "ingredientName": "unsalted butter"
+    },
+    {
+     "id": "r03i2",
+     "position": 2,
+     "ingredientName": "onions"
+    },
+    {
+     "id": "r03i3",
+     "position": 3,
+     "ingredientName": "carrots"
+    },
+    {
+     "id": "r03i4",
+     "position": 4,
+     "ingredientName": "celery sticks"
+    },
+    {
+     "id": "r03i5",
+     "position": 5,
+     "ingredientName": "garlic cloves"
+    },
+    {
+     "id": "r03i6",
+     "position": 6,
+     "ingredientName": "beef mince"
+    },
+    {
+     "id": "r03i7",
+     "position": 7,
+     "ingredientName": "pork mince"
+    },
+    {
+     "id": "r03i8",
+     "position": 8,
+     "ingredientName": "dry red wine"
+    },
+    {
+     "id": "r03i9",
+     "position": 9,
+     "ingredientName": "chopped tomatoes"
+    },
+    {
+     "id": "r03i10",
+     "position": 10,
+     "ingredientName": "tomato paste"
+    },
+    {
+     "id": "r03i11",
+     "position": 11,
+     "ingredientName": "whole milk"
+    },
+    {
+     "id": "r03i12",
+     "position": 12,
+     "ingredientName": "bay leaves"
+    },
+    {
+     "id": "r03i13",
+     "position": 13,
+     "ingredientName": "salt"
+    },
+    {
+     "id": "r03i14",
+     "position": 14,
+     "ingredientName": "black pepper"
+    }
+   ],
+   "prepTimeMinutes": 25,
+   "cookTimeMinutes": 180
+  },
+  {
+   "id": "r04",
+   "title": "Creamy Tomato Soup",
+   "description": "Velvety, deeply tomatoey and ready for grilled cheese dunking.",
+   "cuisine": "American",
+   "tags": [
+    "soup",
+    "vegetarian"
+   ],
+   "mealTypes": [
+    "lunch",
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": false,
+   "difficulty": "easy",
+   "ingredients": [
+    {
+     "id": "r04i0",
+     "position": 0,
+     "ingredientName": "onions"
+    },
+    {
+     "id": "r04i1",
+     "position": 1,
+     "ingredientName": "garlic cloves"
+    },
+    {
+     "id": "r04i2",
+     "position": 2,
+     "ingredientName": "chopped tomatoes"
+    },
+    {
+     "id": "r04i3",
+     "position": 3,
+     "ingredientName": "vegetable stock"
+    },
+    {
+     "id": "r04i4",
+     "position": 4,
+     "ingredientName": "double cream"
+    },
+    {
+     "id": "r04i5",
+     "position": 5,
+     "ingredientName": "fresh basil"
+    },
+    {
+     "id": "r04i6",
+     "position": 6,
+     "ingredientName": "olive oil"
+    },
+    {
+     "id": "r04i7",
+     "position": 7,
+     "ingredientName": "salt"
+    }
+   ],
+   "prepTimeMinutes": 10,
+   "cookTimeMinutes": 30
+  },
+  {
+   "id": "r05",
+   "title": "Fish Tacos",
+   "description": "Crisp battered fish, quick slaw and a lime crema in soft tortillas.",
+   "cuisine": "Mexican",
+   "tags": [
+    "fish"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": false,
+   "difficulty": "medium",
+   "saturatedFatG": 3.0,
+   "fiberG": 5.1,
+   "ingredients": [
+    {
+     "id": "r05i0",
+     "position": 0,
+     "ingredientName": "white fish fillets"
+    },
+    {
+     "id": "r05i1",
+     "position": 1,
+     "ingredientName": "plain flour"
+    },
+    {
+     "id": "r05i2",
+     "position": 2,
+     "ingredientName": "sparkling water"
+    },
+    {
+     "id": "r05i3",
+     "position": 3,
+     "ingredientName": "corn tortillas"
+    },
+    {
+     "id": "r05i4",
+     "position": 4,
+     "ingredientName": "white cabbage"
+    },
+    {
+     "id": "r05i5",
+     "position": 5,
+     "ingredientName": "limes"
+    },
+    {
+     "id": "r05i6",
+     "position": 6,
+     "ingredientName": "soured cream"
+    },
+    {
+     "id": "r05i7",
+     "position": 7,
+     "ingredientName": "fresh coriander"
+    }
+   ],
+   "prepTimeMinutes": 25,
+   "cookTimeMinutes": 15
+  },
+  {
+   "id": "r06",
+   "title": "Greek Salad",
+   "description": "No lettuce. Just ripe tomatoes, cucumber, feta and good oil.",
+   "cuisine": "Greek",
+   "tags": [
+    "salad",
+    "vegetarian",
+    "no-cook"
+   ],
+   "mealTypes": [
+    "lunch"
+   ],
+   "mealRole": "main",
+   "isFavourite": false,
+   "difficulty": "easy",
+   "saturatedFatG": 3.5,
+   "fiberG": 4.2,
+   "ingredients": [
+    {
+     "id": "r06i0",
+     "position": 0,
+     "ingredientName": "ripe tomatoes"
+    },
+    {
+     "id": "r06i1",
+     "position": 1,
+     "ingredientName": "cucumber"
+    },
+    {
+     "id": "r06i2",
+     "position": 2,
+     "ingredientName": "red onion"
+    },
+    {
+     "id": "r06i3",
+     "position": 3,
+     "ingredientName": "feta"
+    },
+    {
+     "id": "r06i4",
+     "position": 4,
+     "ingredientName": "kalamata olives"
+    },
+    {
+     "id": "r06i5",
+     "position": 5,
+     "ingredientName": "extra virgin olive oil"
+    },
+    {
+     "id": "r06i6",
+     "position": 6,
+     "ingredientName": "dried oregano"
+    }
+   ],
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 0
+  },
+  {
+   "id": "r07",
+   "title": "Mushroom Risotto",
+   "description": "Creamy, earthy and deeply savoury. Stir, stir, stir.",
+   "cuisine": "Italian",
+   "tags": [
+    "vegetarian",
+    "rice"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": true,
+   "difficulty": "medium",
+   "saturatedFatG": 9.5,
+   "fiberG": 2.0,
+   "ingredients": [
+    {
+     "id": "r07i0",
+     "position": 0,
+     "ingredientName": "arborio rice"
+    },
+    {
+     "id": "r07i1",
+     "position": 1,
+     "ingredientName": "chestnut mushrooms"
+    },
+    {
+     "id": "r07i2",
+     "position": 2,
+     "ingredientName": "onions"
+    },
+    {
+     "id": "r07i3",
+     "position": 3,
+     "ingredientName": "garlic cloves"
+    },
+    {
+     "id": "r07i4",
+     "position": 4,
+     "ingredientName": "dry white wine"
+    },
+    {
+     "id": "r07i5",
+     "position": 5,
+     "ingredientName": "vegetable stock"
+    },
+    {
+     "id": "r07i6",
+     "position": 6,
+     "ingredientName": "parmesan"
+    },
+    {
+     "id": "r07i7",
+     "position": 7,
+     "ingredientName": "unsalted butter"
+    }
+   ],
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 35
+  },
+  {
+   "id": "r08",
+   "title": "Shakshuka",
+   "description": "Eggs poached in a spiced pepper and tomato sauce. Brunch hero.",
+   "cuisine": "Middle Eastern",
+   "tags": [
+    "eggs",
+    "vegetarian",
+    "brunch"
+   ],
+   "mealTypes": [
+    "breakfast",
+    "lunch"
+   ],
+   "mealRole": "main",
+   "isFavourite": true,
+   "difficulty": "easy",
+   "ingredients": [
+    {
+     "id": "r08i0",
+     "position": 0,
+     "ingredientName": "eggs"
+    },
+    {
+     "id": "r08i1",
+     "position": 1,
+     "ingredientName": "chopped tomatoes"
+    },
+    {
+     "id": "r08i2",
+     "position": 2,
+     "ingredientName": "red peppers"
+    },
+    {
+     "id": "r08i3",
+     "position": 3,
+     "ingredientName": "onions"
+    },
+    {
+     "id": "r08i4",
+     "position": 4,
+     "ingredientName": "garlic cloves"
+    },
+    {
+     "id": "r08i5",
+     "position": 5,
+     "ingredientName": "ground cumin"
+    },
+    {
+     "id": "r08i6",
+     "position": 6,
+     "ingredientName": "smoked paprika"
+    },
+    {
+     "id": "r08i7",
+     "position": 7,
+     "ingredientName": "feta"
+    }
+   ],
+   "prepTimeMinutes": 10,
+   "cookTimeMinutes": 25
+  },
+  {
+   "id": "r09",
+   "title": "Smash Burgers",
+   "description": "Thin, lacy-edged patties with maximum crust. A weeknight treat.",
+   "cuisine": "American",
+   "tags": [
+    "beef"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": false,
+   "difficulty": "easy",
+   "ingredients": [
+    {
+     "id": "r09i0",
+     "position": 0,
+     "ingredientName": "beef mince"
+    },
+    {
+     "id": "r09i1",
+     "position": 1,
+     "ingredientName": "burger buns"
+    },
+    {
+     "id": "r09i2",
+     "position": 2,
+     "ingredientName": "american cheese"
+    },
+    {
+     "id": "r09i3",
+     "position": 3,
+     "ingredientName": "onions"
+    },
+    {
+     "id": "r09i4",
+     "position": 4,
+     "ingredientName": "pickles"
+    },
+    {
+     "id": "r09i5",
+     "position": 5,
+     "ingredientName": "salt"
+    },
+    {
+     "id": "r09i6",
+     "position": 6,
+     "ingredientName": "black pepper"
+    }
+   ],
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 10
+  },
+  {
+   "id": "r10",
+   "title": "Spaghetti Carbonara",
+   "description": "Silky, peppery and on the table in 25 minutes. No cream, ever.",
+   "cuisine": "Italian",
+   "tags": [
+    "pasta"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": true,
+   "difficulty": "medium",
+   "saturatedFatG": 12,
+   "fiberG": 2,
+   "ingredients": [
+    {
+     "id": "r10i0",
+     "position": 0,
+     "ingredientName": "spaghetti"
+    },
+    {
+     "id": "r10i1",
+     "position": 1,
+     "ingredientName": "guanciale"
+    },
+    {
+     "id": "r10i2",
+     "position": 2,
+     "ingredientName": "egg yolks"
+    },
+    {
+     "id": "r10i3",
+     "position": 3,
+     "ingredientName": "whole eggs"
+    },
+    {
+     "id": "r10i4",
+     "position": 4,
+     "ingredientName": "pecorino romano"
+    },
+    {
+     "id": "r10i5",
+     "position": 5,
+     "ingredientName": "black pepper"
+    }
+   ],
+   "prepTimeMinutes": 10,
+   "cookTimeMinutes": 15
+  },
+  {
+   "id": "r11",
+   "title": "Thai Green Curry",
+   "description": "Fragrant, coconut-rich and as hot as you dare to make it.",
+   "cuisine": "Thai",
+   "tags": [
+    "curry",
+    "chicken"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": true,
+   "difficulty": "medium",
+   "ingredients": [
+    {
+     "id": "r11i0",
+     "position": 0,
+     "ingredientName": "green curry paste"
+    },
+    {
+     "id": "r11i1",
+     "position": 1,
+     "ingredientName": "coconut milk"
+    },
+    {
+     "id": "r11i2",
+     "position": 2,
+     "ingredientName": "chicken thighs"
+    },
+    {
+     "id": "r11i3",
+     "position": 3,
+     "ingredientName": "thai aubergines"
+    },
+    {
+     "id": "r11i4",
+     "position": 4,
+     "ingredientName": "bamboo shoots"
+    },
+    {
+     "id": "r11i5",
+     "position": 5,
+     "ingredientName": "fish sauce"
+    },
+    {
+     "id": "r11i6",
+     "position": 6,
+     "ingredientName": "palm sugar"
+    },
+    {
+     "id": "r11i7",
+     "position": 7,
+     "ingredientName": "thai basil"
+    },
+    {
+     "id": "r11i8",
+     "position": 8,
+     "ingredientName": "kaffir lime leaves"
+    }
+   ],
+   "prepTimeMinutes": 20,
+   "cookTimeMinutes": 25
+  },
+  {
+   "id": "r12",
+   "title": "Weeknight Chicken Stir-Fry",
+   "description": "Fast, fresh and endlessly adaptable — on the table in 20 minutes.",
+   "cuisine": "Chinese",
+   "tags": [
+    "chicken",
+    "quick"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": true,
+   "difficulty": "easy",
+   "saturatedFatG": 2.4,
+   "fiberG": 5.5,
+   "ingredients": [
+    {
+     "id": "r12i0",
+     "position": 0,
+     "ingredientName": "chicken breasts"
+    },
+    {
+     "id": "r12i1",
+     "position": 1,
+     "ingredientName": "broccoli florets"
+    },
+    {
+     "id": "r12i2",
+     "position": 2,
+     "ingredientName": "red peppers"
+    },
+    {
+     "id": "r12i3",
+     "position": 3,
+     "ingredientName": "carrots"
+    },
+    {
+     "id": "r12i4",
+     "position": 4,
+     "ingredientName": "garlic cloves"
+    },
+    {
+     "id": "r12i5",
+     "position": 5,
+     "ingredientName": "fresh ginger"
+    },
+    {
+     "id": "r12i6",
+     "position": 6,
+     "ingredientName": "soy sauce"
+    },
+    {
+     "id": "r12i7",
+     "position": 7,
+     "ingredientName": "sesame oil"
+    },
+    {
+     "id": "r12i8",
+     "position": 8,
+     "ingredientName": "vegetable oil"
+    },
+    {
+     "id": "r12i9",
+     "position": 9,
+     "ingredientName": "spring onions"
+    }
+   ],
+   "prepTimeMinutes": 15,
+   "cookTimeMinutes": 10
+  },
+  {
+   "id": "r13",
+   "title": "Lemon Drizzle Cake",
+   "description": "A tender loaf soaked in sharp lemon syrup with a crackly sugar top.",
+   "cuisine": "British",
+   "tags": [
+    "cake",
+    "sweet"
+   ],
+   "mealTypes": [
+    "dessert",
+    "snack"
+   ],
+   "mealRole": "other",
+   "isFavourite": false,
+   "difficulty": "medium"
+  },
+  {
+   "id": "r14",
+   "title": "Sourdough Loaf",
+   "description": "An open, chewy crumb and a blistered crust, from a lively starter.",
+   "cuisine": "British",
+   "tags": [
+    "bread"
+   ],
+   "mealTypes": [],
+   "mealRole": "side",
+   "isFavourite": false,
+   "difficulty": "hard"
+  },
+  {
+   "id": "r15",
+   "title": "Lancashire Hotpot",
+   "description": "Lamb and onions slowly baked under a lid of crisp sliced potatoes.",
+   "cuisine": "British",
+   "tags": [
+    "lamb",
+    "slow-cooked"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": true,
+   "difficulty": "medium"
+  },
+  {
+   "id": "r16",
+   "title": "Ten-Minute Prawn Noodles",
+   "description": "Garlicky prawns, egg noodles and greens tossed in a hot wok.",
+   "cuisine": "Chinese",
+   "tags": [
+    "prawns",
+    "noodles"
+   ],
+   "mealTypes": [
+    "dinner"
+   ],
+   "mealRole": "main",
+   "isFavourite": false,
+   "difficulty": "easy",
+   "saturatedFatG": 2.1,
+   "fiberG": 4.0
+  },
+  {
+   "id": "r17",
+   "title": "Homemade Strawberry Jam",
+   "description": "Ripe strawberries cooked down with sugar and lemon until it sets.",
+   "cuisine": "British",
+   "tags": [
+    "preserve"
+   ],
+   "mealTypes": [],
+   "mealRole": "other",
+   "isFavourite": false,
+   "difficulty": "easy"
+  },
+  {
+   "id": "r18",
+   "title": "Gin and Tonic",
+   "description": "Plenty of ice, a good gin, tonic and a twist of lime.",
+   "cuisine": "British",
+   "tags": [
+    "drink"
+   ],
+   "mealTypes": [],
+   "mealRole": "other",
+   "isFavourite": false,
+   "difficulty": "easy"
+  },
+  {
+   "id": "r19",
+   "title": "Pickled Red Onions",
+   "description": "Bright pink, sharp and sweet — ready in an hour, keeps for weeks.",
+   "cuisine": "Mexican",
+   "tags": [
+    "pickle",
+    "condiment"
+   ],
+   "mealTypes": [],
+   "mealRole": "sauce",
+   "isFavourite": false,
+   "difficulty": "easy"
+  },
+  {
+   "id": "r20",
+   "title": "Garlic Butter",
+   "description": "Softened butter beaten with garlic, parsley and a little salt.",
+   "cuisine": "French",
+   "tags": [
+    "condiment"
+   ],
+   "mealTypes": [],
+   "mealRole": "sauce",
+   "isFavourite": false,
+   "difficulty": "easy"
+  }
+ ],
+ "cooks": [
+  {
+   "id": "c1",
+   "recipeId": "r03",
+   "cookedAt": "2026-10-12T18:30:00Z",
+   "rating": 9,
+   "source": "cook",
+   "memberRatings": []
+  },
+  {
+   "id": "c2",
+   "recipeId": "r09",
+   "cookedAt": "2026-08-02T18:30:00Z",
+   "rating": 3,
+   "source": "cook",
+   "memberRatings": [],
+   "notes": "Too greasy, nobody finished them"
+  },
+  {
+   "id": "c3",
+   "recipeId": "r11",
+   "cookedAt": "2026-09-01T18:30:00Z",
+   "rating": 8,
+   "source": "cook",
+   "memberRatings": [
+    {
+     "name": "Alex",
+     "rating": 10
+    },
+    {
+     "name": "Sam",
+     "rating": 6
+    }
+   ],
+   "notes": "Make it hotter next time"
+  },
+  {
+   "id": "c4",
+   "recipeId": "r05",
+   "cookedAt": "2026-06-20T18:30:00Z",
+   "rating": 7,
+   "source": "cook",
+   "memberRatings": [
+    {
+     "name": "Sam",
+     "rating": 2
+    }
+   ]
+  },
+  {
+   "id": "c5",
+   "recipeId": "r10",
+   "cookedAt": "2026-07-10T18:30:00Z",
+   "rating": 10,
+   "source": "cook",
+   "memberRatings": []
+  },
+  {
+   "id": "c6",
+   "recipeId": "r07",
+   "cookedAt": "2026-05-02T18:30:00Z",
+   "rating": 8,
+   "source": "cook",
+   "memberRatings": []
+  }
+ ],
+ "plans": [
+  {
+   "id": "p1",
+   "weekStartDate": "2026-10-19"
+  },
+  {
+   "id": "p2",
+   "weekStartDate": "2026-10-26"
+  }
+ ],
+ "entries": [
+  {
+   "id": "e1",
+   "mealPlanId": "p1",
+   "recipeId": "r12",
+   "dayOfWeek": 0,
+   "mealType": "dinner"
+  },
+  {
+   "id": "e2",
+   "mealPlanId": "p1",
+   "recipeId": "r15",
+   "dayOfWeek": 2,
+   "mealType": "dinner"
+  },
+  {
+   "id": "e3",
+   "mealPlanId": "p2",
+   "recipeId": "r04",
+   "dayOfWeek": 5,
+   "mealType": "dinner"
+  }
+ ],
+ "members": [
+  {
+   "id": "sam",
+   "displayName": "Sam",
+   "role": "adult",
+   "birthYear": 1988,
+   "dietaryFlags": [
+    "Vegetarian"
+   ],
+   "dislikes": [],
+   "preferences": [],
+   "customNotes": null
+  },
+  {
+   "id": "alex",
+   "displayName": "Alex",
+   "role": "adult",
+   "birthYear": 1985,
+   "dietaryFlags": [],
+   "dislikes": [
+    "mushrooms"
+   ],
+   "preferences": [
+    "spicy food"
+   ],
+   "customNotes": null
+  },
+  {
+   "id": "rosie",
+   "displayName": "Rosie",
+   "role": "child",
+   "birthYear": 2020,
+   "dietaryFlags": [],
+   "dislikes": [],
+   "preferences": [],
+   "customNotes": null
+  },
+  {
+   "id": "jo",
+   "displayName": "Jo",
+   "role": "adult",
+   "birthYear": 1990,
+   "dietaryFlags": [
+    "Vegan"
+   ],
+   "dislikes": [],
+   "preferences": [],
+   "customNotes": null
+  },
+  {
+   "id": "pat",
+   "displayName": "Pat",
+   "role": "adult",
+   "birthYear": 1960,
+   "dietaryFlags": [
+    "Cholesterol-lowering"
+   ],
+   "dislikes": [],
+   "preferences": [],
+   "customNotes": null
+  }
+ ],
+ "scenarios": [
+  {
+   "name": "Five dinners",
+   "slots": [
+    {
+     "day": 0,
+     "meal": "dinner"
+    },
+    {
+     "day": 1,
+     "meal": "dinner"
+    },
+    {
+     "day": 2,
+     "meal": "dinner"
+    },
+    {
+     "day": 3,
+     "meal": "dinner"
+    },
+    {
+     "day": 4,
+     "meal": "dinner"
+    }
+   ],
+   "libraryShare": 0.4
+  },
+  {
+   "name": "Favourites, four dinners",
+   "slots": [
+    {
+     "day": 0,
+     "meal": "dinner"
+    },
+    {
+     "day": 1,
+     "meal": "dinner"
+    },
+    {
+     "day": 2,
+     "meal": "dinner"
+    },
+    {
+     "day": 3,
+     "meal": "dinner"
+    }
+   ],
+   "favouritesOnly": true,
+   "libraryShare": 0.75
+  },
+  {
+   "name": "Four dinners for a vegetarian",
+   "slots": [
+    {
+     "day": 0,
+     "meal": "dinner"
+    },
+    {
+     "day": 1,
+     "meal": "dinner"
+    },
+    {
+     "day": 2,
+     "meal": "dinner"
+    },
+    {
+     "day": 3,
+     "meal": "dinner"
+    }
+   ],
+   "eating": [
+    "sam"
+   ],
+   "vegetarian": true
+  },
+  {
+   "name": "Heart-healthy, four dinners",
+   "slots": [
+    {
+     "day": 0,
+     "meal": "dinner"
+    },
+    {
+     "day": 1,
+     "meal": "dinner"
+    },
+    {
+     "day": 2,
+     "meal": "dinner"
+    },
+    {
+     "day": 3,
+     "meal": "dinner"
+    }
+   ],
+   "eating": [
+    "pat"
+   ],
+   "heartHealthy": true,
+   "avoid": [
+    "bacon",
+    "sausage",
+    "chorizo",
+    "cream",
+    "butter",
+    "burger",
+    "carbonara"
+   ]
+  },
+  {
+   "name": "Three breakfasts",
+   "slots": [
+    {
+     "day": 0,
+     "meal": "breakfast"
+    },
+    {
+     "day": 2,
+     "meal": "breakfast"
+    },
+    {
+     "day": 5,
+     "meal": "breakfast"
+    }
+   ],
+   "each": [
+    "egg",
+    "pancake",
+    "porridge",
+    "oat",
+    "toast",
+    "muffin",
+    "yoghurt",
+    "yogurt",
+    "granola",
+    "waffle",
+    "smoothie",
+    "banana",
+    "omelette",
+    "frittata",
+    "breakfast",
+    "crumpet",
+    "bagel",
+    "fruit",
+    "berry",
+    "shakshuka",
+    "bircher",
+    "crepe",
+    "bread"
+   ]
+  },
+  {
+   "name": "Pasta on Friday",
+   "slots": [
+    {
+     "day": 0,
+     "meal": "dinner"
+    },
+    {
+     "day": 1,
+     "meal": "dinner"
+    },
+    {
+     "day": 2,
+     "meal": "dinner"
+    },
+    {
+     "day": 3,
+     "meal": "dinner"
+    },
+    {
+     "day": 4,
+     "meal": "dinner"
+    }
+   ],
+   "preferences": "Something with pasta on Friday, quick meals the rest of the week",
+   "slotMentions": {
+    "4": [
+     "pasta",
+     "spaghetti",
+     "penne",
+     "linguine",
+     "rigatoni",
+     "tagliatelle",
+     "lasagne",
+     "fusilli",
+     "orzo",
+     "gnocchi",
+     "macaroni",
+     "ravioli",
+     "carbonara",
+     "bolognese"
+    ]
+   }
+  }
+ ]
+}

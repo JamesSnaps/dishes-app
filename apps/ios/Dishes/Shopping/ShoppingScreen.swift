@@ -22,6 +22,8 @@ struct ShoppingScreen: View {
     @State private var showChecked = false
     @State private var editing: ShoppingItem?
     @State private var ticks = 0
+    /// The shopping trip is on the Lock Screen (ShoppingTripActivity).
+    @State private var onTrip = false
     @State private var pageWidth: CGFloat = 0
     /// Sainsbury's, beside the list (wide) …
     @State private var shop: URL?
@@ -68,7 +70,17 @@ struct ShoppingScreen: View {
                     let open = data.value.all.filter { !$0.isChecked }.count
                     let checked = data.value.checked.count
                     PageHeader(title: "Shopping List",
-                               subtitle: "\(data.value.list?.name ?? "No list yet") · \(open + checked) items, \(checked) checked")
+                               subtitle: "\(data.value.list?.name ?? "No list yet") · \(open + checked) items, \(checked) checked") {
+                        if onTrip {
+                            Button { toggleTrip() } label: { Label("End trip", systemImage: "lock.slash") }
+                                .buttonStyle(.outline)
+                        } else if open > 0 {
+                            // Going shopping: what's left on the Lock Screen, kept current as the family adds things.
+                            Button { toggleTrip() } label: { Label("Shopping trip", systemImage: "lock.iphone") }
+                                .buttonStyle(.gradient(.orangeRose))
+                                .fixedSize()
+                        }
+                    }
                     AddItemCard()
 
                     if checked > 0 {
@@ -101,16 +113,20 @@ struct ShoppingScreen: View {
                     }
 
                     let groups = data.value.groups.map { ($0.name, $0.items) }
-                        + (showChecked && checked > 0 ? [("Checked", data.value.checked)] : [])
-                    if twoColumns {
-                        let (left, right) = balanced(groups)
-                        HStack(alignment: .top, spacing: 20) {
-                            VStack(spacing: 16) { ForEach(left, id: \.0) { groupCard($0.0, $0.1) } }
-                            VStack(spacing: 16) { ForEach(right, id: \.0) { groupCard($0.0, $0.1) } }
+                        + (showChecked && checked > 0 ? [(Self.checkedAisle, data.value.checked)] : [])
+                    Group {
+                        if twoColumns {
+                            let (left, right) = balanced(groups)
+                            HStack(alignment: .top, spacing: 20) {
+                                VStack(spacing: 16) { ForEach(left, id: \.0) { groupCard($0.0, $0.1) } }
+                                VStack(spacing: 16) { ForEach(right, id: \.0) { groupCard($0.0, $0.1) } }
+                            }
+                        } else {
+                            ForEach(groups, id: \.0) { groupCard($0.0, $0.1) }
                         }
-                    } else {
-                        ForEach(groups, id: \.0) { groupCard($0.0, $0.1) }
                     }
+                    // iOS 27: drag an item within its aisle, or onto another to change its category (D6).
+                    .modifier(ReorderAisles { sources, aisle, before in reorder(sources, to: aisle, before: before) })
                 }
                 .padding(.horizontal, width == .regular ? 32 : 16)
                 .padding(.vertical, 20)
@@ -119,6 +135,25 @@ struct ShoppingScreen: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await app.syncNow() }
+            .onAppear { onTrip = ShoppingTripActivity.shared.isShowing }
+            // It ends itself when the last item's ticked.
+            .onChange(of: data.value.groups.reduce(0) { $0 + $1.items.count }) { onTrip = ShoppingTripActivity.shared.isShowing }
+    }
+
+    private func toggleTrip() {
+        if onTrip {
+            ShoppingTripActivity.shared.end()
+            onTrip = false
+            return
+        }
+        Task {
+            if let problem = await ShoppingTripActivity.shared.start() {
+                app.toast = problem
+            } else {
+                onTrip = true
+                app.toast = "On the Lock Screen until everything’s ticked."
+            }
+        }
     }
 
     /// Splits the categories into two columns of about equal length, keeping order.
@@ -140,12 +175,23 @@ struct ShoppingScreen: View {
                 .foregroundStyle(Theme.mutedForeground)
                 .padding(.leading, 2)
             VStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    if index > 0 { Rectangle().fill(Theme.border).frame(height: 1) }
-                    row(item)
+                // Ticked items stay where they are; the aisles can be reordered.
+                if #available(iOS 27, *), name != Self.checkedAisle {
+                    ForEach(items) { divided($0, first: $0.id == items.first?.id) }
+                        .reorderable(collectionID: name)
+                } else {
+                    ForEach(items) { divided($0, first: $0.id == items.first?.id) }
                 }
             }
             .card()
+        }
+    }
+
+    static let checkedAisle = "Checked"
+
+    private func divided(_ item: ShoppingItem, first: Bool) -> some View {
+        row(item).overlay(alignment: .top) {
+            if !first { Rectangle().fill(Theme.border).frame(height: 1) }
         }
     }
 
@@ -211,6 +257,25 @@ struct ShoppingScreen: View {
         Task { await app.setShoppingItem(item.id, checked: checked) }
     }
 
+    /// A drop: each item whose place or aisle changed, updated offline-first
+    /// (ShoppingReorder works out which).
+    private func reorder(_ sources: [String], to aisle: String, before: String?) {
+        guard aisle != Self.checkedAisle else { return }
+        let aisles = data.value.groups.map { (name: $0.name, items: $0.items) }
+        let byId = Dictionary(data.value.all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let changes = ShoppingReorder.changes(aisles, moving: sources, to: aisle, before: before)
+        Task {
+            for change in changes {
+                guard let current = try? await app.store.read({ try $0.record(.shoppingItems, id: change.itemId) }),
+                      byId[change.itemId] != nil else { continue }
+                var fields: [String: JSONValue] = ["position": .number(Double(change.position))]
+                if let category = change.category { fields["category"] = category.map(JSONValue.string) ?? .null }
+                await app.mutate("shopping_item.update", payload: .object(fields.merging(["itemId": .string(change.itemId)]) { a, _ in a }),
+                                 optimistic: [.put(.shoppingItems, current.merging(.object(fields)))])
+            }
+        }
+    }
+
     private func delete(_ item: ShoppingItem) {
         Task {
             await app.mutate("shopping_item.delete", payload: .object(["itemId": .string(item.id)]),
@@ -227,8 +292,6 @@ struct ShoppingScreen: View {
     }
 }
 
-/// The web's CATEGORY_ORDER (shopping-list-client.tsx); anything else after, then uncategorised.
-let shoppingCategories = ["Produce", "Dairy", "Meat", "Fish", "Bakery", "Pantry", "Frozen", "Drinks", "Cleaning", "Other"]
 
 // MARK: Add
 
@@ -379,13 +442,20 @@ struct AddItemCard: View {
         let trimmed = (picked ?? name).trimmingCharacters(in: .whitespacesAndNewlines)
         // Done on an empty field means "finished adding".
         guard !trimmed.isEmpty else { focused = false; return }
-        let qty = amount.trimmingCharacters(in: .whitespaces)
-        let u = unit.trimmingCharacters(in: .whitespaces)
+        var qty = amount.trimmingCharacters(in: .whitespaces)
+        var u = unit.trimmingCharacters(in: .whitespaces)
         name = ""; amount = ""; unit = ""
         // Stay in the field: items usually come in a run.
         focused = true
         Task {
-            await app.addShoppingItem(trimmed, amount: qty.isEmpty ? nil : qty, unit: u.isEmpty ? nil : u,
+            var item = trimmed
+            // "500g beef mince" typed into the name: the amount and unit go in their own
+            // fields, as the recipe editor reads a line (rules, then the on-device model).
+            if picked == nil, qty.isEmpty, u.isEmpty, let read = await IngredientLineReader.read(trimmed)?.value,
+               !read.amount.isEmpty {
+                (item, qty, u) = (read.ingredientName, read.amount, read.unit)
+            }
+            await app.addShoppingItem(item, amount: qty.isEmpty ? nil : qty, unit: u.isEmpty ? nil : u,
                                       category: category.isEmpty ? remembered : category)
         }
     }
@@ -450,42 +520,22 @@ struct EditItemSheet: View {
     }
 }
 
-// MARK: Data
+/// The iOS 27 reorder container around the aisles: hands a drop to `move` as
+/// (the dragged items, the aisle, the item they went in front of — nil at the end).
+private struct ReorderAisles: ViewModifier {
+    let move: ([String], String, String?) -> Void
 
-/// The active list and its items, grouped for display.
-struct ShoppingData: Sendable {
-    struct Group: Sendable { var name: String; var items: [ShoppingItem] }
-
-    var list: ShoppingList?
-    var all: [ShoppingItem] = []
-    var groups: [Group] = []
-    var checked: [ShoppingItem] = []
-    var recipeTitles: [String: String] = [:]
-
-    @Sendable static func load(_ r: StoreReader) throws -> ShoppingData {
-        let lists = try r.records(.shoppingLists).compactMap(ShoppingList.init)
-        let list = lists.first { $0.status == "active" }
-        let items = try r.records(.shoppingItems).compactMap(ShoppingItem.init)
-            // Items on the active list, plus any added before a list existed.
-            .filter { $0.listId == list?.id || $0.listId == "pending" }
-            .sorted { ($0.position, $0.name) < ($1.position, $1.name) }
-
-        var data = ShoppingData(list: list, all: items)
-        let open = items.filter { !$0.isChecked }
-        let byCategory = Dictionary(grouping: open) { $0.category?.isEmpty == false ? $0.category! : "" }
-        func rank(_ name: String) -> (Int, String) {
-            if name.isEmpty { return (2, "") }
-            if let i = shoppingCategories.firstIndex(of: name) { return (0, String(format: "%02d", i)) }
-            return (1, name)
+    func body(content: Content) -> some View {
+        if #available(iOS 27, *) {
+            content.reorderContainer(for: ShoppingItem.self, in: String.self) { difference in
+                let before: String? = switch difference.destination.position {
+                case .before(let id): id
+                case .end: nil
+                }
+                move(difference.sources, difference.destination.collectionID, before)
+            }
+        } else {
+            content
         }
-        data.groups = byCategory.keys.sorted { rank($0) < rank($1) }
-            .map { Group(name: $0.isEmpty ? "Uncategorised" : $0, items: byCategory[$0]!) }
-        data.checked = items.filter(\.isChecked)
-        let ids = Set(items.compactMap(\.recipeId))
-        if !ids.isEmpty {
-            data.recipeTitles = Dictionary(try r.records(.recipes).compactMap(Recipe.init)
-                .filter { ids.contains($0.id) }.map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
-        }
-        return data
     }
 }

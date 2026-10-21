@@ -11,6 +11,7 @@
 // they work offline too; "Add N meals to list" calls the server, as on the
 // web, because pantry stock decides what it adds; so does AI planning.
 
+import AppIntents
 import DishesCore
 import SwiftUI
 
@@ -263,17 +264,51 @@ struct PlanScreen: View {
             if meals.isEmpty {
                 EmptyBox(message: "No meals planned for this day")
             }
-            ForEach(meals) { meal in
-                if meal.title != nil {
-                    MealGroupCard(meal: meal, delete: delete, cook: cook)
-                } else if let dish = meal.dishes.first {
-                    EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete) { cook(meal) }
+            // iOS 27: drag a meal up or down to arrange the day (D6).
+            VStack(alignment: .leading, spacing: 12) {
+                if #available(iOS 27, *) {
+                    ForEach(meals) { mealCard($0) }.reorderable()
+                } else {
+                    ForEach(meals) { mealCard($0) }
                 }
             }
+            .modifier(ReorderDay { sources, before in reorder(sources, before: before, in: meals) })
 
             Button { adding = true } label: { Label("Add meal", systemImage: "plus") }
                 .buttonStyle(.gradient(.violetIndigo))
                 .padding(.top, 4)
+        }
+    }
+
+    private func mealCard(_ meal: PlannedMeal) -> some View {
+        Group {
+            if meal.title != nil {
+                MealGroupCard(meal: meal, delete: delete, cook: cook)
+            } else if let dish = meal.dishes.first {
+                EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete) { cook(meal) }
+            }
+        }
+        .appEntityIdentifier(EntityIdentifier(for: PlannedMealEntity.self, identifier: meal.id))
+    }
+
+    /// A drop: the day's meals in their new order, offline-first — each
+    /// recipe or combined meal numbered 1, 2, 3… (`meal_plan_day.reorder`).
+    private func reorder(_ sources: [String], before: String?, in meals: [PlannedMeal]) {
+        let moving = meals.filter { sources.contains($0.id) }
+        let staying = meals.filter { !sources.contains($0.id) }
+        let at = before.flatMap { b in staying.firstIndex { $0.id == b } } ?? staying.count
+        let order = Array(staying[..<at]) + moving + Array(staying[at...])
+        guard order.map(\.id) != meals.map(\.id) else { return }
+        Task {
+            var optimistic: [OptimisticChange] = []
+            for (n, meal) in order.enumerated() {
+                let collection: SyncCollection = meal.groupId == nil ? .mealPlanEntries : .mealPlanGroups
+                if let record = try? await app.store.read({ try $0.record(collection, id: meal.id) }) {
+                    optimistic.append(.put(collection, record.merging(.object(["position": .number(Double(n + 1))]))))
+                }
+            }
+            let items = order.map { JSONValue.object(["kind": .string($0.groupId == nil ? "entry" : "group"), "id": .string($0.id)]) }
+            await app.mutate("meal_plan_day.reorder", payload: .object(["items": .array(items)]), optimistic: optimistic)
         }
     }
 
@@ -310,6 +345,8 @@ struct PlanScreen: View {
                     ForEach(data.value.meals(on: day, in: week)) { meal in
                         WeekMealCard(meal: meal, link: MealLink(id: meal.id, week: week, day: day), delete: delete, cook: cook)
                             .draggable((meal.title == nil ? "entry:" : "group:") + meal.id)
+                            // For Siri: "add this to the shopping list" about the card on screen.
+                            .appEntityIdentifier(EntityIdentifier(for: PlannedMealEntity.self, identifier: meal.id))
                     }
 
                     Button {
@@ -1021,22 +1058,8 @@ struct AddMealSheet: View {
     }
 
     private func add(_ recipe: Recipe) {
-        let planId = plan?.id ?? "temp-plan-\(UUID().uuidString.lowercased())"
-        var optimistic: [OptimisticChange] = []
-        if plan == nil {
-            optimistic.append(.put(.mealPlans, .object(["id": .string(planId), "weekStartDate": .string(week.key)]),
-                                   temporary: true))
-        }
-        optimistic.append(.put(.mealPlanEntries, .object([
-            "id": .string("temp-entry-\(UUID().uuidString.lowercased())"),
-            "mealPlanId": .string(planId), "recipeId": .string(recipe.id),
-            "dayOfWeek": .number(Double(day)), "mealType": .string(mealType),
-        ]), temporary: true))
         Task {
-            await app.mutate("meal_plan_entry.add",
-                             payload: .object(["weekStartDate": .string(week.key), "recipeId": .string(recipe.id),
-                                               "dayOfWeek": .number(Double(day)), "mealType": .string(mealType)]),
-                             optimistic: optimistic)
+            await app.planRecipe(recipe.id, week: week, day: day, mealType: mealType)
             app.toast = "Added \(recipe.title)."
             dismiss()
         }
@@ -1102,95 +1125,22 @@ struct SavedMealChooser: View {
     }
 }
 
-// MARK: Data
+/// The iOS 27 reorder container around a day's meals: hands a drop to `move`
+/// as (the dragged meals, the meal they went in front of — nil at the end).
+private struct ReorderDay: ViewModifier {
+    let move: ([String], String?) -> Void
 
-/// A Monday-to-Sunday week, keyed as the server keys meal plans ("yyyy-MM-dd").
-struct Week: Hashable, Sendable {
-    var monday: Date
-
-    static func containing(_ date: Date) -> Week {
-        var calendar = Calendar(identifier: .iso8601)
-        calendar.timeZone = .current
-        let start = calendar.dateInterval(of: .weekOfYear, for: date)!.start
-        return Week(monday: start)
-    }
-
-    /// Today as 0 (Monday) to 6 (Sunday).
-    static var todayIndex: Int { (Calendar(identifier: .iso8601).component(.weekday, from: Date()) + 5) % 7 }
-
-    /// In the local calendar: an ISO-8601 formatter writes UTC, which turns
-    /// midnight on a British Summer Time Monday into Sunday's date.
-    var key: String {
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: monday)
-        return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
-    }
-
-    func day(_ index: Int) -> Date { Calendar.current.date(byAdding: .day, value: index, to: monday)! }
-    func adding(_ weeks: Int) -> Week { Week(monday: Calendar.current.date(byAdding: .day, value: 7 * weeks, to: monday)!) }
-    var isCurrent: Bool { self == Week.containing(Date()) }
-
-    /// "This Week", or the range as the web shows it: "5 Oct – 11 Oct 2026".
-    var title: String {
-        if isCurrent { return "This Week" }
-        let end = day(6)
-        return "\(monday.formatted(.dateTime.day().month(.abbreviated))) – \(end.formatted(.dateTime.day().month(.abbreviated).year()))"
-    }
-}
-
-/// One slot in a day: a combined meal with its dishes, or a single dish.
-struct PlannedMeal: Identifiable {
-    var id: String
-    /// Set for a combined meal (`id` is then the group's); nil for a single dish.
-    var groupId: String? = nil
-    var mealType: String
-    var title: String?
-    var serveAt: String?
-    var sourceMealId: String? = nil
-    var dishes: [(entry: MealPlanEntry, recipe: Recipe?)]
-
-    /// One servings figure when every dish agrees on it.
-    var servings: Double? {
-        let values = Set(dishes.compactMap { $0.entry.servings ?? $0.recipe?.servings })
-        return values.count == 1 ? values.first : nil
-    }
-}
-
-struct PlanData: Sendable {
-    var plans: [MealPlan] = []
-    var entries: [MealPlanEntry] = []
-    var groups: [MealPlanGroup] = []
-    var recipes: [String: Recipe] = [:]
-
-    @Sendable static func load(_ r: StoreReader) throws -> PlanData {
-        PlanData(
-            plans: try r.records(.mealPlans).compactMap(MealPlan.init),
-            entries: try r.records(.mealPlanEntries).compactMap(MealPlanEntry.init),
-            groups: try r.records(.mealPlanGroups).compactMap(MealPlanGroup.init),
-            recipes: Dictionary(try r.records(.recipes).compactMap(Recipe.init).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }))
-    }
-
-    func plan(for week: Week) -> MealPlan? { plans.first { $0.weekStartDate == week.key } }
-
-    func entries(in week: Week) -> [MealPlanEntry] {
-        guard let plan = plan(for: week) else { return [] }
-        return entries.filter { $0.mealPlanId == plan.id }
-    }
-
-    func meals(on day: Int, in week: Week) -> [PlannedMeal] {
-        guard let plan = plan(for: week) else { return [] }
-        let todays = entries.filter { $0.mealPlanId == plan.id && $0.dayOfWeek == day }
-        var meals: [PlannedMeal] = []
-        for group in groups where group.mealPlanId == plan.id && group.dayOfWeek == day {
-            let dishes = todays.filter { $0.groupId == group.id }.map { ($0, $0.recipeId.flatMap { recipes[$0] }) }
-            meals.append(PlannedMeal(id: group.id, groupId: group.id, mealType: group.mealType, title: group.title, serveAt: group.serveAt,
-                                     sourceMealId: group.sourceMealId, dishes: dishes))
-        }
-        for entry in todays where entry.groupId == nil || !groups.contains(where: { $0.id == entry.groupId }) {
-            meals.append(PlannedMeal(id: entry.id, mealType: entry.mealType, title: nil, serveAt: nil,
-                                     dishes: [(entry, entry.recipeId.flatMap { recipes[$0] })]))
-        }
-        return meals.sorted {
-            (mealTypeOrder.firstIndex(of: $0.mealType) ?? 9, $0.id) < (mealTypeOrder.firstIndex(of: $1.mealType) ?? 9, $1.id)
+    func body(content: Content) -> some View {
+        if #available(iOS 27, *) {
+            content.reorderContainer(for: PlannedMeal.self) { difference in
+                let before: String? = switch difference.destination.position {
+                case .before(let id): id
+                case .end: nil
+                }
+                move(difference.sources, before)
+            }
+        } else {
+            content
         }
     }
 }

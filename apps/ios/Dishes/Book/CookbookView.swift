@@ -56,7 +56,16 @@ struct CookbookView: View {
             Paper.desk.ignoresSafeArea()
             if let book, size != .zero, recipes.loaded {
                 PageCurl(count: book.leaves.count, spread: spread, slide: reduceMotion, version: "\(edition)", start: startAt,
-                         turned: { i in onPage = book.leaves[i].number ?? onPage }) { i in
+                         turned: { i in
+                             onPage = book.leaves[i].number ?? onPage
+                             // The photos on the next few pages, before they're turned to.
+                             ImageCache.shared.prefetch(book.leaves.dropFirst(i + 1).prefix(4).compactMap { leaf in
+                                 switch leaf.page {
+                                 case .photo(let r, _), .fullPhoto(let r, _): r.recipe.photoURL
+                                 default: nil
+                                 }
+                             })
+                         }) { i in
                     AnyView(LeafView(leaf: book.leaves[i], spread: spread, metrics: Cookbook.Metrics(size: page), cook: cook)
                         .environment(app)
                         .environment(nav))

@@ -17,6 +17,7 @@
 //
 //   nav.cooking = CookRequest(…)   // starts (or resumes) and shows it
 
+import AppIntents
 import DishesCore
 import SwiftUI
 import UIKit
@@ -123,6 +124,8 @@ struct CookingView: View {
     @State private var reviewingMeal = false
     @State private var showSchedule = false
     @FocusState private var keys: Bool
+    /// "Next", "read it", "how much butter?" with floury hands (HandsFree).
+    @State private var handsFree = HandsFree()
     @Environment(\.horizontalSizeClass) private var width
 
     private var request: CookRequest { session.request }
@@ -196,6 +199,12 @@ struct CookingView: View {
                 }
             }
             .background(Theme.background.ignoresSafeArea())
+            // The step on screen, at the scale being cooked, for Siri: "how much
+            // butter?", "set a timer for this" (StartStepTimerIntent). Inside the
+            // recipe, so "add this to the shopping list" still finds that too.
+            .appEntityIdentifier(EntityIdentifier(for: CookingStepEntity.self,
+                                                  identifier: CookingStepEntity.id(recipeId: dish.recipe.id, stepIndex: stepIndex, scale: dish.scale)))
+            .appEntityIdentifier(EntityIdentifier(for: RecipeEntity.self, identifier: dish.recipe.id))
             .environment(\.goToStep, goToStep)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
@@ -221,6 +230,8 @@ struct CookingView: View {
         }
         .onKeyPress(.escape) { minimise(); return .handled }
         .overlay(alignment: .top) { RingingBanner() }
+        .overlay(alignment: .bottom) { HandsFreeBanner(handsFree: handsFree).padding(.bottom, 12) }
+        .onDisappear { handsFree.stop() }
         .sheet(isPresented: $asking) {
             CookAssistSheet(session: session, dish: dish, stepIndex: stepIndex)
                 .presentationDetents([.medium, .large])
@@ -443,6 +454,12 @@ struct CookingView: View {
                     Label("More", systemImage: "ellipsis.circle")
                 }
             }
+            Button { toggleHandsFree() } label: {
+                Label(handsFree.state == .listening ? "Stop listening" : "Hands-free",
+                      systemImage: handsFree.state == .listening ? "mic.fill" : "mic")
+            }
+            .tint(handsFree.state == .listening ? Theme.brand : nil)
+            .help("Hands-free — say “next”, “back”, “read it”, “start the timer” or “how much butter?”")
             Button { minimise() } label: {
                 Label("Minimise", systemImage: "chevron.down")
             }
@@ -641,6 +658,57 @@ struct CookingView: View {
             }
         }
         stepChanges += 1
+    }
+
+    // MARK: Hands-free
+
+    private func toggleHandsFree() {
+        if handsFree.state == .listening || handsFree.state == .starting {
+            handsFree.stop()
+            return
+        }
+        let names = request.dishes.flatMap { $0.recipe.ingredients.map(\.name) }
+        handsFree.start(hints: names) { command in heard(command) }
+    }
+
+    /// What a spoken command does: the same as the buttons, said back.
+    private func heard(_ command: CookCommand) {
+        switch command {
+        case .next:
+            guard !atEnd else { return handsFree.say("That’s the last step.") }
+            move(1)
+            readStep()
+        case .back:
+            guard !atStart else { return handsFree.say("That’s the first step.") }
+            move(-1)
+            readStep()
+        case .read:
+            readStep()
+        case .startTimer:
+            if cueIsStep, let step, let minutes = step.durationMinutes, minutes > 0 {
+                startTimer(step, minutes: minutes)
+                handsFree.say("Timer started for \(Format.minutes(minutes) ?? "\(minutes) minutes").")
+            } else {
+                handsFree.say("This step doesn’t have a timer.")
+            }
+        case .howMuch(let what):
+            let all = dish.recipe.ingredients
+            guard let n = CookCommand.ingredient(matching: what, in: all.map(\.name)) else {
+                return handsFree.say("I can’t find \(what) in this recipe.")
+            }
+            let item = all[n]
+            let quantity = Format.quantity(item.amount, item.unit, scale: dish.scale)
+            handsFree.say(quantity.isEmpty ? "\(item.name), to taste." : "\(quantity) \(item.name).")
+        }
+    }
+
+    /// The step on screen, read out — after a move, the new one.
+    private func readStep() {
+        Task { @MainActor in
+            // After the move has landed.
+            await Task.yield()
+            if let step { handsFree.say("Step \(stepIndex + 1). \(step.instruction)") }
+        }
     }
 
     private func move(_ by: Int) {

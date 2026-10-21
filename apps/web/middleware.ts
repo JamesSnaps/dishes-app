@@ -5,7 +5,9 @@ import type { NextRequest } from "next/server";
 // /api/v1 is the client API: every handler calls requireSession(), which
 // resolves either an OIDC access token or the Authelia proxy headers, and
 // returns 401 through the shared error envelope when neither is present.
-const PUBLIC_PATH_PREFIXES = ["/api/integrations", "/api/v1", "/share/"];
+// /.well-known/ is the iOS app's apple-app-site-association, which Apple
+// fetches with no credentials and which says nothing private.
+const PUBLIC_PATH_PREFIXES = ["/api/integrations", "/api/v1", "/share/", "/.well-known/"];
 
 /**
  * Browser-facing alias for the client API.

@@ -8,11 +8,23 @@ export type RateLimitResult =
   | { allowed: false; retryAfter: number };
 
 export async function checkRateLimit(tokenId: string): Promise<RateLimitResult> {
-  const redis = getRedis();
-  if (!redis) return { allowed: true, remaining: MAX_REQUESTS };
+  return checkRateLimitFor(`integration:${tokenId}`, MAX_REQUESTS, WINDOW_SECONDS);
+}
 
-  const window = Math.floor(Date.now() / 1000 / WINDOW_SECONDS);
-  const key = `rate:integration:${tokenId}:${window}`;
+/**
+ * A fixed window of `max` requests per `windowSeconds` for one key (an
+ * integration token, a member calling the AI). No Redis, no limit.
+ */
+export async function checkRateLimitFor(
+  name: string,
+  max: number,
+  windowSeconds: number
+): Promise<RateLimitResult> {
+  const redis = getRedis();
+  if (!redis) return { allowed: true, remaining: max };
+
+  const window = Math.floor(Date.now() / 1000 / windowSeconds);
+  const key = `rate:${name}:${window}`;
 
   // Atomic INCR + EXPIRE via Lua to avoid a race where the key persists
   // forever if the process crashes between the two commands.
@@ -20,12 +32,12 @@ export async function checkRateLimit(tokenId: string): Promise<RateLimitResult> 
     `local c = redis.call('INCR', KEYS[1])\nif c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end\nreturn c`,
     1,
     key,
-    String(WINDOW_SECONDS)
+    String(windowSeconds)
   )) as number;
 
-  if (count > MAX_REQUESTS) {
-    return { allowed: false, retryAfter: WINDOW_SECONDS };
+  if (count > max) {
+    return { allowed: false, retryAfter: windowSeconds };
   }
 
-  return { allowed: true, remaining: MAX_REQUESTS - count };
+  return { allowed: true, remaining: max - count };
 }

@@ -111,6 +111,8 @@ public struct Recipe: Hashable, Sendable, Identifiable {
     public var servingsUnit: String?
     public var difficulty: Difficulty?
     public var mealRole: String?
+    /// breakfast, lunch, dinner, dessert, snack — which meals it suits; empty when untagged.
+    public var mealTypes: [String]
     public var imageUrl: String?
     public var thumbnailUrl: String?
     public var isFavourite: Bool
@@ -158,6 +160,7 @@ public struct Recipe: Hashable, Sendable, Identifiable {
         servingsUnit = json.string("servingsUnit")
         difficulty = json.string("difficulty").flatMap(Difficulty.init(rawValue:))
         mealRole = json.string("mealRole")
+        mealTypes = json.strings("mealTypes")
         imageUrl = json.string("imageUrl")
         thumbnailUrl = json.string("thumbnailUrl")
         isFavourite = json.bool("isFavourite") ?? false
@@ -246,6 +249,8 @@ public struct MealPlanEntry: Hashable, Sendable, Identifiable {
     public var mealRole: String?
     /// Set once the entry's ingredients have gone onto the shopping list.
     public var addedToShoppingListAt: String?
+    /// Its place in the day as arranged; 0 until someone reorders (0045).
+    public var position: Int
 
     public init?(_ json: JSONValue) {
         guard let id = json.id, let plan = json.string("mealPlanId") else { return nil }
@@ -259,6 +264,7 @@ public struct MealPlanEntry: Hashable, Sendable, Identifiable {
         notes = json.string("notes")
         groupId = json.string("groupId")
         mealRole = json.string("mealRole")
+        position = json.int("position") ?? 0
     }
 }
 
@@ -272,6 +278,8 @@ public struct MealPlanGroup: Hashable, Sendable, Identifiable {
     public var serveAt: String?
     /// The saved meal it was planned from, if any.
     public var sourceMealId: String?
+    /// Its place in the day as arranged; 0 until someone reorders (0045).
+    public var position: Int
 
     public init?(_ json: JSONValue) {
         guard let id = json.id, let plan = json.string("mealPlanId") else { return nil }
@@ -282,6 +290,7 @@ public struct MealPlanGroup: Hashable, Sendable, Identifiable {
         mealType = json.string("mealType") ?? "dinner"
         serveAt = json.string("serveAt")
         sourceMealId = json.string("sourceMealId")
+        position = json.int("position") ?? 0
     }
 }
 

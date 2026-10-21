@@ -1,0 +1,24 @@
+{
+  "title": "Pea and mint soup",
+  "description": "Bright, quick and green.",
+  "cuisine": "British",
+  "difficulty": "easy",
+  "prepTimeMinutes": 10,
+  "cookTimeMinutes": 15,
+  "servings": "4",
+  "servingsUnit": "servings",
+  "mealRole": null,
+  "mealTypes": ["lunch"],
+  "tags": ["soup", "vegetarian"],
+  "ingredients": [
+    { "ingredientName": "frozen peas", "amount": "500", "unit": "g", "preparation": "", "isOptional": false, "groupLabel": "" },
+    { "ingredientName": "mint", "amount": "1", "unit": "handful", "preparation": "leaves picked", "isOptional": false, "groupLabel": "" },
+    { "ingredientName": "crème fraîche", "amount": "2", "unit": "tbsp", "preparation": "", "isOptional": true, "groupLabel": "To serve" }
+  ],
+  "steps": [
+    { "instruction": "Simmer the peas in the stock for 10 minutes.", "durationMinutes": "10", "timerLabel": "Peas", "groupLabel": "" },
+    { "instruction": "Add the mint and blend until smooth.", "durationMinutes": "", "timerLabel": "", "groupLabel": "" }
+  ],
+  "notes": null,
+  "collectionId": null
+}

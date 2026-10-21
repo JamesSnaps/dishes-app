@@ -259,6 +259,19 @@ struct AISettingsScreen: View {
 
     var body: some View {
         Form {
+            // Not a household setting: what this device does itself (DishesCore/AI, Phase D2).
+            Section {
+                LabeledContent("Reading recipes and ingredients") {
+                    Text(DeviceAI.isAvailable ? "On this device" : "On the server")
+                        .foregroundStyle(DeviceAI.isAvailable ? Theme.brandDeep : Theme.mutedForeground)
+                }
+                if let model = DeviceAI.modelDescription {
+                    LabeledContent("Model", value: model)
+                }
+            } header: { Text("This \(UIDevice.current.model)") } footer: {
+                Text(DeviceAI.unavailableReason.map { "\($0) Until then these use the household’s key on the server." }
+                     ?? "Scanned pages and ingredient lines are read with Apple Intelligence on this device, offline, and need no key. Everything else uses the household’s key below.")
+            }
             Section {
                 SecureField(config?.keyHint.map { "Current key \($0) — leave blank to keep" } ?? "sk-…", text: $apiKey)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()

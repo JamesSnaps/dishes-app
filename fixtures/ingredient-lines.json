@@ -1,0 +1,517 @@
+{
+  "about": "Ingredient lines as people type them or recipes print them. `expected` is how a careful cook would split each one (the evaluation's answer). `rules` is what the rule parser gives today — the web's parseIngredientLines and the iOS app's IngredientRules must both give exactly this (scripts/check-ai-context.ts, IngredientRulesTests). Regenerate `rules` with `npx tsx scripts/check-ai-context.ts --write-rules` after changing the web's rules on purpose.",
+  "lines": [
+    {
+      "line": "2 onions, finely chopped",
+      "expected": {
+        "amount": "2",
+        "unit": "",
+        "name": "onions",
+        "preparation": "finely chopped"
+      },
+      "rules": {
+        "amount": "2",
+        "unit": "",
+        "name": "onions",
+        "preparation": "finely chopped",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "400 g tin chopped tomatoes",
+      "expected": {
+        "amount": "400",
+        "unit": "g",
+        "name": "tin chopped tomatoes",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "400",
+        "unit": "g",
+        "name": "tin chopped tomatoes",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "2 tbsp finely chopped flat-leaf parsley",
+      "expected": {
+        "amount": "2",
+        "unit": "tbsp",
+        "name": "flat-leaf parsley",
+        "preparation": "finely chopped"
+      },
+      "rules": {
+        "amount": "2",
+        "unit": "tbsp",
+        "name": "finely chopped flat-leaf parsley",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1½ tsp ground cumin",
+      "expected": {
+        "amount": "1 1/2",
+        "unit": "tsp",
+        "name": "ground cumin",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "1 1/2",
+        "unit": "tsp",
+        "name": "ground cumin",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "250ml double cream",
+      "expected": {
+        "amount": "250",
+        "unit": "ml",
+        "name": "double cream",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "250",
+        "unit": "ml",
+        "name": "double cream",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "3 garlic cloves, crushed",
+      "expected": {
+        "amount": "3",
+        "unit": "",
+        "name": "garlic cloves",
+        "preparation": "crushed"
+      },
+      "rules": {
+        "amount": "3",
+        "unit": "",
+        "name": "garlic cloves",
+        "preparation": "crushed",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1 large red onion, thinly sliced",
+      "expected": {
+        "amount": "1",
+        "unit": "",
+        "name": "large red onion",
+        "preparation": "thinly sliced"
+      },
+      "rules": {
+        "amount": "1",
+        "unit": "",
+        "name": "large red onion",
+        "preparation": "thinly sliced",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "500g beef mince",
+      "expected": {
+        "amount": "500",
+        "unit": "g",
+        "name": "beef mince",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "500",
+        "unit": "g",
+        "name": "beef mince",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1-2 red chillies, deseeded and chopped",
+      "expected": {
+        "amount": "1-2",
+        "unit": "",
+        "name": "red chillies",
+        "preparation": "deseeded and chopped"
+      },
+      "rules": {
+        "amount": "1-2",
+        "unit": "",
+        "name": "red chillies",
+        "preparation": "deseeded and chopped",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "100g/3½oz unsalted butter, softened",
+      "expected": {
+        "amount": "100",
+        "unit": "g",
+        "name": "unsalted butter",
+        "preparation": "softened"
+      },
+      "rules": {
+        "amount": "100",
+        "unit": "g",
+        "name": "unsalted butter",
+        "preparation": "softened",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "2 x 400g tins chickpeas, drained",
+      "expected": {
+        "amount": "2",
+        "unit": "",
+        "name": "400g tins chickpeas",
+        "preparation": "drained"
+      },
+      "rules": {
+        "amount": "2",
+        "unit": "",
+        "name": "400g tins chickpeas",
+        "preparation": "drained",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "a handful of rocket",
+      "expected": {
+        "amount": "1",
+        "unit": "handful",
+        "name": "rocket",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "",
+        "unit": "",
+        "name": "a handful of rocket",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "juice of 1 lemon",
+      "expected": {
+        "amount": "1",
+        "unit": "",
+        "name": "lemon",
+        "preparation": "juiced"
+      },
+      "rules": {
+        "amount": "",
+        "unit": "",
+        "name": "juice of 1 lemon",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "Salt and pepper",
+      "expected": {
+        "amount": "",
+        "unit": "",
+        "name": "salt and pepper",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "",
+        "unit": "",
+        "name": "Salt and pepper",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1 tbsp olive oil",
+      "expected": {
+        "amount": "1",
+        "unit": "tbsp",
+        "name": "olive oil",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "1",
+        "unit": "tbsp",
+        "name": "olive oil",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "300g spaghetti",
+      "expected": {
+        "amount": "300",
+        "unit": "g",
+        "name": "spaghetti",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "300",
+        "unit": "g",
+        "name": "spaghetti",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "2 cups of plain flour",
+      "expected": {
+        "amount": "2",
+        "unit": "cups",
+        "name": "plain flour",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "2",
+        "unit": "cups",
+        "name": "plain flour",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "4 chicken thighs, skin on (about 600g)",
+      "expected": {
+        "amount": "4",
+        "unit": "",
+        "name": "chicken thighs",
+        "preparation": "skin on"
+      },
+      "rules": {
+        "amount": "4",
+        "unit": "",
+        "name": "chicken thighs",
+        "preparation": "skin on (about 600g)",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1 tsp sea salt flakes",
+      "expected": {
+        "amount": "1",
+        "unit": "tsp",
+        "name": "sea salt flakes",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "1",
+        "unit": "tsp",
+        "name": "sea salt flakes",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "3 to 4 tbsp milk",
+      "expected": {
+        "amount": "3-4",
+        "unit": "tbsp",
+        "name": "milk",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "3-4",
+        "unit": "tbsp",
+        "name": "milk",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1 bunch spring onions, sliced",
+      "expected": {
+        "amount": "1",
+        "unit": "bunch",
+        "name": "spring onions",
+        "preparation": "sliced"
+      },
+      "rules": {
+        "amount": "1",
+        "unit": "bunch",
+        "name": "spring onions",
+        "preparation": "sliced",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "half a cucumber, diced",
+      "expected": {
+        "amount": "1/2",
+        "unit": "",
+        "name": "cucumber",
+        "preparation": "diced"
+      },
+      "rules": {
+        "amount": "",
+        "unit": "",
+        "name": "half a cucumber",
+        "preparation": "diced",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "2 eggs, beaten",
+      "expected": {
+        "amount": "2",
+        "unit": "",
+        "name": "eggs",
+        "preparation": "beaten"
+      },
+      "rules": {
+        "amount": "2",
+        "unit": "",
+        "name": "eggs",
+        "preparation": "beaten",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "150 g grated cheddar",
+      "expected": {
+        "amount": "150",
+        "unit": "g",
+        "name": "cheddar",
+        "preparation": "grated"
+      },
+      "rules": {
+        "amount": "150",
+        "unit": "g",
+        "name": "grated cheddar",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1 x 20g pack fresh coriander, leaves picked",
+      "expected": {
+        "amount": "1",
+        "unit": "",
+        "name": "20g pack fresh coriander",
+        "preparation": "leaves picked"
+      },
+      "rules": {
+        "amount": "1",
+        "unit": "",
+        "name": "20g pack fresh coriander",
+        "preparation": "leaves picked",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1 litre chicken stock",
+      "expected": {
+        "amount": "1",
+        "unit": "litre",
+        "name": "chicken stock",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "1",
+        "unit": "litre",
+        "name": "chicken stock",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "pinch of chilli flakes (optional)",
+      "expected": {
+        "amount": "1",
+        "unit": "pinch",
+        "name": "chilli flakes",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "",
+        "unit": "",
+        "name": "pinch of chilli flakes",
+        "preparation": "",
+        "isOptional": true
+      }
+    },
+    {
+      "line": "6 rashers smoked streaky bacon, chopped",
+      "expected": {
+        "amount": "6",
+        "unit": "rashers",
+        "name": "smoked streaky bacon",
+        "preparation": "chopped"
+      },
+      "rules": {
+        "amount": "6",
+        "unit": "",
+        "name": "rashers smoked streaky bacon",
+        "preparation": "chopped",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "2 medium carrots, peeled and grated",
+      "expected": {
+        "amount": "2",
+        "unit": "",
+        "name": "medium carrots",
+        "preparation": "peeled and grated"
+      },
+      "rules": {
+        "amount": "2",
+        "unit": "",
+        "name": "medium carrots",
+        "preparation": "peeled and grated",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "1/4 tsp cayenne pepper",
+      "expected": {
+        "amount": "1/4",
+        "unit": "tsp",
+        "name": "cayenne pepper",
+        "preparation": ""
+      },
+      "rules": {
+        "amount": "1/4",
+        "unit": "tsp",
+        "name": "cayenne pepper",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "zest of 1 orange",
+      "expected": {
+        "amount": "1",
+        "unit": "",
+        "name": "orange",
+        "preparation": "zested"
+      },
+      "rules": {
+        "amount": "",
+        "unit": "",
+        "name": "zest of 1 orange",
+        "preparation": "",
+        "isOptional": false
+      }
+    },
+    {
+      "line": "200g cherry tomatoes, halved",
+      "expected": {
+        "amount": "200",
+        "unit": "g",
+        "name": "cherry tomatoes",
+        "preparation": "halved"
+      },
+      "rules": {
+        "amount": "200",
+        "unit": "g",
+        "name": "cherry tomatoes",
+        "preparation": "halved",
+        "isOptional": false
+      }
+    }
+  ]
+}

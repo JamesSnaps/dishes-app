@@ -30,9 +30,14 @@ struct AddToShoppingListIntent: AppIntent {
         let app = AppModel.shared
         await app.start()
         guard app.phase == .ready else { throw ShoppingIntentError.signedOut }
-        guard await app.addShoppingItem(name) else { throw ShoppingIntentError.notSaved }
-        // Send it now: iOS may suspend the app before the debounced sync runs.
-        await app.syncNow(force: false)
+        // Awake: the app may be in the background, its store suspended (AppModel.awake).
+        let added = await app.awake {
+            guard await app.addShoppingItem(name) else { return false }
+            // Send it now: iOS may suspend the app before the debounced sync runs.
+            await app.syncNow(force: false)
+            return true
+        }
+        guard added else { throw ShoppingIntentError.notSaved }
         let sent = app.status.state == .idle && app.status.pending == 0
         let dialog: IntentDialog = sent
             ? "Added \(name) to the shopping list."
@@ -50,26 +55,4 @@ enum ShoppingIntentError: Error, CustomLocalizedStringResourceConvertible {
         case .notSaved: "Dishes couldn’t save that on this device."
         }
     }
-}
-
-struct DishesShortcuts: AppShortcutsProvider {
-    static var appShortcuts: [AppShortcut] {
-        AppShortcut(
-            intent: AddToShoppingListIntent(),
-            // Never "add to my <name> shopping list": that's Siri's own Reminders
-            // grammar, so Siri looks for a Reminders list called "Dishes shopping"
-            // and answers "I didn't find a Dishes shopping list". Naming the app
-            // after "in" or "with" keeps the request Dishes'.
-            phrases: [
-                "Add to shopping in \(.applicationName)",
-                "Add an item in \(.applicationName)",
-                "Add shopping with \(.applicationName)",
-                "Add something to \(.applicationName)",
-            ],
-            shortTitle: "Add to Shopping",
-            systemImageName: "cart.badge.plus"
-        )
-    }
-
-    static var shortcutTileColor: ShortcutTileColor { .orange }
 }

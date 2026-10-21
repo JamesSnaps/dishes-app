@@ -14,6 +14,10 @@ export interface ParsedStep {
   groupLabel: string;
 }
 
+// The iOS app has Swift copies of these rules (DishesCore/AI/IngredientRules.swift,
+// MethodRules.swift), checked against fixtures/ingredient-lines.json with this
+// file by scripts/check-ai-context.ts — change both together.
+
 // Ordered longest-first so multi-word units match before shorter prefixes
 const UNITS: string[] = [
   "fl oz", "fl. oz",

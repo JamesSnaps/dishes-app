@@ -1,0 +1,333 @@
+{
+  "date" : "2026-10-20T14:58:58Z",
+  "deviceScore" : 0.96875,
+  "job" : "ingredientLine",
+  "model" : "AFM 3 Core, 4,096 tokens",
+  "passes" : true,
+  "perSample" : [
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1 bunch spring onions, sliced",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0037649869918823242,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1 large red onion, thinly sliced",
+      "problems" : [
+
+      ],
+      "seconds" : 0.003213047981262207,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1 litre chicken stock",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0030759572982788086,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1 tbsp olive oil",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0030469894409179688,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1 tsp sea salt flakes",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0034770965576171875,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1 x 20g pack fresh coriander, leaves picked",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0034290552139282227,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1-2 red chillies, deseeded and chopped",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0036859512329101562,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1\/4 tsp cayenne pepper",
+      "problems" : [
+
+      ],
+      "seconds" : 0.00335693359375,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "100g\/3½oz unsalted butter, softened",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0033129453659057617,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "150 g grated cheddar",
+      "problems" : [
+
+      ],
+      "seconds" : 3.360356092453003,
+      "serverScore" : 0.5
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "1½ tsp ground cumin",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0030919313430786133,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "2 cups of plain flour",
+      "problems" : [
+
+      ],
+      "seconds" : 0.003437042236328125,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "2 eggs, beaten",
+      "problems" : [
+
+      ],
+      "seconds" : 0.003202080726623535,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "2 medium carrots, peeled and grated",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0034890174865722656,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "2 onions, finely chopped",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0031599998474121094,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "2 tbsp finely chopped flat-leaf parsley",
+      "problems" : [
+
+      ],
+      "seconds" : 1.8627361059188843,
+      "serverScore" : 0.5
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "2 x 400g tins chickpeas, drained",
+      "problems" : [
+
+      ],
+      "seconds" : 0.003216981887817383,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "200g cherry tomatoes, halved",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0032989978790283203,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "250ml double cream",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0031690597534179688,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "3 garlic cloves, crushed",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0031189918518066406,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "3 to 4 tbsp milk",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0034220218658447266,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "300g spaghetti",
+      "problems" : [
+
+      ],
+      "seconds" : 0.003304004669189453,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 0.75,
+      "engine" : "rules",
+      "name" : "4 chicken thighs, skin on (about 600g)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0035849809646606445,
+      "serverScore" : 0.75
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "400 g tin chopped tomatoes",
+      "problems" : [
+
+      ],
+      "seconds" : 0.003404974937438965,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "500g beef mince",
+      "problems" : [
+
+      ],
+      "seconds" : 0.003141045570373535,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 0.5,
+      "engine" : "rules",
+      "name" : "6 rashers smoked streaky bacon, chopped",
+      "problems" : [
+
+      ],
+      "seconds" : 0.003381013870239258,
+      "serverScore" : 0.5
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "rules",
+      "name" : "Salt and pepper",
+      "problems" : [
+
+      ],
+      "seconds" : 0.0032219886779785156,
+      "serverScore" : 1
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "a handful of rocket",
+      "problems" : [
+
+      ],
+      "seconds" : 1.856387972831726,
+      "serverScore" : 0.25
+    },
+    {
+      "deviceScore" : 0.75,
+      "engine" : "device",
+      "name" : "half a cucumber, diced",
+      "problems" : [
+
+      ],
+      "seconds" : 1.8471589088439941,
+      "serverScore" : 0.5
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "juice of 1 lemon",
+      "problems" : [
+
+      ],
+      "seconds" : 1.7118710279464722,
+      "serverScore" : 0.25
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "pinch of chilli flakes (optional)",
+      "problems" : [
+
+      ],
+      "seconds" : 1.8012360334396362,
+      "serverScore" : 0.25
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "zest of 1 orange",
+      "problems" : [
+
+      ],
+      "seconds" : 1.725965976715088,
+      "serverScore" : 0.25
+    }
+  ],
+  "samples" : 32,
+  "serverIs" : "the rules (the server's paste import uses the same)",
+  "serverScore" : 0.8359375,
+  "structurePassed" : 32
+}

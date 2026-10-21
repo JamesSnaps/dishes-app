@@ -31,6 +31,16 @@ export type CollectionSummary = {
   recipeIds: string[];
 };
 
+/** A collection's name, or null when it isn't this household's. */
+export async function collectionName(ctx: HouseholdContext, collectionId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ name: collections.name })
+    .from(collections)
+    .where(and(eq(collections.id, collectionId), eq(collections.householdId, ctx.householdId)))
+    .limit(1);
+  return row?.name ?? null;
+}
+
 /** Every collection, by name, with the ids of the recipes in it. */
 export async function listCollections(ctx: HouseholdContext): Promise<CollectionSummary[]> {
   const rows = await db

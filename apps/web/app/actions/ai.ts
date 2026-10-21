@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 import { getStyleSuffix } from "@/lib/image-styles";
 import { createLogger } from "@/lib/logger";
 import { FREQUENT_MIN_USES } from "@/lib/services/recipe-library";
+import { summariseTasteProfile } from "@/lib/ai/taste-summary";
 import { getWrappedReport } from "@/lib/services/wrapped";
 import { cacheRecap, getCachedRecap, recapSourceLines } from "@/lib/services/wrapped-recap";
 import { ratingsByPerson, sameName, type PersonRating } from "@/lib/cook-ratings";
@@ -191,32 +192,23 @@ async function buildTasteProfileAddendum(householdId: string): Promise<string> {
     .where(eq(tasteProfiles.householdId, householdId))
     .limit(1);
 
-  if (!profile || profile.ratedCookCount < 10) return "";
+  const summary = summariseTasteProfile(
+    profile
+      ? {
+          cuisines: profile.cuisines as Record<string, number>,
+          ingredients: profile.ingredients as Record<string, number>,
+          ratedCookCount: profile.ratedCookCount,
+        }
+      : null
+  );
+  if (!summary) return "";
 
-  const cuisines = profile.cuisines as Record<string, number>;
-  const ingredients = profile.ingredients as Record<string, number>;
+  const topCuisines = summary.preferredCuisines.map(({ name, score }) => `${name} (${score}/5)`);
 
-  const topCuisines = Object.entries(cuisines)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([name, score]) => `${name} (${score}/5)`);
-
-  const likedIngredients = Object.entries(ingredients)
-    .filter(([, s]) => s >= 3.0)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10)
-    .map(([name]) => name);
-
-  const dislikedIngredients = Object.entries(ingredients)
-    .filter(([, s]) => s <= 1.5)
-    .sort(([, a], [, b]) => a - b)
-    .slice(0, 5)
-    .map(([name]) => name);
-
-  const lines: string[] = [`\n\nHousehold taste profile (from ${profile.ratedCookCount} rated cooks):`];
+  const lines: string[] = [`\n\nHousehold taste profile (from ${summary.ratedCookCount} rated cooks):`];
   if (topCuisines.length) lines.push(`- Preferred cuisines: ${topCuisines.join(", ")}`);
-  if (likedIngredients.length) lines.push(`- Loved ingredients: ${likedIngredients.join(", ")}`);
-  if (dislikedIngredients.length) lines.push(`- Disliked ingredients: ${dislikedIngredients.join(", ")}`);
+  if (summary.lovedIngredients.length) lines.push(`- Loved ingredients: ${summary.lovedIngredients.join(", ")}`);
+  if (summary.dislikedIngredients.length) lines.push(`- Disliked ingredients: ${summary.dislikedIngredients.join(", ")}`);
   lines.push("Lean towards their preferred cuisines and loved ingredients. Strictly avoid their disliked ingredients.");
 
   return lines.join("\n");
@@ -826,6 +818,8 @@ export async function suggestCollectionForRecipe(input: {
   }
 }
 
+// The iOS app files a recipe it read on the device with a copy of this
+// prompt (DishesCore/AI/Prompts.swift, `fileRecipe`) — change both together.
 async function collectionSuggestionFor(
   householdId: string,
   input: Parameters<typeof suggestCollectionForRecipe>[0]
@@ -1802,26 +1796,10 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
 
 // ── Scan a recipe photo and extract a full structured recipe ──────────────────
 
-export async function analyzeRecipePhoto(
-  base64Image: string,
-  mimeType: string
-): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
-  try {
-    const user = await resolveIdentity();
-    const { householdId } = await requireHousehold(user);
-    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } =
-      await getOpenAiClient(householdId);
-
-    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
-
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: "json_object" },
-      ...maxTokensParam(model, 3000),
-      messages: [
-        {
-          role: "system",
-          content: `You are a recipe digitisation assistant. Extract the complete recipe from the provided image and return it as JSON matching this exact schema:
+// The system prompt for reading a recipe out of something — a photo of a page,
+// or text pasted or shared from a message, notes or a caption.
+function recipeExtractionPrompt(source: "image" | "text", addendum: string): string {
+  return `You are a recipe digitisation assistant. Extract the complete recipe from the provided ${source} and return it as JSON matching this exact schema:
 {
   "title": string,
   "description": string (1–2 sentences summarising the dish),
@@ -1848,12 +1826,38 @@ ${MEAL_TYPES_SCHEMA_FRAGMENT},
       "instruction": string,
       "durationMinutes": string (numeric string or empty if no duration mentioned),
       "timerLabel": string (short label for a timer e.g. "simmer" — empty string if no timer),
-      "groupLabel": string (section heading such as "For the sauce" if the image groups the method into named parts — use the same label as the matching ingredient group; empty string if none)
+      "groupLabel": string (section heading such as "For the sauce" if the ${source} groups the method into named parts — use the same label as the matching ingredient group; empty string if none)
     }
   ],
-  "notes": string|null (any tips, storage advice, or variations shown in the image)
+  "notes": string|null (any tips, storage advice, or variations shown in the ${source})
 }
-If a value is not present in the image use null for nullable fields or an empty string/array for others. Never invent information not visible in the image.${addendum}`,
+If a value is not present in the ${source} use null for nullable fields or an empty string/array for others. Never invent information not ${source === "image" ? "visible in the image" : "given in the text"}.${addendum}`;
+}
+
+// The iOS app reads photos on the device first, with a copy of this prompt
+// (DishesCore/AI/Prompts.swift, `readRecipe`) — change both together. One
+// difference on purpose: the device's copy leaves out "always use metric",
+// which its small model took as an order to add units the page doesn't give.
+export async function analyzeRecipePhoto(
+  base64Image: string,
+  mimeType: string
+): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
+  try {
+    const user = await resolveIdentity();
+    const { householdId } = await requireHousehold(user);
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } =
+      await getOpenAiClient(householdId);
+
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      ...maxTokensParam(model, 3000),
+      messages: [
+        {
+          role: "system",
+          content: recipeExtractionPrompt("image", addendum),
         },
         {
           role: "user",
@@ -1881,6 +1885,38 @@ If a value is not present in the image use null for nullable fields or an empty 
       throw new Error("Could not extract a complete recipe from the image.");
     }
 
+    return { recipe: parsed };
+  } catch (err) {
+    return { error: classifyError(err) };
+  }
+}
+
+/**
+ * Text that holds a recipe — copied from a message, notes, a caption, an email
+ * — read into a structured recipe. The iOS app reads shared text on the device
+ * first (DishesCore/AI/RecipeReader.swift) and comes here when it can't.
+ */
+export async function analyzeRecipeText(text: string): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
+  try {
+    const user = await resolveIdentity();
+    const { householdId } = await requireHousehold(user);
+    const { client, model, defaultPrompt, kitchenEquipment, measurementSystem } = await getOpenAiClient(householdId);
+    const addendum = buildSystemAddendum(defaultPrompt, measurementSystem, kitchenEquipment);
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: "json_object" },
+      ...maxTokensParam(model, 3000),
+      messages: [
+        { role: "system", content: recipeExtractionPrompt("text", addendum) },
+        { role: "user", content: `Please extract the complete recipe from this text:\n\n${text}` },
+      ],
+    });
+
+    const parsed = JSON.parse(completion.choices[0]?.message?.content ?? "") as GeneratedRecipe;
+    if (!parsed.title || !Array.isArray(parsed.ingredients) || !Array.isArray(parsed.steps) || !parsed.ingredients.length) {
+      throw new Error("Could not find a complete recipe in that text.");
+    }
     return { recipe: parsed };
   } catch (err) {
     return { error: classifyError(err) };

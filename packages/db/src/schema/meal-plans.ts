@@ -159,6 +159,8 @@ export const mealPlanGroups = pgTable(
      * from step durations on the fly.
      */
     timeline: jsonb("timeline"),
+    /** Its place in the day as the household arranged it; 0 until reordered (0045). */
+    position: integer("position").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("meal_plan_groups_plan_idx").on(t.mealPlanId)]
@@ -182,6 +184,8 @@ export const mealPlanEntries = pgTable("meal_plan_entries", {
     onDelete: "cascade",
   }),
   mealRole: varchar("meal_role", { length: 20 }), // MEAL_ROLES, only when grouped
+  /** Its place in the day as the household arranged it; 0 until reordered (0045). */
+  position: integer("position").notNull().default(0),
 });
 
 // ─── Relations ───────────────────────────────────────────────────────────────

@@ -124,6 +124,25 @@ export const generatedRecipeSchema = z.object({
     .strict(),
 }).strict();
 
+/**
+ * A `GeneratedRecipe` written somewhere else — the iOS app's on-device model —
+ * sent to `POST /api/v1/recipes/generated` to be saved. Looser than what the
+ * server's own model must return: nutrition (the server estimates it later)
+ * and the meal role may be left out.
+ */
+export const savedGeneratedRecipeSchema = generatedRecipeSchema
+  .extend({
+    mealRole: generatedRecipeSchema.shape.mealRole.optional(),
+    nutrition: generatedRecipeSchema.shape.nutrition.nullable().optional(),
+    references: z.array(z.object({ title: z.string(), url: z.string().url() })).optional(),
+    /**
+     * Omitted: the server suggests a collection, as the concierge does. A uuid:
+     * file it there (ignored unless it's this household's). null: don't file it.
+     */
+    collectionId: z.string().uuid().nullable().optional(),
+  })
+  .strict();
+
 // --- Prompt fragments -------------------------------------------------------
 
 // Shared prompt fragment for the meal-types array. Drives meal-plan slot
@@ -144,7 +163,11 @@ export const NUTRITION_SCHEMA_FRAGMENT = `  "nutrition": {
 // heart-healthy filter checks, so a recipe written to this brief gets the badge.
 export const HEART_HEALTHY_GUIDANCE = `It must suit a cholesterol-lowering diet: at most ${HEART_HEALTHY_MAX_SATURATED_FAT_G}g saturated fat and at least ${HEART_HEALTHY_MIN_FIBER_G}g fibre per serving. Cook with olive or rapeseed oil, not butter, ghee, lard or coconut oil. Favour fish (oily fish is ideal), skinless poultry, beans, lentils, chickpeas and tofu over fatty or processed red meat. Swap cream, full-fat cheese and coconut milk for low-fat yoghurt, reduced-fat alternatives or a small amount of a strongly flavoured cheese. Build in oats, barley, pulses, wholegrains, vegetables and nuts. Keep salt moderate. It should still taste generous — make swaps, don't just shrink the portion.`;
 
-/** Household AI settings folded into a system prompt suffix. */
+/**
+ * Household AI settings folded into a system prompt suffix. The iOS app has a
+ * copy for its on-device prompts (DishesCore/AI/Prompts.swift,
+ * `systemAddendum`) — change both together.
+ */
 export function buildSystemAddendum(
   defaultPrompt: string | null,
   measurementSystem: string,

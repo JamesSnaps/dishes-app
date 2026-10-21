@@ -9,10 +9,13 @@
 //   await app.mutate("shopping_item.toggle", payload: …, optimistic: […])
 //   await app.syncNow()
 
+import AppIntents
 import DishesCore
 import Foundation
 import Network
 import Observation
+import UIKit
+import WidgetKit
 
 struct SyncStatus: Equatable {
     enum State { case starting, idle, syncing, offline }
@@ -56,13 +59,14 @@ final class AppModel {
     static let serverURL = Developer.server ?? realServerURL
 
     private init() {
-        let path = Self.databaseURL()
+        let (path, shared) = Self.databaseURL()
+        func open() throws -> LocalStore { shared ? try LocalStore(sharedPath: path.path) : try LocalStore(path: path.path) }
         // The database can't be opened only if the disk is full or the file is
         // damaged. It's a copy of the server's, so start again rather than refuse to open.
         let store: LocalStore
-        do { store = try LocalStore(path: path.path) } catch {
+        do { store = try open() } catch {
             try? FileManager.default.removeItem(at: path)
-            store = try! LocalStore(path: path.path)
+            store = try! open()
         }
         self.store = store
         // In the Keychain group the share extension also reads (DishesShare).
@@ -73,15 +77,78 @@ final class AppModel {
         Developer.shareServerWithExtension()
     }
 
-    /// Application Support/Dishes/dishes.sqlite, left out of backups: the server is the copy that matters.
-    private static func databaseURL() -> URL {
+    /// dishes.sqlite in the App Group container, where the widgets and the
+    /// share extension can read it (AppGroup.databaseURL); `shared` says so.
+    /// Up to v1.54 it lived in the app's own Application Support/Dishes, so the
+    /// first launch after updating moves it, unsent changes and all. A build
+    /// signed without the group keeps it there. Both are left out of backups:
+    /// the server is the copy that matters.
+    private static func databaseURL() -> (url: URL, shared: Bool) {
         var root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Dishes")
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         try? root.setResourceValues(values)
-        return root.appendingPathComponent("dishes.sqlite")
+        let own = root.appendingPathComponent("dishes.sqlite")
+        guard let group = AppGroup.databaseURL else { return (own, false) }
+        do {
+            try LocalStore.moveDatabase(from: own, to: group)
+        } catch {
+            // Rare (a full disk): keep using the old copy rather than start empty; the next launch tries again.
+            print("[store] couldn’t move the database to the App Group: \(error)")
+            return (own, false)
+        }
+        return (group, true)
+    }
+
+    // MARK: Background work
+
+    private var awakeCount = 0
+    /// Off screen since the scene said so. applicationState can still read
+    /// .inactive at that moment, so both are checked.
+    private var offScreen = false
+
+    /// Work that may run with the app in the background — a BGAppRefreshTask,
+    /// a push, the Watch, Siri — goes inside this. The database lives in the
+    /// App Group container, and iOS kills an app that's suspended holding a
+    /// lock there (0xDEAD10CC), so it's suspended whenever the app is in the
+    /// background with nothing running (Store/SharedStore.swift). A suspended
+    /// store still reads; only writes need this.
+    func awake<T>(_ work: () async throws -> T) async rethrows -> T {
+        awakeCount += 1
+        LocalStore.resume()
+        defer {
+            awakeCount -= 1
+            suspendIfIdle()
+        }
+        return try await work()
+    }
+
+    /// Back on screen.
+    func enteredForeground() {
+        offScreen = false
+        LocalStore.resume()
+        // A tick on the Shopping widget wrote to the database while the app was away.
+        Task { try? await store.noticeOtherProcesses() }
+    }
+
+    /// Off screen: send anything waiting first (a tick just before locking the
+    /// phone), within the few seconds iOS allows, then suspend the store.
+    func enteredBackground() {
+        offScreen = true
+        let task = UIApplication.shared.beginBackgroundTask(withName: "send-changes")
+        Task {
+            await awake {
+                if status.pending > 0 { await syncNow(force: false) }
+            }
+            UIApplication.shared.endBackgroundTask(task)
+        }
+    }
+
+    private func suspendIfIdle() {
+        guard awakeCount == 0, offScreen || UIApplication.shared.applicationState == .background else { return }
+        LocalStore.suspend()
     }
 
     // MARK: Starting up
@@ -104,6 +171,10 @@ final class AppModel {
         }
         watchNetwork()
         await forgetOtherServer()
+        // Crash, hang and memory reports to the web's Settings → Crash reports (iOS 27, D6).
+        Diagnostics.start(api: api)
+        // Spotlight follows the database from here on, signed in or not (signed out, it empties).
+        Task { await SpotlightIndex.shared.follow(store) }
         me = try? await store.read { r in try r.meta("me").flatMap { try JSONDecoder().decode(WhoAmI.self, from: Data($0.utf8)) } }
         members = (try? await store.read { r in
             try r.meta("members").flatMap { try JSONDecoder().decode([APIClient.Member].self, from: Data($0.utf8)) }
@@ -172,6 +243,7 @@ final class AppModel {
         await Push.shared.unregister()
         try? await auth.signOut()
         try? await store.write { try $0.wipe() }
+        AIContext.forget()
         me = nil
         phase = .signedOut
     }
@@ -195,6 +267,10 @@ final class AppModel {
         do {
             let outcome = try await engine.sync(force: force)
             status.state = outcome.offline ? .offline : .idle
+            if outcome.pulled > 0 || outcome.pushed > 0 {
+                WidgetCenter.shared.reloadAllTimelines()
+                await ShoppingTripActivity.shared.update()
+            }
             if !outcome.offline { status.lastSyncedAt = Date() }
         } catch {
             // Only APIError.signedOut gets here. Local data and the outbox stay.
@@ -208,7 +284,17 @@ final class AppModel {
         if status.state == .idle {
             await refreshMembers()
             await refreshCollections()
+            await refreshAIContext()
+            // New recipes and items, for the App Shortcuts' phrases ("Tick off milk").
+            DishesShortcuts.updateAppShortcutParameters()
         }
+    }
+
+    /// The household's AI settings, kept on the device for AI there (Phase D):
+    /// in the App Group, so the share extension has them too.
+    private func refreshAIContext() async {
+        guard let fresh = try? await api.aiContext(), fresh != AIContext.cached else { return }
+        try? fresh.save()
     }
 
     func refreshCollections() async {
@@ -275,6 +361,8 @@ final class AppModel {
     func mutate(_ type: String, payload: JSONValue, optimistic: [OptimisticChange] = []) async -> Bool {
         do {
             try await engine.mutate(type, payload: payload, optimistic: optimistic)
+            WidgetCenter.shared.reloadAllTimelines()
+            if type.hasPrefix("shopping_") { await ShoppingTripActivity.shared.update() }
             status.pending = (try? await store.read { try $0.pendingCount() }) ?? status.pending
             syncSoon()
             return true
@@ -312,14 +400,45 @@ final class AppModel {
                             optimistic: [.put(.shoppingItems, record, temporary: list == nil)])
     }
 
+    /// A recipe onto a day of the plan, offline-first: the planner's add sheet
+    /// and Siri ("Plan … for Friday") both come here. With no plan for that
+    /// week yet, the server makes one, so the rows written here are temporary
+    /// until the sync brings the real ones.
+    @discardableResult
+    func planRecipe(_ recipeId: String, week: Week, day: Int, mealType: String) async -> Bool {
+        let key = week.key
+        let plan = try? await store.read { r in try r.records(.mealPlans).compactMap(MealPlan.init).first { $0.weekStartDate == key } }
+        let planId = plan?.id ?? "temp-plan-\(UUID().uuidString.lowercased())"
+        var optimistic: [OptimisticChange] = []
+        if plan == nil {
+            optimistic.append(.put(.mealPlans, .object(["id": .string(planId), "weekStartDate": .string(key)]), temporary: true))
+        }
+        optimistic.append(.put(.mealPlanEntries, .object([
+            "id": .string("temp-entry-\(UUID().uuidString.lowercased())"),
+            "mealPlanId": .string(planId), "recipeId": .string(recipeId),
+            "dayOfWeek": .number(Double(day)), "mealType": .string(mealType),
+        ]), temporary: true))
+        return await mutate("meal_plan_entry.add",
+                            payload: .object(["weekStartDate": .string(key), "recipeId": .string(recipeId),
+                                              "dayOfWeek": .number(Double(day)), "mealType": .string(mealType)]),
+                            optimistic: optimistic)
+    }
+
     /// Ticks an item off (or back on), offline-first: the shopping screen and the Watch.
     /// False when the item has gone (deleted on another device).
     @discardableResult
     func setShoppingItem(_ id: String, checked: Bool) async -> Bool {
-        guard let current = try? await store.read({ try $0.record(.shoppingItems, id: id) }) else { return false }
-        return await mutate("shopping_item.toggle",
-                            payload: .object(["itemId": .string(id), "checked": .bool(checked)]),
-                            optimistic: [.put(.shoppingItems, current.merging(.object(["isChecked": .bool(checked)])))])
+        do {
+            guard try await store.setShoppingItem(id, checked: checked) else { return false }
+            WidgetCenter.shared.reloadAllTimelines()
+            await ShoppingTripActivity.shared.update()
+            status.pending = (try? await store.read { try $0.pendingCount() }) ?? status.pending
+            syncSoon()
+            return true
+        } catch {
+            toast = "Couldn’t save that change on this device."
+            return false
+        }
     }
 
     private func explain(_ failures: [FailedMutation]) {
@@ -356,6 +475,7 @@ final class AppModel {
     func deleteCook(_ entry: CookEntry) async {
         do {
             try await api.deleteCook(id: entry.id)
+            await HealthLog.shared.remove(cookId: entry.id)
             await syncNow()
         } catch {
             toast = online ? "Couldn’t delete that cook." : "You’re offline — try again with a connection."

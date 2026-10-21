@@ -1,0 +1,192 @@
+{
+  "date" : "2026-10-20T15:48:55Z",
+  "deviceScore" : 0.8,
+  "job" : "fileRecipe",
+  "model" : "AFM 3 Core, 4,096 tokens",
+  "passes" : true,
+  "perSample" : [
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Banana Bread → Baking (Baking)",
+      "problems" : [
+
+      ],
+      "seconds" : 2.7539819478988647
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Chocolate Chip Cookies → Baking (Baking)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.7824679613113403
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Classic Beef Bolognese → Comfort Food (Comfort Food)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.9166539907455444
+    },
+    {
+      "deviceScore" : 0,
+      "engine" : "device",
+      "name" : "Creamy Tomato Soup → Weeknight Dinners (Comfort Food\/Quick & Easy)",
+      "problems" : [
+
+      ],
+      "seconds" : 1.0228639841079712
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Fish Tacos → Quick & Easy (Weeknight Dinners\/Quick & Easy)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.9580000638961792
+    },
+    {
+      "deviceScore" : 0,
+      "engine" : "device",
+      "name" : "Garlic Butter → Quick & Easy (none)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.8318789005279541
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Gin and Tonic → none (none)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.8384690284729004
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Greek Salad → Quick & Easy (Quick & Easy)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.92153000831604
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Homemade Strawberry Jam → none (none)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.8258960247039795
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Lancashire Hotpot → Comfort Food (Comfort Food)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.8301749229431152
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Lemon Drizzle Cake → Baking (Baking)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.7829750776290894
+    },
+    {
+      "deviceScore" : 0,
+      "engine" : "device",
+      "name" : "Mushroom Risotto → Weeknight Dinners (Comfort Food)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.9170159101486206
+    },
+    {
+      "deviceScore" : 0,
+      "engine" : "device",
+      "name" : "Pickled Red Onions → Quick & Easy (none)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.8314419984817505
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Shakshuka → Quick & Easy (Comfort Food\/Quick & Easy)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.8483270406723022
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Smash Burgers → Weeknight Dinners (Quick & Easy\/Weeknight Dinners)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.8896570205688477
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Sourdough Loaf → Baking (Baking)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.7704230546951294
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Spaghetti Carbonara → Quick & Easy (Weeknight Dinners\/Quick & Easy)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.9942220449447632
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Ten-Minute Prawn Noodles → Quick & Easy (Quick & Easy\/Weeknight Dinners)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.7856239080429077
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Thai Green Curry → Weeknight Dinners (Weeknight Dinners)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.9786900281906128
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Weeknight Chicken Stir-Fry → Quick & Easy (Quick & Easy\/Weeknight Dinners)",
+      "problems" : [
+
+      ],
+      "seconds" : 0.87546706199646
+    }
+  ],
+  "samples" : 20,
+  "serverIs" : "not measured: no household key where this ran",
+  "structurePassed" : 20
+}

@@ -123,12 +123,14 @@ struct RecipeGrid<Card: View>: View {
         let shown = maxRows.map { Array(recipes.prefix($0 * columns)) } ?? recipes
         let rows = stride(from: 0, to: shown.count, by: columns).map { Array(shown[$0..<min($0 + columns, shown.count)]) }
         LazyVStack(spacing: spacing) {
-            ForEach(rows, id: \.first?.id) { row in
+            ForEach(Array(rows.enumerated()), id: \.element.first?.id) { n, row in
                 HStack(alignment: .top, spacing: spacing) {
                     ForEach(row) { card($0).frame(maxWidth: .infinity, maxHeight: .infinity) }
                     ForEach(0..<(columns - row.count), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity) }
                 }
                 .fixedSize(horizontal: false, vertical: true)
+                // The next two rows' photos, before they scroll in.
+                .onAppear { ImageCache.shared.prefetch(rows.dropFirst(n + 1).prefix(2).flatMap { $0 }.compactMap(\.thumbnailURL)) }
             }
         }
         .environment(\.recipeCardImageHeight, width > 0 ? (columnWidth * 3 / 4).rounded() : nil)

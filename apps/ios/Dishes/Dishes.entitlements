@@ -13,5 +13,23 @@
 	<array>
 		<string>$(AppIdentifierPrefix)uk.collco.dishes.shared</string>
 	</array>
+	<!-- The App Group: the database and the cached AI context, shared by the app, its widgets and the
+	     share extension (AppGroup in DishesCore/Store/SharedStore.swift; TODO_MOBILE.md, Phase D0). -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.uk.collco.dishes</string>
+	</array>
+	<!-- Logged meals into Apple Health, write-only and opt-in (HealthLog.swift). -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+	<key>com.apple.developer.healthkit.access</key>
+	<array/>
+	<!-- Universal links and Handoff from the web app (DishesLink.swift); the server's
+	     /.well-known/apple-app-site-association names this app back. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:dishes.collardserver.co.uk</string>
+		<string>activitycontinuation:dishes.collardserver.co.uk</string>
+	</array>
 </dict>
 </plist>

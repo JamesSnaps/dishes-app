@@ -726,6 +726,31 @@ export type UpdateGroupInput = {
 };
 
 /** Rename, move, re-slot or re-serve a whole meal; its entries follow. */
+/**
+ * A day's meals in the order given (the iOS app's drag to reorder): each loose
+ * recipe or combined meal gets its place, 1, 2, 3… The planner sorts by
+ * position, then meal type, so a day nobody has reordered (all 0) keeps the
+ * meal-type order.
+ */
+export async function reorderDay(
+  ctx: HouseholdContext,
+  items: { kind: "entry" | "group"; id: string }[]
+): Promise<void> {
+  for (const item of items) {
+    if (item.kind === "entry") await assertEntryOwned(item.id, ctx.householdId);
+    else await assertGroupOwned(item.id, ctx.householdId);
+  }
+  await runInTransaction(async () => {
+    for (const [index, item] of items.entries()) {
+      if (item.kind === "entry") {
+        await db.update(mealPlanEntries).set({ position: index + 1 }).where(eq(mealPlanEntries.id, item.id));
+      } else {
+        await db.update(mealPlanGroups).set({ position: index + 1 }).where(eq(mealPlanGroups.id, item.id));
+      }
+    }
+  });
+}
+
 export async function updateGroup(
   ctx: HouseholdContext,
   groupId: string,

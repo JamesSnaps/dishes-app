@@ -1,0 +1,120 @@
+{
+  "date" : "2026-10-20T17:13:00Z",
+  "deviceScore" : 0.6833333333333332,
+  "job" : "recipeIdeas",
+  "model" : "AFM 3 Core, 4,096 tokens",
+  "passes" : false,
+  "perSample" : [
+    {
+      "deviceScore" : 0,
+      "engine" : "device",
+      "name" : "A cosy pasta dish → Tomato & basil toast · Chicken & spinach wrap · Bean & rice bowl · Egg & mushroom scramble · Sweet potato & chickpea salad",
+      "problems" : [
+
+      ],
+      "seconds" : 9.1369309425354
+    },
+    {
+      "deviceScore" : 0.6,
+      "engine" : "device",
+      "name" : "A hearty stew (for pat) → Salmon and lentil bake · Chickpea and vegetable stir-fry · Oat and fish bowl · Spiced bean and mushroom curry · Quinoa and fish salad",
+      "problems" : [
+
+      ],
+      "seconds" : 11.721587061882019
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "A light lunch → Tomato and mozzarella salad · Chicken and avocado wrap · Cucumber and hummus bowl · Egg salad on rye · Grilled vegetable platter",
+      "problems" : [
+
+      ],
+      "seconds" : 7.997693061828613
+    },
+    {
+      "deviceScore" : 0.5,
+      "engine" : "device",
+      "name" : "A risotto (for alex) → Spicy chicken stir-fry · Spicy tuna pasta · Spicy lamb stew · Spicy vegetable curry · Spicy tofu stir-fry",
+      "problems" : [
+
+      ],
+      "seconds" : 8.737712025642395
+    },
+    {
+      "deviceScore" : 0,
+      "engine" : "device",
+      "name" : "Breakfast for the kids (for rosie) → ",
+      "problems" : [
+        "The on-device model’s safety guardrails stopped it."
+      ],
+      "seconds" : 0.35024797916412354
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Dinner for the family tonight (for sam, alex) → Spicy Vegetable Stir-fry · Creamy Tomato Soup · Chickpea Salad · Sweet Potato Hash · Spinach and Ricotta Pasta",
+      "problems" : [
+
+      ],
+      "seconds" : 7.6755969524383545
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Easy Mexican dinner → Chicken quesadillas · Vegetable taco bowls · Shrimp enchiladas · Black bean tostadas · Spicy beef fajitas",
+      "problems" : [
+
+      ],
+      "seconds" : 9.182290077209473
+    },
+    {
+      "deviceScore" : 0.6,
+      "engine" : "device",
+      "name" : "Pizza night (for jo) → Vegan Margherita · Vegan Lentil Stew · Vegan Peanut Noodles · Vegan Vegetable Risotto · Vegan Sweet Potato Hash",
+      "problems" : [
+        "“Vegan Vegetable Risotto” for a vegan"
+      ],
+      "seconds" : 6.538509964942932
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Something quick with chicken for a weeknight → Chicken Stir-Fry · Chicken Pasta · Chicken Quesadillas · Chicken Fried Rice · Chicken Wraps",
+      "problems" : [
+
+      ],
+      "seconds" : 8.674214005470276
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Something to impress at a dinner party → Grilled Lemon Chicken · Spicy Shrimp Stir-fry · Vegetable Risotto · Beef Tacos · Baked Salmon with Dill",
+      "problems" : [
+
+      ],
+      "seconds" : 7.346050024032593
+    },
+    {
+      "deviceScore" : 1,
+      "engine" : "device",
+      "name" : "Something with salmon → Grilled Salmon with Lemon Butter · Salmon Salad with Cucumber · Baked Salmon with Herbs · Salmon Patties · Salmon Soup with Vegetables",
+      "problems" : [
+
+      ],
+      "seconds" : 6.703037977218628
+    },
+    {
+      "deviceScore" : 0.5,
+      "engine" : "device",
+      "name" : "Vegetarian curry → Spaghetti Aglio e Olio · Vegetable Stir-Fry · Chickpea Stew · Tomato Soup · Baked Sweet Potato",
+      "problems" : [
+
+      ],
+      "seconds" : 7.032664060592651
+    }
+  ],
+  "samples" : 12,
+  "serverIs" : "not measured: no household key where this ran",
+  "structurePassed" : 10
+}

@@ -169,6 +169,20 @@ public final class APIClient: SyncTransport, Sendable {
         return try await request("/meal-plan/generate-shopping", method: "POST", json: Body(mealPlanId: mealPlanId))
     }
 
+    /// One planned dish (not part of a combined meal) onto the list, at its servings.
+    public func addEntryToShopping(entryId: String) async throws -> ShoppingAddResult {
+        struct Body: Encodable {}
+        return try await request("/meal-plan/entries/\(entryId)/shopping-list", method: "POST", json: Body())
+    }
+
+    // MARK: AI
+
+    /// The household's AI prompt inputs, for AI on the device. Cached by the
+    /// app after each sync (AIContext.save) so it works offline.
+    public func aiContext() async throws -> AIContext {
+        try await request("/ai/context")
+    }
+
     // MARK: Household
 
     public struct Member: Codable, Hashable, Sendable, Identifiable {
@@ -443,6 +457,29 @@ public final class APIClient: SyncTransport, Sendable {
         _ = try await request("/push/test", method: "POST", json: Body(token: token), as: Reply.self)
     }
 
+    /// A crash, hang or memory report from MetricKit for Settings → Crash
+    /// reports on the web (POST /api/v1/client-error, answered 204).
+    public struct ClientError: Encodable, Sendable {
+        public var message: String
+        public var stack: String?
+        public var source: String
+        public var appVersion: String?
+        public var url: String?
+        public init(message: String, stack: String?, source: String, appVersion: String?, url: String? = nil) {
+            self.message = message; self.stack = stack; self.source = source; self.appVersion = appVersion; self.url = url
+        }
+    }
+
+    public func reportClientError(_ report: ClientError) async throws {
+        let body = try JSONEncoder().encode(report)
+        _ = try await send { token in
+            var r = authorisedRequest(url("/client-error"), method: "POST", token: token)
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            r.httpBody = body
+            return r
+        }
+    }
+
     // MARK: Notification actions
 
     public struct Snoozed: Decodable, Sendable { public var dinnerTime: String; public var remindAt: String? }
@@ -503,6 +540,18 @@ public final class APIClient: SyncTransport, Sendable {
     public func registerLiveActivity(groupId: String, token: String, sandbox: Bool) async throws {
         struct Body: Encodable { var groupId: String; var token: String; var environment: String }
         let body = try JSONEncoder().encode(Body(groupId: groupId, token: token, environment: sandbox ? "sandbox" : "production"))
+        _ = try await send { bearer in
+            var r = authorisedRequest(url("/live-activities"), method: "POST", token: bearer)
+            r.httpBody = body
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+    }
+
+    /// A shopping trip's Live Activity token: the server pushes its updates as the list changes.
+    public func registerShoppingTrip(listId: String, token: String, sandbox: Bool) async throws {
+        struct Body: Encodable { var shoppingListId: String; var token: String; var environment: String }
+        let body = try JSONEncoder().encode(Body(shoppingListId: listId, token: token, environment: sandbox ? "sandbox" : "production"))
         _ = try await send { bearer in
             var r = authorisedRequest(url("/live-activities"), method: "POST", token: bearer)
             r.httpBody = body
@@ -646,6 +695,19 @@ public final class APIClient: SyncTransport, Sendable {
         return try await slowPost("/ai/recipes", json: Body(concept: concept, memberIds: memberIds, mealType: mealType, heartHealthy: heartHealthy))
     }
 
+    /// A recipe written on the device (a scanned page, reviewed), saved as the
+    /// concierge saves its own: the server files it in a collection when one
+    /// fits, unless `collectionId` says otherwise. It syncs down next.
+    public func saveGeneratedRecipe(_ recipe: GeneratedRecipe) async throws -> CreatedRecipe {
+        try await slowPost("/recipes/generated", json: recipe, timeout: 60)
+    }
+
+    /// Text that holds a recipe (a message, notes, a caption), read and saved.
+    public func recipeFromText(_ text: String) async throws -> CreatedRecipe {
+        struct Body: Encodable { var text: String }
+        return try await slowPost("/ai/text-recipe", json: Body(text: text))
+    }
+
     /// A photo of a cookbook page or recipe card, read and saved as a recipe.
     public func recipeFromPhoto(_ image: Data, mime: String = "image/jpeg") async throws -> CreatedRecipe {
         struct Body: Encodable { var image: String; var mimeType: String }
@@ -741,26 +803,65 @@ public final class APIClient: SyncTransport, Sendable {
 
     /// "Ask about this step": the answer as it's written, chunk by chunk.
     public func cookAssist(_ context: CookAssistContext) -> AsyncThrowingStream<String, Error> {
+        textStream("/cook-assist", body: context)
+    }
+
+    /// One turn of a conversation through the household's key, for
+    /// DishesServerModel (POST /api/v1/ai/respond): the answer as it's written,
+    /// JSON text when `schema` (a JSON schema) is given. `settings` asks the
+    /// server to add the household's AI settings to the instructions.
+    public struct RespondRequest: Encodable, Sendable {
+        public struct Message: Encodable, Sendable, Hashable {
+            public struct Image: Encodable, Sendable, Hashable {
+                public var mimeType: String
+                /// Base64.
+                public var data: String
+                public init(mimeType: String, data: String) { self.mimeType = mimeType; self.data = data }
+            }
+            public var role: String
+            public var content: String
+            public var images: [Image]?
+            public init(role: String, content: String, images: [Image]? = nil) {
+                self.role = role; self.content = content; self.images = images
+            }
+        }
+        public var messages: [Message]
+        public var schema: JSONValue?
+        public var settings: Bool?
+        public var maxTokens: Int?
+        public init(messages: [Message], schema: JSONValue? = nil, settings: Bool? = nil, maxTokens: Int? = nil) {
+            self.messages = messages; self.schema = schema; self.settings = settings; self.maxTokens = maxTokens
+        }
+    }
+
+    public func respond(_ request: RespondRequest) -> AsyncThrowingStream<String, Error> {
+        textStream("/ai/respond", body: request)
+    }
+
+    /// A POST answered as streamed plain text, a word at a time (and only
+    /// whole UTF-8 characters), not a redraw per byte.
+    func textStream(_ path: String, body: some Encodable & Sendable) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let token = try await tokens?.accessToken()
                     if tokens != nil && token == nil { throw APIError.signedOut }
-                    var r = authorisedRequest(url("/cook-assist"), method: "POST", token: token)
+                    var r = authorisedRequest(url(path), method: "POST", token: token)
                     r.timeoutInterval = 120
                     r.setValue("text/plain", forHTTPHeaderField: "Accept")
                     r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    r.httpBody = try JSONEncoder().encode(context)
+                    r.httpBody = try JSONEncoder().encode(body)
                     let (bytes, response) = try await session.bytes(for: r)
                     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                         var text = ""
                         for try await line in bytes.lines { text += line }
-                        throw APIError.http(status: http.statusCode, code: "http_error", message: text.isEmpty ? "HTTP \(http.statusCode)" : text)
+                        let message = (try? JSONDecoder().decode(ErrorEnvelope.self, from: Data(text.utf8)))?.error?.message
+                        throw APIError.http(status: http.statusCode, code: "http_error",
+                                            message: message ?? (text.isEmpty ? "HTTP \(http.statusCode)" : text))
                     }
                     var buffer = [UInt8]()
                     for try await byte in bytes {
                         buffer.append(byte)
-                        // A word at a time (and only whole UTF-8 characters), not a redraw per byte.
                         guard byte == 0x20 || byte == 0x0A || buffer.count >= 24,
                               let text = String(bytes: buffer, encoding: .utf8) else { continue }
                         continuation.yield(text)

@@ -48,6 +48,8 @@ struct CookReviewSheet: View {
     @State private var feedback: String?
     @State private var reviewed = false
     @State private var loaded = false
+    /// How much of it this device's person ate, for Health (HealthLog).
+    @State private var portion: Double = 1
 
     static let occasions = ["Weeknight dinner", "Date night", "Family dinner", "Birthday", "Anniversary", "Dinner party", "Meal prep"]
 
@@ -148,6 +150,17 @@ struct CookReviewSheet: View {
                             chip(member.displayName, on: ate.contains(member.displayName), icon: true) {
                                 if ate.contains(member.displayName) { ate.remove(member.displayName) } else { ate.insert(member.displayName) }
                             }
+                        }
+                    }
+                }
+                if HealthLog.shared.applies(to: ate.sorted()), recipe.hasNutrition {
+                    field("How much did \(HealthLog.shared.eater ?? "you") eat?") {
+                        HStack(spacing: 8) {
+                            ForEach(HealthLog.portions, id: \.self) { p in
+                                chip(p == 1 ? "1 serving" : "\(Format.amount(String(p)) ?? "")", on: portion == p, icon: false) { portion = p }
+                            }
+                            Spacer(minLength: 0)
+                            Label("Health", systemImage: "heart.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.heart)
                         }
                     }
                 }
@@ -397,6 +410,7 @@ struct CookReviewSheet: View {
         case .edit(let entry):
             duration = entry.actualDuration
             ate = Set(entry.cookedFor)
+            portion = HealthLog.shared.portion(for: entry.id) ?? 1
             occasion = entry.occasion ?? ""
             notes = entry.notes ?? ""
             // Your own voice is stored under your name among everyone's.
@@ -448,6 +462,8 @@ struct CookReviewSheet: View {
         if cookTimeDiffers, let duration {
             try? await app.api.setCookTime(recipeId: recipe.id, minutes: duration)
         }
+        await HealthLog.shared.record(cookId: cookId, recipe: recipe, cookedFor: ate.sorted(),
+                                      at: existing?.cookedAt ?? .now, portion: portion)
 
         if let photo, let jpeg = Self.jpeg(photo) {
             do {
@@ -471,9 +487,10 @@ struct CookReviewSheet: View {
         saving = true
         defer { saving = false }
         do {
-            _ = try await app.api.logCook(.init(
+            let cookId = try await app.api.logCook(.init(
                 recipeId: recipe.id, rating: nil, notes: nil, cookedFor: ate.isEmpty ? nil : ate.sorted(),
                 memberRatings: nil, actualDuration: duration, occasion: trimmedOccasion))
+            await HealthLog.shared.record(cookId: cookId, recipe: recipe, cookedFor: ate.sorted(), at: .now, portion: portion)
             if cookTimeDiffers, let duration { try? await app.api.setCookTime(recipeId: recipe.id, minutes: duration) }
             app.toast = "Cook logged — rate it from the recipe’s history."
             await app.syncNow()

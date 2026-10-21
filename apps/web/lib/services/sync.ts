@@ -446,6 +446,11 @@ export type SyncMutation =
   | { opId: string; type: "meal_plan_entry.delete"; payload: { entryId: string } }
   | {
       opId: string;
+      type: "meal_plan_day.reorder";
+      payload: { items: { kind: "entry" | "group"; id: string }[] };
+    }
+  | {
+      opId: string;
       type: "meal_plan_group.add";
       payload: mealPlanService.AddGroupInput & { mealType: MealType };
     }
@@ -567,6 +572,10 @@ async function applyMutation(
       const { groupId, ...fields } = mutation.payload;
       await mealPlanService.updateGroup(ctx, groupId, fields);
       return { id: groupId };
+    }
+    case "meal_plan_day.reorder": {
+      await mealPlanService.reorderDay(ctx, mutation.payload.items);
+      return { id: mutation.payload.items[0]!.id };
     }
     case "meal_plan_group.delete": {
       const { groupId, keepRecipes } = mutation.payload;

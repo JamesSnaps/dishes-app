@@ -1,0 +1,23 @@
+{
+  "about": "Cook-assist questions about the seed recipes (fixtures/evals/recipe-cards.json), asked mid-cook (TODO_MOBILE.md, D3). An answer scores by how many of `mention` it covers: each entry is a list of words or phrases, any one of which counts. `avoid` lists things a right answer doesn't say. `earlier` is the conversation before the question, when there is one.",
+  "questions": [
+    { "recipe": "Classic Beef Bolognese", "step": 4, "question": "How long does this need to simmer?", "mention": [["2", "two"], ["hour"]], "avoid": [] },
+    { "recipe": "Classic Beef Bolognese", "step": 3, "question": "I've got no red wine. What can I use instead?", "mention": [["stock", "broth", "water", "vinegar", "grape juice"]], "avoid": ["white wine is the only"] },
+    { "recipe": "Classic Beef Bolognese", "step": 5, "question": "Do I leave the bay leaves in?", "mention": [["discard", "remove", "take out", "fish out", "take them out"]], "avoid": [] },
+    { "recipe": "Spaghetti Carbonara", "step": 4, "question": "How do I stop the eggs scrambling?", "mention": [["off the heat", "heat"], ["pasta water", "water"]], "avoid": [] },
+    { "recipe": "Spaghetti Carbonara", "step": 3, "question": "Can I use parmesan instead of pecorino?", "mention": [["parmesan", "parmigiano"], ["yes", "can", "works", "fine"]], "avoid": [] },
+    { "recipe": "Banana Bread", "step": 4, "question": "How do I know it's done?", "mention": [["skewer", "toothpick", "clean"]], "avoid": [] },
+    { "recipe": "Banana Bread", "step": 2, "question": "What temperature did the oven need to be?", "mention": [["175"]], "avoid": [] },
+    { "recipe": "Chocolate Chip Cookies", "step": 3, "question": "How long does the dough chill for?", "mention": [["30", "thirty", "half an hour", "half-hour"]], "avoid": [] },
+    { "recipe": "Chocolate Chip Cookies", "step": 2, "question": "I'm out of baking soda. What can I use?", "mention": [["baking powder"]], "avoid": [] },
+    { "recipe": "Mushroom Risotto", "step": 3, "question": "How much stock should I have in total?", "mention": [["1.2", "1200", "1,200"]], "avoid": [] },
+    { "recipe": "Mushroom Risotto", "step": 4, "question": "What happens to the mushrooms I set aside?", "mention": [["stir", "add", "return", "back"], ["parmesan", "butter"]], "avoid": [] },
+    { "recipe": "Thai Green Curry", "step": 1, "question": "What does split mean here?", "mention": [["oil", "fat"], ["separat"]], "avoid": [] },
+    { "recipe": "Shakshuka", "step": 3, "question": "How do I know when the eggs are ready?", "mention": [["white"], ["set", "opaque", "firm"]], "avoid": [] },
+    { "recipe": "Smash Burgers", "step": 2, "question": "How long before I flip them?", "mention": [["2", "two"], ["minute"]], "avoid": [] },
+    { "recipe": "Weeknight Chicken Stir-Fry", "step": 3, "question": "And after that?", "earlier": [
+        { "role": "user", "content": "How long do the garlic and ginger go for?" },
+        { "role": "assistant", "content": "Just 30 seconds — toss them in the hot wok until fragrant, then return the chicken with the soy sauce and sesame oil." }
+      ], "mention": [["spring onion"], ["rice"]], "avoid": [] }
+  ]
+}

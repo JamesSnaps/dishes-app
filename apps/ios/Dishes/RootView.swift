@@ -29,7 +29,23 @@ final class AppNav {
     enum Tab: String, CaseIterable { case recipes, plan, ai, shopping, more }
 
     var tab: Tab = Tab(rawValue: UserDefaults.standard.string(forKey: "tab") ?? "") ?? .recipes {
-        didSet { UserDefaults.standard.set(tab.rawValue, forKey: "tab") }
+        didSet {
+            UserDefaults.standard.set(tab.rawValue, forKey: "tab")
+            reportActivity()
+        }
+    }
+
+    /// For MetricKit's reports: what the person is doing (Diagnostics).
+    func reportActivity() {
+        let activity: AppActivity = if cookingShown { .cooking } else {
+            switch tab {
+            case .recipes, .more: .browsing
+            case .plan: .planning
+            case .ai: .ai
+            case .shopping: .shopping
+            }
+        }
+        Diagnostics.entered(activity)
     }
     var favouritesOnly = false
     var recipeSearch = ""
@@ -55,7 +71,10 @@ final class AppNav {
     /// Whether cooking mode is on screen; false while minimised. Minimising
     /// saves where every cook is up to.
     var cookingShown = false {
-        didSet { if !cookingShown { SavedCooks.save(sessions) } }
+        didSet {
+            if !cookingShown { SavedCooks.save(sessions) }
+            reportActivity()
+        }
     }
     /// The resume bar's stack fanned out into every cook (CookStackFan).
     var cooksFanned = false
@@ -181,11 +200,15 @@ struct RootView: View {
         @Bindable var nav = nav
         return TabView(selection: $nav.tab) {
             Tab("Recipes", systemImage: "book", value: AppNav.Tab.recipes) { RecipesScreen() }
-            Tab("Planner", systemImage: "calendar", value: AppNav.Tab.plan) { PlanScreen() }
+            Tab("Planner", systemImage: "calendar", value: AppNav.Tab.plan) {
+                PlanScreen().handoff(.plan, title: "Meal planner", isActive: nav.tab == .plan)
+            }
             Tab("AI", systemImage: "sparkles", value: AppNav.Tab.ai) {
                 ConciergeSheet(inTab: true) { nav.openRecipe($0) }
             }
-            Tab("Shopping", systemImage: "cart", value: AppNav.Tab.shopping) { ShoppingScreen() }
+            Tab("Shopping", systemImage: "cart", value: AppNav.Tab.shopping) {
+                ShoppingScreen().handoff(.shopping, title: "Shopping list", isActive: nav.tab == .shopping)
+            }
                 .badge(shoppingCount.value)
             Tab("Settings", systemImage: "gearshape", value: AppNav.Tab.more) { MoreScreen() }
         }
@@ -267,6 +290,45 @@ struct RootView: View {
             AppRequests.shared.shoppingAdd = false
             nav.tab = .shopping
             nav.focusShoppingAdd = true
+        }
+        // Siri / Shortcuts: "Start cooking …". Held until the cooks saved at the
+        // last launch are back, so it doesn't start a second copy of one.
+        .onChange(of: AppRequests.shared.cook == nil || !nav.cooksRestored, initial: true) { _, waiting in
+            guard !waiting, let request = AppRequests.shared.cook else { return }
+            AppRequests.shared.cook = nil
+            Task {
+                switch request {
+                case .tonight:
+                    // A double optional: an unreadable store, or nothing to cook tonight.
+                    if let tonight = (try? await app.store.read(TonightMeal.load)) ?? nil { nav.cooking = tonight } else { nav.tab = .plan }
+                case .today(let mealType):
+                    if let meal = (try? await app.store.read { try TonightMeal.load($0, mealType: mealType) }) ?? nil {
+                        nav.cooking = meal
+                    } else {
+                        nav.tab = .plan
+                    }
+                case .recipe(let id):
+                    await openCooking(id)
+                }
+            }
+        }
+        // A recipe tapped in Spotlight.
+        .onChange(of: AppRequests.shared.openRecipe, initial: true) { _, id in
+            guard let id else { return }
+            AppRequests.shared.openRecipe = nil
+            nav.openRecipe(id)
+        }
+        // The Shopping widget.
+        .onChange(of: AppRequests.shared.showShopping, initial: true) { _, wanted in
+            guard wanted else { return }
+            AppRequests.shared.showShopping = false
+            nav.tab = .shopping
+        }
+        // "What's for dinner?": the planner, on this week.
+        .onChange(of: AppRequests.shared.showPlan, initial: true) { _, wanted in
+            guard wanted else { return }
+            AppRequests.shared.showPlan = false
+            nav.tab = .plan
         }
         // A tapped notification opens the tab its web path belongs to.
         .onChange(of: Push.shared.openedLink, initial: true) { _, link in
@@ -386,12 +448,12 @@ extension RootView {
 }
 
 enum TonightMeal {
-    @Sendable static func load(_ r: StoreReader) throws -> CookRequest? {
+    @Sendable static func load(_ r: StoreReader) throws -> CookRequest? { try load(r, mealType: nil) }
+
+    /// Today's meal of `mealType`; nil: dinner, or the last meal planned today.
+    static func load(_ r: StoreReader, mealType: String?) throws -> CookRequest? {
         let data = try PlanData.load(r)
-        let week = Week.containing(Date())
-        let today = (Calendar(identifier: .iso8601).component(.weekday, from: Date()) + 5) % 7
-        let meals = data.meals(on: today, in: week)
-        guard let meal = meals.first(where: { $0.mealType == "dinner" }) ?? meals.last else { return nil }
+        guard let meal = data.today(mealType) else { return nil }
         let dishes = CookDish.inStartOrder(meal.dishes.compactMap(\.recipe).filter { !$0.steps.isEmpty })
         return dishes.isEmpty ? nil : CookRequest(title: meal.title, groupId: meal.groupId, dishes: dishes)
     }

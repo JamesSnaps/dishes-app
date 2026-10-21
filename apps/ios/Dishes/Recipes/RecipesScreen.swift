@@ -206,18 +206,22 @@ struct RecipesScreen: View {
                 path.append(id)
             }
             .sheet(item: $photo) { photo in
-                ConciergeSheet(photo: photo.image) { id in path.append(id) }
+                ConciergeSheet(photos: photo.pages) { id in path.append(id) }
                     .presentationSizing(.page)
             }
             .fullScreenCover(isPresented: $usingCamera) {
-                CameraPicker { photo = RecipePhoto(image: $0) }.ignoresSafeArea()
+                if DocumentScanner.isAvailable {
+                    DocumentScanner { photo = RecipePhoto(pages: $0) }.ignoresSafeArea()
+                } else {
+                    CameraPicker { photo = RecipePhoto(pages: [$0]) }.ignoresSafeArea()
+                }
             }
             .photosPicker(isPresented: $choosingPhoto, selection: $pickedPhoto, matching: .images)
             .onChange(of: pickedPhoto) { _, item in
                 guard let item else { return }
                 Task {
                     if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                        photo = RecipePhoto(image: image)
+                        photo = RecipePhoto(pages: [image])
                     }
                     pickedPhoto = nil
                 }
@@ -374,10 +378,10 @@ struct RecipeFilters: Equatable {
     }
 }
 
-/// A photo picked from New Recipe, for the AI to read in.
+/// A photo picked from New Recipe, or a scan's pages, for the AI to read in.
 private struct RecipePhoto: Identifiable {
     let id = UUID()
-    let image: UIImage
+    let pages: [UIImage]
 }
 
 extension RecipesScreen {
@@ -385,7 +389,9 @@ extension RecipesScreen {
     @ViewBuilder var newRecipeItems: some View {
         Button("Write a recipe", systemImage: "square.and.pencil") { creating = true }
         if UIImagePickerController.isSourceTypeAvailable(.camera) {
-            Button("Photograph a recipe", systemImage: "camera") { usingCamera = true }
+            // The document camera flattens the page and takes several (a two-page recipe).
+            Button(DocumentScanner.isAvailable ? "Scan a recipe…" : "Photograph a recipe",
+                   systemImage: DocumentScanner.isAvailable ? "doc.viewfinder" : "camera") { usingCamera = true }
         }
         Button("From a photo…", systemImage: "photo") { choosingPhoto = true }
         Button("From a website…", systemImage: "globe") { webImport = WebImportLink(page: "") }

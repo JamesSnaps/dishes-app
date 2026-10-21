@@ -198,8 +198,10 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
         log.info("from the watch: \(actions.map(\.kind.rawValue))")
         let task = UIApplication.shared.beginBackgroundTask(withName: "watch-action")
         defer { UIApplication.shared.endBackgroundTask(task) }
-        for action in actions { await apply(action) }
-        await AppModel.shared.syncNow(force: false)
+        await AppModel.shared.awake {
+            for action in actions { await apply(action) }
+            await AppModel.shared.syncNow(force: false)
+        }
         send()
     }
 
@@ -207,13 +209,15 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
     @MainActor private func refresh(_ what: String) async {
         let task = UIApplication.shared.beginBackgroundTask(withName: "watch-refresh")
         defer { UIApplication.shared.endBackgroundTask(task) }
-        await AppModel.shared.start()
-        let all = what == "all"
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.fetchLatest(all: all) }
-            group.addTask { try? await Task.sleep(for: .seconds(6)) }
-            await group.next()
-            group.cancelAll()
+        await AppModel.shared.awake {
+            await AppModel.shared.start()
+            let all = what == "all"
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await self.fetchLatest(all: all) }
+                group.addTask { try? await Task.sleep(for: .seconds(6)) }
+                await group.next()
+                group.cancelAll()
+            }
         }
     }
 

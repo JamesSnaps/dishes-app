@@ -1,6 +1,8 @@
 // A tap on the cooking Live Activity (Lock Screen or Dynamic Island) opens
 // its widgetURL, a CookLink (Shared/CookLink.swift): cooking mode for that
-// cook, in front of any others, at the step the activity was showing.
+// cook, in front of any others, at the step the activity was showing. The
+// other ways in land here too: widget links, Shortcut imports, universal links
+// and Handoff (DishesLink).
 //
 // From a cold launch the link arrives before the cooks saved at the last
 // launch are back (AppNav.restoreCooks), so it's held until they are.
@@ -18,16 +20,31 @@ struct CookLinkHandler: ViewModifier {
             .onOpenURL { url in
                 if let link = CookLink(url: url) {
                     pending = link
+                } else if let widget = WidgetLink(url: url) {
+                    widget.request()
                 } else if let page = WebImportLink(url: url) {
                     // A recipe page from a Shortcut (Recipes/WebImportSheet.swift).
                     nav.importLink = page
+                } else if let link = DishesLink(url: url) {
+                    // A universal link: a Dishes page tapped in Messages or Mail.
+                    nav.follow(link)
                 }
             }
+            // A page handed off from another device's Dishes, or its browser.
+            .onContinueUserActivity(DishesLink.activityType) { follow($0) }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { follow($0) }
             .onChange(of: pending == nil || !nav.cooksRestored, initial: true) { _, waiting in
                 guard !waiting, let link = pending else { return }
                 pending = nil
                 nav.follow(link)
             }
+    }
+}
+
+extension CookLinkHandler {
+    private func follow(_ activity: NSUserActivity) {
+        guard let url = activity.webpageURL, let link = DishesLink(url: url) else { return }
+        nav.follow(link)
     }
 }
 

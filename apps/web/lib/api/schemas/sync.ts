@@ -46,6 +46,8 @@ export const mutationSchema = z.discriminatedUnion("type", [
         unit: z.string().nullable().optional(),
         notes: z.string().nullable().optional(),
         category: z.string().nullable().optional(),
+        /** Where it sits in the list (the app's drag to reorder). */
+        position: z.number().int().min(0).optional(),
       })
       .refine((v) => Object.keys(v).length > 1, "No fields to update"),
   }),
@@ -157,6 +159,17 @@ export const mutationSchema = z.discriminatedUnion("type", [
         servings: z.number().positive().nullable().optional(),
       })
       .refine((v) => Object.keys(v).length > 1, "No fields to update"),
+  }),
+  z.object({
+    opId,
+    type: z.literal("meal_plan_day.reorder"),
+    payload: z.object({
+      /** A day's loose recipes and combined meals, in the order they're to show. */
+      items: z
+        .array(z.object({ kind: z.enum(["entry", "group"]), id: z.string().uuid() }))
+        .min(1)
+        .max(40),
+    }),
   }),
   z.object({
     opId,

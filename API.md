@@ -896,10 +896,23 @@ Cues may carry `covers: [{ recipeId, stepIndex }]` — a combined prep step doin
 
 ### `POST /api/v1/live-activities` · `DELETE`
 
-Hand over a meal-schedule Live Activity's push token:
-`{ "groupId", "token": "<hex>", "environment": "sandbox" | "production" }` → 204.
-The server updates the activity over APNs as each step comes due and ends it
-half an hour after serving. `DELETE` with `{ "token" }` stops it.
+Hand over a Live Activity's push token → 204. `DELETE` with `{ "token" }` stops it.
+
+- A meal schedule: `{ "groupId", "token": "<hex>", "environment": "sandbox" | "production" }`.
+  The server updates the activity over APNs as each step comes due and ends it
+  half an hour after serving.
+- A shopping trip: `{ "shoppingListId", "token", "environment" }`. After any
+  change to the household's shopping (settling for 1.5 s), the server sends
+  `{ left, total, next: [{ id, name }] }` — the next three unticked items in
+  aisle order — and ends the activity when the last item is ticked or the list
+  is archived. Kept 12 hours at most (`lib/shopping-trip-activities.ts`).
+
+### `GET /.well-known/apple-app-site-association`
+
+Public (no session; needs an Authelia bypass). Names the iOS app for universal
+links and Handoff: `/recipes`, `/recipes/*` (not `/recipes/new`), `/shopping`,
+`/meal-plan` and `/home` open in the app when it's installed. `APPLE_APP_IDS`
+overrides the app id.
 
 ### `GET /api/v1/cooking-sessions` · `PUT /api/v1/cooking-sessions/{id}` · `DELETE …`
 
@@ -933,10 +946,73 @@ seconds, so clients should allow a long timeout.
 - `POST /api/v1/ai/recipes` `{ concept, mealType?, memberIds?, heartHealthy? }` → 201
   `{ recipeId, title, collectionName? }` — written out in full and saved (it syncs down)
 - `POST /api/v1/ai/photo-recipe` `{ image: <base64>, mimeType }` → 201 `{ recipeId, title }`
+- `POST /api/v1/ai/text-recipe` `{ text }` (20–30,000 characters: a message, notes, a caption) → 201 `{ recipeId, title, collectionName? }` — read and saved, as photo-recipe does for a photo; 422 when there's no recipe in it
 - `POST /api/v1/ai/meal-plan` `{ weekStartDate, slots: [{ dayOfWeek, mealType }], preferences, memberIds?, favouritesOnly?, heartHealthy? }`
   → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId? }] }` — a draft, nothing saved
 - `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
-- `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text
+- `POST /api/v1/ai/respond` `{ messages: [{ role: "system" | "user" | "assistant", content, images?: [{ mimeType, data: <base64> }] }], schema?: <JSON Schema>, settings?: boolean, maxTokens?: number }` → the answer as streamed plain text (JSON text when `schema` is sent: OpenAI structured outputs, non-strict). A plain model call through the household's key, for the iOS app's `DishesServerModel` — the device's own prompts and schemas run on the server, photos included (up to 4 per message, as a scanned recipe page). `settings: true` adds the household's AI settings (measurements, default prompt, equipment) to the system message. 30 calls a minute per member: past that, 429 with `Retry-After`
+- `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text. The iOS app answers on the device first (iOS 27) and comes here when it can't
+
+### `POST /api/v1/client-error`
+
+The iOS app's crash, hang and memory reports (MetricKit, iOS 27) into the same
+`client_errors` table as the browser's `/api/client-error`, read back under
+Settings → Crash reports: `{ message, stack?, source?, appVersion?, url? }`, with
+`source` like `ios: hang` and the message saying what the app was doing ("iOS
+hang: 3.2 s — while cooking"). Bearer auth; 204 whatever happens, so a reporter
+never retries.
+
+### `GET /api/v1/ai/context`
+
+The household's AI prompt inputs, for AI on the device (the iOS app's
+on-device model): everything the server's own prompts fold in, never the key,
+model or budget (those stay in the admin-only `ai.config` action). Any member;
+works whether or not a key is set up (`configured` says which). The app caches
+it after each sync, so on-device AI works offline.
+
+```json
+{
+  "configured": true,
+  "measurementSystem": "metric",
+  "defaultPrompt": "Nothing too spicy for the kids.",
+  "kitchenEquipment": "Air fryer, slow cooker",
+  "webGrounding": false,
+  "members": [
+    { "id": "uuid", "displayName": "James", "role": "admin", "birthYear": 1988,
+      "dietaryFlags": ["cholesterol-lowering"], "dislikes": ["olives"], "preferences": [], "customNotes": null }
+  ],
+  "tasteProfile": {
+    "ratedCookCount": 14,
+    "preferredCuisines": [{ "name": "Italian", "score": 4.8 }],
+    "lovedIngredients": ["garlic"],
+    "dislikedIngredients": ["coriander"]
+  },
+  "collections": [{ "id": "uuid", "name": "Soups", "description": null }]
+}
+```
+
+`members` are the active members with what the prompts use about them (age,
+diet, dislikes, loves, notes) — unlike `GET /api/v1/members`, which leaves the
+notes out. `tasteProfile` is null below ten rated cooks, as in the server's
+prompts. `fixtures/wire/ai-context.json` is the example the Swift tests decode.
+
+### `POST /api/v1/recipes/generated`
+
+Saves a recipe written somewhere else — the iOS app's on-device model — the
+way the concierge saves its own: the `GeneratedRecipe` shape (`title`,
+`description`, `cuisine`, `difficulty`, `prepTimeMinutes`, `cookTimeMinutes`,
+`servings`, `servingsUnit`, `mealTypes`, `tags`, `ingredients[]`
+`{ ingredientName, amount, unit, preparation, isOptional, groupLabel }`,
+`steps[]` `{ instruction, durationMinutes, timerLabel, groupLabel }`, `notes`),
+with `nutrition` and `mealRole` optional. Unknown fields are refused (400).
+
+`collectionId`: left out, the server picks a collection with the household's AI
+(as the concierge does; none without a key); a uuid files it there (ignored
+unless it's this household's); `null` files it nowhere. → 201
+`{ recipeId, title, collectionName? }`; the recipe syncs down. Sent without
+`nutrition`, the household's AI estimates it after the reply (as the web's
+Estimate nutrition does) and it arrives in a later sync; with no key, it
+stays empty.
 
 ### `POST /api/v1/recipes/import-url`
 
@@ -982,7 +1058,8 @@ The per-action adapters are in `apps/web/lib/api/v1-actions.ts`.
 | `timeline` (a meal's schedule) | `get`, `setServeAt`, `planWithAi`, `clear`; `shift` — `[groupId, minutes]` moves the meal's serve time by whole minutes (its own, or that date's dinner time when it follows it), marks cues already due at the new time as sent, and answers the new schedule — cooking mode's "I started earlier, move dinner" ; `freeze` — `[groupId]` keeps the schedule in use fixed for a cook in progress (24 h), so recipe edits mid-cook don't move cues, pushes or the Live Activity |
 | `cookAssist` (cooking mode's "Ask about this step") | `list` — `[recipeId]` → every saved conversation for the recipe, `[{ id, stepNumber, messages }]`; `save` — `[recipeId, stepNumber, messages]` → `{ id }`; `update` — `[id, messages]` replaces a conversation's messages as it grows; `delete` — `[id]`. `messages` is `[{ role: "user" \| "assistant", content }]` — the same threads the web's cooking mode keeps |
 | `mealCooks` | `log` — `[{ groupId, rating?, memberRatings?, cookedFor?, occasion?, notes?, actualDuration?, dishes?: [{ recipeId, rating?, notes? }] }]` → `{ id, cookIds }`: the whole-meal review, one cook entry per dish |
-| `ai` | `improve`, `refine`, `heartHealthy`, `applyTweak`, `saveTweakAsCopy`, `estimateNutrition`, `similar`, `sides`, `recipeImage`, `recipeImageJob` (`[recipeId, style?, instructions?]` → `{ jobId }`, made in the background like the web's Generate image), `suggestMealComponents`, `config`, `saveConfig` |
+| `recipes` | `setMealRole` — `[recipeId, role \| null]`; `generated` — `[recipeId]` → the recipe as the AI tools take it (a `GeneratedRecipe`, nutrition included), for tweaks made on the iOS device |
+| `ai` | `improve`, `refine`, `heartHealthy`, `applyTweak`, `saveTweakAsCopy` (both estimate the nutrition afterwards with the household's AI when the tweak comes without it, as one made on the device does when its ingredients changed), `estimateNutrition`, `similar`, `sides`, `recipeImage`, `recipeImageJob` (`[recipeId, style?, instructions?]` → `{ jobId }`, made in the background like the web's Generate image), `suggestMealComponents`, `config`, `saveConfig` |
 | `import` | `parse` — `[ingredientText, methodText]` → `{ ingredients, steps }` |
 | `stats` · `wrapped` · `taste` | `stats.report`, `wrapped.report`, `wrapped.recap`, `taste.get`, `taste.refresh`, `taste.clear` |
 | `notes` | `list`, `create`, `update`, `delete` |
@@ -1499,7 +1576,7 @@ Supported `type` values:
 | Type | Payload |
 |---|---|
 | `shopping_item.add` | `ingredientName` (required), `amount`, `unit`, `category`, `notes`, `id`, `listId`, `position` |
-| `shopping_item.update` | `itemId` + any of `ingredientName`, `amount`, `unit`, `notes`, `category` |
+| `shopping_item.update` | `itemId` + any of `ingredientName`, `amount`, `unit`, `notes`, `category`, `position` (the iOS app's drag to reorder sends `position`, and `category` when an item is dragged to another aisle) |
 | `shopping_item.toggle` | `itemId`, `checked` |
 | `shopping_item.delete` | `itemId` |
 | `shopping_list.clear_checked` | `listId` |
@@ -1510,6 +1587,7 @@ Supported `type` values:
 | `meal_plan_group.add_from_meal` | `mealId`, `weekStartDate`, `dayOfWeek`; optional `mealType` (default: the meal's own), `optionIds` (chosen options across all slots — omit for each slot's defaults; a slot with none listed is left out), `servings`. Returns the new group's `id`; the group and its entries arrive in the next pull. The choices become the saved meal's next defaults, as on the web |
 | `meal_plan_group.update` | `groupId` + any of `title`, `dayOfWeek`, `mealType`, `servings` |
 | `meal_plan_group.delete` | `groupId`; `keepRecipes` leaves its recipes on the plan as separate meals |
+| `meal_plan_day.reorder` | `items: [{ kind: "entry" \| "group", id }]` — a day's loose recipes and combined meals in the order to show them; each gets `position` 1, 2, 3… The planners sort by `position`, then meal type (all 0 until someone reorders) |
 
 Recipe and saved-meal edits are deliberately absent: they are rare offline and much larger to
 merge. Create and edit recipes through `/api/v1/recipes` while connected.

@@ -1,0 +1,192 @@
+{
+  "date" : "2026-10-20T16:36:24Z",
+  "deviceScore" : 0.9708689851814853,
+  "job" : "scanRecipe",
+  "model" : "AFM 3 Core, 4,096 tokens",
+  "passes" : true,
+  "perSample" : [
+    {
+      "deviceScore" : 0.9472727272727273,
+      "engine" : "device",
+      "name" : "01 Banana Bread (page, Georgia)",
+      "problems" : [
+
+      ],
+      "seconds" : 28.505949020385742
+    },
+    {
+      "deviceScore" : 0.9887499999999999,
+      "engine" : "device",
+      "name" : "02 Chocolate Chip Cookies (twoColumn, Helvetica Neue)",
+      "problems" : [
+
+      ],
+      "seconds" : 14.861032009124756
+    },
+    {
+      "deviceScore" : 0.9542307692307691,
+      "engine" : "device",
+      "name" : "03 Classic Beef Bolognese (card, Avenir Next)",
+      "problems" : [
+
+      ],
+      "seconds" : 27.338220953941345
+    },
+    {
+      "deviceScore" : 0.9999999999999999,
+      "engine" : "device",
+      "name" : "04 Creamy Tomato Soup (card, Noteworthy, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 13.83949100971222
+    },
+    {
+      "deviceScore" : 0.9999999999999999,
+      "engine" : "device",
+      "name" : "05 Fish Tacos (page, Times New Roman, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 14.05050504207611
+    },
+    {
+      "deviceScore" : 0.9749999999999999,
+      "engine" : "device",
+      "name" : "06 Greek Salad (twoColumn, Georgia, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 11.844807982444763
+    },
+    {
+      "deviceScore" : 0.975,
+      "engine" : "device",
+      "name" : "07 Mushroom Risotto (card, Bradley Hand, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 14.102415919303894
+    },
+    {
+      "deviceScore" : 0.9874999999999999,
+      "engine" : "device",
+      "name" : "08 Shakshuka (page, Helvetica Neue)",
+      "problems" : [
+
+      ],
+      "seconds" : 12.960409998893738
+    },
+    {
+      "deviceScore" : 0.950654761904762,
+      "engine" : "device",
+      "name" : "09 Smash Burgers (twoColumn, Avenir Next, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 12.26400899887085
+    },
+    {
+      "deviceScore" : 0.9999999999999999,
+      "engine" : "device",
+      "name" : "10 Spaghetti Carbonara (page, Courier New)",
+      "problems" : [
+
+      ],
+      "seconds" : 12.84588897228241
+    },
+    {
+      "deviceScore" : 0.9888888888888888,
+      "engine" : "device",
+      "name" : "11 Thai Green Curry (page, Noteworthy, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 15.176814079284668
+    },
+    {
+      "deviceScore" : 0.9999999999999999,
+      "engine" : "device",
+      "name" : "12 Weeknight Chicken Stir-Fry (card, Georgia)",
+      "problems" : [
+
+      ],
+      "seconds" : 16.093714952468872
+    },
+    {
+      "deviceScore" : 0.9472727272727273,
+      "engine" : "device",
+      "name" : "13 Banana Bread (twoColumn, Times New Roman)",
+      "problems" : [
+
+      ],
+      "seconds" : 14.377608060836792
+    },
+    {
+      "deviceScore" : 0.9331944444444445,
+      "engine" : "device",
+      "name" : "14 Chocolate Chip Cookies (page, Bradley Hand, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 25.598452925682068
+    },
+    {
+      "deviceScore" : 0.9529487179487178,
+      "engine" : "device",
+      "name" : "15 Classic Beef Bolognese (card, Helvetica Neue, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 26.397208094596863
+    },
+    {
+      "deviceScore" : 0.9999999999999999,
+      "engine" : "device",
+      "name" : "16 Creamy Tomato Soup (page, Avenir Next, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 13.165734052658081
+    },
+    {
+      "deviceScore" : 0.9916666666666666,
+      "engine" : "device",
+      "name" : "17 Fish Tacos (twoColumn, Courier New)",
+      "problems" : [
+
+      ],
+      "seconds" : 13.328776001930237
+    },
+    {
+      "deviceScore" : 0.9749999999999999,
+      "engine" : "device",
+      "name" : "18 Greek Salad (twoColumn, Noteworthy, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 11.861560940742493
+    },
+    {
+      "deviceScore" : 0.9999999999999999,
+      "engine" : "device",
+      "name" : "19 Mushroom Risotto (page, Georgia, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 14.032919049263
+    },
+    {
+      "deviceScore" : 0.8500000000000001,
+      "engine" : "device",
+      "name" : "20 Shakshuka (twoColumn, Bradley Hand, tilted)",
+      "problems" : [
+
+      ],
+      "seconds" : 12.33977198600769
+    }
+  ],
+  "samples" : 20,
+  "serverIs" : "not measured: no household key where this ran",
+  "structurePassed" : 20
+}

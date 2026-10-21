@@ -7,5 +7,11 @@
 	<array>
 		<string>$(AppIdentifierPrefix)uk.collco.dishes.shared</string>
 	</array>
+	<!-- The App Group: the database and the cached AI context, shared by the app, its widgets and the
+	     share extension (AppGroup in DishesCore/Store/SharedStore.swift; TODO_MOBILE.md, Phase D0). -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.uk.collco.dishes</string>
+	</array>
 </dict>
 </plist>

@@ -23,6 +23,7 @@ import {
 } from "@dishes/db/schema";
 import { eq, and, asc, max, count } from "drizzle-orm";
 import { notifyHouseholdThrottled } from "@/lib/push";
+import { shoppingTripChanged } from "@/lib/shopping-trip-activities";
 import { getPantryExclusions, isCoveredByPantry } from "@/lib/pantry-exclusions";
 import { getItemRecipeSources, orderSources, type RecipeSource } from "@/lib/shopping-item-sources";
 import type { ActorContext, HouseholdContext } from "@/lib/session";
@@ -73,6 +74,7 @@ const SHOPPING_PUSH_WINDOW_SECONDS = 90;
  * to cut it short either.
  */
 function notifyShoppingChange(householdId: string, actorName: string): void {
+  shoppingTripChanged(householdId);
   void notifyHouseholdThrottled(
     householdId,
     "shopping_updated",
@@ -277,6 +279,7 @@ export async function archiveList(
     .where(
       and(eq(shoppingLists.id, listId), eq(shoppingLists.householdId, ctx.householdId))
     );
+  shoppingTripChanged(ctx.householdId);
 }
 
 /** Returns how many items were removed. */
@@ -432,6 +435,7 @@ export async function addOrTopUpItem(
     notes: textNote,
     position: maxPos + 1,
   });
+  shoppingTripChanged(ctx.householdId);
 
   return { outcome: "added", ingredientName };
 }
@@ -480,6 +484,8 @@ export type UpdateItemInput = {
   unit?: string | null;
   notes?: string | null;
   category?: string | null;
+  /** Its place in the list; the app sends one per moved item when it's dragged. */
+  position?: number;
 };
 
 export async function updateItem(
@@ -501,6 +507,7 @@ export async function updateItem(
   if ("unit" in input) updates.unit = input.unit || null;
   if ("notes" in input) updates.notes = input.notes || null;
   if ("category" in input) updates.category = input.category || null;
+  if (input.position !== undefined) updates.position = input.position;
 
   if (Object.keys(updates).length === 0) {
     throw new ShoppingValidationError("No fields to update");
@@ -510,11 +517,13 @@ export async function updateItem(
     .update(shoppingListItems)
     .set(updates)
     .where(eq(shoppingListItems.id, itemId));
+  shoppingTripChanged(ctx.householdId);
 }
 
 /**
  * Check or uncheck an item. Deliberately does NOT notify the household —
- * ticking items off in a supermarket would otherwise spam every device.
+ * ticking items off in a supermarket would otherwise spam every device. It
+ * does update a shopping trip's Live Activity, which is the point of one.
  */
 export async function toggleItem(
   ctx: HouseholdContext,
@@ -527,6 +536,7 @@ export async function toggleItem(
     .update(shoppingListItems)
     .set({ isChecked: checked })
     .where(eq(shoppingListItems.id, itemId));
+  shoppingTripChanged(ctx.householdId);
 }
 
 export async function deleteItem(ctx: ActorContext, itemId: string): Promise<void> {

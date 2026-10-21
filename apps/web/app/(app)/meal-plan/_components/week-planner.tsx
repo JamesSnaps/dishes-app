@@ -84,6 +84,8 @@ export type Entry = {
   /** The combined meal this recipe is part of, if any. */
   groupId: string | null;
   mealRole: MealRole | null;
+  /** Its place in the day as arranged (the iOS app reorders); 0 until then. */
+  position?: number;
   recipe: {
     id: string;
     title: string;
@@ -125,6 +127,8 @@ export type PlannedGroup = {
   dayOfWeek: number;
   mealType: MealType;
   sourceMealId: string | null;
+  /** Its place in the day as arranged (the iOS app reorders); 0 until then. */
+  position?: number;
 };
 
 export type TopIngredient = {
@@ -707,6 +711,10 @@ function groupEntries(entries: Entry[], groups: PlannedGroup[]) {
   return items;
 }
 
+function itemPosition(item: DayItem): number {
+  return (item.kind === "group" ? item.group.position : item.entry.position) ?? 0;
+}
+
 function itemDay(item: DayItem): number {
   return item.kind === "entry" ? item.entry.dayOfWeek : item.group.dayOfWeek;
 }
@@ -1058,7 +1066,13 @@ export function WeekPlanner({
 
   const selectedDayItems = dayItems
     .filter((item) => itemDay(item) === selectedDay)
-    .sort((a, b) => MEAL_TYPE_ORDER.indexOf(a.mealType) - MEAL_TYPE_ORDER.indexOf(b.mealType));
+    // As the household arranged the day (positions from the app's drag to
+    // reorder), then by meal type — the only order until someone reorders.
+    .sort(
+      (a, b) =>
+        itemPosition(a) - itemPosition(b) ||
+        MEAL_TYPE_ORDER.indexOf(a.mealType) - MEAL_TYPE_ORDER.indexOf(b.mealType)
+    );
   const selectedDayGroups = selectedDayItems.flatMap((i) => (i.kind === "group" ? [i.group] : []));
   const selectedDayLoose = selectedDayItems.flatMap((i) => (i.kind === "entry" ? [i.entry] : []));
   const savedMealById = useMemo(
