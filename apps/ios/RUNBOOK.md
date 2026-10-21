@@ -1470,5 +1470,5 @@ tonight's dinner (card green, no pill); web banner checked the same way.
 - **Who ate it** as one muted line of first names (full names if two share
   one), each person's own rating in amber after their name; no chips
 
-Checked: builds for the iPhone 18 Pro simulator. Not yet looked at on the
-screen (no simulator access this session).
+Checked on the iPad Pro 11-inch simulator with seeded cooks (two columns,
+menu and tap-to-edit both work); iPhone builds but wasn't looked at.

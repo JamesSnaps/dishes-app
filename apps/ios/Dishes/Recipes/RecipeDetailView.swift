@@ -666,9 +666,12 @@ struct CookEntryCard: View {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Theme.mutedForeground)
-                            .frame(width: 28, height: 22)
+                            .frame(width: 40, height: 36)
                             .contentShape(Rectangle())
                     }
+                    // A finger-sized target without pushing the glyph inward or the rows down.
+                    .padding(.trailing, -8)
+                    .padding(.vertical, -8)
                     .accessibilityLabel("Cook actions")
                 }
                 if !meta.isEmpty {
