@@ -67,7 +67,13 @@ final class CookTimers {
 
     /// Timers that finished while Dishes was open and nobody has stopped yet.
     private(set) var ringing: [CookTimer] = []
+    /// The timer to draw the eye to for a moment: one just started, or the one
+    /// already going when its step's timer is tapped again. The strip and
+    /// panel scroll to it and light it up.
+    private(set) var spotlight: UUID?
     private var ticker: Task<Void, Never>?
+    /// Step timers being scheduled, so a double tap can't start two.
+    @ObservationIgnored private var starting: Set<String> = []
 
     private static let storageKey = "cookTimers"
 
@@ -122,13 +128,43 @@ final class CookTimers {
 
     // MARK: Changes
 
-    func start(label: String, dish: String?, seconds: TimeInterval, recipeId: String? = nil, stepIndex: Int? = nil) async {
+    /// The step's timer that hasn't gone off yet, if there is one.
+    func timer(recipeId: String?, stepIndex: Int?) -> CookTimer? {
+        guard let recipeId, let stepIndex else { return nil }
+        return timers.first { $0.recipeId == recipeId && $0.stepIndex == stepIndex && $0.state != .finished }
+    }
+
+    /// Starts a timer — unless it's for a step whose timer is already going,
+    /// when that one is pointed out instead of doubled up. Answers whether a
+    /// new one started.
+    @discardableResult
+    func start(label: String, dish: String?, seconds: TimeInterval, recipeId: String? = nil, stepIndex: Int? = nil) async -> Bool {
+        if let existing = timer(recipeId: recipeId, stepIndex: stepIndex) {
+            point(at: existing.id)
+            return false
+        }
+        let key = recipeId.flatMap { id in stepIndex.map { "\(id)#\($0)" } }
+        if let key {
+            guard !starting.contains(key) else { return false }
+            starting.insert(key)
+        }
+        defer { if let key { starting.remove(key) } }
         var timer = CookTimer(id: UUID(), label: label, dish: dish, recipeId: recipeId, stepIndex: stepIndex, duration: seconds,
                               endsAt: Date.now.addingTimeInterval(seconds), remaining: seconds,
                               state: .running, usesAlarmKit: false)
         timer.usesAlarmKit = await schedule(timer, seconds: seconds)
-        timers.append(timer)
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.78)) { timers.append(timer) }
+        point(at: timer.id)
         tick()
+        return true
+    }
+
+    private func point(at id: UUID) {
+        withAnimation(.snappy) { spotlight = id }
+        Task {
+            try? await Task.sleep(for: .seconds(2.2))
+            if spotlight == id { withAnimation(.easeOut(duration: 0.5)) { spotlight = nil } }
+        }
     }
 
     func pause(_ timer: CookTimer) {
@@ -183,6 +219,11 @@ final class CookTimers {
         stopRinging()
         for timer in timers { unschedule(timer) }
         timers = []
+    }
+
+    /// Clears every timer of these dishes, gone off or not: the cook is over.
+    func clear(dishes: Set<String>) {
+        for timer in timers where timer.dish.map(dishes.contains) == true { cancel(timer) }
     }
 
     func dismissFinished() {

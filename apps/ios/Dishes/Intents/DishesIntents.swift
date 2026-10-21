@@ -190,8 +190,9 @@ struct StartStepTimerIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         guard let length = minutes ?? step.timerMinutes else { throw DishesIntentError.noTimer }
-        await CookTimers.shared.start(label: step.timerLabel ?? "Step \(step.number)", dish: step.recipe,
-                                      seconds: TimeInterval(length * 60), recipeId: step.recipeId, stepIndex: step.stepIndex)
+        let started = await CookTimers.shared.start(label: step.timerLabel ?? "Step \(step.number)", dish: step.recipe,
+                                                    seconds: TimeInterval(length * 60), recipeId: step.recipeId, stepIndex: step.stepIndex)
+        guard started else { return .result(dialog: "The timer for \(step.timerLabel ?? "step \(step.number)") is already running.") }
         return .result(dialog: "\(Format.minutes(length) ?? "\(length) min") timer started for \(step.timerLabel ?? "step \(step.number)").")
     }
 }

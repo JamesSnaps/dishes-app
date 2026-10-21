@@ -1383,3 +1383,25 @@ the way: Xcode 27.1's account wasn't visible to `xcodebuild`, so the script now
 takes an App Store Connect API key; the App IDs lacked App Groups, HealthKit
 and Associated Domains until Xcode's Signing & Capabilities registered them;
 and Homebrew's rsync broke the export.
+
+### 21 Oct 2026 — Cooking mode fixes: end-of-cook crash, timers (v1.63.1)
+
+- **Crash ending the last cook** (✕ in cooking mode, or saving the review after
+  Finish): the resume bar draws once more as the last cook goes, with
+  `sessions.count - 1 = -1` cooks behind it, and `CookIcon`'s `0..<min(-1, 2)`
+  trapped. Found from the iPhone's own crash logs — `xcrun devicectl device
+  info files --device <udid> --domain-type systemCrashLogs`, then `copy from`
+  and `atos` against `build/Dishes-<build>.xcarchive/dSYMs`. The crash also
+  lost the "timers cancelled" write (UserDefaults flushes later), so the
+  timers came back on relaunch
+- **Finishing clears the cook's timers, finished ones too**
+  (`CookTimers.clear(dishes:)`); before, a meal's Finish left the ones that had
+  gone off
+- **One timer per step:** `CookTimers.start` answers whether it started one; a
+  step whose timer is going gets pointed to instead (Siri and hands-free say
+  so). The step's button turns into that timer's countdown
+- **Starting a timer shows:** it slides into the iPhone strip, which scrolls
+  along to it, and glows for a couple of seconds (`spotlight`); a success haptic
+
+Checked: built and launched on the iPhone 18 Pro simulator. **Not checked:**
+the flows by hand on a device — needs a new TestFlight build.

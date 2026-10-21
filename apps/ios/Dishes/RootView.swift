@@ -119,7 +119,7 @@ final class AppNav {
     /// Activity moves to the next cook, if any.
     func end(_ cook: CookSession, cancelTimers: Bool = false) {
         if cancelTimers {
-            for timer in cook.timers where timer.state != .finished { CookTimers.shared.cancel(timer) }
+            CookTimers.shared.clear(dishes: Set(cook.request.dishes.map(\.recipe.title)))
         }
         let wasFront = cook === session
         sessions.removeAll { $0 === cook }
