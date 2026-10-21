@@ -267,7 +267,10 @@ final class AppModel {
         do {
             let outcome = try await engine.sync(force: force)
             status.state = outcome.offline ? .offline : .idle
-            if outcome.pulled > 0 || outcome.pushed > 0 { WidgetCenter.shared.reloadAllTimelines() }
+            if outcome.pulled > 0 || outcome.pushed > 0 {
+                WidgetCenter.shared.reloadAllTimelines()
+                await ShoppingTripActivity.shared.update()
+            }
             if !outcome.offline { status.lastSyncedAt = Date() }
         } catch {
             // Only APIError.signedOut gets here. Local data and the outbox stay.
@@ -359,6 +362,7 @@ final class AppModel {
         do {
             try await engine.mutate(type, payload: payload, optimistic: optimistic)
             WidgetCenter.shared.reloadAllTimelines()
+            if type.hasPrefix("shopping_") { await ShoppingTripActivity.shared.update() }
             status.pending = (try? await store.read { try $0.pendingCount() }) ?? status.pending
             syncSoon()
             return true
@@ -427,6 +431,7 @@ final class AppModel {
         do {
             guard try await store.setShoppingItem(id, checked: checked) else { return false }
             WidgetCenter.shared.reloadAllTimelines()
+            await ShoppingTripActivity.shared.update()
             status.pending = (try? await store.read { try $0.pendingCount() }) ?? status.pending
             syncSoon()
             return true
@@ -470,6 +475,7 @@ final class AppModel {
     func deleteCook(_ entry: CookEntry) async {
         do {
             try await api.deleteCook(id: entry.id)
+            await HealthLog.shared.remove(cookId: entry.id)
             await syncNow()
         } catch {
             toast = online ? "Couldn’t delete that cook." : "You’re offline — try again with a connection."

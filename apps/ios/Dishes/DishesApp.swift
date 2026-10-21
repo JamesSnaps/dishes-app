@@ -28,6 +28,7 @@ struct DishesApp: App {
                 AppModel.shared.enteredForeground()
                 AppModel.shared.syncSoon(after: .zero)
                 Task { await MealScheduleActivity.shared.refresh() }
+                Task { await ShoppingTripActivity.shared.update() }
             case .background:
                 BackgroundRefresh.schedule()
                 AppModel.shared.enteredBackground()
@@ -45,6 +46,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         Push.shared.launch()
         // Before anything from the Watch can arrive (it may be what launched the app).
         WatchLink.shared.start()
+        // And a tick on the shopping trip's Lock Screen card.
+        ShoppingTripActivity.shared.install()
         return true
     }
 

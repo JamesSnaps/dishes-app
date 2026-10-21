@@ -19,7 +19,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     # Keep in step with "version" in apps/web/package.json (one version for the product).
-    MARKETING_VERSION: "1.62.0"
+    MARKETING_VERSION: "1.63.0"
     CURRENT_PROJECT_VERSION: "1"
     # James Collard's individual membership, as Keepsake: a personal app, kept off
     # the Snapdragons company team.
@@ -81,6 +81,11 @@ targets:
             CFBundleURLSchemes: [dishes]
         # Server for this build. Debug builds can override it in the Developer menu.
         DishesAPIBase: https://dishes.collardserver.co.uk
+        # Hands-free cooking (Dishes/Cooking/HandsFree.swift): on-device, nothing kept or sent.
+        # Settings → Apple Health (HealthLog.swift): write-only, opt-in, per device.
+        NSHealthUpdateUsageDescription: Dishes adds the nutrition of meals you log as eaten to Health. It never reads your Health data.
+        NSHealthShareUsageDescription: Dishes doesn’t read your Health data; it only adds meals you log.
+        NSMicrophoneUsageDescription: Hands-free cooking listens for “next step” or “how much butter?” on this device. Nothing is recorded or sent.
         # The Keychain group the sign-in tokens live in, shared with DishesShare
         # (KeychainTokenStore.dishes; the entitlement lists the same group).
         DishesKeychainGroup: $(AppIdentifierPrefix)uk.collco.dishes.shared
@@ -93,6 +98,8 @@ targets:
         # Cooking timers are AlarmKit alarms, so they sound through silent mode and Focus.
         NSAlarmKitUsageDescription: Dishes sets your cooking timers as alarms, so they go off even when your device is on silent.
         BGTaskSchedulerPermittedIdentifiers: [uk.collco.dishes.refresh]
+        # Handoff between the family's devices (Dishes/App/DishesLink.swift).
+        NSUserActivityTypes: [uk.collco.dishes.page]
         # The cooking Live Activity and AlarmKit's timer countdowns (DishesWidgets).
         NSSupportsLiveActivities: true
         NSCameraUsageDescription: Dishes takes a photo of what you cooked when you log a cook.

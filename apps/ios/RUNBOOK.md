@@ -1331,3 +1331,38 @@ Simulator screenshots from the control tool can lag by several seconds — use
 
 **Not checked:** a real drag on the planner (the simulator can't), a photo read
 by the household's AI for real (no key in dev).
+
+### 21 Oct 2026 — Phase C leftovers: hands-free, Health, shopping trip, Handoff (v1.63.0)
+
+- **Hands-free cooking:** the mic in cooking mode (`HandsFree.swift`,
+  `CookCommand` in DishesCore with tests). The simulator has no
+  `SpeechTranscriber` for en-GB, so it falls back to `DictationTranscriber`,
+  then deadlocks CoreAudio ("Initialize: RPC timeout") — the simulator's
+  microphone, not the app. Check on the iPad
+- **Apple Health:** Settings → Apple Health, the portion chips on the log
+  sheets, `HealthLog.swift`. Asking for `HKCorrelationType(.food)` throws
+  ("Authorization to share … is disallowed") — ask for the eight nutrients
+  only; a save asks again if any of them is undecided. Synthetic taps don't
+  flip a SwiftUI `Toggle` in the simulator; a short swipe across it does
+- **Shopping trip Live Activity:** "Shopping trip" on the list. The tick
+  buttons run `TickTripItemIntent` in the app, with the app in the background
+  (locked) — where the shared store is suspended, so the handler goes through
+  `AppModel.awake` (without it: "SQLite error 4: Database is suspended").
+  Reinstalling the app ends running activities, and a stale cooking activity
+  can sit on top of the stack and hide the others
+- **Handoff and universal links:** `DishesLink`, the associated-domains
+  entitlement (`applinks:` and `activitycontinuation:` for
+  dishes.collardserver.co.uk), `/.well-known/apple-app-site-association`. The
+  server needs the Authelia bypass in the README before Apple can fetch it
+
+Checked: `CookCommandTests`; a Health write and its removal when the cook was
+deleted (the dev Greek Salad was given nutrition for it and put back after);
+the shopping-trip card on the Lock Screen, a tick from it reaching the server
+and redrawing the card (Broccoli unticked after); the server's "next" order
+against the app's; the association file served; `DishesLink` on sample URLs.
+
+**Not checked:** hands-free with a real microphone, the trip's APNs updates
+(no APNs key in dev), universal links and Handoff (need the deployed domain and
+two devices), Health on a device. The Lock Screen card's text sometimes
+captures white-on-white in simulator screenshots, the cooking card too; it
+draws correctly a moment later.

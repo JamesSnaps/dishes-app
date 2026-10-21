@@ -896,10 +896,23 @@ Cues may carry `covers: [{ recipeId, stepIndex }]` — a combined prep step doin
 
 ### `POST /api/v1/live-activities` · `DELETE`
 
-Hand over a meal-schedule Live Activity's push token:
-`{ "groupId", "token": "<hex>", "environment": "sandbox" | "production" }` → 204.
-The server updates the activity over APNs as each step comes due and ends it
-half an hour after serving. `DELETE` with `{ "token" }` stops it.
+Hand over a Live Activity's push token → 204. `DELETE` with `{ "token" }` stops it.
+
+- A meal schedule: `{ "groupId", "token": "<hex>", "environment": "sandbox" | "production" }`.
+  The server updates the activity over APNs as each step comes due and ends it
+  half an hour after serving.
+- A shopping trip: `{ "shoppingListId", "token", "environment" }`. After any
+  change to the household's shopping (settling for 1.5 s), the server sends
+  `{ left, total, next: [{ id, name }] }` — the next three unticked items in
+  aisle order — and ends the activity when the last item is ticked or the list
+  is archived. Kept 12 hours at most (`lib/shopping-trip-activities.ts`).
+
+### `GET /.well-known/apple-app-site-association`
+
+Public (no session; needs an Authelia bypass). Names the iOS app for universal
+links and Handoff: `/recipes`, `/recipes/*` (not `/recipes/new`), `/shopping`,
+`/meal-plan` and `/home` open in the app when it's installed. `APPLE_APP_IDS`
+overrides the app id.
 
 ### `GET /api/v1/cooking-sessions` · `PUT /api/v1/cooking-sessions/{id}` · `DELETE …`
 

@@ -548,6 +548,18 @@ public final class APIClient: SyncTransport, Sendable {
         }
     }
 
+    /// A shopping trip's Live Activity token: the server pushes its updates as the list changes.
+    public func registerShoppingTrip(listId: String, token: String, sandbox: Bool) async throws {
+        struct Body: Encodable { var shoppingListId: String; var token: String; var environment: String }
+        let body = try JSONEncoder().encode(Body(shoppingListId: listId, token: token, environment: sandbox ? "sandbox" : "production"))
+        _ = try await send { bearer in
+            var r = authorisedRequest(url("/live-activities"), method: "POST", token: bearer)
+            r.httpBody = body
+            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+    }
+
     // MARK: Cooking sessions (a cook in progress, followed from other devices)
 
     /// A cook in progress as the device cooking it publishes it, so the

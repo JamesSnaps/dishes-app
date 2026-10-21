@@ -50,8 +50,18 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Dishes takes a photo of what you cooked when you log a cook.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Dishes doesn’t read your Health data; it only adds meals you log.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Dishes adds the nutrition of meals you log as eaten to Health. It never reads your Health data.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Hands-free cooking listens for “next step” or “how much butter?” on this device. Nothing is recorded or sent.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>uk.collco.dishes.page</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

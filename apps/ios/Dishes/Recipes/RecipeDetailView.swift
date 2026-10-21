@@ -24,6 +24,8 @@ struct RecipeDetailView: View {
     let recipeId: String
     @State private var recipe = Observed<Recipe?>(nil)
     @State private var extras = Observed(RecipeExtras())
+    /// On screen, so offered to the family's other devices (Handoff, DishesLink).
+    @State private var showing = false
     @State private var logging = false
     @State private var editing = false
     @State private var tool: RecipeTool?
@@ -60,6 +62,9 @@ struct RecipeDetailView: View {
         .background(Theme.background)
         // What's on screen, for Siri: "add this to Friday", "add this to the shopping list".
         .appEntityIdentifier(EntityIdentifier(for: RecipeEntity.self, identifier: recipeId))
+        .handoff(.recipe(recipeId), title: recipe.value?.title ?? "Recipe", isActive: showing)
+        .onAppear { showing = true }
+        .onDisappear { showing = false }
         .navigationBarTitleDisplayMode(.inline)
         .task {
             let id = recipeId

@@ -552,9 +552,13 @@ don't exist there.
   between them (toolbar on iPad, title menu on iPhone). The Live Activity
   follows the cook in front, updated rather than restarted. Cooks are kept
   across a relaunch for 12 h (`SavedCooks`, as the web)
-- [ ] **Hands-free cooking.** On-device `SpeechAnalyzer` for "next step",
+- [x] **Hands-free cooking (v1.63.0).** On-device `SpeechAnalyzer` for "next step",
   "previous step", "start the timer", "how much butter?"; `AVSpeechSynthesizer`
-  to read a step aloud. Most useful on the iPad, propped up out of reach
+  to read a step aloud. Most useful on the iPad, propped up out of reach.
+  The mic button in cooking mode (`HandsFree.swift`, phrases in DishesCore's
+  `CookCommand`): `SpeechTranscriber`, else `DictationTranscriber`, hinted with
+  the recipe's ingredients; what it hears while speaking is ignored. **Check on
+  a device** — the simulator's microphone deadlocks CoreAudio
 - [x] **Timers that alarm with no signal (`CookTimers`).** AlarmKit when
   allowed, else a time-sensitive local notification; either way the system
   owns the countdown, so it fires with no server, no signal and the app
@@ -583,7 +587,7 @@ don't exist there.
   countdown across the whole meal: "Potatoes in at 18:05 · serve 18:45".
   Started remotely by the dinner-reminder push (ActivityKit push-to-start
   tokens, via C5), so it's on the Lock Screen before the app is opened
-- [ ] **Log a cook → HealthKit** (see the HealthKit section below)
+- [x] **Log a cook → HealthKit** (v1.63.0; see the HealthKit section below)
 
 #### Tier 2 — at a glance
 
@@ -593,8 +597,15 @@ don't exist there.
   iPad Home Screen widgets get the larger family showing the week
 - [ ] **StandBy** (iPhone on its side, charging): tonight's meal, or the
   current step and timers while cooking
-- [ ] **Live Activity — shopping trip.** "9 items left", updated by push as
-  someone at home adds or ticks things
+- [x] **Live Activity — shopping trip (v1.63.0).** "9 items left", updated by push as
+  someone at home adds or ticks things. "Shopping trip" on the list starts it
+  (`ShoppingTripActivity`): the count, a progress bar and the next three items
+  in aisle order, each with a tick button (`TickTripItemIntent`, which runs in
+  the app and wakes its suspended store). The server
+  (`lib/shopping-trip-activities.ts`) pushes a new state 1.5 s after any
+  shopping write settles, and ends it when the last item is ticked or the list
+  is archived. Ticking on the Lock Screen checked in the simulator; **the push
+  path needs APNs** (none in dev)
 - [x] **Control Center control** — "Add to shopping" (v1.40.0: opens the
   shopping list with the add field focused; a control can't take text)
 - [x] **App Intents / Siri / Shortcuts** — "add milk to the shopping list"
@@ -645,8 +656,12 @@ don't exist there.
   - [ ] Check on a real Watch: complications on a face, Siri on the wrist,
     the Action button, a tick with the phone locked in a pocket, a cook on the
     iPad followed on the Watch
-- [ ] **Handoff + universal links** — a Dishes URL opens in the app; a recipe
-  open on the Mac continues on the iPad (`NSUserActivity` with `webpageURL`)
+- [x] **Handoff + universal links (v1.63.0)** — a Dishes URL opens in the app; a recipe
+  open on the Mac continues on the iPad (`NSUserActivity` with `webpageURL`).
+  `DishesLink`: recipes, a recipe's cook, shopping and the planner, claimed by
+  `/.well-known/apple-app-site-association` (needs the Authelia bypass in the
+  README). **Check on a device** once deployed — the simulator can't fetch the
+  association for a localhost server
 - [ ] **Supermarket geofence** — "You're at Tesco: 12 items on the list"
 - [ ] **Live Activity — delivery order deadline**, from the v1.21 delivery data
 
@@ -658,29 +673,34 @@ migrations `0019` / `0031`), which is exactly what HealthKit's dietary types
 take. The heart-healthy diet support makes saturated fat and sodium the
 numbers worth having in Health.
 
-- [ ] **Write-only**, opt-in, asked for at the moment it's first useful (logging
+Built in v1.63.0 (`HealthLog.swift`, Settings → Apple Health). Checked in the
+simulator: the permission sheet, a write, and deleting the cook removing it.
+HealthKit won't let an app ask for the `.food` correlation type itself (it
+throws); asking for the eight nutrients is enough to save one.
+
+- [x] **Write-only**, opt-in, asked for at the moment it's first useful (logging
   a cook), not at launch. Dishes never reads Health data
-- [ ] On logging a cook, write one `HKCorrelation` of type `.food` for the
+- [x] On logging a cook, write one `HKCorrelation` of type `.food` for the
   person using this device, dated the cook time, containing
   `dietaryEnergyConsumed`, `dietaryProtein`, `dietaryCarbohydrates`,
   `dietaryFatTotal`, `dietaryFatSaturated`, `dietaryFiber`, `dietarySugar`,
   `dietarySodium` — whichever the recipe has (skip nulls; skip entirely if
   `nutrition_source` is `none`)
-- [ ] Portion: default 1 serving, adjustable on the log sheet (½, 1, 1½, 2).
+- [x] Portion: default 1 serving, adjustable on the log sheet (½, 1, 1½, 2).
   `cook_history` has no per-person portion and doesn't need one — it's a
   device-side choice
-- [ ] Combined meals write one food entry per dish eaten, so Health shows
+- [x] Combined meals write one food entry per dish eaten, so Health shows
   "Roast chicken" and "Roast potatoes" rather than one opaque total
-- [ ] Only write if this device's member is in `cookedFor` (matched by display
+- [x] Only write if this device's member is in `cookedFor` (matched by display
   name, as `member_ratings` is)
-- [ ] Keep the written sample UUIDs locally against the cook-history id, so
+- [x] Keep the written sample UUIDs locally against the cook-history id, so
   editing or deleting the log updates or deletes the Health entry
-- [ ] **Shared-iPad caveat:** Health data belongs to the Apple ID signed into
+- [x] **Shared-iPad caveat:** Health data belongs to the Apple ID signed into
   the device. On a family iPad, writing the cook's meal to whoever owns the
   iPad would be wrong. The setting is per device, off by default, with a
   "who eats from this device?" choice — expect it on for phones, off for the
   kitchen iPad
-- [ ] HealthKit entitlement and `NSHealthUpdateUsageDescription` in
+- [x] HealthKit entitlement and `NSHealthUpdateUsageDescription` in
   `project.yml`; HealthKit is available on iPadOS 17+
 
 ### C5. Push via APNs

@@ -8,6 +8,9 @@
 //                         and "Time's up" — AlarmKit shows a timer on the Lock
 //                         Screen only through an ActivityConfiguration for its
 //                         AlarmAttributes, which has to live in an extension
+//   MealScheduleLiveActivity  tonight's meal's next step, counting down
+//   ShoppingTripLiveActivity  "9 left" and the next items, each with a tick
+//                         button, while someone's in the shop
 //
 // The Home Screen and Lock Screen widgets — Tonight, This week, Shopping —
 // are in HomeWidgets.swift (TODO_MOBILE.md, D4).
@@ -27,6 +30,7 @@ struct DishesWidgets: WidgetBundle {
         CookingLiveActivity()
         CookTimerAlarmActivity()
         MealScheduleLiveActivity()
+        ShoppingTripLiveActivity()
         AddToShoppingControl()
         TonightWidget()
         WeekWidget()
@@ -277,6 +281,118 @@ private struct MealScheduleLockScreen: View {
                     .frame(width: 124, alignment: .trailing)
                 Text(context.state.stepsLeft == 1 ? "1 step left" : "\(context.state.stepsLeft) steps left")
                     .font(.caption).foregroundStyle(colors.secondary)
+            }
+        }
+        .padding(16)
+    }
+}
+
+// MARK: Shopping trip
+
+struct ShoppingTripLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: ShoppingTripAttributes.self) { context in
+            LockScreenCard { ShoppingTripLockScreen(context: context, colors: $0) }
+                .widgetURL(WidgetLink.shopping.url)
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Label(context.attributes.listName, systemImage: "cart.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Palette.brand)
+                        .lineLimit(1)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Text(TripText.left(context.state))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Palette.brand)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    TripItems(items: context.state.next, text: .white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } compactLeading: {
+                Image(systemName: "cart.fill").foregroundStyle(Palette.brand)
+            } compactTrailing: {
+                Text("\(context.state.left)").monospacedDigit().foregroundStyle(Palette.brand)
+            } minimal: {
+                Text("\(context.state.left)").monospacedDigit().foregroundStyle(Palette.brand)
+            }
+            .widgetURL(WidgetLink.shopping.url)
+            .keylineTint(Palette.brand)
+        }
+    }
+}
+
+private enum TripText {
+    static func left(_ state: ShoppingTripAttributes.ContentState) -> String {
+        state.left == 0 ? "All done" : "\(state.left) left"
+    }
+}
+
+/// The next items, each ticked off with a tap (TickTripItemIntent, run in the app).
+private struct TripItems: View {
+    let items: [ShoppingTripAttributes.ContentState.Item]
+    let text: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(items, id: \.id) { item in
+                Button(intent: TickTripItemIntent(itemId: item.id)) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "circle")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(Palette.brand)
+                        Text(item.name).font(.subheadline).foregroundStyle(text).lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct ShoppingTripLockScreen: View {
+    let context: ActivityViewContext<ShoppingTripAttributes>
+    let colors: CardColors
+
+    var body: some View {
+        let state = context.state
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "cart.fill").foregroundStyle(Palette.brand)
+                    Text(context.attributes.listName).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        .foregroundStyle(colors.text)
+                }
+                if state.left == 0 {
+                    Text("Everything’s in the basket").font(.subheadline).foregroundStyle(colors.secondary)
+                } else {
+                    TripItems(items: state.next, text: colors.text)
+                    if state.left > state.next.count {
+                        Text("and \(state.left - state.next.count) more").font(.caption).foregroundStyle(colors.secondary)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 2) {
+                if state.left == 0 {
+                    Image(systemName: "checkmark.circle.fill").font(.largeTitle).foregroundStyle(Palette.brand)
+                } else {
+                    Text("\(state.left)")
+                        .font(.largeTitle.weight(.bold).monospacedDigit())
+                        .foregroundStyle(Palette.brand)
+                        .contentTransition(.numericText(countsDown: true))
+                    Text(state.left == 1 ? "item left" : "items left").font(.caption).foregroundStyle(colors.secondary)
+                }
+                // How far through: a slim bar under the count.
+                if state.total > 0 {
+                    ProgressView(value: Double(state.total - state.left), total: Double(state.total))
+                        .tint(Palette.brand)
+                        .frame(width: 72)
+                        .padding(.top, 4)
+                }
             }
         }
         .padding(16)

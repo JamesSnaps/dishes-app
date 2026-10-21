@@ -22,6 +22,8 @@ struct ShoppingScreen: View {
     @State private var showChecked = false
     @State private var editing: ShoppingItem?
     @State private var ticks = 0
+    /// The shopping trip is on the Lock Screen (ShoppingTripActivity).
+    @State private var onTrip = false
     @State private var pageWidth: CGFloat = 0
     /// Sainsbury's, beside the list (wide) …
     @State private var shop: URL?
@@ -68,7 +70,17 @@ struct ShoppingScreen: View {
                     let open = data.value.all.filter { !$0.isChecked }.count
                     let checked = data.value.checked.count
                     PageHeader(title: "Shopping List",
-                               subtitle: "\(data.value.list?.name ?? "No list yet") · \(open + checked) items, \(checked) checked")
+                               subtitle: "\(data.value.list?.name ?? "No list yet") · \(open + checked) items, \(checked) checked") {
+                        if onTrip {
+                            Button { toggleTrip() } label: { Label("End trip", systemImage: "lock.slash") }
+                                .buttonStyle(.outline)
+                        } else if open > 0 {
+                            // Going shopping: what's left on the Lock Screen, kept current as the family adds things.
+                            Button { toggleTrip() } label: { Label("Shopping trip", systemImage: "lock.iphone") }
+                                .buttonStyle(.gradient(.orangeRose))
+                                .fixedSize()
+                        }
+                    }
                     AddItemCard()
 
                     if checked > 0 {
@@ -123,6 +135,25 @@ struct ShoppingScreen: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await app.syncNow() }
+            .onAppear { onTrip = ShoppingTripActivity.shared.isShowing }
+            // It ends itself when the last item's ticked.
+            .onChange(of: data.value.groups.reduce(0) { $0 + $1.items.count }) { onTrip = ShoppingTripActivity.shared.isShowing }
+    }
+
+    private func toggleTrip() {
+        if onTrip {
+            ShoppingTripActivity.shared.end()
+            onTrip = false
+            return
+        }
+        Task {
+            if let problem = await ShoppingTripActivity.shared.start() {
+                app.toast = problem
+            } else {
+                onTrip = true
+                app.toast = "On the Lock Screen until everything’s ticked."
+            }
+        }
     }
 
     /// Splits the categories into two columns of about equal length, keeping order.

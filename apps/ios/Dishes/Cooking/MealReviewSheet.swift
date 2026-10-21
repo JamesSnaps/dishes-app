@@ -240,6 +240,13 @@ struct MealReviewSheet: View {
         struct Logged: Decodable, Sendable { var id: String; var cookIds: [String: String] }
         do {
             let logged = try await app.api.action("mealCooks.log", [input], as: Logged.self)
+            // One Health entry per dish eaten, so Health shows "Roast chicken"
+            // and "Roast potatoes" rather than one total.
+            for dish in dishes {
+                if let cookId = logged.cookIds[dish.id] {
+                    await HealthLog.shared.record(cookId: cookId, recipe: dish, cookedFor: ate.sorted(), at: .now, portion: 1)
+                }
+            }
             if !later, let photo, let main = dishes.first, let cookId = logged.cookIds[main.id],
                let jpeg = CookReviewSheet.jpeg(photo) {
                 _ = try? await app.api.uploadCookPhoto(cookId: cookId, image: jpeg)

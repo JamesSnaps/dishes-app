@@ -200,11 +200,15 @@ struct RootView: View {
         @Bindable var nav = nav
         return TabView(selection: $nav.tab) {
             Tab("Recipes", systemImage: "book", value: AppNav.Tab.recipes) { RecipesScreen() }
-            Tab("Planner", systemImage: "calendar", value: AppNav.Tab.plan) { PlanScreen() }
+            Tab("Planner", systemImage: "calendar", value: AppNav.Tab.plan) {
+                PlanScreen().handoff(.plan, title: "Meal planner", isActive: nav.tab == .plan)
+            }
             Tab("AI", systemImage: "sparkles", value: AppNav.Tab.ai) {
                 ConciergeSheet(inTab: true) { nav.openRecipe($0) }
             }
-            Tab("Shopping", systemImage: "cart", value: AppNav.Tab.shopping) { ShoppingScreen() }
+            Tab("Shopping", systemImage: "cart", value: AppNav.Tab.shopping) {
+                ShoppingScreen().handoff(.shopping, title: "Shopping list", isActive: nav.tab == .shopping)
+            }
                 .badge(shoppingCount.value)
             Tab("Settings", systemImage: "gearshape", value: AppNav.Tab.more) { MoreScreen() }
         }
