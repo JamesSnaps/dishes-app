@@ -637,54 +637,55 @@ struct CookEntryCard: View {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image { image.resizable().scaledToFill() } else { Theme.muted }
                 }
-                .frame(width: 72, height: 72)
+                .frame(width: 76, height: 76)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            VStack(alignment: .leading, spacing: 6) {
-                if let recipeTitle {
-                    Text(recipeTitle).font(.system(size: 15, weight: .semibold)).lineLimit(2)
-                }
-                HStack(spacing: 8) {
-                    Text(entry.isCook ? RecipeDetailView.relative(entry.cookedAt).capitalizedFirst : "Rated")
-                        .font(.system(size: 14, weight: recipeTitle == nil ? .semibold : .regular))
-                        .foregroundStyle(recipeTitle == nil ? Theme.foreground : Theme.mutedForeground)
-                    if entry.rating != nil { StarRating(value: entry.rating, size: 12) }
-                    if let minutes = entry.actualDuration, let text = Format.minutes(minutes) {
-                        Label(text, systemImage: "clock").labelStyle(TightLabel())
-                            .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+            VStack(alignment: .leading, spacing: 4) {
+                // Title (History only) and date on the left; rating and the
+                // actions menu pinned top-right so the text column keeps its width.
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let recipeTitle {
+                            Text(recipeTitle).font(.system(size: 15, weight: .semibold)).lineLimit(2)
+                        }
+                        Text(entry.isCook ? RecipeDetailView.relative(entry.cookedAt).capitalizedFirst : "Rated")
+                            .font(.system(size: recipeTitle == nil ? 15 : 13, weight: recipeTitle == nil ? .semibold : .regular))
+                            .foregroundStyle(recipeTitle == nil ? Theme.foreground : Theme.mutedForeground)
+                            .lineLimit(1)
                     }
-                    if let occasion = entry.occasion, !occasion.isEmpty { BadgeView(text: occasion) }
+                    Spacer(minLength: 4)
+                    if let rating = entry.rating {
+                        HStack(spacing: 3) {
+                            Image(systemName: "star.fill").font(.system(size: 11)).foregroundStyle(Self.amber)
+                            Text(Format.amount(String(rating / 2)) ?? "").font(.system(size: 13, weight: .semibold))
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Rated \(Format.amount(String(rating / 2)) ?? "") out of 5")
+                    }
+                    Menu { menu } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Theme.mutedForeground)
+                            .frame(width: 40, height: 36)
+                            .contentShape(Rectangle())
+                    }
+                    // A finger-sized target without pushing the glyph inward or the rows down.
+                    .padding(.trailing, -8)
+                    .padding(.vertical, -8)
+                    .accessibilityLabel("Cook actions")
+                }
+                if !meta.isEmpty {
+                    Text(meta).font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
                 }
                 if !entry.cookedFor.isEmpty {
-                    let byName = Dictionary(entry.memberRatings.map { ($0.name, $0.rating) }, uniquingKeysWith: { a, _ in a })
-                    FlowLayout(spacing: 6) {
-                        ForEach(entry.cookedFor, id: \.self) { name in
-                            HStack(spacing: 4) {
-                                Text(name).font(.system(size: 12, weight: .medium))
-                                if let r = byName[name] {
-                                    Image(systemName: "star.fill").font(.system(size: 9)).foregroundStyle(Color(hex: 0xF59E0B))
-                                    Text(Format.amount(String(r / 2)) ?? "").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
-                                }
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Theme.muted, in: Capsule())
-                        }
-                    }
+                    people.font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
                 }
                 if let notes = entry.notes, !notes.isEmpty {
-                    Text(notes).font(.system(size: 13)).foregroundStyle(Theme.foreground.opacity(0.8)).lineLimit(4)
+                    Text(notes).font(.system(size: 13)).foregroundStyle(Theme.foreground.opacity(0.8)).lineLimit(3)
+                        .padding(.top, 2)
                 }
             }
-            Spacer(minLength: 0)
-            Menu { menu } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.mutedForeground)
-                    .frame(width: 34, height: 34)
-                    .background(Theme.muted, in: Circle())
-            }
-            .accessibilityLabel("Cook actions")
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -700,6 +701,30 @@ struct CookEntryCard: View {
         .sheet(item: $editing) { recipe in
             CookReviewSheet(recipe: recipe, mode: .edit(entry)).presentationSizing(.page)
         }
+    }
+
+    private static let amber = Color(hex: 0xF59E0B)
+
+    /// "20 min · Family dinner": plain text, so it wraps rather than truncating.
+    private var meta: String {
+        [Format.minutes(entry.actualDuration), entry.occasion?.trimmingCharacters(in: .whitespaces)]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// Who ate it, by first name, with their own rating in amber where they gave one.
+    private var people: Text {
+        let byName = Dictionary(entry.memberRatings.map { ($0.name, $0.rating) }, uniquingKeysWith: { a, _ in a })
+        let first = entry.cookedFor.map { $0.split(separator: " ").first.map(String.init) ?? $0 }
+        // Two people sharing a first name keep their full names.
+        let names = Set(first).count == first.count ? first : entry.cookedFor
+        var text = Text(Image(systemName: "person.2"))
+        for (i, full) in entry.cookedFor.enumerated() {
+            text = Text("\(text)\(i == 0 ? " " : ", ")\(names[i])")
+            if let r = byName[full] {
+                text = Text("\(text) \(Text("★\(Format.amount(String(r / 2)) ?? "")").foregroundStyle(Self.amber))")
+            }
+        }
+        return text
     }
 
     @ViewBuilder private var menu: some View {

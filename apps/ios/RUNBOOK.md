@@ -1457,3 +1457,18 @@ Same on the web's Recipes browse banner (`getTonight`, `recipes/page.tsx`).
 Checked: built for the iPhone 18 Pro simulator with a cook logged for
 tonight's dinner (card green, no pill); web banner checked the same way.
 
+
+### 2026-10-21 — tidier cook-history cards (v1.64.2)
+
+`CookEntryCard` (recipe page's Cook history and the History screen):
+
+- **Date on its own line**, one line only; rating as a compact `★ 5` and a
+  small borderless ⋯ pinned top-right (tap still edits, long-press still
+  gives the menu)
+- **Time and occasion** as one muted text line (`20 min · Family dinner`)
+  instead of a clock label and a truncating badge
+- **Who ate it** as one muted line of first names (full names if two share
+  one), each person's own rating in amber after their name; no chips
+
+Checked on the iPad Pro 11-inch simulator with seeded cooks (two columns,
+menu and tap-to-edit both work) and the iPhone 18 Pro (one column, menu works).
