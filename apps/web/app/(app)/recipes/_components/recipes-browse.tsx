@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChefHat, Clock, Heart, History, LayoutGrid, Sparkles, UtensilsCrossed } from "lucide-react";
+import { BookOpen, CheckCircle2, ChefHat, Clock, Heart, History, LayoutGrid, Sparkles, UtensilsCrossed } from "lucide-react";
 import { RecipeCard } from "./recipe-card";
 
 /**
@@ -42,6 +42,9 @@ export type BrowseTonight = {
   dishCount: number;
   /** The dish to open cooking mode on: the main, else the first. */
   cookHref: string;
+  recipeHref: string;
+  /** Made already (a cook logged today for every dish): nothing left to cook tonight. */
+  cooked: boolean;
   imageUrl: string | null;
   totalMinutes: number | null;
 } | null;
@@ -248,9 +251,13 @@ function TonightBanner({ tonight }: { tonight: BrowseTonight }) {
     );
   }
 
-  const time = tonight.dishCount === 1 ? minutes(tonight.totalMinutes) : null;
+  const time = tonight.dishCount === 1 && !tonight.cooked ? minutes(tonight.totalMinutes) : null;
   return (
-    <div className="flex items-center gap-4 rounded-2xl bg-gradient-to-r from-orange-500 to-rose-500 p-4 text-white shadow-lg shadow-orange-500/25">
+    <div
+      className={`flex items-center gap-4 rounded-2xl bg-gradient-to-r p-4 text-white shadow-lg ${
+        tonight.cooked ? "from-emerald-600 to-teal-500 shadow-emerald-600/25" : "from-orange-500 to-rose-500 shadow-orange-500/25"
+      }`}
+    >
       <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/15 ring-1 ring-white/35 sm:h-28 sm:w-28">
         {tonight.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -260,10 +267,13 @@ function TonightBanner({ tonight }: { tonight: BrowseTonight }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold uppercase tracking-wider text-white/85">Tonight · {tonight.mealType}</p>
+        <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-white/85">
+          {tonight.cooked && <CheckCircle2 className="h-3.5 w-3.5" />}
+          {tonight.cooked ? "Cooked tonight" : "Tonight"} · {tonight.mealType}
+        </p>
         <p className="mt-0.5 line-clamp-2 text-lg font-bold leading-tight sm:text-xl">{tonight.title}</p>
         <p className="mt-1 flex flex-wrap gap-x-3 text-xs font-medium text-white/90">
-          {tonight.serveAt && <span>Serve at {tonight.serveAt}</span>}
+          {tonight.serveAt && !tonight.cooked && <span>Serve at {tonight.serveAt}</span>}
           {tonight.dishCount > 1 && <span>{tonight.dishCount} dishes</span>}
           {time && (
             <span className="flex items-center gap-1">
@@ -273,13 +283,23 @@ function TonightBanner({ tonight }: { tonight: BrowseTonight }) {
           )}
         </p>
         <div className="mt-2.5 flex items-center gap-2">
-          <Link
-            href={tonight.cookHref}
-            className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3.5 py-1.5 text-sm font-bold text-orange-600 shadow-sm transition-transform active:scale-95"
-          >
-            <ChefHat className="h-4 w-4" />
-            Start cooking
-          </Link>
+          {tonight.cooked ? (
+            <Link
+              href={tonight.recipeHref}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3.5 py-1.5 text-sm font-bold text-emerald-700 shadow-sm transition-transform active:scale-95"
+            >
+              <BookOpen className="h-4 w-4" />
+              View recipe
+            </Link>
+          ) : (
+            <Link
+              href={tonight.cookHref}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3.5 py-1.5 text-sm font-bold text-orange-600 shadow-sm transition-transform active:scale-95"
+            >
+              <ChefHat className="h-4 w-4" />
+              Start cooking
+            </Link>
+          )}
           <Link href="/meal-plan" className="whitespace-nowrap rounded-full bg-white/20 px-3.5 py-1.5 text-sm font-semibold hover:bg-white/30">
             Plan
           </Link>

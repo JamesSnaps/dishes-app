@@ -54,6 +54,18 @@ struct PlannedMeal: Identifiable {
     /// Its place in the day as arranged (0 until someone reorders).
     var position = 0
 
+    var hasStepsToCook: Bool { dishes.contains { $0.recipe?.steps.isEmpty == false } }
+
+    /// Made already: every dish there is to cook has a cook in `cooked` (recipe
+    /// ids). Dishes without steps never go through cooking mode, so they only
+    /// count when they're all the meal has.
+    func isCooked(by cooked: Set<String>) -> Bool {
+        let recipes = dishes.compactMap(\.recipe)
+        let cookable = recipes.filter { !$0.steps.isEmpty }
+        let ids = (cookable.isEmpty ? recipes : cookable).map(\.id)
+        return !ids.isEmpty && ids.allSatisfy(cooked.contains)
+    }
+
     /// One servings figure when every dish agrees on it.
     var servings: Double? {
         let values = Set(dishes.compactMap { $0.entry.servings ?? $0.recipe?.servings })
@@ -88,6 +100,29 @@ struct PlanData: Sendable {
         let meals = meals(on: Week.dayIndex(of: now), in: Week.containing(now))
         if let mealType { return meals.first { $0.mealType == mealType } }
         return meals.first { $0.mealType == "dinner" } ?? meals.last
+    }
+
+    /// Tonight's meal, minding what's been cooked today (`cooked`, recipe ids
+    /// from `cookedToday`): dinner, or the last meal planned today, until it's
+    /// cooked; then the next meal after it with something still to cook
+    /// (dessert after dinner); else that meal again, `cooked` set. Walks the
+    /// day by meal type, not as arranged, so a dessert dragged above dinner
+    /// still comes after it — as the web's getTonight.
+    func tonight(cooked: Set<String>, now: Date = Date()) -> (meal: PlannedMeal, cooked: Bool)? {
+        let meals = meals(on: Week.dayIndex(of: now), in: Week.containing(now)).sorted {
+            (mealTypeOrder.firstIndex(of: $0.mealType) ?? 9, $0.id) < (mealTypeOrder.firstIndex(of: $1.mealType) ?? 9, $1.id)
+        }
+        guard let start = meals.firstIndex(where: { $0.mealType == "dinner" }) ?? meals.indices.last else { return nil }
+        if !meals[start].isCooked(by: cooked) { return (meals[start], false) }
+        let next = meals[(start + 1)...].first { $0.hasStepsToCook && !$0.isCooked(by: cooked) }
+        return next.map { ($0, false) } ?? (meals[start], true)
+    }
+
+    /// The recipes with a cook logged today; a rating without cooking isn't one.
+    @Sendable static func cookedToday(_ r: StoreReader, now: Date = Date()) throws -> Set<String> {
+        Set(try r.records(.cookHistory).compactMap(CookEntry.init)
+            .filter { $0.isCook && Calendar.current.isDate($0.cookedAt, inSameDayAs: now) }
+            .map(\.recipeId))
     }
 
     func meals(on day: Int, in week: Week) -> [PlannedMeal] {

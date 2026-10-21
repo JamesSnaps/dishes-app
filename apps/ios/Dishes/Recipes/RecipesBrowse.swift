@@ -148,8 +148,9 @@ struct WrappedBanner: View {
 
 /// Tonight's meal, big enough to see from across the kitchen on an iPad: the
 /// photo, what it is, when it's served, and Start cooking. A little smaller on
-/// an iPhone, where it sits above the shelves. With nothing planned, a way to
-/// the planner instead.
+/// an iPhone, where it sits above the shelves. Once it's cooked (a cook logged
+/// today for every dish), green and ticked, with the recipe instead. With
+/// nothing planned, a way to the planner instead.
 struct TonightCard: View {
     @Environment(AppNav.self) private var nav
     @Environment(\.horizontalSizeClass) private var width
@@ -161,21 +162,24 @@ struct TonightCard: View {
         var recipe: Recipe?
         var serveAt: String?
         var dishCount: Int
+        /// Made already: nothing left to cook tonight.
+        var cooked = false
+        /// The main dish, else the first, for "View recipe" once it's cooked.
+        var mainRecipeId: String?
     }
 
     let meal: Meal?
 
     @Sendable nonisolated static func load(_ r: StoreReader) throws -> Meal? {
-        let data = try PlanData.load(r)
-        let meals = data.meals(on: Week.todayIndex, in: Week.containing(Date()))
-        guard let planned = meals.first(where: { $0.mealType == "dinner" }) ?? meals.last else { return nil }
+        guard case let (planned, cooked)? = try PlanData.load(r).tonight(cooked: PlanData.cookedToday(r)) else { return nil }
         let recipes = planned.dishes.compactMap(\.recipe)
         let cookable = CookDish.inStartOrder(recipes.filter { !$0.steps.isEmpty })
         return Meal(request: cookable.isEmpty ? nil : CookRequest(title: planned.title, groupId: planned.groupId, dishes: cookable),
                     mealType: planned.mealType,
                     title: planned.title ?? recipes.first?.title ?? "Tonight’s meal",
                     recipe: recipes.first(where: { $0.imageUrl != nil }) ?? recipes.first,
-                    serveAt: planned.serveAt, dishCount: planned.dishes.count)
+                    serveAt: planned.serveAt, dishCount: planned.dishes.count, cooked: cooked,
+                    mainRecipeId: (planned.dishes.first { $0.entry.mealRole == "main" } ?? planned.dishes.first)?.recipe?.id)
     }
 
     private var large: Bool { width == .regular }
@@ -190,17 +194,23 @@ struct TonightCard: View {
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.35)))
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("TONIGHT · \(meal.mealType.uppercased())")
-                        .font(.system(size: 12, weight: .bold))
-                        .tracking(0.8)
-                        .opacity(0.85)
+                    Group {
+                        if meal.cooked {
+                            Text("\(Image(systemName: "checkmark.circle.fill")) COOKED TONIGHT · \(meal.mealType.uppercased())")
+                        } else {
+                            Text("TONIGHT · \(meal.mealType.uppercased())")
+                        }
+                    }
+                    .font(.system(size: 12, weight: .bold))
+                    .tracking(0.8)
+                    .opacity(0.85)
                     Text(meal.title)
                         .font(.system(size: large ? 22 : 18, weight: .bold))
                         .lineLimit(2)
                     HStack(spacing: 12) {
-                        if let serveAt = meal.serveAt { Label("Serve at \(serveAt)", systemImage: "alarm") }
+                        if let serveAt = meal.serveAt, !meal.cooked { Label("Serve at \(serveAt)", systemImage: "alarm") }
                         if meal.dishCount > 1 { Label("\(meal.dishCount) dishes", systemImage: "square.stack") }
-                        if let time = Format.shortMinutes(meal.recipe?.totalMinutes), meal.dishCount == 1 {
+                        if let time = Format.shortMinutes(meal.recipe?.totalMinutes), meal.dishCount == 1, !meal.cooked {
                             Label(time, systemImage: "clock")
                         }
                     }
@@ -209,7 +219,19 @@ struct TonightCard: View {
                     .opacity(0.9)
                     Spacer(minLength: 0)
                     HStack(spacing: 8) {
-                        if let request = meal.request {
+                        if meal.cooked, let id = meal.mainRecipeId {
+                            Button { nav.openRecipe(id) } label: {
+                                Label("View recipe", systemImage: "book.fill")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .lineLimit(1)
+                                    .fixedSize()
+                                    .foregroundStyle(Color(hex: 0x047857)) // emerald-700 in both modes: it sits on white
+                                    .padding(.horizontal, 16)
+                                    .frame(height: large ? 40 : 36)
+                                    .background(.white, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        } else if let request = meal.request {
                             Button { nav.cooking = request } label: {
                                 Label("Start cooking", systemImage: "frying.pan.fill")
                                     .font(.system(size: 15, weight: .bold))
@@ -238,8 +260,8 @@ struct TonightCard: View {
             .foregroundStyle(.white)
             .padding(large ? 16 : 14)
             .frame(maxWidth: .infinity, minHeight: large ? 144 : 112, alignment: .leading)
-            .background(Theme.Gradient.orangeRose.linear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: Theme.brand.opacity(0.3), radius: 12, y: 6)
+            .background((meal.cooked ? Theme.Gradient.emeraldTeal : .orangeRose).linear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: (meal.cooked ? Theme.Gradient.emeraldTeal.colors[0] : Theme.brand).opacity(0.3), radius: 12, y: 6)
         } else {
             Button { nav.tab = .plan } label: {
                 HStack(spacing: 14) {

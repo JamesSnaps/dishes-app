@@ -1405,3 +1405,55 @@ and Homebrew's rsync broke the export.
 
 Checked: built and launched on the iPhone 18 Pro simulator. **Not checked:**
 the flows by hand on a device — needs a new TestFlight build.
+
+### 21 Oct 2026 — Recipe page tidy-up, tappable badges (v1.64.0)
+
+Same changes on the web's `/recipes/[id]`.
+
+- **Heart-healthy badge** in the nutrition line: `ViewThatFits` tries the
+  row with the full "Heart-healthy" pill, then with just a heart, so it no
+  longer wraps onto two lines on an iPhone (the web hides the word below `sm`)
+- **History line** is one short line: "Cooked 3×, last today · Planned 2×"
+  (the last-planned week is gone — `RecipeExtras.lastPlannedWeek` removed)
+- **Log a cook** left the rating row; it's in Cook history and the More menu
+  (on the web, the History tab is always shown and has the button; the
+  rating-row button only appears for a "Review later" landing)
+- **Servings** read "4" beside the people icon; a unit that isn't people
+  ("12 muffins") keeps its word (`servingsText`, web `servingsUnitLabel`)
+- **Cuisine and difficulty badges are tappable:** `AppNav.recipeTag` switches
+  to Recipes, pops its stack and shows the grid filtered to that cuisine or
+  difficulty (web: links to `/recipes?cuisine=…` / `?difficulty=…`)
+
+- **Planner decluttered:** the "N meals · time cooking" line is gone; the
+  orange + is a menu (Add meal, Generate plan…, add the week to the shopping
+  list) instead of the two gradient buttons; the next-order and nutrition
+  banners are small pills under the week title (`PlanWeekStrips`). The order
+  pill hides once it's ordered with nothing left to do; the web's nutrition
+  panel only opens from its pill now (no longer remembered open per device)
+
+Checked: built and opened on the iPhone 18 Pro simulator (Planner header only:
+the notification prompt covered the rest); web checked at phone width, the +
+menu's Add meal and the nutrition pill. **Not checked:** the order pill and a
+filled-in heart pill — the dev data has no deliveries or nutrition figures.
+
+### 21 Oct 2026 — Tonight's meal, once it's cooked (v1.64.1)
+
+Same on the web's Recipes browse banner (`getTonight`, `recipes/page.tsx`).
+
+- **Cooked counts from the cook log:** a meal is cooked when every dish with
+  steps (every dish, if none has any) has a `cookHistory` entry today with
+  `isCook` — a rating alone doesn't count. Derived, so deleting the cook
+  brings Cook tonight back (`PlannedMeal.isCooked`, `PlanData.cookedToday`)
+- **`PlanData.tonight(cooked:)`** picks the meal: dinner (or the last meal
+  today) until it's cooked, then the next meal after it with steps still to
+  cook (dessert), else the cooked one, flagged
+- **Cook tonight pill** (`TonightMeal.load`) goes once it's cooked; the
+  **Tonight card** turns emerald, ticked, "View recipe" instead of Start
+  cooking; the **Tonight widget** goes green with only Planner
+- **Still cookable on request:** Siri's "cook tonight" and the Watch use
+  `TonightMeal.loadAny` (the next to cook, else tonight's anyway); a dinner
+  reminder's cook link and a widget set to a meal type ignore the cook log
+
+Checked: built for the iPhone 18 Pro simulator with a cook logged for
+tonight's dinner (card green, no pill); web banner checked the same way.
+

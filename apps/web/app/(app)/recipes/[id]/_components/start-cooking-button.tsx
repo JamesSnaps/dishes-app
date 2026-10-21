@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChefHat, Minus, Plus, Users } from "lucide-react";
 import { Button } from "@dishes/ui";
+import { servingsUnitLabel } from "@/lib/format-quantity";
 
 interface Props {
   recipeId: string;
@@ -36,10 +37,12 @@ export function StartCookingButton({ recipeId, servings, servingsUnit }: Props) 
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
-          <span className="min-w-[3.5rem] text-center text-sm font-semibold tabular-nums">
+          <span
+            className="min-w-[2.5rem] text-center text-sm font-semibold tabular-nums"
+            aria-label={`${current} ${servingsUnit ?? "servings"}`}
+          >
             {current % 1 === 0 ? current : current.toFixed(1)}
-            {" "}
-            {servingsUnit ?? "servings"}
+            {servingsUnitLabel(servingsUnit) && ` ${servingsUnitLabel(servingsUnit)}`}
           </span>
           <button
             onClick={() => setCurrent((v) => v + step)}

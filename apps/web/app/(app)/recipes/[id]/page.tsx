@@ -11,7 +11,7 @@ import {
   Plus,
   Download,
 } from "lucide-react";
-import { eq, and, ne, or, inArray, asc, count, max, lte, desc } from "drizzle-orm";
+import { eq, and, ne, or, inArray, asc, count, lte, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   recipes,
@@ -44,6 +44,7 @@ import { getCookStats, getRecipeCookHistory, getAverageDuration } from "@/lib/se
 import { hasSmtpConfig } from "@/lib/services/smtp";
 import { isStorageAvailable } from "@/lib/storage";
 import { ratingsByPerson } from "@/lib/cook-ratings";
+import { servingsUnitLabel } from "@/lib/format-quantity";
 import type { GeneratedRecipe } from "@/lib/ai/recipe-generation";
 
 export const metadata = { title: "Recipe" };
@@ -103,7 +104,6 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
     db
       .select({
         timesPlanned: count(mealPlanEntries.id),
-        lastPlannedDate: max(mealPlans.weekStartDate),
       })
       .from(mealPlanEntries)
       .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
@@ -114,7 +114,7 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
           lte(mealPlans.weekStartDate, today)
         )
       )
-      .then((r) => r[0] ?? { timesPlanned: 0, lastPlannedDate: null }),
+      .then((r) => r[0] ?? { timesPlanned: 0 }),
     getCookStats(householdId, id),
     getRecipeCookHistory(householdId, id),
     db
@@ -192,15 +192,30 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
     return m ? `${h}h ${m}m` : `${h}h`;
   }
 
-  function formatWeekDate(dateStr: string): string {
-    const date = new Date(dateStr + "T00:00:00");
-    const nowMs = new Date(today + "T00:00:00").getTime();
-    const diffWeeks = Math.floor((nowMs - date.getTime()) / (7 * 24 * 60 * 60 * 1000));
-    if (diffWeeks === 0) return "this week";
-    if (diffWeeks === 1) return "last week";
-    if (diffWeeks < 8) return `${diffWeeks} weeks ago`;
-    return `week of ${date.getDate()} ${date.toLocaleString("default", { month: "short" })}`;
+  // As the iOS app's RecipeDetailView.relative: "today", "3 days ago", "12 Mar 2026".
+  // Local days (as getTonight's "cooked today"), not UTC ones, so a cook just
+  // after midnight in summer time isn't "yesterday".
+  function formatCookedAgo(iso: string): string {
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days = Math.round((startOfDay(new Date()) - startOfDay(new Date(iso))) / (24 * 60 * 60 * 1000));
+    if (days < 1) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 7) return `${days} days ago`;
+    if (days < 14) return "last week";
+    if (days < 31) return `${Math.floor(days / 7)} weeks ago`;
+    return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
+
+  // "Cooked 3×, last today · Planned 2×" under the stars.
+  const lastCook = cookHistoryRows.find((e) => e.source === "cook");
+  const historyLine = [
+    cookStats.cookCount > 0
+      ? `Cooked ${cookStats.cookCount}×${lastCook ? `, last ${formatCookedAgo(lastCook.cookedAt)}` : ""}`
+      : null,
+    plannerStats.timesPlanned > 0 ? `Planned ${plannerStats.timesPlanned}×` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const toggleAction = toggleFavourite.bind(null, id);
 
@@ -361,12 +376,21 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
           mealRole={isMealRole(recipe.mealRole) ? recipe.mealRole : null}
         />
         {recipe.cuisine && (
-          <Badge variant="secondary">{recipe.cuisine}</Badge>
+          <Link
+            href={`/recipes?cuisine=${encodeURIComponent(recipe.cuisine)}`}
+            title={`Other ${recipe.cuisine} recipes`}
+          >
+            <Badge variant="secondary" className="transition-colors hover:bg-secondary/70">
+              {recipe.cuisine}
+            </Badge>
+          </Link>
         )}
         {recipe.difficulty && (
-          <Badge variant="outline" className="capitalize">
-            {recipe.difficulty}
-          </Badge>
+          <Link href={`/recipes?difficulty=${recipe.difficulty}`} title={`Other ${recipe.difficulty} recipes`}>
+            <Badge variant="outline" className="capitalize transition-colors hover:bg-muted">
+              {recipe.difficulty}
+            </Badge>
+          </Link>
         )}
         {recipe.isAiGenerated && (
           <Badge variant="outline">
@@ -393,41 +417,27 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
           </span>
         )}
         {recipe.servings && (
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+          <span
+            className="flex items-center gap-1 text-sm text-muted-foreground"
+            aria-label={`${parseFloat(recipe.servings)} ${recipe.servingsUnit ?? "servings"}`}
+          >
             <Users className="h-4 w-4" />
-            {parseFloat(recipe.servings)} {recipe.servingsUnit}
+            {parseFloat(recipe.servings)}
+            {servingsUnitLabel(recipe.servingsUnit) && ` ${servingsUnitLabel(recipe.servingsUnit)}`}
           </span>
         )}
       </div>
 
-      {/* Planner stats */}
-      {plannerStats.timesPlanned > 0 && (
-        <div className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
-          <CalendarDays className="h-4 w-4 shrink-0" />
-          <span>
-            On the menu {plannerStats.timesPlanned === 1 ? "once" : `${plannerStats.timesPlanned} times`}
-            {plannerStats.lastPlannedDate && (
-              <> · Last planned {formatWeekDate(plannerStats.lastPlannedDate)}</>
-            )}
-          </span>
-        </div>
-      )}
-
-      {/* Rating row */}
-      <div className="mb-4 flex items-center gap-3 flex-wrap">
+      {/* Rating row — Log a cook is in the History tab */}
+      <div className={`${historyLine ? "mb-1.5" : "mb-4"} flex items-center gap-3 flex-wrap`}>
         <RateRecipeSheet
           recipeId={id}
           recipeTitle={recipe.title}
           currentRating={cookStats.averageRating}
         />
-        {cookStats.cookCount > 0 ? (
-          <span className="text-sm text-muted-foreground">
-            {cookStats.averageRating != null
-              ? `${cookStats.averageRating / 2}/5 · `
-              : ""}
-            Cooked {cookStats.cookCount === 1 ? "once" : `${cookStats.cookCount} times`}
-          </span>
-        ) : null}
+        {cookStats.averageRating != null && (
+          <span className="text-sm font-semibold text-muted-foreground">{cookStats.averageRating / 2}/5</span>
+        )}
         {personRatings.length > 1 && (
           <span className="flex flex-wrap gap-1.5" aria-label="Ratings by person">
             {personRatings.map((p) => (
@@ -445,16 +455,25 @@ export default async function RecipeDetailPage({ params, searchParams }: Props) 
             ))}
           </span>
         )}
-        <AddCookReviewSheet
-          recipeId={id}
-          recipeTitle={recipe.title}
-          pendingCookId={pendingReview ?? null}
-          pendingEntry={pendingReview ? (cookHistoryRows.find((e) => e.id === pendingReview) ?? null) : null}
-          members={members}
-          ownName={ownName}
-          storageAvailable={isStorageAvailable()}
-        />
+        {/* Landing from cooking mode's "Review later": opens itself */}
+        {pendingReview && (
+          <AddCookReviewSheet
+            recipeId={id}
+            recipeTitle={recipe.title}
+            pendingCookId={pendingReview}
+            pendingEntry={cookHistoryRows.find((e) => e.id === pendingReview) ?? null}
+            members={members}
+            ownName={ownName}
+            storageAvailable={isStorageAvailable()}
+          />
+        )}
       </div>
+      {historyLine && (
+        <p className="mb-4 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
+          <CalendarDays className="h-4 w-4 shrink-0" />
+          <span className="truncate">{historyLine}</span>
+        </p>
+      )}
 
       {/* Start Cooking + AI actions */}
       {steps.length > 0 && (
