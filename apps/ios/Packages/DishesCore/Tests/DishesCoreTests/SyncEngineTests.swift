@@ -176,6 +176,22 @@ func items(_ store: LocalStore) async throws -> [ShoppingItem] {
         #expect(await !engine.isBackingOff)
     }
 
+    @Test func aRefusedPushStillPulls() async throws {
+        // A queue the server rejects outright must not freeze the device on
+        // its last pull: someone else's cook still shows up.
+        let engine = SyncEngine(store: store, transport: server)
+        try await engine.mutate("shopping_item.toggle", payload: .object(["itemId": .string("temp-1"), "checked": .bool(true)]))
+        await server.script(
+            pulls: [.success(PullResponse(cursor: "c1", hasMore: false, changes: ["shoppingItems": [item("a", "Milk")]]))],
+            pushes: [{ _ in throw APIError.http(status: 400, code: "invalid_request", message: "Invalid request") }]
+        )
+        let outcome = try await engine.sync()
+        #expect(!outcome.offline)
+        #expect(outcome.pulled == 1)
+        #expect(try await items(store).map(\.name) == ["Milk"])
+        #expect(try await store.read { try $0.pendingCount() } == 1)
+    }
+
     @Test func signedOutReachesTheApp() async throws {
         await server.script(pulls: [.failure(APIError.signedOut)])
         await #expect(throws: APIError.signedOut) { try await SyncEngine(store: store, transport: server).sync() }

@@ -1472,3 +1472,18 @@ tonight's dinner (card green, no pill); web banner checked the same way.
 
 Checked on the iPad Pro 11-inch simulator with seeded cooks (two columns,
 menu and tap-to-edit both work) and the iPhone 18 Pro (one column, menu works).
+
+### 2026-10-22 — a refused push no longer freezes the device (v1.64.4)
+
+A phone stuck on "can't reach the server" stopped seeing anything new (an
+iPad's cook never turned its Tonight card green). It held a mutation with a
+"temp-" id from before v1.64.3. The server rejected the whole batch with a
+400, and `SyncEngine.run()` stopped after the failed push, so it never pulled.
+
+- **Server** (`/api/v1/sync` POST): each mutation is validated on its own. A
+  malformed one comes back `failed` and the client drops it, like any other
+  failed mutation. Deploying this unsticks an affected phone on its next sync,
+  with no app update.
+- **iOS and `packages/client`**: a push the server answers with an error no
+  longer skips the pull. Transport errors and sign-out behave as before.
+  Test: `SyncEngineTests.aRefusedPushStillPulls`.

@@ -182,7 +182,13 @@ export const mutationSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+/**
+ * Only the envelope is checked here; each mutation is checked on its own by
+ * `mutationSchema` in the route. One malformed mutation (a "temp-" id from an
+ * offline write) rejecting the whole batch left that client's queue stuck for
+ * good, and with it every pull behind the push.
+ */
 export const pushBodySchema = z.object({
   /** Applied in array order; the client's queue order is the intended order. */
-  mutations: z.array(mutationSchema).min(1).max(200),
+  mutations: z.array(z.unknown()).min(1).max(200),
 });
