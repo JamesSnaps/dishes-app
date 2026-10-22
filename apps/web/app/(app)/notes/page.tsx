@@ -2,7 +2,7 @@ import Link from "next/link";
 import { FileText, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { notes, recipes } from "@dishes/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { Button } from "@dishes/ui";
@@ -23,7 +23,7 @@ export default async function NotesPage() {
       recipeTitle: recipes.title,
     })
     .from(notes)
-    .leftJoin(recipes, eq(notes.recipeId, recipes.id))
+    .leftJoin(recipes, and(eq(notes.recipeId, recipes.id), eq(recipes.householdId, householdId)))
     .where(eq(notes.householdId, householdId))
     .orderBy(desc(notes.updatedAt));
 

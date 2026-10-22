@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { AuthError } from "@/lib/auth";
+import { AuthError, ForbiddenError } from "@/lib/auth";
 import { RecipeNotFoundError, RecipeValidationError } from "@/lib/services/recipes";
 import {
   ShoppingItemNotFoundError,
@@ -68,6 +68,9 @@ export function withApiErrors<Args extends unknown[]>(
     } catch (err) {
       if (err instanceof AuthError) {
         return apiError("unauthenticated", err.message, 401);
+      }
+      if (err instanceof ForbiddenError) {
+        return apiError("forbidden", err.message, 403);
       }
       if (
         err instanceof RecipeNotFoundError ||

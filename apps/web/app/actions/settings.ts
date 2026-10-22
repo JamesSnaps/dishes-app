@@ -9,7 +9,7 @@ import {
 } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { resolveIdentity } from "@/lib/auth";
+import { isServerAdmin, resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { encrypt } from "@/lib/crypto";
 
@@ -63,13 +63,34 @@ export async function addMember(formData: FormData) {
 
   if (existing.length) throw new Error("That user is already a member");
 
-  await db.insert(householdMembers).values({
-    householdId,
-    autheliaUser,
-    displayName,
-    role: memberRole,
-    birthYear,
-  });
+  // Someone removed earlier keeps their row (isActive false); bring that back
+  // rather than adding a second one for the same person.
+  const [removed] = await db
+    .select({ id: householdMembers.id })
+    .from(householdMembers)
+    .where(
+      and(
+        eq(householdMembers.householdId, householdId),
+        eq(householdMembers.autheliaUser, autheliaUser),
+        eq(householdMembers.isActive, false)
+      )
+    )
+    .limit(1);
+
+  if (removed) {
+    await db
+      .update(householdMembers)
+      .set({ isActive: true, displayName, role: memberRole, birthYear, updatedAt: new Date() })
+      .where(eq(householdMembers.id, removed.id));
+  } else {
+    await db.insert(householdMembers).values({
+      householdId,
+      autheliaUser,
+      displayName,
+      role: memberRole,
+      birthYear,
+    });
+  }
 
   revalidatePath("/settings");
 }
@@ -248,7 +269,7 @@ export async function getLogLevel(): Promise<LogLevel> {
 export async function setLogLevel(level: LogLevel): Promise<void> {
   const user = await resolveIdentity();
   const { role } = await requireHousehold(user);
-  if (role !== "admin") throw new Error("Admin only");
+  if (role !== "admin" || !isServerAdmin(user)) throw new Error("Server admins only");
 
   await db
     .insert(appSettings)

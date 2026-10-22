@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft, Bug } from "lucide-react";
-import { getAutheliaUser } from "@/lib/auth";
+import { getAutheliaUser, isServerAdmin } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getClientErrors } from "@/app/actions/diagnostics";
 import { APP_VERSION } from "@/lib/version";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function DiagnosticsPage() {
   const user = await getAutheliaUser();
   const { role } = await requireHousehold(user);
-  if (role !== "admin") redirect("/settings");
+  if (role !== "admin" || !isServerAdmin(user)) redirect("/settings");
 
   const errors = await getClientErrors(50);
 

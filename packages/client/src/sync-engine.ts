@@ -12,6 +12,9 @@ import {
   type SyncStore,
 } from "./types";
 
+/** Most mutations the server accepts in one push (lib/api/schemas/sync.ts). */
+const PUSH_BATCH = 200;
+
 /**
  * Drives the local store from the server and back.
  *
@@ -203,58 +206,75 @@ export class SyncEngine {
   // --- Push -----------------------------------------------------------------
 
   private async drainQueue(): Promise<{ pushed: number; failed: number }> {
-    const pending = await this.store.pendingMutations();
-    if (!pending.length) return { pushed: 0, failed: 0 };
+    let pushed = 0;
+    let failedCount = 0;
 
-    const response = await this.client.push(pending);
+    // In batches: the server takes at most PUSH_BATCH mutations per push
+    // (lib/api/schemas/sync.ts) and rejects a bigger push outright, so a queue
+    // that grew past it offline would never drain. Same rule as
+    // DishesCore/Sync/SyncEngine.swift.
+    for (;;) {
+      const pending = await this.store.pendingMutations();
+      if (!pending.length) break;
+      const batch = pending.slice(0, PUSH_BATCH);
 
-    // 'duplicate' means the server already has it — as settled as 'applied'.
-    // 'failed' is dropped rather than retried forever: the server records no
-    // ledger entry for a failure, so a transient one would have succeeded on
-    // the next attempt; a persistent one is bad input that will never succeed,
-    // and keeping it would block every mutation behind it.
-    const settled = response.results
-      .filter((r) => r.status === "applied" || r.status === "duplicate")
-      .map((r) => r.opId);
+      const response = await this.client.push(batch);
 
-    const failed = response.results.filter((r) => r.status === "failed");
+      // 'duplicate' means the server already has it — as settled as 'applied'.
+      // 'failed' is dropped rather than retried forever: the server records no
+      // ledger entry for a failure, so a transient one would have succeeded on
+      // the next attempt; a persistent one is bad input that will never succeed,
+      // and keeping it would block every mutation behind it.
+      const settled = response.results
+        .filter((r) => r.status === "applied" || r.status === "duplicate")
+        .map((r) => r.opId);
 
-    // Drop every temporary row the settled mutations created, whatever the
-    // outcome. Applied or duplicate: the server's own row arrives in this same
-    // cycle's pull, under its real id, and leaving the placeholder would show
-    // the entity twice forever. Failed: this is the rollback.
-    //
-    // Before the dequeue, so a crash in between leaves the mutation queued and
-    // the placeholder intact rather than the other way round.
-    const byOpId = new Map(pending.map((m) => [m.opId, m]));
-    for (const result of response.results) {
-      const temporary = byOpId.get(result.opId)?.temporary;
-      if (!temporary) continue;
-      for (const row of temporary) {
-        await this.store.remove(row.collection, row.id);
+      const failed = response.results.filter((r) => r.status === "failed");
+
+      // Drop every temporary row the settled mutations created, whatever the
+      // outcome. Applied or duplicate: the server's own row arrives in this same
+      // cycle's pull, under its real id, and leaving the placeholder would show
+      // the entity twice forever. Failed: this is the rollback.
+      //
+      // Before the dequeue, so a crash in between leaves the mutation queued and
+      // the placeholder intact rather than the other way round.
+      const byOpId = new Map(batch.map((m) => [m.opId, m]));
+      for (const result of response.results) {
+        const temporary = byOpId.get(result.opId)?.temporary;
+        if (!temporary) continue;
+        for (const row of temporary) {
+          await this.store.remove(row.collection, row.id);
+        }
       }
+
+      await this.store.dequeue([...settled, ...failed.map((f) => f.opId)]);
+
+      // After the rollback and the dequeue: by the time the host hears about
+      // this, the local state it describes is already the state on screen.
+      if (failed.length) {
+        this.onMutationsFailed?.(
+          failed.map((f) => {
+            const original = byOpId.get(f.opId);
+            return {
+              opId: f.opId,
+              type: original?.type ?? "unknown",
+              payload: original?.payload ?? {},
+              error: f.error ?? "Unknown error",
+              queuedAt: original?.queuedAt ?? Date.now(),
+            };
+          })
+        );
+      }
+
+      pushed += settled.length;
+      failedCount += failed.length;
+
+      // A server that answered for none of the batch would loop forever.
+      const reported = new Set(response.results.map((r) => r.opId));
+      if (batch.every((m) => !reported.has(m.opId))) break;
     }
 
-    await this.store.dequeue([...settled, ...failed.map((f) => f.opId)]);
-
-    // After the rollback and the dequeue: by the time the host hears about
-    // this, the local state it describes is already the state on screen.
-    if (failed.length) {
-      this.onMutationsFailed?.(
-        failed.map((f) => {
-          const original = byOpId.get(f.opId);
-          return {
-            opId: f.opId,
-            type: original?.type ?? "unknown",
-            payload: original?.payload ?? {},
-            error: f.error ?? "Unknown error",
-            queuedAt: original?.queuedAt ?? Date.now(),
-          };
-        })
-      );
-    }
-
-    return { pushed: settled.length, failed: failed.length };
+    return { pushed, failed: failedCount };
   }
 
   // --- Local writes ---------------------------------------------------------

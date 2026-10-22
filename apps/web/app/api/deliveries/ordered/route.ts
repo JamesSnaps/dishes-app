@@ -15,6 +15,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
+  // Same rule as the other delivery changes (requireEditor in actions/deliveries.ts).
+  if (session.role === "child") {
+    return NextResponse.json({ error: "Ask an adult to change deliveries" }, { status: 403 });
+  }
+
   const body = (await req.json().catch(() => null)) as { date?: unknown } | null;
   const date = typeof body?.date === "string" ? body.date : "";
   if (!isValidDate(date)) {

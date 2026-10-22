@@ -1,6 +1,7 @@
 import { db, seedHousehold } from "@dishes/db";
 import { households, householdMembers } from "@dishes/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { ForbiddenError } from "@/lib/auth";
 import type { AutheliaUser } from "@dishes/shared";
 
 // In development, populate a newly-bootstrapped household with dummy content so
@@ -37,6 +38,10 @@ export async function getOrCreateHousehold(user: AutheliaUser) {
         eq(householdMembers.isActive, true)
       )
     )
+    // Someone who used the app before being added to another household has
+    // two memberships. The newer one is the household they were invited to,
+    // so it wins, and every request resolves to the same household.
+    .orderBy(desc(householdMembers.createdAt))
     .limit(1);
 
   if (existing.length > 0) {
@@ -64,27 +69,43 @@ export async function getOrCreateHousehold(user: AutheliaUser) {
           eq(householdMembers.isActive, true)
         )
       )
+      .orderBy(desc(householdMembers.createdAt))
       .limit(1);
     if (locked) return locked;
 
-    const slug = user.username.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const [household] = await tx
-      .insert(households)
-      .values({ name: `${user.displayName}'s Kitchen`, slug })
-      .onConflictDoNothing()
-      .returning({ id: households.id });
+    // Removed from a household: don't quietly make them a new one (or, as this
+    // used to, re-admit them as admin of the household whose slug matches their
+    // username). An admin adding them back reactivates them.
+    const [removed] = await tx
+      .select({ id: householdMembers.id })
+      .from(householdMembers)
+      .where(
+        and(
+          eq(householdMembers.autheliaUser, user.username),
+          eq(householdMembers.isActive, false)
+        )
+      )
+      .limit(1);
+    if (removed) {
+      throw new ForbiddenError(
+        "You've been removed from your household. Ask one of its admins to add you back."
+      );
+    }
 
-    // A household with this slug may already exist (e.g. created out-of-band)
-    // even though this user has no membership — fall back to looking it up.
-    const householdId =
-      household?.id ??
-      (
-        await tx
-          .select({ id: households.id })
-          .from(households)
-          .where(eq(households.slug, slug))
-          .limit(1)
-      )[0]!.id;
+    // Always a household of their own. Usernames that slugify alike
+    // ("james.collard", "james_collard") must not land in each other's
+    // household, so a taken slug gets a numbered suffix instead of being joined.
+    const baseSlug = user.username.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    let household: { id: string } | undefined;
+    for (let n = 1; !household; n++) {
+      const slug = n === 1 ? baseSlug : `${baseSlug}-${n}`;
+      [household] = await tx
+        .insert(households)
+        .values({ name: `${user.displayName}'s Kitchen`, slug })
+        .onConflictDoNothing()
+        .returning({ id: households.id });
+    }
+    const householdId = household.id;
 
     const [member] = await tx
       .insert(householdMembers)

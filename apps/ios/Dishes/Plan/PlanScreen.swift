@@ -292,6 +292,10 @@ struct PlanScreen: View {
         let at = before.flatMap { b in staying.firstIndex { $0.id == b } } ?? staying.count
         let order = Array(staying[..<at]) + moving + Array(staying[at...])
         guard order.map(\.id) != meals.map(\.id) else { return }
+        // Every meal is sent by id, so one still saving would put a "temp-" id
+        // in the push, which the server rejects for the whole batch, and the
+        // queue would never drain. allSatisfy stops at the first, so one toast.
+        guard order.allSatisfy({ ready($0.id) }) else { return }
         Task {
             var optimistic: [OptimisticChange] = []
             for (n, meal) in order.enumerated() {
@@ -525,6 +529,7 @@ struct PlanScreen: View {
     }
 
     private func delete(_ entry: MealPlanEntry) {
+        guard ready(entry.id) else { return }
         Task {
             await app.mutate("meal_plan_entry.delete", payload: .object(["entryId": .string(entry.id)]),
                              optimistic: [.remove(.mealPlanEntries, id: entry.id)])

@@ -267,7 +267,7 @@ export const actions: Record<string, Handler> = {
                 recipeId: notes.recipeId, recipeTitle: recipes.title,
                 // Who wrote it: the iOS cookbook writes each person's notes in their own pen.
                 authorId: notes.authorId })
-      .from(notes).leftJoin(recipes, eq(notes.recipeId, recipes.id))
+      .from(notes).leftJoin(recipes, and(eq(notes.recipeId, recipes.id), eq(recipes.householdId, s.householdId)))
       .where(eq(notes.householdId, s.householdId)).orderBy(desc(notes.updatedAt)),
   "notes.create": (_s, [fields]) => notesActions.createNote(form(obj(fields))),
   "notes.update": (_s, [id, fields]) => notesActions.updateNote(str(id), form(obj(fields))),
