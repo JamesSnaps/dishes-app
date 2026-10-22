@@ -18,10 +18,13 @@ interface Props {
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
+  // Scoped like the page itself: the tab title must not name another
+  // household's collection to someone who guesses its id.
+  const { householdId } = await requireHousehold(await getAutheliaUser());
   const col = await db
     .select({ name: collections.name })
     .from(collections)
-    .where(eq(collections.id, id))
+    .where(and(eq(collections.id, id), eq(collections.householdId, householdId)))
     .limit(1);
   return { title: col[0]?.name ?? "Collection" };
 }

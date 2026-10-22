@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BarChart3, FileText, FolderOpen, Gift, Images, Library, Package, UtensilsCrossed } from "lucide-react";
-import { getAutheliaUser } from "@/lib/auth";
+import { getAutheliaUser, isServerAdmin } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { getLogLevel } from "@/app/actions/settings";
 import { getHouseholdWithMembers } from "@/lib/services/household-settings";
@@ -43,6 +43,7 @@ export default async function SettingsPage() {
     getAssistHistoryStats(),
   ]);
   const isAdmin = role === "admin";
+  const serverAdmin = isAdmin && isServerAdmin(user);
 
   return (
     <div className="p-4 lg:p-8 max-w-2xl mx-auto">
@@ -213,6 +214,10 @@ export default async function SettingsPage() {
       {isAdmin && (
         <>
           <AssistHistorySection stats={assistStats} />
+        </>
+      )}
+      {serverAdmin && (
+        <>
           <LogLevelSection current={logLevel} />
           <section className="mb-8">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">

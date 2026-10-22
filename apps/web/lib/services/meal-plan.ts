@@ -35,6 +35,7 @@ import {
 import { ensureActiveList } from "@/lib/services/shopping";
 import type { ActorContext, HouseholdContext, Session } from "@/lib/session";
 import type { MealPlanSlot } from "@/app/actions/ai";
+import { parseAmount } from "@/lib/scale-ingredient";
 
 /** Push exclusion needs the raw username, which ActorContext doesn't carry. */
 type PushContext = ActorContext & Pick<Session, "user">;
@@ -1103,7 +1104,7 @@ async function applyToShoppingList(
       if (openMatch && match.amount !== null && scaledAmountStr !== null) {
         const newAmount = (
           Math.round(
-            (parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000
+            (parseAmount(match.amount) + parseAmount(scaledAmountStr)) * 1000
           ) / 1000
         ).toString();
         await db
@@ -1203,7 +1204,7 @@ export async function addEntryToShoppingList(
       : 1;
 
   const pending: PendingIngredient[] = ingredients.map((ing) => {
-    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+    const rawNum = parseAmount(ing.amount);
     const isNumeric = !isNaN(rawNum);
     return {
       ingredientName: ing.ingredientName,
@@ -1291,7 +1292,7 @@ async function aggregateIngredients(
 
     for (const ing of ingredientsByRecipe.get(entry.recipeId) ?? []) {
       const key = `${ing.ingredientName.toLowerCase().trim()}||${ing.unit ?? ""}`;
-      const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+      const rawNum = parseAmount(ing.amount);
       const isNumeric = !isNaN(rawNum);
 
       const existing = totals.get(key);

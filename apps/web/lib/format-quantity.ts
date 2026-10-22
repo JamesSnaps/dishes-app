@@ -1,3 +1,5 @@
+import { parseAmount } from "@/lib/scale-ingredient";
+
 const UNIT_UPGRADES: Record<string, { threshold: number; factor: number; upgraded: string }> = {
   g:  { threshold: 1000, factor: 1000, upgraded: "kg" },
   ml: { threshold: 1000, factor: 1000, upgraded: "L" },
@@ -14,7 +16,7 @@ export function formatQuantity(
 ): { amount: string | null; unit: string | null } {
   if (amount === null) return { amount, unit };
 
-  const num = parseFloat(amount);
+  const num = parseAmount(amount);
   if (isNaN(num)) return { amount: null, unit };
 
   const upgrade = unit ? UNIT_UPGRADES[unit.toLowerCase()] : undefined;

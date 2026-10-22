@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
 import { requireSession } from "@/lib/session";
 import { apiError } from "@/lib/api/respond";
-import { AuthError } from "@/lib/auth";
+import { AuthError, ForbiddenError } from "@/lib/auth";
 import { checkRateLimitFor } from "@/lib/rate-limit";
 import { buildSystemAddendum, maxTokensParam } from "@/lib/ai/recipe-generation";
 import { createLogger } from "@/lib/logger";
@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
     session = await requireSession();
   } catch (err) {
     if (err instanceof AuthError) return apiError("unauthenticated", err.message, 401);
+    if (err instanceof ForbiddenError) return apiError("forbidden", err.message, 403);
     throw err;
   }
 

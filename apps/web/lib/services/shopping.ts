@@ -27,6 +27,7 @@ import { shoppingTripChanged } from "@/lib/shopping-trip-activities";
 import { getPantryExclusions, isCoveredByPantry } from "@/lib/pantry-exclusions";
 import { getItemRecipeSources, orderSources, type RecipeSource } from "@/lib/shopping-item-sources";
 import type { ActorContext, HouseholdContext } from "@/lib/session";
+import { parseAmount } from "@/lib/scale-ingredient";
 
 // --- Errors -----------------------------------------------------------------
 
@@ -402,7 +403,7 @@ export async function addOrTopUpItem(
       e.unit === unit
   );
 
-  const rawNum = input.amount != null ? parseFloat(input.amount) : NaN;
+  const rawNum = parseAmount(input.amount);
   const isNumeric = !isNaN(rawNum);
   const amountStr = isNumeric ? rawNum.toString() : null;
   // Non-numeric amounts ("a splash", "to taste") are not addable — they go in
@@ -415,7 +416,7 @@ export async function addOrTopUpItem(
     // one; the row is on the list either way, which is what matters.
     if (match.amount !== null && amountStr !== null) {
       const newAmount = (
-        Math.round((parseFloat(match.amount) + parseFloat(amountStr)) * 1000) / 1000
+        Math.round((parseAmount(match.amount) + parseAmount(amountStr)) * 1000) / 1000
       ).toString();
       await db
         .update(shoppingListItems)
@@ -648,7 +649,7 @@ export async function previewShoppingGeneration(
       continue;
     }
 
-    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+    const rawNum = parseAmount(ing.amount);
     const scaledAmount = !isNaN(rawNum) ? rawNum * scale : null;
 
     if (scaledAmount !== null) {
@@ -657,7 +658,7 @@ export async function previewShoppingGeneration(
           s.ingredientName.toLowerCase().trim() === normalName &&
           s.unit === ing.unit
       );
-      if (stockItem?.amount && parseFloat(stockItem.amount) >= scaledAmount) {
+      if (stockItem?.amount && parseAmount(stockItem.amount) >= scaledAmount) {
         skipped.push({
           ingredientName: ing.ingredientName,
           amount: ing.amount,
@@ -726,7 +727,7 @@ export async function generateFromRecipe(
     const normalName = ing.ingredientName.toLowerCase().trim();
     const forced = forceIncludeNames.has(normalName);
 
-    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+    const rawNum = parseAmount(ing.amount);
     const isNumeric = !isNaN(rawNum);
     const scaledAmount = isNumeric ? rawNum * scale : null;
 
@@ -760,7 +761,7 @@ export async function generateFromRecipe(
       if (openMatch && match.amount !== null && scaledAmountStr !== null) {
         const newAmount = (
           Math.round(
-            (parseFloat(match.amount) + parseFloat(scaledAmountStr)) * 1000
+            (parseAmount(match.amount) + parseAmount(scaledAmountStr)) * 1000
           ) / 1000
         ).toString();
         await db

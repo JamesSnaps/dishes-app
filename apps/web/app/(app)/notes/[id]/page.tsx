@@ -16,10 +16,13 @@ interface Props {
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
+  // Scoped like the page itself: the tab title must not name another
+  // household's note to someone who guesses its id.
+  const { householdId } = await requireHousehold(await getAutheliaUser());
   const row = await db
     .select({ title: notes.title })
     .from(notes)
-    .where(eq(notes.id, id))
+    .where(and(eq(notes.id, id), eq(notes.householdId, householdId)))
     .limit(1);
   return { title: row[0]?.title ?? "Note" };
 }
@@ -38,7 +41,7 @@ export default async function NoteDetailPage({ params }: Props) {
       recipeTitle: recipes.title,
     })
     .from(notes)
-    .leftJoin(recipes, eq(notes.recipeId, recipes.id))
+    .leftJoin(recipes, and(eq(notes.recipeId, recipes.id), eq(recipes.householdId, householdId)))
     .where(and(eq(notes.id, id), eq(notes.householdId, householdId)))
     .limit(1)
     .then((r) => r[0] ?? null);

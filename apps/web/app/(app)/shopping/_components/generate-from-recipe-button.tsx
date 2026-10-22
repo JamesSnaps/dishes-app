@@ -15,6 +15,7 @@ import {
 } from "@dishes/ui";
 import { generateFromRecipe, previewShoppingGeneration } from "@/app/actions/shopping";
 import type { ShoppingPreview } from "@/lib/services/shopping";
+import { parseAmount } from "@/lib/scale-ingredient";
 
 interface Recipe {
   id: string;
@@ -32,7 +33,7 @@ function formatAmt(amount: string | null, unit: string | null): string {
   if (!amount && !unit) return "";
   const parts: string[] = [];
   if (amount) {
-    const n = parseFloat(amount);
+    const n = parseAmount(amount);
     parts.push(isNaN(n) ? amount : (n % 1 === 0 ? String(n) : parseFloat(n.toFixed(2)).toString()));
   }
   if (unit) parts.push(unit);

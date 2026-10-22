@@ -20,6 +20,38 @@ export class AuthError extends Error {
   }
 }
 
+/** Signed in, but not someone this app is for (HTTP 403, not 401). */
+export class ForbiddenError extends Error {
+  constructor(message = "Not allowed") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
+/**
+ * Whether this person runs the server, not just their household. Every
+ * household has an admin (whoever opened the app first is admin of their
+ * own), so household admin can't guard settings shared by every household:
+ * the server log level and crash reports from all households.
+ */
+export function isServerAdmin(user: AutheliaUser): boolean {
+  return user.groups.includes(process.env.DISHES_ADMIN_GROUP ?? "admins");
+}
+
+/**
+ * Authelia groups allowed to use the client API. In the browser, Authelia's
+ * access rule for this host does this check; a bearer token skips that rule
+ * (/api/v1 is bypassed so the app can check the token itself), so the same
+ * check has to happen here. Without it, any Authelia user, or a token issued
+ * to another app's client, got the full API and a household of their own.
+ */
+function allowedGroups(): string[] {
+  return (process.env.DISHES_ALLOWED_GROUPS ?? "admins,dishes")
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean);
+}
+
 /**
  * Identity from Authelia's reverse-proxy headers. This is the browser
  * transport: Authelia authenticates, then injects Remote-User et al.
@@ -75,13 +107,22 @@ async function getBearerUser(): Promise<AutheliaUser | null> {
   // request the proxy-header identity (in development, a privileged one).
   if (token === "") throw new AuthError("Empty bearer token");
 
+  let user: AutheliaUser;
   try {
-    return await verifyAccessToken(token);
+    user = await verifyAccessToken(token);
   } catch (err) {
     throw new AuthError(
       err instanceof OidcError ? err.message : "Invalid or expired access token"
     );
   }
+
+  const allowed = allowedGroups();
+  if (!user.groups.some((g) => allowed.includes(g))) {
+    throw new ForbiddenError(
+      `${user.username} isn't in a group that can use Dishes (${allowed.join(", ")})`
+    );
+  }
+  return user;
 }
 
 /**

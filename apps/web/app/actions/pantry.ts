@@ -13,6 +13,7 @@ import { eq, and, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
+import { parseAmount } from "@/lib/scale-ingredient";
 
 // ─── Staples ──────────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ export async function addStockItem(formData: FormData) {
   const rawAmount = (formData.get("amount") as string)?.trim();
   const unit = (formData.get("unit") as string)?.trim() || null;
   const amount =
-    rawAmount && !isNaN(parseFloat(rawAmount)) ? rawAmount : null;
+    rawAmount && !isNaN(parseAmount(rawAmount)) ? rawAmount : null;
 
   await db.insert(pantryStock).values({
     householdId,
@@ -125,7 +126,7 @@ export async function updateStockItem(
   if (!name) return;
 
   const amount =
-    values.amount && !isNaN(parseFloat(values.amount)) ? values.amount : null;
+    values.amount && !isNaN(parseAmount(values.amount)) ? values.amount : null;
 
   await db
     .update(pantryStock)
@@ -147,7 +148,7 @@ export async function updateStockAmount(stockId: string, amount: string | null) 
   const user = await resolveIdentity();
   const { householdId } = await requireHousehold(user);
 
-  const parsed = amount && !isNaN(parseFloat(amount)) ? amount : null;
+  const parsed = amount && !isNaN(parseAmount(amount)) ? amount : null;
 
   await db
     .update(pantryStock)
@@ -208,7 +209,7 @@ export async function deductRecipeIngredients(recipeId: string, servings: number
 
     if (stapleNames.has(normalName)) continue;
 
-    const rawNum = ing.amount !== null ? parseFloat(ing.amount) : NaN;
+    const rawNum = parseAmount(ing.amount);
     if (isNaN(rawNum)) continue;
 
     const scaledAmount = rawNum * scale;
@@ -221,7 +222,7 @@ export async function deductRecipeIngredients(recipeId: string, servings: number
 
     if (!stockItem) continue;
 
-    const current = stockItem.amount ? parseFloat(stockItem.amount) : 0;
+    const current = stockItem.amount ? parseAmount(stockItem.amount) || 0 : 0;
     const remaining = current - scaledAmount;
 
     if (remaining <= 0) {
@@ -279,7 +280,7 @@ export async function addCheckedItemsToStock(listId: string) {
 
   for (const item of checkedItems) {
     const normalName = item.ingredientName.toLowerCase().trim();
-    const newAmt = item.amount ? parseFloat(item.amount) : null;
+    const newAmt = item.amount && !isNaN(parseAmount(item.amount)) ? parseAmount(item.amount) : null;
 
     const existing = currentStock.find(
       (s) =>
@@ -289,7 +290,7 @@ export async function addCheckedItemsToStock(listId: string) {
 
     if (existing) {
       if (newAmt !== null && existing.amount) {
-        const merged = parseFloat(existing.amount) + newAmt;
+        const merged = (parseAmount(existing.amount) || 0) + newAmt;
         await db
           .update(pantryStock)
           .set({ amount: merged.toFixed(3) })

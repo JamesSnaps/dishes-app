@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { clientErrors } from "@dishes/db/schema";
 import { desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { resolveIdentity } from "@/lib/auth";
+import { isServerAdmin, resolveIdentity } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 
 export interface ClientErrorRow {
@@ -23,7 +23,7 @@ export interface ClientErrorRow {
 async function requireAdmin() {
   const user = await resolveIdentity();
   const { role } = await requireHousehold(user);
-  if (role !== "admin") throw new Error("Only admins can view diagnostics");
+  if (role !== "admin" || !isServerAdmin(user)) throw new Error("Only server admins can view diagnostics");
 }
 
 /**

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { pantryStaples, pantryStock } from "@dishes/db/schema";
 import { eq } from "drizzle-orm";
+import { parseAmount } from "@/lib/scale-ingredient";
 
 export interface PantryExclusions {
   stapleNames: Set<string>;
@@ -53,7 +54,7 @@ export function isCoveredByPantry(
       (s) =>
         s.ingredientName.toLowerCase().trim() === normalName && s.unit === unit
     );
-    if (stockItem?.amount && parseFloat(stockItem.amount) >= requiredAmount) {
+    if (stockItem?.amount && parseAmount(stockItem.amount) >= requiredAmount) {
       return true;
     }
   }

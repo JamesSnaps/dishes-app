@@ -23,6 +23,7 @@ import {
   removeStockItems,
   updateStockItem,
 } from "@/app/actions/pantry";
+import { parseAmount } from "@/lib/scale-ingredient";
 
 interface Staple {
   id: string;
@@ -44,7 +45,7 @@ interface Props {
 
 function formatAmount(amount: string | null): string {
   if (!amount) return "";
-  const n = parseFloat(amount);
+  const n = parseAmount(amount);
   if (isNaN(n)) return amount;
   return n % 1 === 0 ? String(n) : parseFloat(n.toFixed(2)).toString();
 }

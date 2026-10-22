@@ -315,6 +315,8 @@ mc anonymous set download dishes/dishes   # for public image URLs
 | `DISHES_OIDC_ISSUER` | No | Authelia root URL (e.g. `https://auth.example.com`). Enables bearer-token auth on `/api/v1` for native clients. Leave unset and the app stays proxy-headers-only, rejecting every bearer token. |
 | `DISHES_OIDC_CLIENT_ID` | No | OIDC client id registered in Authelia. Used to validate the `aud` claim when the provider issues JWT access tokens. |
 | `DISHES_OIDC_USERINFO_CACHE_SECONDS` | No | How long to cache userinfo lookups. Default: `60`. Set `0` to disable — revocation then takes effect immediately, at the cost of a call to Authelia per request. |
+| `DISHES_ALLOWED_GROUPS` | No | Comma-separated Authelia groups that may use the client API with a bearer token (the iOS app). Default: `admins,dishes`. Anyone else gets a 403. Match it to the Authelia rule for the web app. |
+| `DISHES_ADMIN_GROUP` | No | Authelia group of the people who run the server. Only they see Settings → Diagnostics (every household's crash reports) and the log level. Default: `admins`. |
 | `DISHES_SYNC_RETENTION_DAYS` | No | How many days of offline-sync change log to keep. Default: `30`. Pruning runs opportunistically, at most hourly. A device offline for longer than this resyncs from scratch on its next connection rather than receiving a delta — correct, but it downloads everything, so don't set this very low. `0` disables pruning and lets the log grow forever. |
 | `POSTGRES_PASSWORD` | Compose only | PostgreSQL password (used by Docker Compose) |
 | `S3_ENDPOINT` | No | S3-compatible storage endpoint |

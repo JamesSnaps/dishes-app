@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { notes } from "@dishes/db/schema";
+import { notes, recipes } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -17,6 +17,17 @@ export async function createNote(formData: FormData) {
   const recipeId = (formData.get("recipeId") as string)?.trim() || null;
 
   if (!title) throw new Error("Note title is required");
+
+  // Only this household's recipes can be linked: the link shows the recipe's
+  // title, so a foreign id would leak it.
+  if (recipeId) {
+    const [own] = await db
+      .select({ id: recipes.id })
+      .from(recipes)
+      .where(and(eq(recipes.id, recipeId), eq(recipes.householdId, householdId)))
+      .limit(1);
+    if (!own) throw new Error("Recipe not found");
+  }
 
   const [note] = await db
     .insert(notes)
