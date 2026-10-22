@@ -91,12 +91,21 @@ public actor SyncEngine {
     private func run() async throws -> SyncOutcome {
         var outcome = SyncOutcome()
         do {
-            let pushed = try await drainQueue()
-            outcome.pushed = pushed.pushed
-            outcome.failed = pushed.failed
+            // A push the server answered with an error must not stop the pull:
+            // the device would otherwise stop seeing anyone else's changes until
+            // its queue cleared, and a queue the server keeps refusing never does.
+            var pushError: Error?
+            do {
+                let pushed = try await drainQueue()
+                outcome.pushed = pushed.pushed
+                outcome.failed = pushed.failed
+            } catch let error as APIError where error != .signedOut {
+                pushError = error
+            }
             outcome.pulled = try await pullAll()
             backoff = 0
             nextAttemptAt = .distantPast
+            if let pushError { onError?(pushError) }
         } catch APIError.signedOut {
             throw APIError.signedOut
         } catch {

@@ -136,12 +136,22 @@ export class SyncEngine {
     const outcome: SyncOutcome = { pulled: 0, pushed: 0, failed: 0, offline: false };
 
     try {
-      const pushResult = await this.drainQueue();
-      outcome.pushed = pushResult.pushed;
-      outcome.failed = pushResult.failed;
+      // A push the server answered with an error must not stop the pull: the
+      // device would otherwise stop seeing anyone else's changes until its
+      // queue cleared, and a queue the server keeps refusing never does.
+      let pushError: unknown;
+      try {
+        const pushResult = await this.drainQueue();
+        outcome.pushed = pushResult.pushed;
+        outcome.failed = pushResult.failed;
+      } catch (err) {
+        if (!(err instanceof ApiError)) throw err;
+        pushError = err;
+      }
 
       outcome.pulled = await this.pullAll();
       this.noteSuccess();
+      if (pushError) this.onError?.(pushError);
     } catch (err) {
       if (err instanceof SessionExpiredError) throw err; // host must handle
 
