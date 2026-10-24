@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlarmClock,
+  CalendarClock,
   Globe,
   Loader2,
   ShoppingCart,
@@ -26,6 +27,7 @@ const ICONS: Record<NotificationType, LucideIcon> = {
   dinner: AlarmClock,
   cook_timers: Timer,
   delivery_deadline: Truck,
+  delivery_booking: CalendarClock,
   delivery_orders: Truck,
 };
 

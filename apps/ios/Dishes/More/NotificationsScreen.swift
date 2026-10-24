@@ -159,6 +159,7 @@ struct NotificationsScreen: View {
         case "dinner": "alarm.fill"
         case "cook_timers": "timer"
         case "delivery_deadline", "delivery_orders": "shippingbox.fill"
+        case "delivery_booking": "calendar.badge.clock"
         default: "bell.fill"
         }
     }

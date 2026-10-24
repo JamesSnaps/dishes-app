@@ -46,6 +46,11 @@ export const deliverySettings = pgTable("delivery_settings", {
    * minimum spend). Null means no check.
    */
   minOrderTotal: decimal("min_order_total", { precision: 10, scale: 2 }),
+  /**
+   * Days before a delivery to remind anyone with booking reminders on that no
+   * order has been logged yet, so there's time to get a slot. 0 means none.
+   */
+  bookingReminderDays: integer("booking_reminder_days").notNull().default(3),
   /** Holidays: regular deliveries inside these ranges are skipped. */
   awayPeriods: jsonb("away_periods").$type<AwayPeriod[]>().notNull().default([]),
   updatedAt: timestamp("updated_at")

@@ -29,6 +29,13 @@ struct WeekDeliveryPanel: Decodable, Sendable {
     var days: [DeliveryOverview.Day]
     /// The next open order, when it's this week's or feeds this week's meals.
     var next: DeliveryOverview.Next?
+    /// Holidays overlapping the week (missing from older servers).
+    var away: [DeliveryOverview.Away]?
+
+    /// The holiday covering a "YYYY-MM-DD" date, if any.
+    func away(on date: String) -> DeliveryOverview.Away? {
+        away?.first { $0.from <= date && date <= $0.to }
+    }
 }
 
 /// The planner's nutrition strip for the week (lib/services/week-nutrition.ts).
@@ -246,6 +253,27 @@ private struct DinnerDaySheet: View {
             changed(try await AppModel.shared.api.action("dinner.setReminder", [.string(localDateKey(date)), .bool(on)],
                                                          as: WeekDinnerSchedule.Day.self))
         } catch { AppModel.shared.toast = WebAction.explain(error) }
+    }
+}
+
+// MARK: Holiday
+
+/// "Away · Cornwall" on a day the household is on holiday (week-planner.tsx).
+struct AwayDayChip: View {
+    let away: DeliveryOverview.Away
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "airplane")
+            Text(away.label.map { "Away · \($0)" } ?? "Away")
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .lineLimit(1)
+        .padding(.horizontal, 10).frame(height: 28)
+        .foregroundStyle(.white)
+        .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0x0EA5E9), Color(hex: 0x06B6D4)],
+                                                  startPoint: .leading, endPoint: .trailing)))
+        .accessibilityLabel(away.label.map { "Away: \($0)" } ?? "Away")
     }
 }
 

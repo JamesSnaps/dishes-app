@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
-import { householdMembers } from "@dishes/db/schema";
-import { and, eq } from "drizzle-orm";
+import { deliverySettings, householdMembers } from "@dishes/db/schema";
+import { and, eq, gt } from "drizzle-orm";
 import { claimReminder } from "@/lib/reminder-claim";
-import { pushConfigured, sendPushToUsers, type PushPayload } from "@/lib/push";
+import { pushConfigured, sendPushToUsers, usersWanting, type PushPayload } from "@/lib/push";
 import {
   addDaysToDate,
   isValidTime,
@@ -23,6 +23,7 @@ import {
   type DeliveryConfig,
   type DeliveryReport,
 } from "./schedule";
+import { shortDate } from "./dates";
 
 /**
  * In-process grocery delivery reminder loop. On the day an order closes, at
@@ -32,6 +33,9 @@ import {
  * and a total under the household's minimum order. A placed order with nothing
  * to flag gets no push, except at the last reminder: that always goes, as a
  * "last orders" nudge with the order's slot and total.
+ *
+ * Days earlier (`bookingReminderDays` before the delivery) there's one more:
+ * if no order has been logged by then, a nudge to book a slot before they go.
  *
  * Like dinner reminders it runs in the web container until Phase 2's worker,
  * and every send is claimed once per delivery and reminder time.
@@ -145,6 +149,65 @@ export function buildDeliveryReminder(
   };
 }
 
+/**
+ * The booking reminder goes at the household's first reminder time of the
+ * day: that time, if it's due now (recently passed).
+ */
+export function dueBookingTime(
+  config: Pick<DeliveryConfig, "reminderTimes">,
+  nowMinutes: number
+): string | null {
+  const first = config.reminderTimes.filter(isValidTime).sort()[0] ?? "09:00";
+  const since = nowMinutes - timeToMinutes(first);
+  return since >= 0 && since < LATE_MINUTES ? first : null;
+}
+
+/** "Book Thursday's delivery": no order logged yet, a few days out. Null once ordered or skipped. */
+export function buildBookingReminder(
+  report: DeliveryReport,
+  opts: { today: string }
+): PushPayload | null {
+  const { delivery, checklist } = report;
+  if (delivery.status !== "scheduled") return null;
+  const day = weekdayName(delivery.date);
+  const gaps = checklist.unplannedDinners.length;
+  return {
+    title: `Book ${day}'s delivery`,
+    body:
+      `No order logged for ${shortDate(delivery.date)} yet — book a slot before they go. ` +
+      `Orders close ${describeCutoff(delivery, opts.today)}.` +
+      (gaps ? ` ${plural(gaps, "dinner")} still to plan.` : ""),
+    url: "/settings/deliveries",
+    tag: `delivery-${delivery.date}`,
+    actions: [{ action: DELIVERY_ORDERED_ACTION, title: "Mark as ordered" }],
+    data: { deliveryDate: delivery.date },
+  };
+}
+
+async function remindToBook(householdId: string): Promise<void> {
+  const config = await getDeliveryConfig(householdId);
+  // Within the deadline reminders' reach, those cover it.
+  if (config.bookingReminderDays <= config.cutoffDaysBefore) return;
+  const now = localNow(config.timezone);
+  const due = dueBookingTime(config, now.minutes);
+  if (!due) return;
+
+  const deliveryDate = addDaysToDate(now.date, config.bookingReminderDays);
+  const report = await getDeliveryReport(householdId, deliveryDate, config);
+  if (!report) return; // no delivery that day
+  const payload = buildBookingReminder(report, { today: now.date });
+  if (!payload) return; // already ordered, or skipped
+
+  const users = await usersWanting(householdId, "delivery_booking");
+  if (!users.length) return;
+  if (!(await claimReminder(`delivbook:${householdId}:${deliveryDate}`))) return;
+  const result = await sendPushToUsers(householdId, users, payload);
+  console.info(
+    `[delivery-reminders] booking household=${householdId} delivery=${deliveryDate} ` +
+      `sent=${result.sent} failed=${result.failed}`
+  );
+}
+
 async function remindHousehold(householdId: string, users: string[]): Promise<void> {
   const config = await getDeliveryConfig(householdId);
   const now = localNow(config.timezone);
@@ -210,6 +273,19 @@ export async function runDeliveryReminderTick(): Promise<void> {
       await remindHousehold(householdId, users);
     } catch (err) {
       console.error(`[delivery-reminders] household=${householdId} failed:`, err);
+    }
+  }
+
+  // Booking reminders have their own switch, so every household with them on is checked.
+  const booking = await db
+    .select({ householdId: deliverySettings.householdId })
+    .from(deliverySettings)
+    .where(gt(deliverySettings.bookingReminderDays, 0));
+  for (const { householdId } of booking) {
+    try {
+      await remindToBook(householdId);
+    } catch (err) {
+      console.error(`[delivery-reminders] booking household=${householdId} failed:`, err);
     }
   }
 }

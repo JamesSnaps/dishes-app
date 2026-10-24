@@ -1487,3 +1487,15 @@ iPad's cook never turned its Tonight card green). It held a mutation with a
 - **iOS and `packages/client`**: a push the server answers with an error no
   longer skips the pull. Transport errors and sign-out behave as before.
   Test: `SyncEngineTests.aRefusedPushStillPulls`.
+
+### 2026-10-24 — holidays on the planner, booking reminder setting (v1.65.0)
+
+- **Planner**: `deliveries.weekPanel` now returns `away` (holidays overlapping
+  the week). A day in one gets a sky-blue tint and a plane in the day strip,
+  and an `AwayDayChip` ("Away · Cornwall") with its other chips (selected day
+  on iPhone, each column on iPad). Older servers leave `away` out.
+- **Deliveries → settings sheet**: "Book a delivery" picker (off, or 2–7 days
+  before) saved as `bookingReminderDays`.
+- **Notifications**: the new `delivery_booking` type gets the calendar icon.
+
+Built for the iPhone 18 Pro simulator; the web side was checked in the browser.

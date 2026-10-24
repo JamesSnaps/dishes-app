@@ -138,6 +138,7 @@ export async function getDeliveryOverview() {
       cutoffDaysBefore: config.cutoffDaysBefore,
       reminderTimes: config.reminderTimes,
       minOrderTotal: config.minOrderTotal,
+      bookingReminderDays: config.bookingReminderDays,
       timezone: config.timezone,
     },
     configured: config.configured,
@@ -168,9 +169,19 @@ export async function saveDeliverySettings(input: {
   cutoffDaysBefore: number;
   reminderTimes: string[];
   minOrderTotal?: number | null;
+  /** Left out (older iOS builds) keeps what's saved. */
+  bookingReminderDays?: number;
 }) {
   const session = await requireSession();
   if (session.role !== "admin") throw new Error("Only admins can change delivery days");
+
+  let bookingReminderDays: number | undefined;
+  if (input.bookingReminderDays != null) {
+    bookingReminderDays = Math.round(input.bookingReminderDays);
+    if (!Number.isFinite(bookingReminderDays) || bookingReminderDays < 0 || bookingReminderDays > 14) {
+      throw new Error("Booking reminder must be 0–14 days before delivery");
+    }
+  }
 
   let minOrderTotal: string | null = null;
   if (input.minOrderTotal != null) {
@@ -204,6 +215,7 @@ export async function saveDeliverySettings(input: {
     cutoffDaysBefore,
     reminderTimes,
     minOrderTotal,
+    ...(bookingReminderDays != null ? { bookingReminderDays } : {}),
   };
   await db
     .insert(deliverySettings)
@@ -320,18 +332,18 @@ export interface WeekDeliveryPanel {
   days: DeliveryDayView[];
   /** The next open order, when it's relevant to the visible week. */
   next: NextDeliveryView | null;
+  /** Holidays overlapping the visible week, so the planner can show when you're away. */
+  away: AwayPeriod[];
 }
 
 export async function getWeekDeliveryPanel(weekStartDate: string): Promise<WeekDeliveryPanel> {
   const session = await requireSession();
   if (!isValidDate(weekStartDate)) throw new Error("Week must be YYYY-MM-DD");
-  const { config, today, days } = await viewsFor(
-    session.householdId,
-    weekStartDate,
-    addDaysToDate(weekStartDate, 6)
-  );
+  const weekEnd = addDaysToDate(weekStartDate, 6);
+  const { config, today, days } = await viewsFor(session.householdId, weekStartDate, weekEnd);
+  const away = config.awayPeriods.filter((p) => p.from <= weekEnd && p.to >= weekStartDate);
   if (!config.configured && days.length === 0) {
-    return { configured: false, canEdit: session.role !== "child", days, next: null };
+    return { configured: false, canEdit: session.role !== "child", days, next: null, away };
   }
 
   const report = await getNextOpenDelivery(session.householdId, config);
@@ -346,5 +358,6 @@ export async function getWeekDeliveryPanel(weekStartDate: string): Promise<WeekD
     canEdit: session.role !== "child",
     days,
     next: relevant ? nextView(report, config, today) : null,
+    away,
   };
 }
