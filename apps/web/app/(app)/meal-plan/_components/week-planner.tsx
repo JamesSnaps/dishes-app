@@ -11,6 +11,7 @@ import {
   Plus,
   Lightbulb,
   Truck,
+  Plane,
   Heart,
   AlertTriangle,
   Check,
@@ -255,6 +256,18 @@ function formatDayHeading(weekStart: string, dayIndex: number): string {
   return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }
 
+/** "Sat 1 – Sun 9 Nov" for a holiday, the month only once when it's shared. */
+function formatAwayRange(from: string, to: string): string {
+  const fmt = (date: string, month: boolean) =>
+    new Date(date + "T00:00:00").toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      ...(month ? { month: "short" } : {}),
+    });
+  if (from === to) return fmt(from, true);
+  return `${fmt(from, from.slice(0, 7) !== to.slice(0, 7))} – ${fmt(to, true)}`;
+}
+
 /** Checklist lines still to do for the next order — as the iOS app's NextDeliveryCard.toDo. */
 function deliveryToDo(next: {
   unplannedCount: number;
@@ -461,6 +474,7 @@ function DroppableDayChip({
   isDragActive,
   hasSuggestion,
   delivery,
+  away,
   onClick,
 }: {
   dayIndex: number;
@@ -473,6 +487,8 @@ function DroppableDayChip({
   hasSuggestion: boolean;
   /** A delivery that's coming this day (skipped ones aren't marked). */
   delivery: "scheduled" | "ordered" | null;
+  /** The household is away on holiday this day. */
+  away: boolean;
   onClick: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIndex}` });
@@ -494,7 +510,9 @@ function DroppableDayChip({
                 : "border-primary bg-primary/5 shadow-sm"
               : isTodayChip
                 ? "border-orange-300/60 bg-orange-50/50 dark:bg-orange-950/10"
-                : "border-transparent bg-muted/40 hover:bg-muted"
+                : away
+                  ? "border-sky-200/80 bg-gradient-to-b from-sky-100 to-sky-50 hover:from-sky-200/80 dark:border-sky-900/60 dark:from-sky-950/50 dark:to-sky-950/20"
+                  : "border-transparent bg-muted/40 hover:bg-muted"
       }`}
     >
       <span
@@ -531,6 +549,12 @@ function DroppableDayChip({
             delivery === "ordered" ? "text-emerald-600 dark:text-emerald-400" : "text-teal-500/80"
           }`}
           aria-label={delivery === "ordered" ? "Delivery (ordered)" : "Delivery"}
+        />
+      )}
+      {away && (
+        <Plane
+          className="absolute right-1 bottom-1 h-3 w-3 text-sky-500 dark:text-sky-400"
+          aria-label="Away"
         />
       )}
       {mealCount > 0 ? (
@@ -1152,6 +1176,9 @@ export function WeekPlanner({
   );
   const deliveryByDate = new Map((deliveryPanel?.days ?? []).map((d) => [d.date, d]));
   const selectedDelivery = deliveryByDate.get(addDays(weekStartDate, selectedDay));
+  const weekAway = deliveryPanel?.away ?? [];
+  const awayOn = (date: string) => weekAway.find((p) => p.from <= date && date <= p.to);
+  const selectedAway = awayOn(addDays(weekStartDate, selectedDay));
 
   // Report what actually reached the list. A week whose ingredients are all
   // covered by the pantry used to look identical to a successful generation.
@@ -1328,7 +1355,7 @@ export function WeekPlanner({
             const toDo = next ? deliveryToDo(next) : 0;
             const showDelivery = !!next && (next.status !== "ordered" || toDo > 0);
             const showNutrition = nutritionSummary.meals > 0;
-            if (!showDelivery && !showNutrition) return <div className="mb-4" />;
+            if (!showDelivery && !showNutrition && !weekAway.length) return <div className="mb-4" />;
             const offTargets = heartFocus
               ? (Object.keys(WEEKLY_PROTEIN_TARGETS) as ProteinKind[]).filter(
                   (k) => meetsTarget(k, nutritionSummary.proteins[k]) === false
@@ -1336,6 +1363,25 @@ export function WeekPlanner({
               : 0;
             return (
               <div className="mb-4 flex flex-wrap items-center gap-2 pl-9">
+                {weekAway.map((p) => {
+                  // Jump to the holiday's first day in this week.
+                  const first = p.from > weekStartDate ? p.from : weekStartDate;
+                  const day = Math.round(
+                    (Date.parse(first + "T00:00:00Z") - Date.parse(weekStartDate + "T00:00:00Z")) / 86_400_000
+                  );
+                  return (
+                    <button
+                      key={p.from + p.to}
+                      type="button"
+                      onClick={() => setSelectedDay(day)}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-full border border-sky-300/70 bg-gradient-to-r from-sky-100 to-sky-50 px-2.5 text-xs font-semibold text-sky-900 shadow-sm transition-colors hover:from-sky-200 dark:border-sky-800/60 dark:from-sky-950/60 dark:to-sky-950/30 dark:text-sky-100"
+                    >
+                      <Plane className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                      Away {formatAwayRange(p.from, p.to)}
+                      {p.label && <span className="font-normal text-sky-800/80 dark:text-sky-200/80">· {p.label}</span>}
+                    </button>
+                  );
+                })}
                 {showDelivery && next && (
                   <button
                     type="button"
@@ -1417,6 +1463,7 @@ export function WeekPlanner({
                     const d = deliveryByDate.get(addDays(weekStartDate, i));
                     return d && d.status !== "skipped" ? d.status : null;
                   })()}
+                  away={!!awayOn(addDays(weekStartDate, i))}
                   onClick={() => setSelectedDay(i)}
                 />
               );
@@ -1480,6 +1527,12 @@ export function WeekPlanner({
                   scheduled={dinnerSchedule.scheduled?.[selectedDay]}
                   onChange={updateDinnerDay}
                 />
+              )}
+              {selectedAway && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm">
+                  <Plane className="h-3 w-3" />
+                  {selectedAway.label ? `Away · ${selectedAway.label}` : "Away"}
+                </span>
               )}
               {selectedDelivery && deliveryPanel && (
                 <DeliveryChip

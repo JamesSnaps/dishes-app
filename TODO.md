@@ -82,6 +82,7 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Grocery deliveries — weekly delivery days + order deadline, holidays, one-off/skip/ordered per date, next-order card and day markers on the planner, opt-in deadline-day push of what's outstanding with "Mark as ordered", post-order "added since you ordered" nudge (v1.21.0, migration 0039)
 - [x] Deliveries step 2 — `POST /api/integrations/deliveries/email` (AI reads forwarded order emails: placed/amended/moved/cancelled/delivered, by order number), `POST …/deliveries/order` for pre-parsed details, `GET …/deliveries`, `read:deliveries`/`write:deliveries` scopes, order pushes (v1.22.0)
 - [x] Deliveries step 3 — Stats → Grocery spend; `nextDelivery` on `GET /api/integrations/today` (v1.22.0)
+- [x] "Book your delivery" reminder N days before (default 3) when no order is logged, with its own notification switch; holidays shown on the meal planner (web + iOS) (v1.65.0, migration 0046)
 - [x] Edit an order's slot, total and order number by hand — planner card "Edit order", day chip menu, Settings → Grocery deliveries "Details"; saving marks the delivery ordered (v1.22.1)
 
 ## Combined Meals (e.g. Sunday roast)

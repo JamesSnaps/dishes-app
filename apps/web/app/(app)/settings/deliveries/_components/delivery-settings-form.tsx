@@ -21,6 +21,7 @@ interface Props {
     cutoffDaysBefore: number;
     reminderTimes: string[];
     minOrderTotal: number | null;
+    bookingReminderDays: number;
     timezone: string;
   };
   optedIn: boolean;
@@ -50,6 +51,8 @@ export function DeliverySettingsForm({ settings, optedIn, isAdmin }: Props) {
   const [minOrder, setMinOrder] = useState(
     settings.minOrderTotal != null ? String(settings.minOrderTotal) : ""
   );
+
+  const [bookingDays, setBookingDays] = useState(settings.bookingReminderDays);
 
   const disabled = !isAdmin || saving;
   const [testing, setTesting] = useState(false);
@@ -119,6 +122,7 @@ export function DeliverySettingsForm({ settings, optedIn, isAdmin }: Props) {
           cutoffDaysBefore: daysBefore,
           reminderTimes,
           minOrderTotal: minOrder.trim() ? Number(minOrder) : null,
+          bookingReminderDays: bookingDays,
         });
         toast({ title: "Delivery settings saved" });
         router.refresh();
@@ -315,6 +319,37 @@ export function DeliverySettingsForm({ settings, optedIn, isAdmin }: Props) {
             Times must be before {cutoffTime || "the deadline"}. The last one is sent as a
             &ldquo;last call&rdquo;. Uses the household timezone ({settings.timezone}) from
             Dinner reminders.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="booking-days" className="text-sm font-medium">
+            Remind us to book if nothing&apos;s ordered
+          </label>
+          <select
+            id="booking-days"
+            value={bookingDays}
+            onChange={(e) => setBookingDays(Number(e.target.value))}
+            disabled={disabled}
+            className="flex h-10 w-full sm:w-56 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value={0}>Don&apos;t remind</option>
+            {[2, 3, 4, 5, 7].map((d) => (
+              <option key={d} value={d} disabled={d <= daysBefore}>
+                {d} days before delivery
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            {bookingDays > daysBefore
+              ? `If no order has been logged ${bookingDays} days before a delivery, a "Book your delivery" reminder goes at ${
+                  [...reminderTimes].sort()[0] ?? "09:00"
+                }, so there's time to get a slot. `
+              : bookingDays > 0
+                ? "That's within the order deadline, so the deadline-day reminders cover it. "
+                : ""}
+            Each person turns it on under Settings → Notifications (it follows the switch above
+            until they do).
           </p>
         </div>
 

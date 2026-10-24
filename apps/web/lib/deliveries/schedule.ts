@@ -33,6 +33,7 @@ import { shortDate, weekdayName, weekdayShort } from "./dates";
 export const DEFAULT_CUTOFF_TIME = "23:00";
 export const DEFAULT_CUTOFF_DAYS_BEFORE = 1;
 export const DEFAULT_REMINDER_TIMES = ["09:00", "19:00", "22:00"];
+export const DEFAULT_BOOKING_REMINDER_DAYS = 3;
 /** How far a delivery's meals reach when the next delivery is further away. */
 const MAX_COVERAGE_DAYS = 7;
 
@@ -52,6 +53,8 @@ export interface DeliveryConfig {
   awayPeriods: AwayPeriod[];
   /** Placed orders under this total get flagged; null for no check. */
   minOrderTotal: number | null;
+  /** Days before a delivery to remind to book it if no order is logged; 0 for none. */
+  bookingReminderDays: number;
   /** Household timezone, shared with dinner reminders. */
   timezone: string;
 }
@@ -73,6 +76,7 @@ export async function getDeliveryConfig(householdId: string): Promise<DeliveryCo
     reminderTimes: row?.reminderTimes ?? DEFAULT_REMINDER_TIMES,
     awayPeriods: row?.awayPeriods ?? [],
     minOrderTotal: row?.minOrderTotal != null ? Number(row.minOrderTotal) : null,
+    bookingReminderDays: row?.bookingReminderDays ?? DEFAULT_BOOKING_REMINDER_DAYS,
     timezone: dinner.timezone,
   };
 }

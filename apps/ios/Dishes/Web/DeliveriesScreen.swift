@@ -24,6 +24,8 @@ struct DeliveryOverview: Decodable, Sendable {
         var cutoffDaysBefore: Int
         var reminderTimes: [String]
         var minOrderTotal: LooseText?
+        /// Missing from older servers.
+        var bookingReminderDays: Int?
         var timezone: String
     }
     struct Away: Codable, Sendable, Hashable, Identifiable {
@@ -366,6 +368,7 @@ private struct DeliverySettingsSheet: View {
     @State private var daysBefore = 1
     @State private var reminders = ""
     @State private var minimum = ""
+    @State private var bookingDays = 3
 
     private static let names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -387,6 +390,14 @@ private struct DeliverySettingsSheet: View {
                     TextField("09:00, 19:00, 22:00", text: $reminders)
                 } header: { Text("Reminder times on deadline day") }
                 Section {
+                    Picker("Remind us", selection: $bookingDays) {
+                        Text("Don’t remind").tag(0)
+                        ForEach([2, 3, 4, 5, 7].filter { $0 > daysBefore }, id: \.self) { Text("\($0) days before").tag($0) }
+                    }
+                } header: { Text("Book a delivery") } footer: {
+                    Text("If no order has been logged by then, a reminder to book a slot goes at the first reminder time.")
+                }
+                Section {
                     TextField("e.g. 50", text: $minimum).keyboardType(.decimalPad)
                 } header: { Text("Minimum order (£, optional)") }
             }
@@ -401,6 +412,7 @@ private struct DeliverySettingsSheet: View {
             daysBefore = settings.cutoffDaysBefore
             reminders = settings.reminderTimes.joined(separator: ", ")
             minimum = settings.minOrderTotal?.text ?? ""
+            bookingDays = settings.bookingReminderDays ?? 3
             let f = DateFormatter(); f.dateFormat = "HH:mm"
             cutoff = f.date(from: settings.cutoffTime) ?? cutoff
         }
@@ -415,6 +427,7 @@ private struct DeliverySettingsSheet: View {
             "cutoffDaysBefore": .number(Double(daysBefore)),
             "reminderTimes": .array(times.map { .string($0) }),
             "minOrderTotal": Double(minimum).map { .number($0) } ?? .null,
+            "bookingReminderDays": .number(Double(bookingDays > daysBefore ? bookingDays : 0)),
             "timezone": .string(settings.timezone),
         ])], done: "Delivery settings saved.")
         if ok { await saved(); dismiss() }

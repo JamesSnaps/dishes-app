@@ -100,8 +100,11 @@ struct PlanScreen: View {
         PlanWeekStrips(extras: extras, reload: reloadExtras, swapped: reloadExtras)
     }
 
-    /// The dinner-time and delivery chips for a day, when the server has them.
+    /// The holiday, dinner-time and delivery chips for a day, when the server has them.
     @ViewBuilder private func dayChips(_ day: Int, compact: Bool = false) -> some View {
+        if let away = extras.deliveries?.away(on: localDateKey(week.day(day))) {
+            AwayDayChip(away: away)
+        }
         if let dinner = extras.dinner?.days.first(where: { $0.dayOfWeek == day }) {
             DinnerTimeChip(date: week.day(day), day: dinner, dishes: dinnerRecipes[day],
                            estimates: extras.dinner?.estimates ?? [:], scheduled: extras.dinner?.scheduled?[String(day)],
@@ -187,6 +190,7 @@ struct PlanScreen: View {
                 let isToday = Calendar.current.isDateInToday(date)
                 let selected = day == selectedDay
                 let count = data.value.meals(on: day, in: week).count
+                let away = extras.deliveries?.away(on: localDateKey(date)) != nil
                 Button { selectedDay = day } label: {
                     VStack(spacing: 4) {
                         Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
@@ -204,8 +208,18 @@ struct PlanScreen: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 9)
-                    .background(selected || isToday ? Theme.orange50.opacity(selected ? 1 : 0.6) : Theme.muted.opacity(0.4),
+                    .background(selected || isToday ? Theme.orange50.opacity(selected ? 1 : 0.6)
+                                : away ? Color(hex: 0xE0F2FE) : Theme.muted.opacity(0.4),
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(alignment: .bottomTrailing) {
+                        if away {
+                            Image(systemName: "airplane")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Color(hex: 0x0EA5E9))
+                                .padding(5)
+                                .accessibilityLabel("Away")
+                        }
+                    }
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(selected ? Color(hex: 0xFB923C) : isToday ? Color(hex: 0xFDBA74).opacity(0.6) : .clear,
                                       lineWidth: 2))

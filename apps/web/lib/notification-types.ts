@@ -15,6 +15,7 @@ export type NotificationType =
   | "shopping_updated"
   | "dinner"
   | "delivery_deadline"
+  | "delivery_booking"
   | "delivery_orders"
   | "cook_timers";
 
@@ -71,6 +72,13 @@ export const NOTIFICATION_TYPES: NotificationTypeInfo[] = [
     defaultOn: false,
   },
   {
+    id: "delivery_booking",
+    title: "Book a delivery",
+    description: "A few days before a delivery with no order logged yet",
+    group: "Deliveries",
+    defaultOn: false,
+  },
+  {
     id: "delivery_orders",
     title: "Order updates",
     description: "A grocery order is confirmed, changed or cancelled",
@@ -99,7 +107,8 @@ export function wantsNotification(
   const chosen = member.notificationPrefs?.[type];
   if (typeof chosen === "boolean") return chosen;
   // Order updates were sent to everyone with deadline reminders on before they
-  // had their own switch, so they follow it until chosen separately.
-  if (type === "delivery_orders") return member.deliveryReminders;
+  // had their own switch, so they (and booking reminders, which came later)
+  // follow it until chosen separately.
+  if (type === "delivery_orders" || type === "delivery_booking") return member.deliveryReminders;
   return NOTIFICATION_TYPES.find((t) => t.id === type)?.defaultOn ?? true;
 }

@@ -71,6 +71,13 @@
       "when": 1792627200000,
       "tag": "0045_meal_plan_position",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792713600000,
+      "tag": "0046_booking_reminder",
+      "breakpoints": true
     }
   ]
 }
