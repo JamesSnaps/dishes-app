@@ -1518,3 +1518,10 @@ from the server (`WebPage`/`Remote`) only loaded once, on first appear.
   without a pull-to-refresh. The server only pushes for notifications.
 
 Built for the simulator; not checked against a real order push.
+
+Uploaded to TestFlight as 1.65.1 (build 202610262133) from main, after PR #67
+merged. `~/.appstoreconnect` had gone, so the archive first fell back to
+Xcode's account ("No Accounts"). Key `5MW9DFM34T` archived but couldn't export
+("Cloud signing permission error", no "iOS Distribution" certificate): it
+isn't an Admin key. Admin key `82B45L27K9` uploaded the same archive
+(`ARCHIVE=build/Dishes-202610262133.xcarchive`), and `dishes.env` now names it.
