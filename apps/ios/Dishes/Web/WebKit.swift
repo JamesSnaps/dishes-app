@@ -9,7 +9,8 @@
 import DishesCore
 import SwiftUI
 
-/// A value from one of the web's actions, loaded on appear and on pull-to-refresh.
+/// A value from one of the web's actions, loaded on appear, on pull-to-refresh
+/// and when a push or a return to the app says the server may have changed.
 @MainActor @Observable
 final class Remote<T: Decodable & Sendable> {
     let action: String
@@ -100,6 +101,7 @@ struct WebPage<T: Decodable & Sendable, Trailing: View, Content: View>: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await data.load() }
         .task { if data.value == nil { await data.load() } }
+        .onChange(of: AppModel.shared.serverRevision) { Task { await data.load() } }
     }
 }
 

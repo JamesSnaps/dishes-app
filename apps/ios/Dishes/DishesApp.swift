@@ -27,6 +27,7 @@ struct DishesApp: App {
             case .active:
                 AppModel.shared.enteredForeground()
                 AppModel.shared.syncSoon(after: .zero)
+                AppModel.shared.serverChanged()
                 Task { await MealScheduleActivity.shared.refresh() }
                 Task { await ShoppingTripActivity.shared.update() }
             case .background:
@@ -69,9 +70,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     /// A timer that falls back to a notification still shows and sounds with Dishes open.
+    /// A push shown while Dishes is open ("Sainsbury's order confirmed") also
+    /// reloads whatever server screen is up, so it matches the banner.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async
         -> UNNotificationPresentationOptions {
-        Task { @MainActor in CookTimers.shared.refreshFinished() }
+        let fromServer = notification.request.trigger is UNPushNotificationTrigger
+        Task { @MainActor in
+            CookTimers.shared.refreshFinished()
+            if fromServer { AppModel.shared.serverChanged() }
+        }
         return [.banner, .sound, .list]
     }
 
@@ -86,6 +93,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 return .newData
             }
             await AppModel.shared.syncNow()
+            AppModel.shared.serverChanged()
             return .newData
         }
     }

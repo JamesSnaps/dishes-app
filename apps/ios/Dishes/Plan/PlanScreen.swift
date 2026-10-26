@@ -89,6 +89,7 @@ struct PlanScreen: View {
     private var extrasKey: String {
         week.key + dinnerRecipes.map { $0.map(\.id).joined(separator: ",") }.joined(separator: "|")
             + "#\(data.value.entries(in: week).filter { $0.addedToShoppingListAt == nil }.count)"
+            + "@\(app.serverRevision)"
     }
 
     private func reloadExtras() async {
