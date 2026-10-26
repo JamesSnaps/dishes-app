@@ -1,6 +1,6 @@
 // The app's one long-lived object: this device's database, the signed-in
 // session, the sync engine — and when to sync: at launch, on becoming active,
-// when the network comes back, shortly after every change, from
+// each minute while on screen, when the network comes back, shortly after every change, from
 // BGAppRefreshTask and from a silent push. Reads never wait for any of this:
 // screens observe the database, so the household is on screen before the
 // first sync starts, signal or not.
@@ -45,6 +45,12 @@ final class AppModel {
     var signInError: String?
     /// A one-line message at the bottom of the screen.
     var toast: String?
+    /// Ticks when the server may have news the sync log doesn't carry (a push
+    /// arrived, the app came back to the front): screens that load straight
+    /// from the server (WebPage, the planner's delivery chips) reload on it.
+    private(set) var serverRevision = 0
+
+    func serverChanged() { serverRevision += 1 }
 
     let store: LocalStore
     let auth: AuthSession
@@ -131,12 +137,30 @@ final class AppModel {
         LocalStore.resume()
         // A tick on the Shopping widget wrote to the database while the app was away.
         Task { try? await store.noticeOtherProcesses() }
+        startTicking()
+    }
+
+    private var ticking: Task<Void, Never>?
+
+    /// While on screen, a sync each minute brings in what the rest of the
+    /// household changed (a tick on the shared list, a swapped dinner): the
+    /// server pushes only for notifications, not for every change.
+    private func startTicking() {
+        ticking?.cancel()
+        ticking = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard !Task.isCancelled, online else { continue }
+                await syncNow(force: false)
+            }
+        }
     }
 
     /// Off screen: send anything waiting first (a tick just before locking the
     /// phone), within the few seconds iOS allows, then suspend the store.
     func enteredBackground() {
         offScreen = true
+        ticking?.cancel()
         let task = UIApplication.shared.beginBackgroundTask(withName: "send-changes")
         Task {
             await awake {

@@ -1499,3 +1499,22 @@ iPad's cook never turned its Tonight card green). It held a mutation with a
 - **Notifications**: the new `delivery_booking` type gets the calendar icon.
 
 Built for the iPhone 18 Pro simulator; the web side was checked in the browser.
+
+### 2026-10-26 — Deliveries refreshes itself (v1.65.1)
+
+A "Sainsbury's order confirmed" banner arrived while Deliveries was open, but
+the screen kept showing "To order" until pulled down. Screens loaded straight
+from the server (`WebPage`/`Remote`) only loaded once, on first appear.
+
+- `AppModel.serverRevision` ticks when a push is shown with the app open
+  (`willPresent`, server pushes only), after a silent push's sync, and on
+  becoming active. Every `WebPage` reloads on it, and so do the planner's
+  delivery chips (it's part of `extrasKey`).
+- Deliveries also reloads every 60 s while it's open, for an order that
+  lands without a push to this device.
+- The app syncs every 60 s while it's on screen (`AppModel.startTicking`,
+  stopped in the background, skipped offline or while backing off), so
+  Shopping, Plan and Recipes pick up the rest of the household's changes
+  without a pull-to-refresh. The server only pushes for notifications.
+
+Built for the simulator; not checked against a real order push.

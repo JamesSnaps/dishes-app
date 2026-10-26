@@ -153,6 +153,16 @@ struct DeliveriesScreen: View {
                 .buttonStyle(.outline)
             }
         }
+        // An order email can land while this is open without a push reaching
+        // this device (notifications off, or it went to someone else), so check
+        // again each minute.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard !Task.isCancelled else { return }
+                await data.load()
+            }
+        }
         .sheet(item: $ordering) { day in OrderSheet(day: day) { await data.load() } }
         .sheet(isPresented: $addingAway) { AwaySheet(original: nil) { await data.load() } }
         .sheet(item: $editingAway) { away in AwaySheet(original: away) { await data.load() } }
