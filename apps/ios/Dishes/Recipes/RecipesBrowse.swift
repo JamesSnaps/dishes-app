@@ -174,7 +174,7 @@ struct TonightCard: View {
 
     @Sendable nonisolated static func load(_ r: StoreReader) throws -> Meal? {
         let data = try PlanData.load(r)
-        guard case let (planned, cooked)? = data.tonight(cooked: PlanData.cookedToday(r)) else {
+        guard case let (planned, cooked)? = try data.tonight(cooked: PlanData.cookedToday(r)) else {
             // Nothing to cook — because they're out? Say so rather than "nothing planned".
             let now = Date()
             guard let out = data.notCooking("dinner", on: Week.dayIndex(of: now), in: Week.containing(now)) else { return nil }
