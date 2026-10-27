@@ -1602,3 +1602,22 @@ key locally) and course photo uploads (no storage locally).
 
 Uploaded to TestFlight as 1.68.0 (build 202610271907) from main, after PR #71
 merged. Server deployed the same day (migration 0048 applied by hand first).
+
+### 2026-10-27 — Dark mode on the planner, a tidier day strip (v1.68.1)
+
+- **Dark mode**: holiday day tiles, the dinner-time reminder pill, the week
+  badges' borders and the meal-out sheet's menu card, kind tiles and course
+  buttons had light-only colours; they now use `Color(light:dark:)`.
+- **Day strip**: the count, the not-cooking fork and the plane share one row
+  under the date. Away shows as the tile's sky tint; the plane only on today
+  or the chosen day, whose orange hides the tint. One VoiceOver label per day.
+- **Week badges**: "Order Fri · 2 to do"; always one line, scrolling sideways
+  on a narrow phone instead of wrapping.
+- **Courses**: adding the first course moves the dish already typed (and its
+  menu kcal) into a Main, so it isn't typed twice (web sheet too).
+
+Checked in the iPhone 18 Pro and iPad Pro 11-inch simulators, dark and light.
+
+Uploaded to TestFlight as 1.68.1 (build 202610272100) from main, after PR #73
+merged. Server not redeployed yet — the web half (the courses change) needs
+the new image.
