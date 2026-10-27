@@ -1599,3 +1599,6 @@ Checked in the iPhone 18 Pro simulator against the dev server: courses load
 on the sheet, the card shows "3 courses", an edit keeps unchanged courses'
 estimates and the result view lists them. Not checked: a real AI estimate (no
 key locally) and course photo uploads (no storage locally).
+
+Uploaded to TestFlight as 1.68.0 (build 202610271907) from main, after PR #71
+merged. Server deployed the same day (migration 0048 applied by hand first).
