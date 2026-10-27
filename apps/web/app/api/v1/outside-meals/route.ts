@@ -20,6 +20,6 @@ export const GET = withApiErrors(async (req: NextRequest) => {
 export const POST = withApiErrors(async (req: NextRequest) => {
   const session = await requireSession();
   const meal = await createOutsideMeal(session, createOutsideMealSchema.parse(await req.json()));
-  estimateInBackground(session, meal);
+  estimateInBackground(session, meal, req);
   return NextResponse.json(meal, { status: 201 });
 });

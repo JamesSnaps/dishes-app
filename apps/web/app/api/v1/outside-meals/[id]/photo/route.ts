@@ -23,7 +23,7 @@ export const POST = withApiErrors(
     }
 
     const { url } = await setOutsideMealPhoto(session, id, slot, raw, contentType);
-    estimateInBackground(session, await getOutsideMeal(session, id));
+    estimateInBackground(session, await getOutsideMeal(session, id), req);
     return NextResponse.json({ url });
   }
 );

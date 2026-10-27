@@ -183,16 +183,16 @@ Steps:
   health, and in `meal-history.ts` (Stats, Wrapped, taste profile, recent-meal variety for the
   AI planner). Rated meals out feed the taste profile; the red-meat words now include cuts and
   dishes (ribeye, burger, kofta…) so a meal out counts before the AI reads it (v1.66.0)
-- [ ] Step 6 — sync: new entity through the sync layer (web `sync-store`, `packages/client`,
+- [x] Step 6 — sync: new entity through the sync layer (web `sync-store`, `packages/client`,
   `DishesCore/Sync`, wire fixtures) — the biggest single cost. *Server, `packages/client` and the
-  web store done (v1.66.0, Dexie v4 resnapshot); `DishesCore` still to do — it ignores the new
-  collection until then*
-- [ ] Step 7 — iOS: log sheet with on-device reading (`ImageAttachment` + `OCRTool` for the menu,
-  image input for the plate, a `@Generable` "what was eaten" type), server fallback without
-  Apple Intelligence; `HealthLog` takes nutrient values rather than a `Recipe` and writes or
-  rewrites the entry when the server's estimate arrives by sync. Add restaurant meals to the D2
-  evaluation suite, and try the Private Cloud Compute model for the numbers there before moving
-  anything off the server
+  web store in v1.66.0 (Dexie v4 resnapshot); DishesCore in v1.67.0 (store migration
+  `v2-outside-meals` resnapshots). The recorded wire fixture predates it and isn't re-recorded*
+- [x] Step 7 — iOS (v1.67.0, **written without a Swift toolchain — build and test it first**, see
+  `apps/ios/RUNBOOK.md`): plan-day chip, cards, + menu, log sheet; the menu photo read by Vision on
+  the device (no on-device model job — that waits for an evaluation); `HealthLog` takes nutrient
+  values and writes a meal out from the device that logged it once the estimate arrives by sync;
+  Tonight card, widgets and Siri skip a slot taken by a meal out; plan generation starts with nights
+  out unticked. Server: `?estimate=false` on the v1 writes so the app asks for one estimate itself
 - [x] Integrations API: outside meals on `today`/`week` (`API.md`, `integrations-catalog.ts`); `dinner.notCooking`;
   `meal-plan/generate` skips not-cooking days and lists them (v1.66.0)
 - [ ] Later: "Make it at home" (send the meal to the concierge), Memories wall photos, meals out in Wrapped

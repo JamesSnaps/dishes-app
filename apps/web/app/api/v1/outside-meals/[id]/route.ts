@@ -22,7 +22,7 @@ export const PATCH = withApiErrors(async (req: NextRequest, ctx: RouteContext) =
     id,
     updateOutsideMealSchema.parse(await req.json())
   );
-  if (staleEstimate) estimateInBackground(session, meal);
+  if (staleEstimate) estimateInBackground(session, meal, req);
   return NextResponse.json(meal);
 });
 

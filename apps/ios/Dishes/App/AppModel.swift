@@ -295,6 +295,8 @@ final class AppModel {
                 WidgetCenter.shared.reloadAllTimelines()
                 await ShoppingTripActivity.shared.update()
             }
+            // A meal out's estimate arrives by sync: its Health entry follows it.
+            if outcome.pulled > 0 { await reconcileHealth() }
             if !outcome.offline { status.lastSyncedAt = Date() }
         } catch {
             // Only APIError.signedOut gets here. Local data and the outbox stay.
@@ -312,6 +314,11 @@ final class AppModel {
             // New recipes and items, for the App Shortcuts' phrases ("Tick off milk").
             DishesShortcuts.updateAppShortcutParameters()
         }
+    }
+
+    private func reconcileHealth() async {
+        guard let rows = try? await store.read({ try $0.records(.outsideMeals) }) else { return }
+        await HealthLog.shared.reconcileOutside(rows.compactMap(OutsideMeal.init))
     }
 
     /// The household's AI settings, kept on the device for AI there (Phase D):

@@ -394,5 +394,123 @@ public struct CookEntry: Hashable, Sendable, Identifiable {
     }
 }
 
+// MARK: Meals eaten out
+
+/// A meal not cooked from the library (the `outsideMeals` sync collection,
+/// lib/outside-meals.ts on the web): eaten out, a takeaway, at friends', or
+/// skipped. A future date is a plan — the slot is kept free — and a past one
+/// a log. Nutrition is for one portion as eaten, and an estimate unless it
+/// was typed in. Ratings are 0–10, as a cook's.
+public struct OutsideMeal: Hashable, Sendable, Identifiable {
+    public enum Kind: String, Sendable, CaseIterable {
+        case eatOut = "eat_out", takeaway, atFriends = "at_friends", skipped
+
+        /// OUTSIDE_MEAL_KIND_LABELS in @dishes/shared.
+        public var label: String {
+            switch self {
+            case .eatOut: "Eating out"
+            case .takeaway: "Takeaway"
+            case .atFriends: "At friends’"
+            case .skipped: "Skipped"
+            }
+        }
+    }
+
+    /// Next to a usual restaurant portion; steers the estimate.
+    public enum Portion: String, Sendable, CaseIterable {
+        case lighter, typical, indulgent
+        public var label: String { rawValue.capitalized }
+    }
+
+    public var id: String
+    /// "yyyy-MM-dd"
+    public var date: String
+    public var mealType: String
+    public var kind: Kind
+    public var title: String?
+    public var place: String?
+    public var cuisine: String?
+    public var description: String?
+    public var menuText: String?
+    public var portion: Portion
+    public var components: [String]
+    public var mainIngredients: [String]
+    public var menuKcal: Int?
+    public var calories: Double?
+    public var proteinG: Double?
+    public var carbsG: Double?
+    public var fatG: Double?
+    public var saturatedFatG: Double?
+    public var fiberG: Double?
+    public var sugarG: Double?
+    public var sodiumMg: Double?
+    /// "none" (not estimated yet), "ai" or "manual".
+    public var nutritionSource: String
+    /// Display names; empty means everyone.
+    public var eatenBy: [String]
+    public var rating: Double?
+    public var memberRatings: [CookEntry.MemberRating]
+    public var notes: String?
+    public var photoUrl: String?
+    public var menuPhotoUrl: String?
+
+    /// A skipped meal wasn't eaten, so it isn't a meal at all.
+    public var countsAsMeal: Bool { kind != .skipped }
+
+    public var hasNutrition: Bool {
+        nutritionSource != "none" && [calories, proteinG, carbsG, fatG, saturatedFatG, fiberG, sugarG, sodiumMg].contains { $0 != nil }
+    }
+
+    /// Enough to estimate from: words, the menu, or a photo.
+    public var isDescribed: Bool {
+        [title, description, menuText, photoUrl, menuPhotoUrl].contains { !($0 ?? "").isEmpty }
+    }
+
+    /// "Ribeye & chips at The Swan", or the kind when there's nothing else.
+    public var label: String {
+        switch (title, place) {
+        case let (title?, place?): "\(title) at \(place)"
+        case let (title?, nil): title
+        case let (nil, place?): place
+        default: kind.label
+        }
+    }
+
+    public init?(_ json: JSONValue) {
+        guard let id = json.id, let date = json.string("date") else { return nil }
+        self.id = id
+        self.date = String(date.prefix(10))
+        mealType = json.string("mealType").flatMap { mealTypeOrder.contains($0) ? $0 : nil } ?? "dinner"
+        kind = json.string("kind").flatMap(Kind.init(rawValue:)) ?? .eatOut
+        title = json.string("title")
+        place = json.string("place")
+        cuisine = json.string("cuisine")
+        description = json.string("description")
+        menuText = json.string("menuText")
+        portion = json.string("portion").flatMap(Portion.init(rawValue:)) ?? .typical
+        components = json.strings("components")
+        mainIngredients = json.strings("mainIngredients")
+        menuKcal = json.int("menuKcal")
+        calories = json.number("calories")
+        proteinG = json.number("proteinG")
+        carbsG = json.number("carbsG")
+        fatG = json.number("fatG")
+        saturatedFatG = json.number("saturatedFatG")
+        fiberG = json.number("fiberG")
+        sugarG = json.number("sugarG")
+        sodiumMg = json.number("sodiumMg")
+        nutritionSource = json.string("nutritionSource") ?? "none"
+        eatenBy = json.strings("eatenBy")
+        rating = json.number("rating")
+        memberRatings = json.array("memberRatings").compactMap { item in
+            guard let name = item.string("name"), let rating = item.number("rating") else { return nil }
+            return CookEntry.MemberRating(name: name, rating: rating)
+        }
+        notes = json.string("notes")
+        photoUrl = json.string("photoUrl")
+        menuPhotoUrl = json.string("menuPhotoUrl")
+    }
+}
+
 /// The order meal types appear in a day, as on the web planner.
 public let mealTypeOrder = ["breakfast", "lunch", "dinner", "dessert", "snack"]

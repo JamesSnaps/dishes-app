@@ -1547,6 +1547,11 @@ nothing to go on), the household's AI estimates its nutrition **after the reply
 has gone** — the figures, a `title` and `cuisine` where those were blank, its
 `components` and `mainIngredients` arrive by sync. No AI key, no estimate.
 
+`?estimate=false` (on this, `PATCH` and the photo upload) skips that background
+estimate: for a client that uploads photos next and then asks for the estimate
+itself with `POST …/estimate` — one AI call with everything, instead of one per
+step racing each other. The iOS app does this.
+
 `OutsideMeal` is the row as sync carries it (`outsideMeals`), with decimals as
 numbers here: the fields above plus `id`, `components`, `mainIngredients`,
 `calories` … `sodiumMg` (one portion, as eaten), `nutritionSource`

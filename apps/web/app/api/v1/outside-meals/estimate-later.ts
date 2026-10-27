@@ -11,7 +11,11 @@ const log = createLogger("outside-meals");
  * gets the figures by sync. Skipped when there's nothing to estimate from, or
  * the figures were typed in. No key, no estimate (logged, not an error).
  */
-export function estimateInBackground(ctx: HouseholdContext, meal: OutsideMealView): void {
+export function estimateInBackground(ctx: HouseholdContext, meal: OutsideMealView, req?: Request): void {
+  // `?estimate=false`: the client will ask for the estimate itself (POST
+  // …/estimate) once its photos are up — one AI call, with everything, rather
+  // than one per step racing each other.
+  if (req && new URL(req.url).searchParams.get("estimate") === "false") return;
   if (meal.nutritionSource === "manual" || meal.kind === "skipped") return;
   if (!meal.title && !meal.description && !meal.menuText && !meal.photoUrl && !meal.menuPhotoUrl) return;
   const scope = { householdId: ctx.householdId, memberId: ctx.memberId };
