@@ -10,6 +10,13 @@
  *     logged.
  * A planned meal and a logged cook of the same recipe on the same day are one
  * meal. A meal counts for everyone unless a logged cook names who ate it.
+ *
+ * Meals not cooked from the library (outside_meals: eaten out, takeaways, at
+ * friends') come back separately as `outsideMeals` — they have no recipe, so
+ * they count towards nutrition, cuisines and per-person totals but not the
+ * recipe rankings. One also cancels the planned recipes in its slot: the
+ * plan said lasagne, but they went out, so the lasagne wasn't eaten (unless a
+ * cook of it was logged that day).
  */
 
 import { db } from "@/lib/db";
@@ -22,6 +29,8 @@ import {
   recipes,
 } from "@dishes/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import { listOutsideMeals } from "@/lib/services/outside-meals";
+import { countsAsMeal, type OutsideMealView } from "@/lib/outside-meals";
 
 export type Meal = {
   date: string; // YYYY-MM-DD
@@ -48,10 +57,16 @@ export function ateIt(m: Meal, displayName: string): boolean {
   return m.who === null || m.who.some((w) => w.trim().toLowerCase() === name);
 }
 
+/** The same rule for a meal eaten out: everyone, unless it names who. */
+export function ateOutside(m: OutsideMealView, displayName: string): boolean {
+  const name = displayName.trim().toLowerCase();
+  return !m.eatenBy?.length || m.eatenBy.some((w) => w.trim().toLowerCase() === name);
+}
+
 export async function loadMealHistory(householdId: string) {
   const today = isoDate(new Date());
 
-  const [plannedRows, cookRows, recipeRows, memberRows] = await Promise.all([
+  const [plannedRows, cookRows, recipeRows, memberRows, outsideRows] = await Promise.all([
     db
       .select({
         weekStartDate: mealPlans.weekStartDate,
@@ -105,7 +120,12 @@ export async function loadMealHistory(householdId: string) {
       .from(householdMembers)
       .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
       .orderBy(householdMembers.displayName),
+    listOutsideMeals(householdId, { to: today }),
   ]);
+
+  // Every slot taken by a meal not cooked at home, skipped ones included.
+  const takenSlots = new Set(outsideRows.map((m) => `${m.date}|${m.mealType}`));
+  const outsideMeals = outsideRows.filter(countsAsMeal);
 
   const recipeById = new Map(recipeRows.map((r) => [r.id, r]));
 
@@ -137,8 +157,10 @@ export async function loadMealHistory(householdId: string) {
     if (date > today) continue; // still in the future — not eaten yet
     const key = `${p.recipeId}|${date}`;
     if (seen.has(key)) continue;
-    seen.add(key);
     const cook = cookByKey.get(key);
+    // They didn't cook it after all — unless a cook says they did.
+    if (!cook && takenSlots.has(`${date}|${p.mealType}`)) continue;
+    seen.add(key);
     allMeals.push({
       date,
       recipeId: p.recipeId,
@@ -154,7 +176,7 @@ export async function loadMealHistory(householdId: string) {
   }
   allMeals.sort((a, b) => a.date.localeCompare(b.date));
 
-  return { today, allMeals, cooks, cookRows, recipeRows, recipeById, ingredientsByRecipe, memberRows };
+  return { today, allMeals, outsideMeals, cooks, cookRows, recipeRows, recipeById, ingredientsByRecipe, memberRows };
 }
 
 export type MealHistory = Awaited<ReturnType<typeof loadMealHistory>>;

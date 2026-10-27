@@ -35,6 +35,13 @@ public final class LocalStore: Sendable {
         try Self.migrator.migrate(writer)
     }
 
+    /// Tests: the database as an older build left it, migrated only so far.
+    init(path: String, upTo migration: String) throws {
+        let pool = try DatabasePool(path: path)
+        try Self.migrator.migrate(pool, upTo: migration)
+        writer = pool
+    }
+
     // MARK: Access
 
     public func read<T: Sendable>(_ body: @Sendable @escaping (StoreReader) throws -> T) async throws -> T {
@@ -75,6 +82,14 @@ public final class LocalStore: Sendable {
                   temporary BLOB
                 );
                 """)
+        }
+        // Meals eaten out (SyncCollection.outsideMeals). A store that pulled
+        // past the first ones before this build knew the collection skipped
+        // them, and nothing logs them again: start from a fresh snapshot, as
+        // the web's Dexie v4 does. The outbox stays — unsent changes are still
+        // the person's to send.
+        m.registerMigration("v2-outside-meals") { db in
+            try db.execute(sql: "DELETE FROM records; DELETE FROM meta WHERE key = 'cursor';")
         }
         return m
     }

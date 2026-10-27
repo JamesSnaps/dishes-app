@@ -1525,3 +1525,48 @@ Xcode's account ("No Accounts"). Key `5MW9DFM34T` archived but couldn't export
 ("Cloud signing permission error", no "iOS Distribution" certificate): it
 isn't an Admin key. Admin key `82B45L27K9` uploaded the same archive
 (`ARCHIVE=build/Dishes-202610262133.xcarchive`), and `dishes.env` now names it.
+
+### 2026-10-27 — Meals eaten out (v1.67.0) — **not yet built**
+
+Written in a cloud session with no Swift toolchain (swift.org is blocked
+there), so none of this has been compiled or run. Build and test it before
+anything else: `swift test` in `Packages/DishesCore`, then the app on the iPhone
+and iPad simulators. The server side (v1.66.0) was tested end to end on its own.
+
+- **DishesCore**: `SyncCollection.outsideMeals` and `OutsideMeal`
+  (Entities.swift). Store migration `v2-outside-meals` clears the records and
+  the cursor once (not the outbox), so the next sync is a fresh snapshot — a
+  store from before this build pulled past the first meals out without a
+  table for them. Whichever process opens the database first after updating
+  runs it (a widget can), and the app's next sync fills it again.
+  `APIClient` gains the `/api/v1/outside-meals` calls, all with
+  `estimate=false`: the app uploads its photos, then asks for one estimate.
+  Tests: `OutsideMealTests` (decoding, odd values, the one-off resnapshot
+  keeping the outbox, a pull storing them).
+- **Planner**: "Ate out?" / "Not cooking?" chip on a day (gone once dinner has
+  a meal out; its dinner-time chip goes too), "Not cooking — eating out…" in
+  the + menu, a fork-and-knife on the day pill, `OutsideMealCard`s above the
+  day's meals (compact ones in the iPad week columns), and a "not counted" line
+  under a recipe still planned in a taken slot. Plan generation starts with
+  nights out unticked. The nutrition strip reloads when the week's meals out
+  change (it's the server's, which counts them).
+- **OutsideMealSheet** (Plan/): the web sheet's fields. A menu photo is read
+  on the device by Vision (`RecipeReader.text`) into the "From the menu" text,
+  to trim to the dish — no on-device model job, so no evaluation needed. Save
+  → photos → `POST …/estimate`, then the figures and what they count towards.
+- **Tonight**: `PlanData.cookable` leaves out meals in a slot a meal out has
+  taken, and `tonight`/`today` use it — widgets, the Tonight card and Siri no
+  longer say "start the lasagne" on a night out. The Tonight card says
+  "Tonight · Eating out" instead; "What's for dinner?" answers "You're eating
+  out tonight, at The Swan."
+- **Health**: `HealthLog` writes nutrient values, not just a `Recipe`. A meal
+  out is written from the device that logged it (`loggedHere`), when its
+  estimate is in: `reconcileOutside` runs after each sync that pulled
+  something and writes, rewrites (the figures changed) or removes the entry.
+  Removing the meal on this device removes it. One entry, the whole portion,
+  at a usual hour for the meal type.
+
+To check on a device: a meal out logged with a menu photo (Vision's text,
+then the estimate), the Tonight card and Siri on a night out, the Health entry
+appearing after the estimate and going when the meal's removed, and an update
+from 1.65 keeping unsent changes through the resnapshot.

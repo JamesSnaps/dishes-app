@@ -1,9 +1,11 @@
 import { db } from "@/lib/db";
-import { mealPlans, mealPlanEntries, mealPlanGroups, recipes, recipeTags, recipeIngredients, cookHistory, shoppingLists, shoppingListItems } from "@dishes/db/schema";
+import { mealPlans, mealPlanEntries, mealPlanGroups, recipes, recipeTags, recipeIngredients, cookHistory, shoppingLists, shoppingListItems, householdMembers } from "@dishes/db/schema";
 import { householdHasCholesterolDiet } from "@/lib/services/heart-focus";
 import { eq, and, asc, inArray, count, avg } from "drizzle-orm";
 import { isMealRole } from "@dishes/shared";
 import { listMeals } from "@/lib/services/meals";
+import { listOutsideMeals, weekRange } from "@/lib/services/outside-meals";
+import { isStorageAvailable } from "@/lib/storage";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { WeekPlannerLocal } from "./_components/week-planner-local";
@@ -51,7 +53,7 @@ export default async function MealPlanPage({
     )
     .limit(1);
 
-  const [allEntriesRaw, allRecipesRaw, heartFocus, groups, savedMeals] = await Promise.all([
+  const [allEntriesRaw, allRecipesRaw, heartFocus, groups, savedMeals, outsideMeals, members] = await Promise.all([
     plan
       ? db
           .select({
@@ -132,6 +134,12 @@ export default async function MealPlanPage({
           .orderBy(asc(mealPlanGroups.createdAt))
       : Promise.resolve([]),
     listMeals({ householdId, memberId }),
+    listOutsideMeals(householdId, weekRange(weekStartDate)),
+    db
+      .select({ id: householdMembers.id, displayName: householdMembers.displayName })
+      .from(householdMembers)
+      .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.isActive, true)))
+      .orderBy(householdMembers.displayName),
   ]);
 
   const allEntries = allEntriesRaw.map((e) => ({
@@ -246,6 +254,11 @@ export default async function MealPlanPage({
         isCurrentWeek={isCurrentWeek}
         todayDayIndex={isCurrentWeek ? getTodayDayIndex() : -1}
         heartFocus={heartFocus}
+        people={{
+          members,
+          ownName: members.find((m) => m.id === memberId)?.displayName ?? null,
+          storageAvailable: isStorageAvailable(),
+        }}
         initial={{
           planId: plan?.id ?? null,
           entries: allEntries,
@@ -254,6 +267,7 @@ export default async function MealPlanPage({
           savedMeals,
           topIngredients,
           shoppingItemCount: Number(shoppingItemCount),
+          outsideMeals,
         }}
       />
     </>

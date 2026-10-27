@@ -19,6 +19,10 @@ public enum SyncCollection: String, CaseIterable, Codable, Hashable, Sendable {
     /// Saved meals, whole (meal + components + slots + options). Stored now;
     /// the planner's picker reads them next.
     case meals
+    /// Meals not cooked from the library — eaten out, takeaways, at friends',
+    /// skipped (server 1.66.0). Written through /api/v1/outside-meals, not as
+    /// sync mutations: logging one needs the server's AI anyway.
+    case outsideMeals
 }
 
 public struct PullResponse: Decodable, Sendable {

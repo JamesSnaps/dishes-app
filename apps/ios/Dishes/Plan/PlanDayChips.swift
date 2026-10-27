@@ -277,6 +277,34 @@ struct AwayDayChip: View {
     }
 }
 
+// MARK: Not cooking
+
+/// "Ate out?" (today and before) / "Not cooking?" (ahead): opens the meal-out
+/// sheet for the day's dinner. Hidden once dinner has one — its card says it.
+struct NotCookingChip: View {
+    let past: Bool
+    var compact = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "fork.knife")
+                Text(compact ? (past ? "Ate out?" : "Out?") : past ? "Ate out?" : "Not cooking?")
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 10).frame(height: 28)
+            .foregroundStyle(Color(light: 0x78350F, dark: 0xFDE68A))
+            .background(Capsule().fill(LinearGradient(colors: [Theme.amber50, Theme.orange50],
+                                                      startPoint: .leading, endPoint: .trailing)))
+            .overlay(Capsule().strokeBorder(Color(hex: 0xFCD34D).opacity(0.7)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(past ? "Log a meal eaten out" : "Not cooking this day")
+    }
+}
+
 // MARK: Delivery
 
 struct DeliveryDayChip: View {

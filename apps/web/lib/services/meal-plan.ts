@@ -25,7 +25,8 @@ import {
   householdMembers,
 } from "@dishes/db/schema";
 import { eq, and, asc, inArray, isNull, sql } from "drizzle-orm";
-import { MEAL_ROLES, MEAL_TYPES, isMealRole, type MealRole, type MealType } from "@dishes/shared";
+import { MEAL_ROLES, MEAL_TYPES, OUTSIDE_MEAL_KIND_LABELS, isMealRole, type MealRole, type MealType } from "@dishes/shared";
+import { listOutsideMeals, weekRange } from "@/lib/services/outside-meals";
 import { notifyHousehold } from "@/lib/push";
 import {
   getPantryExclusions,
@@ -339,21 +340,35 @@ export async function getWeekMealSlots(
   ctx: HouseholdContext,
   weekStartDate: string
 ): Promise<{ dayOfWeek: number; mealType: string; recipeTitle: string }[]> {
-  return db
-    .select({
-      dayOfWeek: mealPlanEntries.dayOfWeek,
-      mealType: mealPlanEntries.mealType,
-      recipeTitle: recipes.title,
-    })
-    .from(mealPlanEntries)
-    .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
-    .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
-    .where(
-      and(
-        eq(mealPlans.householdId, ctx.householdId),
-        eq(mealPlans.weekStartDate, weekStartDate)
-      )
-    );
+  const [planned, outside] = await Promise.all([
+    db
+      .select({
+        dayOfWeek: mealPlanEntries.dayOfWeek,
+        mealType: mealPlanEntries.mealType,
+        recipeTitle: recipes.title,
+      })
+      .from(mealPlanEntries)
+      .innerJoin(mealPlans, eq(mealPlanEntries.mealPlanId, mealPlans.id))
+      .innerJoin(recipes, eq(mealPlanEntries.recipeId, recipes.id))
+      .where(
+        and(
+          eq(mealPlans.householdId, ctx.householdId),
+          eq(mealPlans.weekStartDate, weekStartDate)
+        )
+      ),
+    listOutsideMeals(ctx.householdId, weekRange(weekStartDate)),
+  ]);
+  // A slot the household isn't cooking (eating out, a takeaway…) is taken too.
+  return [
+    ...planned,
+    ...outside.map((m) => ({
+      dayOfWeek: Math.round(
+        (Date.parse(`${m.date}T00:00:00Z`) - Date.parse(`${weekStartDate}T00:00:00Z`)) / 86_400_000
+      ),
+      mealType: m.mealType,
+      recipeTitle: [OUTSIDE_MEAL_KIND_LABELS[m.kind], m.title].filter(Boolean).join(" — "),
+    })),
+  ];
 }
 
 // --- Entry writes -----------------------------------------------------------

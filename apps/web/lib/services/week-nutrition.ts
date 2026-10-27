@@ -12,6 +12,8 @@ import {
 } from "@/lib/meal-stats";
 import { suggestSwaps, type SwapSuggestion } from "@/lib/meal-swaps";
 import { householdHasCholesterolDiet } from "@/lib/services/heart-focus";
+import { listOutsideMeals, weekRange } from "@/lib/services/outside-meals";
+import { countsAsMeal, outsideMealFacts } from "@/lib/outside-meals";
 
 export interface WeekNutrition {
   summary: MealSummary;
@@ -40,7 +42,7 @@ export async function getWeekNutrition(householdId: string, weekStartDate: strin
     .where(and(eq(mealPlans.householdId, householdId), eq(mealPlans.weekStartDate, weekStartDate)))
     .limit(1);
 
-  const [entries, library, heartFocus] = await Promise.all([
+  const [allEntries, library, heartFocus, outside] = await Promise.all([
     plan
       ? db
           .select({
@@ -67,7 +69,16 @@ export async function getWeekNutrition(householdId: string, weekStartDate: strin
       .from(recipes)
       .where(eq(recipes.householdId, householdId)),
     householdHasCholesterolDiet(householdId),
+    listOutsideMeals(householdId, weekRange(weekStartDate)),
   ]);
+
+  // A slot taken by a meal not cooked at home (eating out, a takeaway…)
+  // drops whatever recipe is still planned there; what was eaten counts
+  // instead — the same rule as the web planner (week-planner.tsx).
+  const dayOf = (date: string) =>
+    Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${weekStartDate}T00:00:00Z`)) / 86_400_000);
+  const taken = new Set(outside.map((m) => `${dayOf(m.date)}|${m.mealType}`));
+  const entries = allEntries.filter((e) => !taken.has(`${e.dayOfWeek}|${e.mealType}`));
 
   const ids = library.map((r) => r.id);
   const [ingredientRows, ratingRows] = ids.length
@@ -97,8 +108,8 @@ export async function getWeekNutrition(householdId: string, weekStartDate: strin
   }));
   const byId = new Map(swapLibrary.map((r) => [r.id, r]));
 
-  const summary = summariseMeals(
-    entries.map((e) => {
+  const summary = summariseMeals([
+    ...entries.map((e) => {
       const r = byId.get(e.recipeId);
       return {
         recipeId: e.recipeId,
@@ -107,8 +118,9 @@ export async function getWeekNutrition(householdId: string, weekStartDate: strin
         fiberG: r?.fiberG ?? null,
         ingredientNames: r?.ingredientNames ?? [],
       };
-    })
-  );
+    }),
+    ...outside.filter(countsAsMeal).map(outsideMealFacts),
+  ]);
 
   const targetKinds = PROTEIN_KINDS.filter((k) => WEEKLY_PROTEIN_TARGETS[k]);
   return {

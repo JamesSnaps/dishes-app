@@ -8,6 +8,7 @@ import { getDeliveryConfig, getNextOpenDelivery } from "@/lib/deliveries/schedul
 import { nextDeliveryJson } from "@/lib/deliveries/json";
 import { localNow } from "@/lib/dinner-reminders/time";
 import { householdClock, todayDinner, weekServeTimes } from "@/lib/integration-meal-times";
+import { outsideMealsJson } from "@/lib/integration-outside-meals";
 
 /** The next grocery order still open, or null when deliveries aren't set up. */
 async function nextDelivery(householdId: string) {
@@ -35,9 +36,10 @@ export const GET = withIntegrationAuth(
       )
       .limit(1);
 
-    const [dinner, delivery] = await Promise.all([
+    const [dinner, delivery, outsideMeals] = await Promise.all([
       todayDinner(ctx.householdId, clock),
       nextDelivery(ctx.householdId),
+      outsideMealsJson(ctx.householdId, date, date),
     ]);
 
     if (!plan) {
@@ -45,6 +47,7 @@ export const GET = withIntegrationAuth(
         date,
         timezone: clock.timezone,
         meals: [],
+        outsideMeals,
         dinner,
         nextDelivery: delivery,
       });
@@ -89,6 +92,7 @@ export const GET = withIntegrationAuth(
       meals: entries.map(({ dayOfWeek: _d, groupServeAt, ...entry }) =>
         withMealGroup({ ...entry, serveAt: serveAt({ dayOfWeek, mealType: entry.mealType, groupServeAt }) })
       ),
+      outsideMeals,
       dinner,
       nextDelivery: delivery,
     });

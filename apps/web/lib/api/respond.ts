@@ -25,6 +25,10 @@ import {
   UploadUnavailableError,
   UploadValidationError,
 } from "@/lib/services/upload";
+import {
+  OutsideMealNotFoundError,
+  OutsideMealValidationError,
+} from "@/lib/services/outside-meals";
 
 /**
  * Shared error envelope for /api/v1. Every failure the native client can see
@@ -79,7 +83,8 @@ export function withApiErrors<Args extends unknown[]>(
         err instanceof MealPlanNotFoundError ||
         err instanceof MealPlanEntryNotFoundError ||
         err instanceof CookEntryNotFoundError ||
-        err instanceof CollectionNotFoundError
+        err instanceof CollectionNotFoundError ||
+        err instanceof OutsideMealNotFoundError
       ) {
         return apiError("not_found", err.message, 404);
       }
@@ -90,7 +95,8 @@ export function withApiErrors<Args extends unknown[]>(
         err instanceof SyncCursorError ||
         err instanceof CookHistoryValidationError ||
         err instanceof UploadValidationError ||
-        err instanceof CollectionValidationError
+        err instanceof CollectionValidationError ||
+        err instanceof OutsideMealValidationError
       ) {
         return apiError("invalid_request", err.message, 400);
       }

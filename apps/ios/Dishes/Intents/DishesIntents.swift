@@ -94,6 +94,16 @@ struct WhatsForDinnerIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & OpensIntent {
         _ = try await readyApp()
+        if let out = try await IntentData.dinnerOut() {
+            let at = out.place ?? ""
+            let text: String = switch out.kind {
+            case .eatOut: at.isEmpty ? "You’re eating out tonight." : "You’re eating out tonight, at " + at + "."
+            case .takeaway: at.isEmpty ? "It’s a takeaway tonight." : "It’s a takeaway tonight, from " + at + "."
+            case .atFriends: at.isEmpty ? "You’re at friends’ for dinner tonight." : "You’re at " + at + " for dinner tonight."
+            case .skipped: "Dinner’s marked as skipped tonight."
+            }
+            return .result(opensIntent: OpenPlannerIntent(), dialog: IntentDialog(stringLiteral: text))
+        }
         guard let meal = try await IntentData.tonight() else {
             return .result(opensIntent: OpenPlannerIntent(), dialog: "Nothing’s planned for tonight yet.")
         }

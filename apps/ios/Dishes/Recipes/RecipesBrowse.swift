@@ -166,12 +166,20 @@ struct TonightCard: View {
         var cooked = false
         /// The main dish, else the first, for "View recipe" once it's cooked.
         var mainRecipeId: String?
+        /// Not cooking tonight: eating out, a takeaway… (nothing else to cook).
+        var out: OutsideMeal? = nil
     }
 
     let meal: Meal?
 
     @Sendable nonisolated static func load(_ r: StoreReader) throws -> Meal? {
-        guard case let (planned, cooked)? = try PlanData.load(r).tonight(cooked: PlanData.cookedToday(r)) else { return nil }
+        let data = try PlanData.load(r)
+        guard case let (planned, cooked)? = data.tonight(cooked: PlanData.cookedToday(r)) else {
+            // Nothing to cook — because they're out? Say so rather than "nothing planned".
+            let now = Date()
+            guard let out = data.notCooking("dinner", on: Week.dayIndex(of: now), in: Week.containing(now)) else { return nil }
+            return Meal(request: nil, mealType: "dinner", title: out.label, recipe: nil, serveAt: nil, dishCount: 0, out: out)
+        }
         let recipes = planned.dishes.compactMap(\.recipe)
         let cookable = CookDish.inStartOrder(recipes.filter { !$0.steps.isEmpty })
         return Meal(request: cookable.isEmpty ? nil : CookRequest(title: planned.title, groupId: planned.groupId, dishes: cookable),
@@ -195,7 +203,9 @@ struct TonightCard: View {
                 }
                 VStack(alignment: .leading, spacing: 6) {
                     Group {
-                        if meal.cooked {
+                        if let out = meal.out {
+                            Text("\(Image(systemName: "fork.knife")) TONIGHT · \(out.kind.label.uppercased())")
+                        } else if meal.cooked {
                             Text("\(Image(systemName: "checkmark.circle.fill")) COOKED TONIGHT · \(meal.mealType.uppercased())")
                         } else {
                             Text("TONIGHT · \(meal.mealType.uppercased())")

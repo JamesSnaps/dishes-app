@@ -30,6 +30,16 @@ struct PlanScreen: View {
     /// The day column a dragged meal is over.
     @State private var dropTarget: Int?
     @State private var extras = PlanWeekExtras()
+    /// The meal-out sheet: a meal to edit, or where a new one starts.
+    @State private var outsideSheet: OutsideTarget?
+
+    struct OutsideTarget: Identifiable {
+        var id = UUID()
+        var meal: OutsideMeal?
+        var date: String
+        var mealType: String
+        var plannedHere: [String]
+    }
 
     private var wholeWeek: Bool { pageWidth >= 1000 }
 
@@ -65,13 +75,18 @@ struct PlanScreen: View {
             }
             .environment(\.planActions, planActions)
             .sheet(isPresented: $generating) {
+                // A night out is as good as planned: the generator leaves it.
                 PlanGeneratorSheet(week: week, planned: Set((0..<7).filter { day in
                     data.value.meals(on: day, in: week).contains { $0.mealType == "dinner" }
+                        || data.value.notCooking("dinner", on: day, in: week) != nil
                 }))
                 .presentationSizing(.page)
             }
             .sheet(isPresented: $adding) {
                 AddMealSheet(week: week, day: selectedDay, plan: data.value.plan(for: week))
+            }
+            .sheet(item: $outsideSheet) { target in
+                OutsideMealSheet(meal: target.meal, date: target.date, mealType: target.mealType, plannedHere: target.plannedHere)
             }
         }
         .task { await data.follow(app.store, PlanData.load) }
@@ -90,6 +105,15 @@ struct PlanScreen: View {
         week.key + dinnerRecipes.map { $0.map(\.id).joined(separator: ",") }.joined(separator: "|")
             + "#\(data.value.entries(in: week).filter { $0.addedToShoppingListAt == nil }.count)"
             + "@\(app.serverRevision)"
+            + "~" + outsideKey
+    }
+
+    /// Meals out count towards the week's nutrition (server-side): the strip
+    /// reloads when one comes, goes or is estimated.
+    private var outsideKey: String {
+        let meals: [OutsideMeal] = (0..<7).flatMap { data.value.outsideMeals(on: $0, in: week) }
+        return meals.map { meal in "\(meal.id):\(meal.mealType):\(meal.nutritionSource):\(meal.calories ?? 0)" }
+            .joined(separator: ",")
     }
 
     private func reloadExtras() async {
@@ -106,7 +130,8 @@ struct PlanScreen: View {
         if let away = extras.deliveries?.away(on: localDateKey(week.day(day))) {
             AwayDayChip(away: away)
         }
-        if let dinner = extras.dinner?.days.first(where: { $0.dayOfWeek == day }) {
+        let outDinner = data.value.notCooking("dinner", on: day, in: week)
+        if outDinner == nil, let dinner = extras.dinner?.days.first(where: { $0.dayOfWeek == day }) {
             DinnerTimeChip(date: week.day(day), day: dinner, dishes: dinnerRecipes[day],
                            estimates: extras.dinner?.estimates ?? [:], scheduled: extras.dinner?.scheduled?[String(day)],
                            compact: compact) { extras.update($0) }
@@ -116,6 +141,18 @@ struct PlanScreen: View {
                 await extras.load(week: week.key, dinnerRecipeIds: dinnerRecipes.flatMap { $0 }.map(\.id))
             }
         }
+        if outDinner == nil {
+            NotCookingChip(past: week.dayKey(day) <= localDateKey(Date()), compact: compact) { openOutside(nil, day: day) }
+        }
+    }
+
+    /// The meal-out sheet, for a meal or a new one on `day` (dinner, unless said).
+    private func openOutside(_ meal: OutsideMeal?, day: Int, mealType: String = "dinner") {
+        let type = meal?.mealType ?? mealType
+        outsideSheet = OutsideTarget(
+            meal: meal, date: meal?.date ?? week.dayKey(day), mealType: type,
+            plannedHere: data.value.meals(on: day, in: week).filter { $0.mealType == type }
+                .map { $0.title ?? $0.dishes.first?.recipe?.title ?? "A recipe" })
     }
 
     // MARK: Header
@@ -158,6 +195,7 @@ struct PlanScreen: View {
         return Menu {
             Button("Add meal", systemImage: "plus") { adding = true }
             Button("Generate plan…", systemImage: "sparkles") { generating = true }
+            Button("Not cooking — eating out…", systemImage: "fork.knife") { openOutside(nil, day: selectedDay) }
             Divider()
             Button(sending ? "Adding…" : notOnList > 0 ? "Add \(notOnList) meal\(notOnList == 1 ? "" : "s") to shopping list" : "All on the shopping list",
                    systemImage: notOnList > 0 ? "cart.badge.plus" : "checkmark") {
@@ -190,8 +228,9 @@ struct PlanScreen: View {
                 let date = week.day(day)
                 let isToday = Calendar.current.isDateInToday(date)
                 let selected = day == selectedDay
-                let count = data.value.meals(on: day, in: week).count
+                let count = data.value.meals(on: day, in: week).count + data.value.outsideMeals(on: day, in: week).count
                 let away = extras.deliveries?.away(on: localDateKey(date)) != nil
+                let out = data.value.notCooking("dinner", on: day, in: week) != nil
                 Button { selectedDay = day } label: {
                     VStack(spacing: 4) {
                         Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
@@ -219,6 +258,15 @@ struct PlanScreen: View {
                                 .foregroundStyle(Color(hex: 0x0EA5E9))
                                 .padding(5)
                                 .accessibilityLabel("Away")
+                        }
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if out {
+                            Image(systemName: "fork.knife")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Color(hex: 0xD97706))
+                                .padding(5)
+                                .accessibilityLabel("Not cooking")
                         }
                     }
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -251,6 +299,7 @@ struct PlanScreen: View {
     private var dayDetail: some View {
         let date = week.day(selectedDay)
         let meals = data.value.meals(on: selectedDay, in: week)
+        let outside = data.value.outsideMeals(on: selectedDay, in: week)
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Text(date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
@@ -269,15 +318,19 @@ struct PlanScreen: View {
             .padding(.top, 6)
             FlowLayout(spacing: 8) { dayChips(selectedDay) }
 
-            if meals.isEmpty {
+            if meals.isEmpty && outside.isEmpty {
                 EmptyBox(message: "No meals planned for this day")
+            }
+            ForEach(outside) { meal in
+                Button { openOutside(meal, day: selectedDay) } label: { OutsideMealCard(meal: meal) }
+                    .buttonStyle(.plain)
             }
             // iOS 27: drag a meal up or down to arrange the day (D6).
             VStack(alignment: .leading, spacing: 12) {
                 if #available(iOS 27, *) {
-                    ForEach(meals) { mealCard($0) }.reorderable()
+                    ForEach(meals) { mealCard($0, day: selectedDay) }.reorderable()
                 } else {
-                    ForEach(meals) { mealCard($0) }
+                    ForEach(meals) { mealCard($0, day: selectedDay) }
                 }
             }
             .modifier(ReorderDay { sources, before in reorder(sources, before: before, in: meals) })
@@ -288,12 +341,22 @@ struct PlanScreen: View {
         }
     }
 
-    private func mealCard(_ meal: PlannedMeal) -> some View {
-        Group {
-            if meal.title != nil {
-                MealGroupCard(meal: meal, delete: delete, cook: cook)
-            } else if let dish = meal.dishes.first {
-                EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete) { cook(meal) }
+    private func mealCard(_ meal: PlannedMeal, day: Int) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Group {
+                if meal.title != nil {
+                    MealGroupCard(meal: meal, delete: delete, cook: cook)
+                } else if let dish = meal.dishes.first {
+                    EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete) { cook(meal) }
+                }
+            }
+            // Still planned where a meal out has taken the slot: it won't be
+            // cooked, so it isn't counted — say so, or it looks like it is.
+            if data.value.notCooking(meal.mealType, on: day, in: week) != nil {
+                Label("Not cooking this \(meal.mealType) — it isn’t counted. Move it to another day to keep it.", systemImage: "fork.knife")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: 0x92400E))
+                    .padding(.horizontal, 4)
             }
         }
         .appEntityIdentifier(EntityIdentifier(for: PlannedMealEntity.self, identifier: meal.id))
@@ -353,6 +416,11 @@ struct PlanScreen: View {
                         VStack(alignment: .leading, spacing: 6) { dayChips(day, compact: true) }
                     }
                     .padding(.horizontal, 4)
+
+                    ForEach(data.value.outsideMeals(on: day, in: week)) { meal in
+                        Button { openOutside(meal, day: day) } label: { OutsideMealCard(meal: meal, compact: true) }
+                            .buttonStyle(.plain)
+                    }
 
                     ForEach(data.value.meals(on: day, in: week)) { meal in
                         WeekMealCard(meal: meal, link: MealLink(id: meal.id, week: week, day: day), delete: delete, cook: cook)

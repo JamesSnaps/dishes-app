@@ -33,6 +33,33 @@ export function isMealRole(v: unknown): v is MealRole {
   return typeof v === "string" && (MEAL_ROLES as readonly string[]).includes(v);
 }
 
+// A meal not cooked from the library (outside_meals.kind). Order here is
+// display order.
+export const OUTSIDE_MEAL_KINDS = ["eat_out", "takeaway", "at_friends", "skipped"] as const;
+export type OutsideMealKind = (typeof OUTSIDE_MEAL_KINDS)[number];
+
+export const OUTSIDE_MEAL_KIND_LABELS: Record<OutsideMealKind, string> = {
+  eat_out: "Eating out",
+  takeaway: "Takeaway",
+  at_friends: "At friends'",
+  skipped: "Skipped",
+};
+
+export function isOutsideMealKind(v: unknown): v is OutsideMealKind {
+  return typeof v === "string" && (OUTSIDE_MEAL_KINDS as readonly string[]).includes(v);
+}
+
+// How big the plate was next to a usual restaurant portion — steers the
+// nutrition estimate (outside_meals.portion).
+export const OUTSIDE_MEAL_PORTIONS = ["lighter", "typical", "indulgent"] as const;
+export type OutsideMealPortion = (typeof OUTSIDE_MEAL_PORTIONS)[number];
+
+export const OUTSIDE_MEAL_PORTION_LABELS: Record<OutsideMealPortion, string> = {
+  lighter: "Lighter",
+  typical: "Typical",
+  indulgent: "Indulgent",
+};
+
 export interface AutheliaUser {
   username: string;
   displayName: string;

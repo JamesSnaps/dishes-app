@@ -137,6 +137,68 @@ items still open below are optional extras or Phase 2 / mobile groundwork.
 - [x] Edit a history entry with the full review form (duration, who ate, ratings, photo)
 - [ ] Record who ate planned meals (not just logged cooks), so per-person stats don't have to assume everyone
 
+## Meals Eaten Out
+Meals not cooked from the library (restaurant, takeaway, at friends', skipped) are a gap in the
+health picture: a steak out never counts towards the red-meat target, a takeaway's sat fat and
+salt never reach the weekly averages, and Apple Health misses whole meals. Nutrition is the point
+of this feature — without it, it's only a planner nicety.
+
+Scope decisions (27 Oct 2026):
+- A separate `outside_meals` table, household-scoped — **not** a nullable `recipe_id` on
+  `meal_plan_entries`/`cook_history` (shopping, reminders, the integrations API and sync all assume
+  a recipe) and **not** a placeholder "Eating out" recipe (would pool every restaurant's ratings
+  and pollute the library and cuisine stats). A future date is a plan, a past date is a log
+- Inputs, any combination: a typed description (the minimum), the **menu** (photo → Vision text
+  on the device, or pasted text) and a **photo of the plate**. The menu line names the components
+  ("8oz ribeye, triple-cooked chips, peppercorn sauce") and the plate photo shows portion size and
+  what actually came; together they give the best estimate. A kcal figure printed on the menu
+  (larger chains in England must show one) is taken as given and the other nutrients are scaled to it
+- Device first for reading, server for numbers. On iOS 27 the on-device model turns the inputs
+  into structured "what was eaten": components, main ingredients, cuisine, portion (lighter /
+  typical / indulgent) — offline and instant. Main ingredients go through `proteinsOf()`, so
+  heart-focus protein targets update before any numbers exist. The 8 nutrients are then estimated
+  on the server with the household key, in the background (like scanned recipes), arriving on the
+  next sync. iOS 27 has nothing usable for this: the Health app's camera rating is qualitative,
+  never reaches HealthKit and has no API; label scanning only covers packaged food
+- Estimates are labelled as estimates everywhere they show (restaurant food is rougher than a
+  recipe: hidden butter/oil, unknown portions)
+
+Steps:
+- [x] Step 1 — schema + migration: `outside_meals` (`household_id`, `date`, `meal_type`, `kind`
+  eat_out/takeaway/at_friends/skipped, `title`, `place`, `cuisine`, `components` jsonb,
+  `main_ingredients` text[], `portion`, the 8 nutrient columns + `nutrition_source`
+  (+ `menu_kcal`), `cooked_for`, `rating`, `member_ratings`, `notes`, `photo_url`,
+  `menu_photo_url`). Same rating shapes as `cook_history` so the review UI is reused (v1.66.0, migration 0047)
+- [x] Step 2 — server: CRUD actions + `/api/v1` routes; restaurant-portion nutrition estimator,
+  a sibling of `estimateNutritionFor` in `app/actions/ai.ts` (same output schema; a one-portion,
+  restaurant-aware prompt, menu kcal as an anchor, the plate photo when given); runs after save —
+  `lib/ai/outside-meal-nutrition.ts`, `lib/services/outside-meals.ts` (v1.66.0)
+- [x] Step 3 — planner: a "Not cooking" chip on a day (kind + place), which turns off that day's
+  dinner reminder and stops AI planning and Plan My Week from filling the slot; a recipe still
+  planned in the slot is marked as not counted (v1.66.0)
+- [x] Step 4 — "Log a meal out" sheet (web): description, menu photo/text, plate photo, kind,
+  place, who ate, rating; also reachable from the "Not cooking" chip once the day has passed
+  (v1.66.0; own rating only — per-person ratings are stored but the sheet doesn't ask for them yet)
+- [x] Step 5 — health: include in `summariseMeals()` for the week nutrition card and Stats heart
+  health, and in `meal-history.ts` (Stats, Wrapped, taste profile, recent-meal variety for the
+  AI planner). Rated meals out feed the taste profile; the red-meat words now include cuts and
+  dishes (ribeye, burger, kofta…) so a meal out counts before the AI reads it (v1.66.0)
+- [x] Step 6 — sync: new entity through the sync layer (web `sync-store`, `packages/client`,
+  `DishesCore/Sync`, wire fixtures) — the biggest single cost. *Server, `packages/client` and the
+  web store in v1.66.0 (Dexie v4 resnapshot); DishesCore in v1.67.0 (store migration
+  `v2-outside-meals` resnapshots). The recorded wire fixture predates it and isn't re-recorded*
+- [x] Step 7 — iOS (v1.67.0, **written without a Swift toolchain — build and test it first**, see
+  `apps/ios/RUNBOOK.md`): plan-day chip, cards, + menu, log sheet; the menu photo read by Vision on
+  the device (no on-device model job — that waits for an evaluation); `HealthLog` takes nutrient
+  values and writes a meal out from the device that logged it once the estimate arrives by sync;
+  Tonight card, widgets and Siri skip a slot taken by a meal out; plan generation starts with nights
+  out unticked. Server: `?estimate=false` on the v1 writes so the app asks for one estimate itself
+- [x] Integrations API: outside meals on `today`/`week` (`API.md`, `integrations-catalog.ts`); `dinner.notCooking`;
+  `meal-plan/generate` skips not-cooking days and lists them (v1.66.0)
+- [ ] Later: "Make it at home" (send the meal to the concierge), Memories wall photos, meals out in Wrapped
+  (planned recipes they replaced already drop out of it)
+- Not planned: cost/budget tracking, restaurant lookup or maps
+
 ## AI — Photo Recipe Import
 - [x] Scan a recipe photo (camera or gallery) from the New Recipe page
 - [x] Client-side image resize before sending (≤ 1600 px JPEG)

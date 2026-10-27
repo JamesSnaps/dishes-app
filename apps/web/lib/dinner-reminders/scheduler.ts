@@ -145,8 +145,9 @@ async function remindHousehold(householdId: string, users: string[]): Promise<vo
   const now = localNow(settings.timezone);
   const plan = await getDinnerPlan(householdId, now.date, settings);
 
-  // The day's "no reminder" switch silences everything for it, schedules too.
-  if (!plan.dinner.reminderEnabled) return;
+  // The day's "no reminder" switch silences everything for it, schedules too —
+  // and so does not cooking at all (eating out, a takeaway…).
+  if (!plan.dinner.reminderEnabled || plan.dinner.notCooking) return;
 
   const schedules = await schedulesForDate(
     householdId,

@@ -5,7 +5,8 @@ import { mealPlans, mealPlanEntries, mealPlanGroups, recipes } from "@dishes/db/
 import { eq, and } from "drizzle-orm";
 import { withMealGroup } from "@/lib/integration-meal-groups";
 import { householdClock, weekServeTimes } from "@/lib/integration-meal-times";
-import { weekStartOf } from "@/lib/dinner-reminders/time";
+import { addDaysToDate, weekStartOf } from "@/lib/dinner-reminders/time";
+import { outsideMealsJson } from "@/lib/integration-outside-meals";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -34,8 +35,10 @@ export const GET = withIntegrationAuth(
       )
       .limit(1);
 
+    const outsideMeals = await outsideMealsJson(ctx.householdId, weekStartDate, addDaysToDate(weekStartDate, 6));
+
     if (!plan) {
-      return NextResponse.json({ weekStartDate, timezone: clock.timezone, entries: [] });
+      return NextResponse.json({ weekStartDate, timezone: clock.timezone, entries: [], outsideMeals });
     }
 
     const [entries, serveAt] = await Promise.all([
@@ -73,6 +76,7 @@ export const GET = withIntegrationAuth(
       entries: entries.map(({ groupServeAt, ...entry }) =>
         withMealGroup({ ...entry, serveAt: serveAt({ ...entry, groupServeAt }) })
       ),
+      outsideMeals,
     });
   }
 );

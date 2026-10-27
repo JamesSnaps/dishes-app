@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from "react";
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -15,6 +15,7 @@ import {
   Heart,
   AlertTriangle,
   Check,
+  UtensilsCrossed,
 } from "lucide-react";
 import {
   DndContext,
@@ -68,6 +69,10 @@ import { usePlanWriter } from "./plan-writer";
 import { WeekNutritionPanel } from "./week-nutrition-card";
 import { summariseMeals, meetsTarget, WEEKLY_PROTEIN_TARGETS, type ProteinKind } from "@/lib/meal-stats";
 import { suggestSwaps, type SwapSuggestion } from "@/lib/meal-swaps";
+import { countsAsMeal, outsideMealFacts, type OutsideMealView } from "@/lib/outside-meals";
+import { OutsideMealSheet, localToday } from "@/components/outside-meals/outside-meal-sheet";
+import type { ReviewMember } from "@/components/cook-review/cook-review-form";
+import { OutsideMealCard } from "./outside-meal-card";
 
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
@@ -207,6 +212,18 @@ export interface WeekPlannerProps {
    * driven from here either way.
    */
   onNavigateWeek?: (weekStartDate: string) => void;
+  /** This week's meals not cooked from the plan — eaten out, takeaways, skipped. */
+  outsideMeals?: OutsideMealView[];
+  /** Who can be picked as eating, and whether photos can be stored. */
+  people?: { members: ReviewMember[]; ownName: string | null; storageAvailable: boolean };
+  /** An outside meal was saved or removed: re-read wherever they come from. */
+  onOutsideMealsChanged?: () => void;
+}
+
+/** 0=Mon … 6=Sun for a date in the week starting `weekStart`; -1 outside it. */
+function dayInWeek(weekStart: string, date: string): number {
+  const day = Math.round((Date.parse(date + "T00:00:00Z") - Date.parse(weekStart + "T00:00:00Z")) / 86_400_000);
+  return day >= 0 && day < 7 ? day : -1;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -475,6 +492,7 @@ function DroppableDayChip({
   hasSuggestion,
   delivery,
   away,
+  notCooking = false,
   onClick,
 }: {
   dayIndex: number;
@@ -489,6 +507,8 @@ function DroppableDayChip({
   delivery: "scheduled" | "ordered" | null;
   /** The household is away on holiday this day. */
   away: boolean;
+  /** A meal that day isn't cooked from the plan (eating out, takeaway…). */
+  notCooking?: boolean;
   onClick: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIndex}` });
@@ -555,6 +575,12 @@ function DroppableDayChip({
         <Plane
           className="absolute right-1 bottom-1 h-3 w-3 text-sky-500 dark:text-sky-400"
           aria-label="Away"
+        />
+      )}
+      {notCooking && (
+        <UtensilsCrossed
+          className="absolute left-1 top-1 h-3 w-3 text-amber-600 dark:text-amber-400"
+          aria-label="Not cooking"
         />
       )}
       {mealCount > 0 ? (
@@ -782,6 +808,9 @@ export function WeekPlanner({
   heartFocus = false,
   mutations,
   onNavigateWeek,
+  outsideMeals = [],
+  people,
+  onOutsideMealsChanged,
 }: WeekPlannerProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -812,6 +841,14 @@ export function WeekPlanner({
   // Local entries for optimistic drag updates
   const [localEntries, setLocalEntries] = useState<Entry[]>(entries);
   const [localGroups, setLocalGroups] = useState<PlannedGroup[]>(groups);
+  // This week's outside meals, updated in place after a save until the
+  // store (or a server refresh) catches up.
+  const [localOutside, setLocalOutside] = useState<OutsideMealView[]>(outsideMeals);
+  const [outsideSheet, setOutsideSheet] = useState<{
+    meal: OutsideMealView | null;
+    date: string;
+    mealType: MealType;
+  } | null>(null);
   const [activeDragEntry, setActiveDragEntry] = useState<Entry | null>(null);
   const [activeDragGroup, setActiveDragGroup] = useState<{
     group: PlannedGroup;
@@ -832,6 +869,10 @@ export function WeekPlanner({
   useEffect(() => {
     setLocalGroups(groups);
   }, [groups]);
+
+  useEffect(() => {
+    setLocalOutside(outsideMeals);
+  }, [outsideMeals]);
 
   useEffect(() => {
     setSelectedDay(
@@ -1044,12 +1085,33 @@ export function WeekPlanner({
   const dayItems = useMemo(() => groupEntries(localEntries, localGroups), [localEntries, localGroups]);
   const totalMeals = dayItems.length;
 
+  // Outside meals by day, and the slots they take: a recipe still planned in
+  // one won't be cooked, so it doesn't count towards the week.
+  const outsideByDay = useMemo(() => {
+    const byDay = new Map<number, OutsideMealView[]>();
+    for (const m of localOutside) {
+      const day = dayInWeek(weekStartDate, m.date);
+      if (day < 0) continue;
+      byDay.set(day, [...(byDay.get(day) ?? []), m]);
+    }
+    return byDay;
+  }, [localOutside, weekStartDate]);
+  const takenSlot = useCallback(
+    (dayOfWeek: number, mealType: MealType) =>
+      (outsideByDay.get(dayOfWeek) ?? []).some((m) => m.mealType === mealType),
+    [outsideByDay]
+  );
+  const countedEntries = useMemo(
+    () => localEntries.filter((e) => !takenSlot(e.dayOfWeek, e.mealType)),
+    [localEntries, takenSlot]
+  );
+
   // Nutrition summary and swap suggestions, recomputed as entries move.
   const recipeById = useMemo(() => new Map(recipes.map((r) => [r.id, r])), [recipes]);
   const nutritionSummary = useMemo(
     () =>
-      summariseMeals(
-        localEntries.map((e) => {
+      summariseMeals([
+        ...countedEntries.map((e) => {
           const r = recipeById.get(e.recipe.id);
           return {
             recipeId: e.recipe.id,
@@ -1058,15 +1120,18 @@ export function WeekPlanner({
             fiberG: r?.fiberG ?? null,
             ingredientNames: r?.ingredientNames ?? [],
           };
-        })
-      ),
-    [localEntries, recipeById]
+        }),
+        // What was eaten out counts like anything cooked: a steak out is the
+        // week's red meat.
+        ...[...outsideByDay.values()].flat().filter(countsAsMeal).map(outsideMealFacts),
+      ]),
+    [countedEntries, recipeById, outsideByDay]
   );
   const suggestions = useMemo(
     () =>
       heartFocus
         ? suggestSwaps(
-            localEntries.map((e) => ({
+            countedEntries.map((e) => ({
               id: e.id,
               dayOfWeek: e.dayOfWeek,
               mealType: e.mealType,
@@ -1076,7 +1141,7 @@ export function WeekPlanner({
             nutritionSummary.proteins
           )
         : [],
-    [heartFocus, localEntries, recipes, nutritionSummary]
+    [heartFocus, countedEntries, recipes, nutritionSummary]
   );
   const suggestionByEntry = useMemo(
     () => new Map(suggestions.map((sg) => [sg.entryId, sg])),
@@ -1241,6 +1306,36 @@ export function WeekPlanner({
 
   const weekTitle = isCurrentWeek ? "This Week" : formatWeekRange(weekStartDate);
 
+  const selectedDate = addDays(weekStartDate, selectedDay);
+  const selectedOutside = [...(outsideByDay.get(selectedDay) ?? [])].sort(
+    (a, b) => MEAL_TYPE_ORDER.indexOf(a.mealType) - MEAL_TYPE_ORDER.indexOf(b.mealType)
+  );
+  const notCookingDinner = selectedOutside.some((m) => m.mealType === "dinner");
+
+  function openOutside(meal: OutsideMealView | null, mealType: MealType = "dinner") {
+    setOutsideSheet({ meal, date: meal?.date ?? selectedDate, mealType: meal?.mealType ?? mealType });
+  }
+
+  /** Put the saved meal in place straight away; the store follows. */
+  function handleOutsideSaved(saved: OutsideMealView | null) {
+    const editingId = outsideSheet?.meal?.id;
+    setLocalOutside((prev) => {
+      const rest = prev.filter((m) => m.id !== (saved?.id ?? editingId));
+      return saved && dayInWeek(weekStartDate, saved.date) >= 0 ? [...rest, saved] : rest;
+    });
+    onOutsideMealsChanged?.();
+  }
+
+  // Recipes still planned in the slot the sheet opened on.
+  const plannedInSheetSlot = outsideSheet
+    ? (() => {
+        const day = dayInWeek(weekStartDate, outsideSheet.date);
+        return localEntries
+          .filter((e) => e.dayOfWeek === day && e.mealType === outsideSheet.mealType)
+          .map((e) => e.recipe.title);
+      })()
+    : [];
+
   return (
     <div
       className="p-4 lg:p-8 overflow-hidden"
@@ -1312,6 +1407,12 @@ export function WeekPlanner({
                   <Sparkles className="mr-2 h-4 w-4 text-violet-500" />
                   Generate plan…
                 </DropdownMenuItem>
+                {people && (
+                  <DropdownMenuItem onSelect={() => openOutside(null)}>
+                    <UtensilsCrossed className="mr-2 h-4 w-4 text-amber-600" />
+                    Not cooking — eating out…
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 {totalMeals > 0 && planId && pendingShoppingCount > 0 ? (
                   <DropdownMenuItem disabled={shoppingPending} onSelect={handleGenerateShopping}>
@@ -1447,7 +1548,8 @@ export function WeekPlanner({
           {/* ── Day strip — droppable chips ── */}
           <div className="grid grid-cols-7 gap-1.5 mb-5">
             {Array.from({ length: 7 }, (_, i) => {
-              const mealCount = dayItems.filter((item) => itemDay(item) === i).length;
+              const mealCount =
+                dayItems.filter((item) => itemDay(item) === i).length + (outsideByDay.get(i)?.length ?? 0);
               return (
                 <DroppableDayChip
                   key={`${weekStartDate}-${i}`}
@@ -1464,6 +1566,7 @@ export function WeekPlanner({
                     return d && d.status !== "skipped" ? d.status : null;
                   })()}
                   away={!!awayOn(addDays(weekStartDate, i))}
+                  notCooking={(outsideByDay.get(i) ?? []).some((m) => m.mealType === "dinner")}
                   onClick={() => setSelectedDay(i)}
                 />
               );
@@ -1510,7 +1613,7 @@ export function WeekPlanner({
                   Today
                 </span>
               )}
-              {selectedDinnerDay && dinnerSchedule && (
+              {selectedDinnerDay && dinnerSchedule && !notCookingDinner && (
                 <DinnerTimeChip
                   date={addDays(weekStartDate, selectedDay)}
                   dayLabel={selectedDayLabel}
@@ -1541,14 +1644,32 @@ export function WeekPlanner({
                   onChanged={reloadDeliveries}
                 />
               )}
+              {people && !notCookingDinner && (
+                <button
+                  type="button"
+                  onClick={() => openOutside(null)}
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-300/70 bg-gradient-to-r from-amber-50 to-orange-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 shadow-sm transition-colors hover:from-amber-100 hover:to-orange-100 dark:border-amber-800/60 dark:from-amber-950/50 dark:to-orange-950/30 dark:text-amber-200"
+                >
+                  <UtensilsCrossed className="h-3 w-3" />
+                  {selectedDate <= localToday() ? "Ate out?" : "Not cooking?"}
+                </button>
+              )}
             </div>
 
-            {selectedDayItems.length > 0 ? (
+            {selectedDayItems.length > 0 || selectedOutside.length > 0 ? (
               <ul className="space-y-3 mb-4">
-                {selectedDayItems.map((item) =>
-                  item.kind === "group" ? (
+                {selectedOutside.map((m) => (
+                  <OutsideMealCard
+                    key={m.id}
+                    meal={m}
+                    isPast={m.date <= localToday()}
+                    onOpen={() => openOutside(m)}
+                  />
+                ))}
+                {selectedDayItems.map((item) => (
+                  <Fragment key={item.kind === "group" ? item.group.id : item.entry.id}>
+                  {item.kind === "group" ? (
                     <DraggableMealGroup
-                      key={item.group.id}
                       group={item.group}
                       entries={item.entries}
                       weekStartDate={weekStartDate}
@@ -1563,7 +1684,6 @@ export function WeekPlanner({
                     />
                   ) : (
                     <DraggableMealEntry
-                      key={item.entry.id}
                       entry={item.entry}
                       weekStartDate={weekStartDate}
                       mutations={mutations}
@@ -1574,8 +1694,17 @@ export function WeekPlanner({
                       joinableGroups={selectedDayGroups}
                       onJoinGroup={(groupId) => writer.setEntryGroup(item.entry.id, groupId, "side")}
                     />
-                  )
-                )}
+                  )}
+                  {/* Still planned in a slot taken by a meal out: it won't be
+                      cooked, so it isn't counted — say so, or it looks like it is. */}
+                  {takenSlot(selectedDay, item.mealType) && (
+                    <li className="-mt-1.5 flex items-center gap-1.5 px-1 text-xs text-amber-800 dark:text-amber-300">
+                      <UtensilsCrossed className="h-3 w-3 flex-shrink-0" />
+                      Not cooking this {item.mealType} — it isn&rsquo;t counted. Move it to another day to keep it.
+                    </li>
+                  )}
+                  </Fragment>
+                ))}
               </ul>
             ) : (
               <div className="rounded-xl border border-dashed bg-muted/20 py-10 flex flex-col items-center gap-2 mb-4 text-muted-foreground">
@@ -1600,6 +1729,20 @@ export function WeekPlanner({
             )}
           </div>
         </div>
+
+        {people && (
+          <OutsideMealSheet
+            open={outsideSheet !== null}
+            onOpenChange={(o) => !o && setOutsideSheet(null)}
+            meal={outsideSheet?.meal ?? null}
+            defaults={{ date: outsideSheet?.date ?? selectedDate, mealType: outsideSheet?.mealType ?? "dinner" }}
+            members={people.members}
+            ownName={people.ownName}
+            storageAvailable={people.storageAvailable}
+            plannedInSlot={plannedInSheetSlot}
+            onSaved={handleOutsideSaved}
+          />
+        )}
 
         <BuildMealDialog
           meal={building?.meal ?? null}

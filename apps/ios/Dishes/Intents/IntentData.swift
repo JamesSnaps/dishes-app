@@ -51,10 +51,22 @@ enum IntentData {
         return data.meals(on: Week.dayIndex(of: date), in: week).map { PlannedMealEntity($0, on: week.day(Week.dayIndex(of: date))) }
     }
 
-    /// Tonight: today's dinner, or the last meal planned for today (as TonightMeal picks it).
+    /// Tonight: today's dinner, or the last meal planned for today (as TonightMeal picks it) —
+    /// never one in a slot a meal out has taken, which won't be cooked.
     static func tonight() async throws -> PlannedMealEntity? {
-        let meals = try await meals(on: Date())
+        let store = await MainActor.run { Self.store }
+        let data = try await store.read(PlanData.load)
+        let now = Date(), week = Week.containing(now), day = Week.dayIndex(of: now)
+        let meals = data.cookable(on: day, in: week).map { PlannedMealEntity($0, on: week.day(day)) }
         return meals.first { $0.mealType == "dinner" } ?? meals.last
+    }
+
+    /// Tonight's dinner when it isn't cooked at home: eating out, a takeaway…
+    static func dinnerOut() async throws -> OutsideMeal? {
+        let store = await MainActor.run { Self.store }
+        let data = try await store.read(PlanData.load)
+        let now = Date()
+        return data.notCooking("dinner", on: Week.dayIndex(of: now), in: Week.containing(now))
     }
 
     /// The active list's items (and any added before a list existed).

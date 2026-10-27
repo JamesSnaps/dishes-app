@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { aiConfigurations, recipes, recipeIngredients, mealPlanEntries, mealPlans, cookHistory, recipeTags, householdMembers, tasteProfiles, collections } from "@dishes/db/schema";
 import { eq, and, count, max, avg, desc, inArray, isNull, isNotNull, sql } from "drizzle-orm";
-import { MEAL_TYPES } from "@dishes/shared";
+import { MEAL_TYPES, OUTSIDE_MEAL_KIND_LABELS } from "@dishes/shared";
 import { CHOLESTEROL_DIETARY_FLAG, isHeartHealthy } from "@/lib/heart-healthy";
 import { decrypt } from "@/lib/crypto";
 import { resolveIdentity } from "@/lib/auth";
@@ -18,6 +18,8 @@ import { createLogger } from "@/lib/logger";
 import { FREQUENT_MIN_USES } from "@/lib/services/recipe-library";
 import { summariseTasteProfile } from "@/lib/ai/taste-summary";
 import { getWrappedReport } from "@/lib/services/wrapped";
+import { listOutsideMeals, weekRange } from "@/lib/services/outside-meals";
+import { dayOfWeekOf } from "@/lib/dinner-reminders/time";
 import { cacheRecap, getCachedRecap, recapSourceLines } from "@/lib/services/wrapped-recap";
 import { ratingsByPerson, sameName, type PersonRating } from "@/lib/cook-ratings";
 import type { MemberRating } from "@dishes/db/schema";
@@ -1659,7 +1661,18 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
           )
       : [];
 
-    const alreadyPlannedBlock = alreadyPlanned.length > 0
+    // Meals the household isn't cooking this week — eating out, a takeaway,
+    // at friends'. Their slots aren't planned, and what's eaten counts
+    // towards the week like any planned meal (a steak out is the week's red meat).
+    const notCooking = weekStartDate ? await listOutsideMeals(householdId, weekRange(weekStartDate)) : [];
+    const notCookingLines = notCooking.map((m) => {
+      const day = DAY_NAMES[dayOfWeekOf(m.date)];
+      const what = m.kind === "skipped" ? "skipped" : [OUTSIDE_MEAL_KIND_LABELS[m.kind].toLowerCase(), m.title].filter(Boolean).join(": ");
+      const facts = [m.cuisine, m.calories ? `${m.calories} kcal` : null, m.saturatedFatG != null ? `sat fat ${m.saturatedFatG}g` : null].filter(Boolean);
+      return `${day} ${m.mealType} — ${what}${facts.length ? ` (${facts.join(", ")})` : ""}`;
+    });
+
+    const alreadyPlannedBlock = alreadyPlanned.length > 0 || notCookingLines.length > 0
       ? `\n\nALREADY PLANNED THIS WEEK — these meals are part of the same week as the ones you are planning, so treat the week as a whole: do not repeat these dishes, balance cuisine, main protein and vegetables against them, and count them towards any weekly targets below rather than planning your slots as a separate mini-week: ` +
         alreadyPlanned
           .map((e) => {
@@ -1672,6 +1685,7 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
             ].filter(Boolean);
             return `${DAY_NAMES[e.dayOfWeek]} ${e.mealType} — ${e.title}${facts.length ? ` (${facts.join(", ")})` : ""}`;
           })
+          .concat(notCookingLines)
           .join("; ") +
         "."
       : "";
@@ -1722,7 +1736,10 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
       (filterHints ? `\n\n${filterHints}` : "") +
       memberConstraints;
 
-    const slots = requestedSlots;
+    const slots = requestedSlots.filter(
+      (sl) => !notCooking.some((m) => dayOfWeekOf(m.date) === sl.dayOfWeek && m.mealType === sl.mealType)
+    );
+    if (!slots.length) return { error: "You're not cooking at any of those times — there's nothing to plan." };
     const slotsDesc = slots
       .map((s) => `${DAY_NAMES[s.dayOfWeek]} ${s.mealType}`)
       .join(", ");

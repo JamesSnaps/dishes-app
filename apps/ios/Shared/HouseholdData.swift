@@ -30,6 +30,12 @@ struct Week: Hashable, Sendable {
     }
 
     func day(_ index: Int) -> Date { Calendar.current.date(byAdding: .day, value: index, to: monday)! }
+
+    /// A day's date as the server writes one ("yyyy-MM-dd"), in the local calendar like `key`.
+    func dayKey(_ index: Int) -> String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: day(index))
+        return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
     func adding(_ weeks: Int) -> Week { Week(monday: Calendar.current.date(byAdding: .day, value: 7 * weeks, to: monday)!) }
     var isCurrent: Bool { self == Week.containing(Date()) }
 
@@ -78,13 +84,29 @@ struct PlanData: Sendable {
     var entries: [MealPlanEntry] = []
     var groups: [MealPlanGroup] = []
     var recipes: [String: Recipe] = [:]
+    /// Meals not cooked from the plan — eaten out, takeaways, skipped.
+    var outside: [OutsideMeal] = []
 
     @Sendable static func load(_ r: StoreReader) throws -> PlanData {
         PlanData(
             plans: try r.records(.mealPlans).compactMap(MealPlan.init),
             entries: try r.records(.mealPlanEntries).compactMap(MealPlanEntry.init),
             groups: try r.records(.mealPlanGroups).compactMap(MealPlanGroup.init),
-            recipes: Dictionary(try r.records(.recipes).compactMap(Recipe.init).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }))
+            recipes: Dictionary(try r.records(.recipes).compactMap(Recipe.init).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }),
+            outside: try r.records(.outsideMeals).compactMap(OutsideMeal.init))
+    }
+
+    /// A day's meals not cooked from the plan, in meal-type order.
+    func outsideMeals(on day: Int, in week: Week) -> [OutsideMeal] {
+        let key = week.dayKey(day)
+        return outside.filter { $0.date == key }
+            .sorted { (mealTypeOrder.firstIndex(of: $0.mealType) ?? 9, $0.id) < (mealTypeOrder.firstIndex(of: $1.mealType) ?? 9, $1.id) }
+    }
+
+    /// The meal out taking a slot, if one does: whatever's planned there
+    /// won't be cooked (lib/services/meal-history.ts on the web).
+    func notCooking(_ mealType: String, on day: Int, in week: Week) -> OutsideMeal? {
+        outsideMeals(on: day, in: week).first { $0.mealType == mealType }
     }
 
     func plan(for week: Week) -> MealPlan? { plans.first { $0.weekStartDate == week.key } }
@@ -97,7 +119,7 @@ struct PlanData: Sendable {
     /// Today's meal of a type; nil asks for tonight's — dinner, or the last
     /// meal planned today (as the Recipes tab's Tonight card shows).
     func today(_ mealType: String?, now: Date = Date()) -> PlannedMeal? {
-        let meals = meals(on: Week.dayIndex(of: now), in: Week.containing(now))
+        let meals = cookable(on: Week.dayIndex(of: now), in: Week.containing(now))
         if let mealType { return meals.first { $0.mealType == mealType } }
         return meals.first { $0.mealType == "dinner" } ?? meals.last
     }
@@ -109,7 +131,7 @@ struct PlanData: Sendable {
     /// day by meal type, not as arranged, so a dessert dragged above dinner
     /// still comes after it — as the web's getTonight.
     func tonight(cooked: Set<String>, now: Date = Date()) -> (meal: PlannedMeal, cooked: Bool)? {
-        let meals = meals(on: Week.dayIndex(of: now), in: Week.containing(now)).sorted {
+        let meals = cookable(on: Week.dayIndex(of: now), in: Week.containing(now)).sorted {
             (mealTypeOrder.firstIndex(of: $0.mealType) ?? 9, $0.id) < (mealTypeOrder.firstIndex(of: $1.mealType) ?? 9, $1.id)
         }
         guard let start = meals.firstIndex(where: { $0.mealType == "dinner" }) ?? meals.indices.last else { return nil }
@@ -123,6 +145,13 @@ struct PlanData: Sendable {
         Set(try r.records(.cookHistory).compactMap(CookEntry.init)
             .filter { $0.isCook && Calendar.current.isDate($0.cookedAt, inSameDayAs: now) }
             .map(\.recipeId))
+    }
+
+    /// A day's meals that will actually be cooked: not in a slot a meal out
+    /// has taken. What "tonight" means to widgets, Siri and the Tonight card —
+    /// nobody should be told to start the lasagne on the night they're out.
+    func cookable(on day: Int, in week: Week) -> [PlannedMeal] {
+        meals(on: day, in: week).filter { notCooking($0.mealType, on: day, in: week) == nil }
     }
 
     func meals(on day: Int, in week: Week) -> [PlannedMeal] {

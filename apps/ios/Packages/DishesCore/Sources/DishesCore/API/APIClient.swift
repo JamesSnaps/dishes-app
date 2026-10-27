@@ -312,6 +312,110 @@ public final class APIClient: SyncTransport, Sendable {
         _ = try await send { token in authorisedRequest(url("/cook-history/\(id)"), method: "DELETE", token: token) }
     }
 
+    // MARK: Meals eaten out (API.md, /api/v1/outside-meals)
+    //
+    // Every write here says `estimate=false`: the app uploads its photos and
+    // then asks for the estimate itself (`estimateOutsideMeal`), one AI call
+    // with everything rather than one per step racing each other.
+
+    static let estimateLater = [URLQueryItem(name: "estimate", value: "false")]
+
+    /// Every field of a meal eaten out that the sheet sets. Sent whole, empty
+    /// fields as null, so clearing one on the form clears it on the server —
+    /// and an unchanged field compares equal there, so it doesn't count as an
+    /// edit that needs a new estimate.
+    public struct OutsideMealWrite: Encodable, Sendable {
+        public var date: String
+        public var mealType: String
+        public var kind: String
+        public var title: String?
+        public var place: String?
+        public var description: String?
+        public var menuText: String?
+        public var menuKcal: Int?
+        public var portion: String
+        public var eatenBy: [String]?
+        /// The caller's own rating (0–10); the server files it under their name.
+        public var rating: Double?
+        public var notes: String?
+        public var removePhoto: Bool = false
+        public var removeMenuPhoto: Bool = false
+
+        public init(date: String, mealType: String, kind: String, title: String?, place: String?, description: String?,
+                    menuText: String?, menuKcal: Int?, portion: String, eatenBy: [String]?, rating: Double?, notes: String?) {
+            self.date = date; self.mealType = mealType; self.kind = kind; self.title = title; self.place = place
+            self.description = description; self.menuText = menuText; self.menuKcal = menuKcal; self.portion = portion
+            self.eatenBy = eatenBy; self.rating = rating; self.notes = notes
+        }
+
+        enum Keys: String, CodingKey {
+            case date, mealType, kind, title, place, description, menuText, menuKcal, portion, eatenBy, rating, notes
+            case removePhoto, removeMenuPhoto
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: Keys.self)
+            try c.encode(date, forKey: .date)
+            try c.encode(mealType, forKey: .mealType)
+            try c.encode(kind, forKey: .kind)
+            try c.encode(title, forKey: .title)
+            try c.encode(place, forKey: .place)
+            try c.encode(description, forKey: .description)
+            try c.encode(menuText, forKey: .menuText)
+            try c.encode(menuKcal, forKey: .menuKcal)
+            try c.encode(portion, forKey: .portion)
+            try c.encode(eatenBy, forKey: .eatenBy)
+            try c.encode(rating, forKey: .rating)
+            try c.encode(notes, forKey: .notes)
+            // Only on an edit: the create schema doesn't take them.
+            if removePhoto { try c.encode(true, forKey: .removePhoto) }
+            if removeMenuPhoto { try c.encode(true, forKey: .removeMenuPhoto) }
+        }
+    }
+
+    /// Logs (or plans) a meal eaten out → the meal, in the shape sync brings
+    /// it, for the store straight away. The server estimates the nutrition once
+    /// it has replied; the figures arrive by sync.
+    @discardableResult
+    public func createOutsideMeal(_ meal: OutsideMealWrite) async throws -> JSONValue {
+        try await request("/outside-meals", method: "POST", query: Self.estimateLater, json: meal, as: JSONValue.self)
+    }
+
+    /// Edits one → the meal as it now is. Changing what it was re-estimates it
+    /// in the background.
+    @discardableResult
+    public func updateOutsideMeal(id: String, _ meal: OutsideMealWrite) async throws -> JSONValue {
+        try await request("/outside-meals/\(id)", method: "PATCH", query: Self.estimateLater, json: meal, as: JSONValue.self)
+    }
+
+    /// 204, no body.
+    public func deleteOutsideMeal(id: String) async throws {
+        _ = try await send { token in authorisedRequest(url("/outside-meals/\(id)"), method: "DELETE", token: token) }
+    }
+
+    /// A photo of the plate, or of the menu (`menu: true`) — the estimator
+    /// reads both. Raw body, as for a cook photo.
+    @discardableResult
+    public func uploadOutsideMealPhoto(id: String, menu: Bool, image: Data, mime: String = "image/jpeg") async throws -> String {
+        struct Reply: Decodable { var url: String }
+        let data = try await send { token in
+            var r = authorisedRequest(url("/outside-meals/\(id)/photo", query: [URLQueryItem(name: "slot", value: menu ? "menu" : "plate")] + Self.estimateLater),
+                                      method: "POST", token: token)
+            r.httpBody = image
+            r.setValue(mime, forHTTPHeaderField: "Content-Type")
+            r.timeoutInterval = 60
+            return r
+        }
+        return try JSONDecoder().decode(Reply.self, from: data).url
+    }
+
+    /// Estimates now and waits (the AI reads the photos: up to a minute). The
+    /// meal comes back as a row, as sync would bring it, so it can go straight
+    /// into the store. A 400 says why there's no estimate (no AI key, nothing to go on).
+    public func estimateOutsideMeal(id: String) async throws -> JSONValue {
+        try await slowPost("/outside-meals/\(id)/estimate", json: [String: String](), timeout: 90, as: JSONValue.self)
+    }
+
     // MARK: Shopping
 
     public struct GenerateResult: Decodable, Sendable { public var listId: String; public var changed: Bool }

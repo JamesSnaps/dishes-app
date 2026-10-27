@@ -249,7 +249,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     scope: "read:meal_plan",
     summary: "Today's meals",
     description:
-      "Every meal planned for today, across all meal types. \"Today\" is the household's date in its own timezone (Settings → Dinner reminders), not the server's. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own. serveAt is when the meal should be ready (its own ready-by time, else the day's dinner time for dinner; null otherwise). dinner is tonight's dinner time and when to start cooking it — the time the start-cooking reminder goes by; startCookingAt is null when no dinner is planned. nextDelivery is the next grocery order still open (see getDeliveries), or null when delivery days aren't set up.",
+      "Every meal planned for today, across all meal types. \"Today\" is the household's date in its own timezone (Settings → Dinner reminders), not the server's. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own. serveAt is when the meal should be ready (its own ready-by time, else the day's dinner time for dinner; null otherwise). dinner is tonight's dinner time and when to start cooking it — the time the start-cooking reminder goes by; startCookingAt is null when no dinner is planned or nobody is cooking. outsideMeals lists meals today not cooked from the plan — kind is eat_out, takeaway, at_friends or skipped; calories is the AI's estimate once made (nutritionSource ai), typed in (manual) or null (none). When dinner is one of them, dinner.notCooking is its kind and there's no reminder. nextDelivery is the next grocery order still open (see getDeliveries), or null when delivery days aren't set up.",
     response: {
       status: 200,
       description: "Today's meals. `meals` is empty when nothing is planned.",
@@ -280,11 +280,26 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             recipe: { ...RECIPE_SUMMARY_EXAMPLE, title: "Roast Chicken", cuisine: "British" },
           },
         ],
+        outsideMeals: [
+          {
+            id: "45c48cce-2e2d-4fbd-a1b2-c3d4e5f6a7b8",
+            date: "2026-10-03",
+            dayOfWeek: 5,
+            mealType: "lunch",
+            kind: "eat_out",
+            title: "Fish & chips",
+            place: "The Harbour Café",
+            cuisine: "British",
+            calories: 1150,
+            nutritionSource: "ai",
+          },
+        ],
         dinner: {
           time: "17:30",
           serveAt: "2026-10-03T16:30:00.000Z",
           startCookingAt: "2026-10-03T15:20:00.000Z",
           reminderEnabled: true,
+          notCooking: null,
         },
         nextDelivery: null,
       },
@@ -297,7 +312,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     scope: "read:meal_plan",
     summary: "Week meal plan",
     description:
-      "All meal plan entries for one week. dayOfWeek runs 0 = Monday to 6 = Sunday. planStatus is draft, active or archived. Entries in a combined meal share a mealGroup { id, title, role } (null otherwise), and serveAt is when the meal should be ready (null for meals with no time), as in getToday.",
+      "All meal plan entries for one week. dayOfWeek runs 0 = Monday to 6 = Sunday. planStatus is draft, active or archived. Entries in a combined meal share a mealGroup { id, title, role } (null otherwise), and serveAt is when the meal should be ready (null for meals with no time), as in getToday. outsideMeals are the week's meals not cooked from the plan (eating out, takeaways, at friends', skipped), in the same shape as getToday's; a recipe still planned in one of their slots won't be cooked.",
     params: [
       {
         name: "week",
@@ -325,6 +340,20 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             serveAt: "2026-09-28T16:30:00.000Z",
             mealGroup: null,
             recipe: { ...RECIPE_SUMMARY_EXAMPLE, title: "Pasta Carbonara", cuisine: "Italian" },
+          },
+        ],
+        outsideMeals: [
+          {
+            id: "c9f0f895-fb98-4b91-8a2b-3c4d5e6f7a8b",
+            date: "2026-10-02",
+            dayOfWeek: 4,
+            mealType: "dinner",
+            kind: "takeaway",
+            title: "Chicken tikka masala",
+            place: "Spice Garden",
+            cuisine: "Indian",
+            calories: null,
+            nutritionSource: "none",
           },
         ],
       },
@@ -613,7 +642,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     scope: "write:meal_plan",
     summary: "AI meal plan generation",
     description:
-      "Generates meals for a week with AI, writes each one up as a full recipe in the library and links it into the plan. Slow (two AI calls per meal) and uses the household's AI credit.",
+      "Generates meals for a week with AI, writes each one up as a full recipe in the library and links it into the plan. Slow (two AI calls per meal) and uses the household's AI credit. Days the household isn't cooking that meal (eating out, a takeaway… — see getWeekMealPlan's outsideMeals) are skipped and listed in notCooking.",
     costly: true,
     body: {
       schema: {
@@ -666,10 +695,15 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             complete: true,
           },
         ],
+        notCooking: ["Fri"],
       },
     },
     errors: [
-      { status: 409, description: "A requested slot already has an entry and overwrite is false." },
+      {
+        status: 409,
+        description:
+          "A requested slot already has an entry and overwrite is false, or the household isn't cooking on any of the requested days.",
+      },
       { status: 502, description: "The AI returned an unexpected or incomplete response." },
     ],
   },
