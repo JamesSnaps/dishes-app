@@ -111,11 +111,26 @@ Returns today's meal plan entries across all meal types, and tonight's dinner ti
       }
     }
   ],
+  "outsideMeals": [
+    {
+      "id": "uuid",
+      "date": "2026-05-14",
+      "dayOfWeek": 3,
+      "mealType": "lunch",
+      "kind": "eat_out",
+      "title": "Fish & chips",
+      "place": "The Harbour Café",
+      "cuisine": "British",
+      "calories": 1150,
+      "nutritionSource": "ai"
+    }
+  ],
   "dinner": {
     "time": "17:30",
     "serveAt": "2026-05-14T16:30:00.000Z",
     "startCookingAt": "2026-05-14T15:20:00.000Z",
-    "reminderEnabled": true
+    "reminderEnabled": true,
+    "notCooking": null
   },
   "nextDelivery": null
 }
@@ -125,7 +140,9 @@ Returns today's meal plan entries across all meal types, and tonight's dinner ti
 
 `serveAt` is when the meal should be ready, as an ISO instant: the meal's own ready-by time, else the day's dinner time for a dinner, else `null` (breakfasts and lunches usually have none).
 
-`dinner` is tonight's dinner on the household clock, whether or not one is planned: `time` (`"HH:MM"`, the day's dinner time), `serveAt` (the same as an instant), `startCookingAt` (when to start cooking to eat on time — the first step of the meal's cooking schedule, or the household's real cook time for the longest dish; `null` when no dinner is planned) and `reminderEnabled` (`false` when the day's reminders are switched off). `startCookingAt` is what the start-cooking reminder goes by.
+`dinner` is tonight's dinner on the household clock, whether or not one is planned: `time` (`"HH:MM"`, the day's dinner time), `serveAt` (the same as an instant), `startCookingAt` (when to start cooking to eat on time — the first step of the meal's cooking schedule, or the household's real cook time for the longest dish; `null` when no dinner is planned or nobody is cooking it), `reminderEnabled` (`false` when the day's reminders are switched off, or dinner isn't being cooked) and `notCooking` (the kind of outside meal taking tonight's dinner — `"eat_out"`, `"takeaway"`, `"at_friends"`, `"skipped"` — or `null`). `startCookingAt` is what the start-cooking reminder goes by.
+
+`outsideMeals` are today's meals not cooked from the plan — eaten out, a takeaway, at friends', or skipped (`kind`). `calories` is for the portion eaten: the AI's estimate (`nutritionSource: "ai"`), typed in (`"manual"`), or `null` until estimated (`"none"`). A recipe still planned in the same slot won't be cooked.
 
 `nextDelivery` is the next grocery order that's still open, in the same shape as `next` from [`GET /api/integrations/deliveries`](#get-apiintegrationsdeliveries), or `null` when no delivery is coming (or delivery days aren't set up).
 
@@ -178,7 +195,8 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
         "calories": 720
       }
     }
-  ]
+  ],
+  "outsideMeals": []
 }
 ```
 
@@ -186,7 +204,8 @@ GET /api/integrations/meal-plan/week?week=2026-05-11
 `planStatus`: `"draft"` | `"active"` | `"archived"`.  
 `entries` is empty `[]` if no plan exists for the week.  
 `mealGroup`: `{ id, title, role }` for a dish in a combined meal, otherwise `null` — see `/today`.  
-`serveAt`: when the meal should be ready, or `null` — see `/today`. The current week is the household's, in its own timezone.
+`serveAt`: when the meal should be ready, or `null` — see `/today`. The current week is the household's, in its own timezone.  
+`outsideMeals`: the week's meals not cooked from the plan (eating out, takeaways, at friends', skipped), in the shape `/today` uses. Present even when the week has no plan.
 
 ---
 
@@ -550,11 +569,14 @@ Because every meal costs a second AI call, a full week takes appreciably longer 
       "calories": 580,
       "complete": true
     }
-  ]
+  ],
+  "notCooking": ["Fri"]
 }
 ```
 
-**Error `409`** — one or more requested slots already have an entry and `overwrite` is `false`.
+`notCooking` lists requested days that were left alone because the household isn't cooking that meal there (an outside meal takes the slot — see `outsideMeals` on `/meal-plan/week`). It's `[]` when every day was planned.
+
+**Error `409`** — one or more requested slots already have an entry and `overwrite` is `false`; or the household isn't cooking that meal on any of the requested days (the body then carries `notCooking`).
 
 ```json
 {
@@ -1478,6 +1500,79 @@ Dish photo. Send the image as the **raw request body** with a matching
 { "url": "https://…/dish.jpg" }
 ```
 
+### `GET /api/v1/outside-meals` · `POST`
+
+Meals not cooked from the library — eaten out, a takeaway, at friends',
+skipped. A future date is a plan (no dinner reminder, and the AI planner
+leaves the slot alone); a past one a log that counts towards the week's
+nutrition, Stats and the taste profile. A recipe still planned in the same
+date + meal type isn't counted as eaten.
+
+`GET` query: `from`, `to` (`YYYY-MM-DD`, inclusive, both optional) →
+`{ "meals": [OutsideMeal] }`, oldest first.
+
+`POST` body — only `date` is required:
+
+```json
+{
+  "date": "2026-10-23",
+  "mealType": "dinner",
+  "kind": "eat_out",
+  "title": "Ribeye & chips",
+  "place": "The Swan",
+  "cuisine": "British",
+  "description": "with peppercorn sauce and a side salad",
+  "menuText": "8oz dry-aged ribeye, triple-cooked chips, peppercorn sauce",
+  "menuKcal": 1150,
+  "portion": "typical",
+  "eatenBy": ["Alex", "Sam"],
+  "rating": 8,
+  "memberRatings": [{ "name": "Sam", "rating": 6 }],
+  "notes": null,
+  "nutrition": null
+}
+```
+
+`kind`: `eat_out` · `takeaway` · `at_friends` · `skipped`. `portion`: `lighter` ·
+`typical` · `indulgent`, next to a usual restaurant portion. `menuKcal` is the
+calorie figure printed on the menu, if any — used as given, with the other
+estimated figures scaled to it. `rating` is the caller's own (0–10), filed under
+their name like a cook's; the stored `rating` is everyone's average. `nutrition`
+(`calories`, `proteinG`, `carbsG`, `fatG`, `saturatedFatG`, `fiberG`, `sugarG`,
+`sodiumMg`) is for figures typed in: it marks the meal `nutritionSource: "manual"`
+and no estimate ever replaces it.
+
+`201` with the meal. Unless figures were typed in (or it's skipped, or there's
+nothing to go on), the household's AI estimates its nutrition **after the reply
+has gone** — the figures, a `title` and `cuisine` where those were blank, its
+`components` and `mainIngredients` arrive by sync. No AI key, no estimate.
+
+`OutsideMeal` is the row as sync carries it (`outsideMeals`), with decimals as
+numbers here: the fields above plus `id`, `components`, `mainIngredients`,
+`calories` … `sodiumMg` (one portion, as eaten), `nutritionSource`
+(`none` · `ai` · `manual`), `photoUrl`, `menuPhotoUrl`.
+
+### `GET /api/v1/outside-meals/{id}` · `PATCH` · `DELETE`
+
+`PATCH` takes any of the `POST` fields, plus `removePhoto` / `removeMenuPhoto`.
+Changing what the meal was (kind, title, place, cuisine, description, menu
+text or kcal, portion, a photo) re-estimates it in the background; `nutrition:
+null` clears typed-in figures and hands it back to the estimator. `DELETE` → `204`.
+
+### `POST /api/v1/outside-meals/{id}/photo?slot=plate|menu`
+
+Raw image body with `Content-Type`, as for a cook photo (JPEG, PNG or WebP,
+under 15 MB) → `{ "url": "…" }`. `slot=plate` (default) is the dish as served —
+the best guide to portion size; `slot=menu` is the menu, which the estimator
+reads for what's in the dish. Either one re-estimates in the background.
+
+### `POST /api/v1/outside-meals/{id}/estimate`
+
+Estimate now and wait for it → the meal with its figures. For a client that
+wants to show them straight away; the background estimate makes this optional.
+`400` when there's nothing to estimate from, it's skipped, or AI isn't set up.
+Typed-in figures come back untouched.
+
 ### `POST /api/v1/upload`
 
 Recipe image. Raw body again, with `Content-Type`. JPEG, PNG, WebP or GIF, under
@@ -1503,14 +1598,14 @@ Query: `cursor` (opaque, from a previous response), `limit` (default 200, max 10
   "changes": {
     "recipes": [ { "id": "…", "title": "…", "ingredients": [], "steps": [], "tags": [] } ],
     "shoppingLists": [], "shoppingItems": [],
-    "mealPlans": [], "mealPlanEntries": [], "mealPlanGroups": [], "cookHistory": [],
+    "mealPlans": [], "mealPlanEntries": [], "mealPlanGroups": [], "cookHistory": [], "outsideMeals": [],
     "meals": [ { "id": "…", "title": "Sunday roast", "notes": null, "defaultMealType": "dinner",
                  "slots": [ { "id": "…", "role": "main", "label": "Meat", "position": 0, "allowMultiple": false,
                               "options": [ { "id": "…", "position": 0, "isDefault": true,
                                              "recipe": { "id": "…", "title": "Roast chicken", "thumbnailUrl": null,
                                                          "imageUrl": null, "prepTimeMinutes": 15, "cookTimeMinutes": 90 } } ] } ] } ]
   },
-  "deleted": { "recipes": ["uuid"], "shoppingLists": [], "shoppingItems": [], "mealPlans": [], "mealPlanEntries": [], "mealPlanGroups": [], "cookHistory": [], "meals": [] }
+  "deleted": { "recipes": ["uuid"], "shoppingLists": [], "shoppingItems": [], "mealPlans": [], "mealPlanEntries": [], "mealPlanGroups": [], "cookHistory": [], "meals": [], "outsideMeals": [] }
 }
 ```
 

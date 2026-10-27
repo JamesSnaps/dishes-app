@@ -703,6 +703,15 @@ throws); asking for the eight nutrients is enough to save one.
 - [x] HealthKit entitlement and `NSHealthUpdateUsageDescription` in
   `project.yml`; HealthKit is available on iPadOS 17+
 
+- [ ] **Meals eaten out** (server + web in v1.66.0 — `TODO.md` "Meals Eaten Out" step 7):
+  `outsideMeals` in `SyncCollection` and the store (resnapshot on upgrade, as the web's Dexie v4
+  does — the server has been sending them since 1.66.0), a "Not cooking" / "Ate out?" chip on the
+  plan day and a log sheet that reads the menu on the device (`ImageAttachment` + `OCRTool`) and
+  posts to `/api/v1/outside-meals` (`API.md`); the server estimates the figures after the reply
+  and they arrive by sync. `HealthLog` then takes nutrient values rather than a `Recipe`, writing
+  (or rewriting) the entry when the estimate lands. The device's `MealPlanDrafter` should skip
+  slots an outside meal takes, as the server's planner now does
+
 ### C5. Push via APNs
 
 - [x] `.p8` token auth from the server (`lib/apns.ts`, HTTP/2, `APNS_*` env

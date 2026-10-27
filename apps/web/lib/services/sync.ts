@@ -27,6 +27,7 @@ import {
   mealPlanEntries,
   mealPlanGroups,
   cookHistory,
+  outsideMeals,
 } from "@dishes/db/schema";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { HouseholdContext, ActorContext } from "@/lib/session";
@@ -54,6 +55,7 @@ export const SYNC_ENTITIES = [
   "meal_plan_group",
   "cook_history",
   "meal",
+  "outside_meal",
 ] as const;
 
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];
@@ -68,6 +70,7 @@ const RESPONSE_KEY: Record<SyncEntity, string> = {
   meal_plan_group: "mealPlanGroups",
   cook_history: "cookHistory",
   meal: "meals",
+  outside_meal: "outsideMeals",
 };
 
 // --- Cursor -----------------------------------------------------------------
@@ -244,6 +247,17 @@ async function loadEntities(
           )
         );
 
+    case "outside_meal":
+      return db
+        .select()
+        .from(outsideMeals)
+        .where(
+          and(
+            eq(outsideMeals.householdId, ctx.householdId),
+            inArray(outsideMeals.id, ids)
+          )
+        );
+
     case "meal": {
       // One household read covers any number of ids. A meal missing from it
       // was deleted since the log was read; its tombstone follows.
@@ -264,7 +278,7 @@ function emptyGrouping<T>(): Record<string, T[]> {
 async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
   const seq = await currentSeq(ctx.householdId);
 
-  const [recipeIds, listRows, itemRows, planRows, entryRows, groupRows, cookRows, mealDocs] =
+  const [recipeIds, listRows, itemRows, planRows, entryRows, groupRows, cookRows, mealDocs, outsideRows] =
     await Promise.all([
       db
         .select({ id: recipes.id })
@@ -292,6 +306,7 @@ async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
         .then((rows) => rows.map((r) => r.group)),
       db.select().from(cookHistory).where(eq(cookHistory.householdId, ctx.householdId)),
       mealsService.listMeals(ctx),
+      db.select().from(outsideMeals).where(eq(outsideMeals.householdId, ctx.householdId)),
     ]);
 
   const changes = emptyGrouping<unknown>();
@@ -307,6 +322,7 @@ async function fullSnapshot(ctx: HouseholdContext): Promise<SyncPullResult> {
   changes[RESPONSE_KEY.meal_plan_group] = groupRows;
   changes[RESPONSE_KEY.cook_history] = cookRows;
   changes[RESPONSE_KEY.meal] = mealDocs;
+  changes[RESPONSE_KEY.outside_meal] = outsideRows;
 
   return {
     cursor: encodeCursor(seq),

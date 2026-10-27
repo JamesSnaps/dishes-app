@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   CopyObjectCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { env } from "./env";
 
@@ -66,6 +67,18 @@ export async function copyFile(sourceKey: string, destKey: string): Promise<stri
 
   const base = env.S3_PUBLIC_URL ?? env.S3_ENDPOINT;
   return `${base}/${env.S3_BUCKET}/${destKey}`;
+}
+
+/**
+ * Read a stored object back, for server-side work on a file uploaded earlier
+ * (an AI reading a photo). Goes through the S3 client, so it works when the
+ * public URL isn't reachable from the server.
+ */
+export async function downloadFile(key: string): Promise<Buffer> {
+  const client = getClient();
+  const res = await client.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key }));
+  if (!res.Body) throw new Error(`Empty object: ${key}`);
+  return Buffer.from(await res.Body.transformToByteArray());
 }
 
 /**

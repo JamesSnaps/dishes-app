@@ -4,11 +4,13 @@ import {
   mealPlanDays,
   mealPlanEntries,
   mealPlans,
+  outsideMeals,
   recipes,
   type DinnerReminderSettings,
 } from "@dishes/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import {
+  addDaysToDate,
   DEFAULT_DINNER_TIME,
   DEFAULT_LEAD_MINUTES,
   DEFAULT_TIMEZONE,
@@ -63,6 +65,12 @@ export interface DayDinnerSetting {
   /** A one-off time is set for this date. */
   overridden: boolean;
   reminderEnabled: boolean;
+  /**
+   * Dinner that day isn't cooked from the plan — eaten out, a takeaway, at
+   * friends', skipped (the outside meal's kind). Nothing to remind about, so
+   * no reminder or cooking cues, whatever `reminderEnabled` says.
+   */
+  notCooking: string | null;
 }
 
 export interface WeekDinnerSchedule {
@@ -94,14 +102,31 @@ async function weekDayRows(householdId: string, weekStartDate: string) {
   return new Map(rows.map((r) => [r.dayOfWeek, r]));
 }
 
+/** Dinners not cooked from the plan this week (outside_meals), keyed by day. */
+async function weekOutsideDinners(householdId: string, weekStartDate: string) {
+  const rows = await db
+    .select({ date: outsideMeals.date, kind: outsideMeals.kind })
+    .from(outsideMeals)
+    .where(
+      and(
+        eq(outsideMeals.householdId, householdId),
+        eq(outsideMeals.mealType, "dinner"),
+        gte(outsideMeals.date, weekStartDate),
+        lte(outsideMeals.date, addDaysToDate(weekStartDate, 6))
+      )
+    );
+  return new Map(rows.map((r) => [dayOfWeekOf(r.date), r.kind]));
+}
+
 export async function getWeekDinnerSettings(
   householdId: string,
   weekStartDate: string,
   settings?: ReminderSettings
 ): Promise<DayDinnerSetting[]> {
-  const [s, rows] = await Promise.all([
+  const [s, rows, outside] = await Promise.all([
     settings ?? getReminderSettings(householdId),
     weekDayRows(householdId, weekStartDate),
+    weekOutsideDinners(householdId, weekStartDate),
   ]);
   return Array.from({ length: 7 }, (_, day) => {
     const row = rows.get(day);
@@ -113,6 +138,7 @@ export async function getWeekDinnerSettings(
       defaultTime,
       overridden: override !== null,
       reminderEnabled: row?.reminderEnabled ?? true,
+      notCooking: outside.get(day) ?? null,
     };
   });
 }

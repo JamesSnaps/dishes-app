@@ -9,6 +9,7 @@
 import { db } from "@/lib/db";
 import {
   cookHistory,
+  outsideMeals,
   recipes,
   recipeIngredients,
   recipeTags,
@@ -67,7 +68,19 @@ export async function refreshTasteProfile(householdId: string): Promise<void> {
       and(eq(cookHistory.householdId, householdId), isNotNull(cookHistory.rating))
     );
 
-  if (ratedCooks.length === 0) {
+  // Rated meals eaten out say what the family likes too — the Thai place they
+  // loved — through their cuisine and main ingredients. No recipe, no tags.
+  const ratedOut = await db
+    .select({
+      rating: outsideMeals.rating,
+      date: outsideMeals.date,
+      cuisine: outsideMeals.cuisine,
+      mainIngredients: outsideMeals.mainIngredients,
+    })
+    .from(outsideMeals)
+    .where(and(eq(outsideMeals.householdId, householdId), isNotNull(outsideMeals.rating)));
+
+  if (ratedCooks.length === 0 && ratedOut.length === 0) {
     await db
       .insert(tasteProfiles)
       .values({
@@ -94,7 +107,7 @@ export async function refreshTasteProfile(householdId: string): Promise<void> {
 
   const recipeIds = [...new Set(ratedCooks.map((c) => c.recipeId))];
 
-  const [allTags, allIngredients] = await Promise.all([
+  const [allTags, allIngredients] = !recipeIds.length ? [[], []] : await Promise.all([
     db
       .select({ recipeId: recipeTags.recipeId, tag: recipeTags.tag })
       .from(recipeTags)
@@ -154,6 +167,16 @@ export async function refreshTasteProfile(householdId: string): Promise<void> {
     }
   }
 
+  for (const meal of ratedOut) {
+    const rating = parseFloat(meal.rating!);
+    if (isNaN(rating)) continue;
+    const weeksAgo = (now - Date.parse(`${meal.date}T12:00:00Z`)) / MS_PER_WEEK;
+    const weight = 1 / (1 + Math.max(0, weeksAgo) * 0.1);
+    const add = (map: Map<string, Sample[]>, key: string) => map.set(key, [...(map.get(key) ?? []), { rating, weight }]);
+    if (meal.cuisine) add(cuisineMap, meal.cuisine.toLowerCase());
+    for (const name of meal.mainIngredients ?? []) add(ingredientMap, name.toLowerCase());
+  }
+
   const cuisines = buildScores(cuisineMap, 1, 20);
   const tags = buildScores(tagMap, 1, 30);
   const ingredients = buildScores(ingredientMap, 1, 50);
@@ -166,7 +189,7 @@ export async function refreshTasteProfile(householdId: string): Promise<void> {
       ingredients,
       tags,
       mealTypes: {},
-      ratedCookCount: ratedCooks.length,
+      ratedCookCount: ratedCooks.length + ratedOut.length,
     })
     .onConflictDoUpdate({
       target: tasteProfiles.householdId,
@@ -175,7 +198,7 @@ export async function refreshTasteProfile(householdId: string): Promise<void> {
         ingredients,
         tags,
         mealTypes: {},
-        ratedCookCount: ratedCooks.length,
+        ratedCookCount: ratedCooks.length + ratedOut.length,
         updatedAt: new Date(),
       },
     });

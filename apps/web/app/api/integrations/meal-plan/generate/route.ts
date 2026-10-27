@@ -11,6 +11,7 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { decrypt } from "@/lib/crypto";
 import OpenAI from "openai";
 import * as recipeService from "@/lib/services/recipes";
+import { listOutsideMeals, weekRange } from "@/lib/services/outside-meals";
 import {
   buildSystemAddendum,
   createStructuredRecipe,
@@ -75,6 +76,9 @@ function dayName(dow: number): string {
  *                 (default: false; returns 409 if any slot already exists)
  *   maxCaloriesPerMeal — optional cap (kcal per serving) the AI should respect;
  *                 generated recipes store the AI's per-serving calorie estimate
+ *
+ * Days the household isn't cooking that meal (eating out, a takeaway… — an
+ * outside meal in the slot) are left alone and listed as `notCooking`.
  */
 export const POST = withIntegrationAuth(
   "write:meal_plan",
@@ -119,6 +123,24 @@ export const POST = withIntegrationAuth(
     } else {
       const count = Math.min(7, Math.max(1, parseInt(String(body.count ?? "7"), 10) || 7));
       targetDays = Array.from({ length: count }, (_, i) => i);
+    }
+
+    // Slots taken by a meal not cooked at home aren't planned.
+    const outside = await listOutsideMeals(ctx.householdId, weekRange(weekStartDate));
+    const notCookingDays = new Set(
+      outside
+        .filter((m) => m.mealType === mealType)
+        .map((m) =>
+          Math.round((Date.parse(`${m.date}T00:00:00Z`) - Date.parse(`${weekStartDate}T00:00:00Z`)) / 86_400_000)
+        )
+    );
+    const notCooking = targetDays.filter((d) => notCookingDays.has(d)).map(dayName);
+    targetDays = targetDays.filter((d) => !notCookingDays.has(d));
+    if (targetDays.length === 0) {
+      return NextResponse.json(
+        { error: `Not cooking ${mealType} on any of those days (${notCooking.join(", ")}).`, notCooking },
+        { status: 409 }
+      );
     }
 
     // ── Upsert the week plan ───────────────────────────────────────────────────
@@ -312,6 +334,6 @@ Every concept MUST genuinely suit a ${mealType}: breakfast = breakfast food (egg
       created.push(...results);
     }
 
-    return NextResponse.json({ planId, weekStartDate, mealType, meals: created }, { status: 201 });
+    return NextResponse.json({ planId, weekStartDate, mealType, meals: created, notCooking }, { status: 201 });
   }
 );

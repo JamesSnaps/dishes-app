@@ -17,7 +17,9 @@ export type SyncCollection =
   | "mealPlanGroups"
   | "cookHistory"
   /** Saved meals, as whole documents (slots and their options). */
-  | "meals";
+  | "meals"
+  /** Meals not cooked from the library: eaten out, takeaways, skipped. */
+  | "outsideMeals";
 
 export const SYNC_COLLECTIONS: SyncCollection[] = [
   "recipes",
@@ -28,6 +30,7 @@ export const SYNC_COLLECTIONS: SyncCollection[] = [
   "mealPlanGroups",
   "cookHistory",
   "meals",
+  "outsideMeals",
 ];
 
 /** Anything syncable has an id; the engine needs nothing else. */

@@ -48,7 +48,7 @@ export async function getDinnerReminderOverview() {
     tonight: {
       dinnerTime: plan.dinner.time,
       overridden: plan.dinner.overridden,
-      reminderEnabled: plan.dinner.reminderEnabled,
+      reminderEnabled: plan.dinner.reminderEnabled && !plan.dinner.notCooking,
       dishes: plan.dishes.map((d) => ({ title: d.title, minutes: d.estimate.minutes })),
       lead: plan.lead
         ? { title: plan.lead.title, explanation: describeEstimate(plan.lead.estimate) }

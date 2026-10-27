@@ -16,7 +16,8 @@ import {
   type MealSummary,
   type ProteinKind,
 } from "@/lib/meal-stats";
-import { addDays, ateIt, isoDate, loadMealHistory, type Meal } from "./meal-history";
+import { addDays, ateIt, ateOutside, isoDate, loadMealHistory, type Meal } from "./meal-history";
+import { outsideMealFacts, type OutsideMealView } from "@/lib/outside-meals";
 
 export const STATS_RANGES = {
   "4w": { label: "4 weeks", days: 28 },
@@ -64,7 +65,10 @@ export type StatsReport = {
   weeks: number;
   heartFocus: boolean;
   totals: {
+    /** Everything eaten, meals out included. */
     meals: number;
+    /** Of those, not cooked from the library: eaten out, takeaways, at friends'. */
+    mealsOut: number;
     cooksLogged: number;
     distinctRecipes: number;
     newRecipes: number;
@@ -129,13 +133,13 @@ export async function getStatsReport(
   range: StatsRange,
   personId?: string
 ): Promise<StatsReport> {
-  const { today, allMeals, cooks, cookRows, recipeRows, recipeById, ingredientsByRecipe, memberRows } =
+  const { today, allMeals, outsideMeals, cooks, cookRows, recipeRows, recipeById, ingredientsByRecipe, memberRows } =
     await loadMealHistory(householdId);
 
   // ── The period ───────────────────────────────────────────────────────────────
 
   const rangeDays = STATS_RANGES[range].days;
-  const firstEver = allMeals[0]?.date ?? today;
+  const firstEver = [allMeals[0]?.date, outsideMeals[0]?.date, today].filter((d): d is string => !!d).sort()[0]!;
   const from = rangeDays === null ? firstEver : addDays(today, -(rangeDays - 1));
   // One person's report: only the meals they ate (everyone's, unless a logged
   // cook names who was eating). Scoped to this household's members, so a
@@ -143,6 +147,9 @@ export async function getStatsReport(
   const personRow = personId ? memberRows.find((m) => m.id === personId) : undefined;
   const meals = allMeals.filter(
     (m) => m.date >= from && m.date <= today && (!personRow || ateIt(m, personRow.displayName))
+  );
+  const out = outsideMeals.filter(
+    (m) => m.date >= from && m.date <= today && (!personRow || ateOutside(m, personRow.displayName))
   );
   const weeks = Math.max(1, (daysBetween(from, today) + 1) / 7);
 
@@ -157,7 +164,10 @@ export async function getStatsReport(
     };
   };
 
-  const summary = summariseMeals(meals.map(factsOf));
+  // Nutrition covers everything eaten: a steak out is that week's red meat.
+  const summaryOf = (list: Meal[], outside: OutsideMealView[]) =>
+    summariseMeals([...list.map(factsOf), ...outside.map(outsideMealFacts)]);
+  const summary = summaryOf(meals, out);
 
   // ── Totals ───────────────────────────────────────────────────────────────────
 
@@ -198,8 +208,13 @@ export async function getStatsReport(
     if (list) list.push(m);
     else mealsByBucket.set(k, [m]);
   }
+  const outByBucket = new Map<string, OutsideMealView[]>();
+  for (const m of out) {
+    const k = bucketKey(m.date);
+    outByBucket.set(k, [...(outByBucket.get(k) ?? []), m]);
+  }
   const buckets: Bucket[] = bucketKeys.map((k) => {
-    const s = summariseMeals((mealsByBucket.get(k) ?? []).map(factsOf));
+    const s = summaryOf(mealsByBucket.get(k) ?? [], outByBucket.get(k) ?? []);
     const start = bucketUnit === "week" ? k : `${k}-01`;
     return {
       label: bucketUnit === "week" ? SHORT_DATE.format(new Date(start + "T00:00:00Z")) : MONTH.format(new Date(start + "T00:00:00Z")),
@@ -223,17 +238,26 @@ export async function getStatsReport(
     }));
 
   const cuisineCounts = countBy(meals, (m) => recipeById.get(m.recipeId)?.cuisine ?? "Unspecified");
+  for (const m of out) {
+    const c = m.cuisine ?? "Unspecified";
+    cuisineCounts.set(c, (cuisineCounts.get(c) ?? 0) + 1);
+  }
   const cuisines = topN(cuisineCounts, 8).map(([name, count]) => ({ name, count }));
   const shown = cuisines.reduce((a, c) => a + c.count, 0);
-  if (meals.length > shown) cuisines.push({ name: "Other", count: meals.length - shown });
+  const eaten = meals.length + out.length;
+  if (eaten > shown) cuisines.push({ name: "Other", count: eaten - shown });
 
   // ── People ───────────────────────────────────────────────────────────────────
 
   const people: PersonStats[] = (personRow ? [personRow] : memberRows).map((m) => {
     const theirs = meals.filter((meal) => ateIt(meal, m.displayName));
-    const s = summariseMeals(theirs.map(factsOf));
-    const topCuisine =
-      topN(countBy(theirs, (meal) => recipeById.get(meal.recipeId)?.cuisine ?? null), 1)[0]?.[0] ?? null;
+    const theirsOut = out.filter((meal) => ateOutside(meal, m.displayName));
+    const s = summaryOf(theirs, theirsOut);
+    const theirCuisines = countBy(theirs, (meal) => recipeById.get(meal.recipeId)?.cuisine ?? null);
+    for (const meal of theirsOut) {
+      if (meal.cuisine) theirCuisines.set(meal.cuisine, (theirCuisines.get(meal.cuisine) ?? 0) + 1);
+    }
+    const topCuisine = topN(theirCuisines, 1)[0]?.[0] ?? null;
     return {
       id: m.id,
       name: m.displayName,
@@ -284,7 +308,8 @@ export async function getStatsReport(
     weeks,
     heartFocus: people.some((p) => p.cholesterolDiet),
     totals: {
-      meals: meals.length,
+      meals: meals.length + out.length,
+      mealsOut: out.length,
       cooksLogged: cooksInRange.length,
       distinctRecipes: distinct.size,
       newRecipes,

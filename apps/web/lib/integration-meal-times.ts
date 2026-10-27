@@ -91,10 +91,14 @@ export async function todayDinner(
     );
   }
 
+  // Not cooking tonight (eating out, a takeaway…): nothing to start.
+  const cooking = !plan.dinner.notCooking;
   return {
     time: plan.dinner.time,
     serveAt: new Date(at(plan.dinner.time)).toISOString(),
-    startCookingAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
-    reminderEnabled: plan.dinner.reminderEnabled,
+    startCookingAt: cooking && starts.length ? new Date(Math.min(...starts)).toISOString() : null,
+    reminderEnabled: plan.dinner.reminderEnabled && cooking,
+    /** The outside meal's kind ("eat_out", "takeaway"…) when dinner isn't cooked at home. */
+    notCooking: plan.dinner.notCooking,
   };
 }

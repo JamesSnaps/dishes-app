@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { OptimisticChange } from "@dishes/client";
 import { useSync, useSyncedCollection } from "@/components/providers/sync-provider";
 import { isMealRole } from "@dishes/shared";
 import { normaliseSavedMeals } from "@/lib/saved-meals";
+import { outsideMealFromRecord, type OutsideMealView } from "@/lib/outside-meals";
 import {
   WeekPlanner,
   type Entry,
@@ -206,6 +207,12 @@ function mondayOf(dateStr?: string | null): string {
   return `${d.getFullYear()}-${m}-${dd}`;
 }
 
+function addDaysTo(date: string, days: number): string {
+  const d = new Date(date + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /** 0=Mon … 6=Sun, matching `dayOfWeek` on an entry. */
 function todayIndex(): number {
   const day = new Date().getDay();
@@ -226,12 +233,12 @@ function shoppingCountFrom(lists: SyncRow[], items: SyncRow[]): number {
 
 type Props = Pick<
   WeekPlannerProps,
-  "weekStartDate" | "isCurrentWeek" | "todayDayIndex" | "heartFocus"
+  "weekStartDate" | "isCurrentWeek" | "todayDayIndex" | "heartFocus" | "people"
 > & {
   initial: Pick<
     WeekPlannerProps,
     "planId" | "entries" | "groups" | "recipes" | "topIngredients" | "shoppingItemCount"
-  > &
+  > & { outsideMeals: OutsideMealView[] } &
     // Saved meals aren't synced: they come from the server render either way.
     Pick<WeekPlannerProps, "savedMeals">;
 };
@@ -241,10 +248,12 @@ export function WeekPlannerLocal({
   isCurrentWeek,
   todayDayIndex,
   heartFocus,
+  people,
   initial,
 }: Props) {
   const sync = useSync();
   const params = useSearchParams();
+  const router = useRouter();
 
   const { data: syncedRecipes, loading } = useSyncedCollection<SyncRow>("recipes");
   const { data: cooks, loading: cooksLoading } = useSyncedCollection<SyncRow>("cookHistory");
@@ -255,6 +264,7 @@ export function WeekPlannerLocal({
     useSyncedCollection<SyncRow>("mealPlanGroups");
   const { data: lists, loading: listsLoading } = useSyncedCollection<SyncRow>("shoppingLists");
   const { data: items, loading: itemsLoading } = useSyncedCollection<SyncRow>("shoppingItems");
+  const { data: outsideRows, loading: outsideLoading } = useSyncedCollection<SyncRow>("outsideMeals");
 
   // Every collection, not just recipes. Each hook reads IndexedDB on its own
   // and they resolve at different times, so gating on one of them hands this
@@ -267,7 +277,8 @@ export function WeekPlannerLocal({
     entriesLoading ||
     groupsLoading ||
     listsLoading ||
-    itemsLoading;
+    itemsLoading ||
+    outsideLoading;
 
   const useLocal = Boolean(sync?.engine) && !storeLoading && syncedRecipes.length > 0;
 
@@ -322,8 +333,15 @@ export function WeekPlannerLocal({
       ? planGroups.filter((g) => g.mealPlanId === plan.id).map(toGroup)
       : [];
 
+    const weekEnd = addDaysTo(week, 6);
+    const outsideMeals = outsideRows.flatMap((r) => {
+      const m = outsideMealFromRecord(r);
+      return m && m.date >= week && m.date <= weekEnd ? [m] : [];
+    });
+
     return {
       missingRecipes,
+      outsideMeals,
       planId: plan ? plan.id : null,
       entries,
       groups,
@@ -331,7 +349,7 @@ export function WeekPlannerLocal({
       topIngredients: topIngredientsFrom(entries, byId),
       shoppingItemCount: shoppingCountFrom(lists, items),
     };
-  }, [useLocal, syncedRecipes, cooks, plans, planEntries, planGroups, lists, items, week]);
+  }, [useLocal, syncedRecipes, cooks, plans, planEntries, planGroups, lists, items, outsideRows, week]);
 
   /**
    * Entry edits, pushed through the sync engine rather than the server actions.
@@ -625,6 +643,13 @@ export function WeekPlannerLocal({
   }, []);
 
   const data = local ?? initial;
+
+  // Outside meals are written by server actions, not sync mutations: pull
+  // them into the store afterwards, or re-render from the server without one.
+  const handleOutsideChanged = useCallback(() => {
+    if (local && syncNow) syncNow();
+    else router.refresh();
+  }, [local, syncNow, router]);
   const savedMeals = useMemo(() => normaliseSavedMeals(initial.savedMeals), [initial.savedMeals]);
 
   return (
@@ -644,6 +669,9 @@ export function WeekPlannerLocal({
       // `initial`, nothing would re-read the result.
       mutations={mutations}
       onNavigateWeek={local ? handleNavigateWeek : undefined}
+      outsideMeals={data.outsideMeals}
+      people={people}
+      onOutsideMealsChanged={handleOutsideChanged}
     />
   );
 }

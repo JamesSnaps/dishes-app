@@ -69,8 +69,10 @@ const PROTEIN_PATTERNS: [ProteinKind, RegExp, RegExp?][] = [
   ],
   [
     "redMeat",
-    /\b(beef|steak|lamb|mutton|pork|veal|venison|goat|brisket|oxtail|mince)\b/i,
-    /\b(turkey|chicken|quorn|soy|vegetable) mince\b|mincemeat/i,
+    // Cuts and dishes too: a meal eaten out is often described by what the
+    // menu calls it ("ribeye", "burger", "kofta"), not by the animal.
+    /\b(beef|steak|lamb|mutton|pork|veal|venison|goat|brisket|oxtail|mince|rib-?eye|sirloin|rump|t-bone|porterhouse|bavette|chateaubriand|burgers?|meatballs?|kofta|doner|bolognese)\b/i,
+    /\b(turkey|chicken|quorn|soy|vegetable) mince\b|mincemeat|\b(chicken|turkey|veggie|vegetarian|vegan|bean|fish|halloumi|mushroom|quorn|plant-based) (burgers?|meatballs?)\b|\bburger buns?\b|\b(cauliflower|mushroom|aubergine|celeriac|cabbage|squash) steaks?\b/i,
   ],
 ];
 

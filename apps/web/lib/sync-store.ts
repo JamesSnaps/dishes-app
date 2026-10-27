@@ -31,6 +31,7 @@ class DishesSyncDB extends Dexie {
   mealPlanGroups!: Table<SyncRecord, string>;
   cookHistory!: Table<SyncRecord, string>;
   meals!: Table<SyncRecord, string>;
+  outsideMeals!: Table<SyncRecord, string>;
   meta!: Table<{ key: string; value: string }, string>;
   queue!: Table<QueuedMutation, string>;
 
@@ -74,8 +75,28 @@ class DishesSyncDB extends Dexie {
     this.version(3)
       .stores({ meals: "id, title" })
       .upgrade(async (tx) => {
+        // The collections as of v3 — later tables don't exist yet here.
+        for (const collection of [
+          "recipes",
+          "shoppingLists",
+          "shoppingItems",
+          "mealPlans",
+          "mealPlanEntries",
+          "mealPlanGroups",
+          "cookHistory",
+        ]) {
+          await tx.table(collection).clear();
+        }
+        await tx.table("meta").delete(CURSOR_KEY);
+      });
+
+    // v4 adds meals eaten out. Same reasoning: a store that pulled past the
+    // first ones before it had a table for them skipped them, so resnapshot.
+    this.version(4)
+      .stores({ outsideMeals: "id, date" })
+      .upgrade(async (tx) => {
         for (const collection of SYNC_COLLECTIONS) {
-          if (collection === "meals") continue;
+          if (collection === "outsideMeals") continue;
           await tx.table(collection).clear();
         }
         await tx.table("meta").delete(CURSOR_KEY);

@@ -160,7 +160,12 @@ export default async function StatsPage({
         <div className="space-y-5">
           {/* Headline tiles */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <StatTile value={totals.meals} label="Meals eaten" tone="orange" hint="Planned meals whose day has passed, plus logged cooks" />
+            <StatTile
+              value={totals.meals}
+              label={totals.mealsOut ? `Meals eaten · ${totals.mealsOut} out` : "Meals eaten"}
+              tone="orange"
+              hint="Planned meals whose day has passed, logged cooks, and meals eaten out or taken away"
+            />
             <StatTile value={totals.distinctRecipes} label="Different recipes" tone="violet" />
             <StatTile value={totals.newRecipes} label="New recipes tried" tone="emerald" hint="Eaten for the first time in this period" />
             <StatTile
@@ -513,7 +518,8 @@ function Tips({ report }: { report: Awaited<ReturnType<typeof getStatsReport>> }
     if (p.redMeat > 1) tips.push(`Red meat is at ${p.redMeat} a week — swapping one for chicken or fish helps.`);
     if (p.processedMeat > 0) tips.push(`Processed meat turned up ${p.processedMeat} times a week — bacon, sausages and ham are worth cutting.`);
   }
-  if (report.totals.distinctRecipes > 0 && report.totals.meals / report.totals.distinctRecipes > 3) {
+  const cookedAtHome = report.totals.meals - report.totals.mealsOut;
+  if (report.totals.distinctRecipes > 0 && cookedAtHome / report.totals.distinctRecipes > 3) {
     tips.push("You're repeating a small set of dishes — the planner's \"Try something new\" style mixes it up.");
   }
   if (report.neverEaten > 0) {

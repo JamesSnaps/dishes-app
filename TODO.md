@@ -164,31 +164,39 @@ Scope decisions (27 Oct 2026):
   recipe: hidden butter/oil, unknown portions)
 
 Steps:
-- [ ] Step 1 — schema + migration: `outside_meals` (`household_id`, `date`, `meal_type`, `kind`
+- [x] Step 1 — schema + migration: `outside_meals` (`household_id`, `date`, `meal_type`, `kind`
   eat_out/takeaway/at_friends/skipped, `title`, `place`, `cuisine`, `components` jsonb,
   `main_ingredients` text[], `portion`, the 8 nutrient columns + `nutrition_source`
   (+ `menu_kcal`), `cooked_for`, `rating`, `member_ratings`, `notes`, `photo_url`,
-  `menu_photo_url`). Same rating shapes as `cook_history` so the review UI is reused
-- [ ] Step 2 — server: CRUD actions + `/api/v1` routes; restaurant-portion nutrition estimator,
+  `menu_photo_url`). Same rating shapes as `cook_history` so the review UI is reused (v1.66.0, migration 0047)
+- [x] Step 2 — server: CRUD actions + `/api/v1` routes; restaurant-portion nutrition estimator,
   a sibling of `estimateNutritionFor` in `app/actions/ai.ts` (same output schema; a one-portion,
-  restaurant-aware prompt, menu kcal as an anchor, the plate photo when given); runs after save
-- [ ] Step 3 — planner: a "Not cooking" chip on a day (kind + place), which turns off that day's
-  dinner reminder and stops AI planning and Plan My Week from filling the slot
-- [ ] Step 4 — "Log a meal out" sheet (web): description, menu photo/text, plate photo, kind,
+  restaurant-aware prompt, menu kcal as an anchor, the plate photo when given); runs after save —
+  `lib/ai/outside-meal-nutrition.ts`, `lib/services/outside-meals.ts` (v1.66.0)
+- [x] Step 3 — planner: a "Not cooking" chip on a day (kind + place), which turns off that day's
+  dinner reminder and stops AI planning and Plan My Week from filling the slot; a recipe still
+  planned in the slot is marked as not counted (v1.66.0)
+- [x] Step 4 — "Log a meal out" sheet (web): description, menu photo/text, plate photo, kind,
   place, who ate, rating; also reachable from the "Not cooking" chip once the day has passed
-- [ ] Step 5 — health: include in `summariseMeals()` for the week nutrition card and Stats heart
+  (v1.66.0; own rating only — per-person ratings are stored but the sheet doesn't ask for them yet)
+- [x] Step 5 — health: include in `summariseMeals()` for the week nutrition card and Stats heart
   health, and in `meal-history.ts` (Stats, Wrapped, taste profile, recent-meal variety for the
-  AI planner)
+  AI planner). Rated meals out feed the taste profile; the red-meat words now include cuts and
+  dishes (ribeye, burger, kofta…) so a meal out counts before the AI reads it (v1.66.0)
 - [ ] Step 6 — sync: new entity through the sync layer (web `sync-store`, `packages/client`,
-  `DishesCore/Sync`, wire fixtures) — the biggest single cost
+  `DishesCore/Sync`, wire fixtures) — the biggest single cost. *Server, `packages/client` and the
+  web store done (v1.66.0, Dexie v4 resnapshot); `DishesCore` still to do — it ignores the new
+  collection until then*
 - [ ] Step 7 — iOS: log sheet with on-device reading (`ImageAttachment` + `OCRTool` for the menu,
   image input for the plate, a `@Generable` "what was eaten" type), server fallback without
   Apple Intelligence; `HealthLog` takes nutrient values rather than a `Recipe` and writes or
   rewrites the entry when the server's estimate arrives by sync. Add restaurant meals to the D2
   evaluation suite, and try the Private Cloud Compute model for the numbers there before moving
   anything off the server
-- [ ] Integrations API: outside meals on `today`/`week` (`API.md`, `integrations-catalog.ts`)
-- [ ] Later: "Make it at home" (send the meal to the concierge), Memories wall photos
+- [x] Integrations API: outside meals on `today`/`week` (`API.md`, `integrations-catalog.ts`); `dinner.notCooking`;
+  `meal-plan/generate` skips not-cooking days and lists them (v1.66.0)
+- [ ] Later: "Make it at home" (send the meal to the concierge), Memories wall photos, meals out in Wrapped
+  (planned recipes they replaced already drop out of it)
 - Not planned: cost/budget tracking, restaurant lookup or maps
 
 ## AI — Photo Recipe Import
