@@ -713,6 +713,9 @@ throws); asking for the eight nutrients is enough to save one.
   slots an outside meal takes, as the server's planner now does (done by starting the generator
   with nights out unticked). Not done: an on-device model reading the meal (title, main
   ingredients) — it needs a D2 evaluation first; the server's estimate does it meanwhile
+- [x] **Courses on a meal out** (v1.68.0): `OutsideMeal.courses`, a card per course on the sheet
+  (words, menu kcal, a photo from the camera or library — `?slot=course&course=<id>`), each
+  course's name and kcal on the result; the card shows the first course photo and "3 courses"
 
 ### C5. Push via APNs
 

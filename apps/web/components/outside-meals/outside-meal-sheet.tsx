@@ -10,6 +10,9 @@
  * before closing — what it came to, and which weekly protein targets it
  * counts towards. A future date is a plan: only what's needed to keep the
  * slot free, with a reminder to log what was eaten afterwards.
+ *
+ * More than one course (starter, main, dessert) gets a card each — its words
+ * or menu line, printed kcal and photo — and is estimated course by course.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -18,6 +21,7 @@ import {
   Camera,
   FileText,
   Loader2,
+  Plus,
   ShoppingBag,
   Sparkles,
   Trash2,
@@ -28,11 +32,14 @@ import {
 import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea, cn } from "@dishes/ui";
 import {
   MEAL_TYPES,
+  OUTSIDE_MEAL_COURSE_LABELS,
+  OUTSIDE_MEAL_COURSES,
   OUTSIDE_MEAL_KIND_LABELS,
   OUTSIDE_MEAL_KINDS,
   OUTSIDE_MEAL_PORTION_LABELS,
   OUTSIDE_MEAL_PORTIONS,
   type MealType,
+  type OutsideMealCourseType,
   type OutsideMealKind,
   type OutsideMealPortion,
 } from "@dishes/shared";
@@ -45,7 +52,12 @@ import {
   uploadOutsideMealPhoto,
 } from "@/app/actions/outside-meals";
 import { ownRating } from "@/lib/cook-ratings";
-import { outsideMealIngredientNames, type OutsideMealView } from "@/lib/outside-meals";
+import {
+  isOutsideMealDescribed,
+  outsideMealIngredientNames,
+  usesMenuKcal,
+  type OutsideMealView,
+} from "@/lib/outside-meals";
 import { PROTEIN_LABELS, proteinsOf } from "@/lib/meal-stats";
 import type { ReviewMember } from "@/components/cook-review/cook-review-form";
 
@@ -70,6 +82,26 @@ export function localToday(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+const COURSE_PLACEHOLDER: Record<OutsideMealCourseType, string> = {
+  starter: "Salt & pepper squid, aioli",
+  main: "8oz ribeye, triple-cooked chips, peppercorn sauce",
+  side: "Onion rings",
+  dessert: "Sticky toffee pudding, vanilla ice cream",
+  drink: "Large glass of red",
+};
+
+type CourseDraft = {
+  id: string;
+  course: OutsideMealCourseType;
+  text: string;
+  menuKcal: string;
+  file: File | null;
+  preview: string | null;
+  /** The photo already saved, unless removed. */
+  stored: string | null;
+  removePhoto: boolean;
+};
+
 type Draft = {
   kind: OutsideMealKind;
   date: string;
@@ -89,6 +121,7 @@ type Draft = {
   menuPreview: string | null;
   removePhoto: boolean;
   removeMenuPhoto: boolean;
+  courses: CourseDraft[];
 };
 
 function draftFrom(
@@ -115,7 +148,25 @@ function draftFrom(
     menuPreview: null,
     removePhoto: false,
     removeMenuPhoto: false,
+    courses: (meal?.courses ?? []).map((c) => ({
+      id: c.id,
+      course: c.course,
+      text: c.text ?? "",
+      menuKcal: c.menuKcal ? String(c.menuKcal) : "",
+      file: null,
+      preview: null,
+      stored: c.photoUrl,
+      removePhoto: false,
+    })),
   };
+}
+
+/** "850" → 850; "" → null; anything else → NaN, which the save refuses. */
+function kcalOf(v: string): number | null {
+  const t = v.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isInteger(n) && n > 0 && n < 10000 ? n : NaN;
 }
 
 const chip = (active: boolean) =>
@@ -187,10 +238,50 @@ export function OutsideMealSheet({
     }
   }
 
+  function addCourse(course: OutsideMealCourseType) {
+    const draft: CourseDraft = {
+      id: crypto.randomUUID(),
+      course,
+      text: "",
+      menuKcal: "",
+      file: null,
+      preview: null,
+      stored: null,
+      removePhoto: false,
+    };
+    // Kept in eating order, as they're shown everywhere else.
+    const rank = (c: OutsideMealCourseType) => OUTSIDE_MEAL_COURSES.indexOf(c);
+    const at = d.courses.findIndex((c) => rank(c.course) > rank(course));
+    const courses = [...d.courses];
+    courses.splice(at === -1 ? courses.length : at, 0, draft);
+    update({ courses });
+  }
+
+  function updateCourse(id: string, patch: Partial<CourseDraft>) {
+    update({ courses: d.courses.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
+  }
+
+  function removeCourse(id: string) {
+    const gone = d.courses.find((c) => c.id === id);
+    if (gone?.preview) URL.revokeObjectURL(gone.preview);
+    update({ courses: d.courses.filter((c) => c.id !== id) });
+  }
+
+  function setCoursePhoto(id: string, file: File | null) {
+    const c = d.courses.find((x) => x.id === id);
+    if (c?.preview) URL.revokeObjectURL(c.preview);
+    updateCourse(id, {
+      file,
+      preview: file ? URL.createObjectURL(file) : null,
+      ...(file ? {} : { stored: null, removePhoto: !!c?.stored || c?.removePhoto }),
+    });
+  }
+
   async function handleSave() {
     setError(null);
-    const menuKcal = d.menuKcal.trim() ? Number(d.menuKcal) : null;
-    if (menuKcal != null && !(Number.isInteger(menuKcal) && menuKcal > 0 && menuKcal < 10000)) {
+    const hasCourses = d.courses.length > 0;
+    const menuKcal = hasCourses ? null : kcalOf(d.menuKcal);
+    if (Number.isNaN(menuKcal) || d.courses.some((c) => Number.isNaN(kcalOf(c.menuKcal)))) {
       setError("Menu calories should be a whole number, like 850.");
       return;
     }
@@ -207,6 +298,20 @@ export function OutsideMealSheet({
       portion: d.portion,
       eatenBy: d.eatenBy.length ? d.eatenBy : null,
       notes: d.notes,
+      // A plan or a skipped meal keeps its courses: they aren't on the form for it.
+      ...(skipped || isPlan
+        ? {}
+        : {
+            courses: hasCourses
+              ? d.courses.map((c) => ({
+                  id: c.id,
+                  course: c.course,
+                  text: c.text,
+                  menuKcal: kcalOf(c.menuKcal),
+                  removePhoto: c.removePhoto && !c.file,
+                }))
+              : null,
+          }),
     };
 
     setSaving("saving");
@@ -239,9 +344,22 @@ export function OutsideMealSheet({
         stale = true;
         saved = { ...saved, [slot === "menu" ? "menuPhotoUrl" : "photoUrl"]: up.url ?? null };
       }
+      if (!skipped && !isPlan && storageAvailable) {
+        for (const c of d.courses) {
+          if (!c.file) continue;
+          const fd = new FormData();
+          fd.append("photo", c.file);
+          const up = await uploadOutsideMealPhoto(saved.id, "course", fd, c.id);
+          if (up.error) throw new Error(up.error);
+          stale = true;
+          saved = {
+            ...saved,
+            courses: saved.courses.map((x) => (x.id === c.id ? { ...x, photoUrl: up.url ?? null } : x)),
+          };
+        }
+      }
 
-      const describable =
-        !!(saved.title || saved.description || saved.menuText || saved.photoUrl || saved.menuPhotoUrl);
+      const describable = isOutsideMealDescribed(saved);
       const wantsEstimate =
         !isPlan &&
         !skipped &&
@@ -283,6 +401,7 @@ export function OutsideMealSheet({
     onOpenChange(false);
   }
 
+  const hasCourses = d.courses.length > 0;
   const shownPlate = d.platePreview ?? (d.removePhoto ? null : meal?.photoUrl ?? null);
   const shownMenu = d.menuPreview ?? (d.removeMenuPhoto ? null : meal?.menuPhotoUrl ?? null);
 
@@ -359,7 +478,13 @@ export function OutsideMealSheet({
                 <div className="space-y-2">
                   <label className="text-sm font-medium">{isPlan ? "Where, or what? (optional)" : "What did you have?"}</label>
                   <Input
-                    placeholder={d.kind === "takeaway" ? "Chicken tikka masala, pilau rice" : "Ribeye steak & chips"}
+                    placeholder={
+                      hasCourses
+                        ? "Optional — named from the courses"
+                        : d.kind === "takeaway"
+                          ? "Chicken tikka masala, pilau rice"
+                          : "Ribeye steak & chips"
+                    }
                     value={d.title}
                     maxLength={200}
                     onChange={(e) => update({ title: e.target.value })}
@@ -372,7 +497,11 @@ export function OutsideMealSheet({
                   />
                   {!isPlan && (
                     <Textarea
-                      placeholder="Anything else on the plate — sides, sauces, bread, dessert…"
+                      placeholder={
+                        hasCourses
+                          ? "Anything else — bread for the table, sides to share, drinks…"
+                          : "Anything else on the plate — sides, sauces, bread, dessert…"
+                      }
                       value={d.description}
                       onChange={(e) => update({ description: e.target.value })}
                       rows={2}
@@ -380,6 +509,17 @@ export function OutsideMealSheet({
                     />
                   )}
                 </div>
+
+                {!isPlan && (
+                  <CoursesField
+                    courses={d.courses}
+                    storageAvailable={storageAvailable}
+                    onAdd={addCourse}
+                    onChange={updateCourse}
+                    onRemove={removeCourse}
+                    onPhoto={setCoursePhoto}
+                  />
+                )}
 
                 {!isPlan && (
                   <>
@@ -390,31 +530,35 @@ export function OutsideMealSheet({
                         From the menu
                       </label>
                       <p className="text-xs text-muted-foreground">
-                        The menu&rsquo;s description says what&rsquo;s in the dish — the best guide to its nutrition.
+                        {hasCourses
+                          ? "Each course's line can go on its card — or paste the menu here and the AI matches them up."
+                          : "The menu’s description says what’s in the dish — the best guide to its nutrition."}
                       </p>
                       <Textarea
-                        placeholder="Paste or type the dish's line from the menu"
+                        placeholder={hasCourses ? "Paste or type the lines from the menu" : "Paste or type the dish's line from the menu"}
                         value={d.menuText}
                         onChange={(e) => update({ menuText: e.target.value })}
                         rows={2}
                         className="resize-none bg-background/80"
                       />
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          max={9999}
-                          placeholder="kcal"
-                          value={d.menuKcal}
-                          onChange={(e) => update({ menuKcal: e.target.value })}
-                          className={cn(fieldClass, "w-24 bg-background/80")}
-                          aria-label="Calories printed on the menu"
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          kcal printed on the menu, if it shows them — used as given
-                        </span>
-                      </div>
+                      {!hasCourses && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={9999}
+                            placeholder="kcal"
+                            value={d.menuKcal}
+                            onChange={(e) => update({ menuKcal: e.target.value })}
+                            className={cn(fieldClass, "w-24 bg-background/80")}
+                            aria-label="Calories printed on the menu"
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            kcal printed on the menu, if it shows them — used as given
+                          </span>
+                        </div>
+                      )}
                       {storageAvailable && (
                         <PhotoField
                           label="Photo of the menu"
@@ -425,8 +569,13 @@ export function OutsideMealSheet({
                       )}
                     </div>
 
-                    {storageAvailable && (
-                      <PhotoField label="Photo of the plate" url={shownPlate} onPick={(f) => setPhoto("plate", f)} />
+                    {/* With courses, each has its own photo; a table photo stays if there is one. */}
+                    {storageAvailable && (!hasCourses || shownPlate) && (
+                      <PhotoField
+                        label={hasCourses ? "Photo of the table" : "Photo of the plate"}
+                        url={shownPlate}
+                        onPick={(f) => setPhoto("plate", f)}
+                      />
                     )}
 
                     {/* Portion */}
@@ -540,6 +689,102 @@ export function OutsideMealSheet({
   );
 }
 
+const COURSE_STYLE: Record<OutsideMealCourseType, string> = {
+  starter: "from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30",
+  main: "from-orange-50 to-rose-50 dark:from-orange-950/30 dark:to-rose-950/30",
+  side: "from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/20",
+  dessert: "from-pink-50 to-fuchsia-50 dark:from-pink-950/30 dark:to-fuchsia-950/30",
+  drink: "from-sky-50 to-indigo-50 dark:from-sky-950/30 dark:to-indigo-950/30",
+};
+
+/** A card per course, and buttons to add one of each kind. */
+function CoursesField({
+  courses,
+  storageAvailable,
+  onAdd,
+  onChange,
+  onRemove,
+  onPhoto,
+}: {
+  courses: CourseDraft[];
+  storageAvailable: boolean;
+  onAdd: (course: OutsideMealCourseType) => void;
+  onChange: (id: string, patch: Partial<CourseDraft>) => void;
+  onRemove: (id: string) => void;
+  onPhoto: (id: string, file: File | null) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">{courses.length ? "Courses" : "More than one course?"}</label>
+      {courses.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Add a starter, dessert or drinks and each is estimated on its own, with its own menu kcal and photo.
+        </p>
+      )}
+      {courses.map((c) => (
+        <div key={c.id} className={cn("space-y-2 rounded-xl bg-gradient-to-br p-3 shadow-sm", COURSE_STYLE[c.course])}>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">{OUTSIDE_MEAL_COURSE_LABELS[c.course]}</span>
+            <button
+              type="button"
+              onClick={() => onRemove(c.id)}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-background/70 text-muted-foreground shadow-sm hover:text-destructive"
+              aria-label={`Remove the ${OUTSIDE_MEAL_COURSE_LABELS[c.course].toLowerCase()}`}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <Textarea
+            placeholder={COURSE_PLACEHOLDER[c.course]}
+            value={c.text}
+            onChange={(e) => onChange(c.id, { text: e.target.value })}
+            rows={2}
+            maxLength={2000}
+            className="resize-none bg-background/80"
+          />
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={9999}
+              placeholder="kcal"
+              value={c.menuKcal}
+              onChange={(e) => onChange(c.id, { menuKcal: e.target.value })}
+              className={cn(fieldClass, "w-24 bg-background/80")}
+              aria-label={`Calories printed on the menu for the ${OUTSIDE_MEAL_COURSE_LABELS[c.course].toLowerCase()}`}
+            />
+            <span className="text-xs text-muted-foreground">kcal on the menu, if shown</span>
+          </div>
+          {storageAvailable && (
+            <PhotoField
+              label={`Photo of the ${OUTSIDE_MEAL_COURSE_LABELS[c.course].toLowerCase()}`}
+              url={c.preview ?? c.stored}
+              onPick={(f) => onPhoto(c.id, f)}
+              compact
+            />
+          )}
+        </div>
+      ))}
+      {courses.length < 8 && (
+        <div className="flex flex-wrap gap-2">
+          {OUTSIDE_MEAL_COURSES.map((course) => (
+            <button
+              key={course}
+              type="button"
+              onClick={() => onAdd(course)}
+              className="flex items-center gap-1 rounded-full border border-orange-300 bg-gradient-to-br from-orange-50 to-rose-50 px-3 py-1 text-xs font-semibold text-orange-800 shadow-sm hover:border-orange-400 dark:border-orange-900 dark:from-orange-950/40 dark:to-rose-950/30 dark:text-orange-300"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {OUTSIDE_MEAL_COURSE_LABELS[course]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PhotoField({
   label,
   url,
@@ -609,7 +854,7 @@ export function OutsideMealNutrition({ meal }: { meal: OutsideMealView }) {
           <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
             {meal.nutritionSource === "manual"
               ? "Entered"
-              : meal.menuKcal
+              : usesMenuKcal(meal)
                 ? "kcal from the menu · rest estimated"
                 : "Estimate"}
           </span>
@@ -635,6 +880,28 @@ export function OutsideMealNutrition({ meal }: { meal: OutsideMealView }) {
   );
 }
 
+/** Each course: what it was and its share of the calories, once estimated. */
+export function OutsideMealCourses({ meal }: { meal: OutsideMealView }) {
+  return (
+    <ul className="space-y-1.5">
+      {meal.courses.map((c) => (
+        <li key={c.id} className="flex items-baseline gap-2 rounded-lg bg-background/70 px-2.5 py-1.5 text-sm shadow-sm">
+          <span className="w-16 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {OUTSIDE_MEAL_COURSE_LABELS[c.course]}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{c.name ?? c.text ?? "—"}</span>
+          {c.calories != null && (
+            <span className="shrink-0 tabular-nums text-muted-foreground">
+              {c.menuKcal ? "" : "≈ "}
+              {c.calories.toLocaleString()} kcal
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function EstimateResult({
   meal,
   error,
@@ -652,9 +919,16 @@ function EstimateResult({
             <Sparkles className="h-4 w-4 shrink-0" />
             <span className="text-sm font-semibold">{meal.title ?? "Your meal"}</span>
           </div>
-          {meal.components?.length ? (
+          {meal.courses.length ? (
+            <OutsideMealCourses meal={meal} />
+          ) : meal.components?.length ? (
             <p className="text-xs text-muted-foreground">{meal.components.join(" · ")}</p>
           ) : null}
+          {error && (
+            <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              {error} These are the figures from before.
+            </p>
+          )}
           <OutsideMealNutrition meal={meal} />
           <p className="text-[11px] text-muted-foreground">
             Restaurant food is hard to pin down — hidden butter and oil, unknown portions — so treat this as a rough guide.

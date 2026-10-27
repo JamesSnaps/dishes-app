@@ -4,7 +4,12 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@dishes/ui";
 import { OUTSIDE_MEAL_KIND_LABELS, type OutsideMealKind } from "@dishes/shared";
 import { OUTSIDE_MEAL_KIND_ICON } from "@/components/outside-meals/outside-meal-sheet";
-import { outsideMealLabel, type OutsideMealView } from "@/lib/outside-meals";
+import {
+  isOutsideMealDescribed,
+  outsideMealCoverPhoto,
+  outsideMealLabel,
+  type OutsideMealView,
+} from "@/lib/outside-meals";
 
 const KIND_STYLE: Record<OutsideMealKind, string> = {
   eat_out:
@@ -48,9 +53,12 @@ export function OutsideMealCard({
 }) {
   const Icon = OUTSIDE_MEAL_KIND_ICON[meal.kind];
   const kindLabel = OUTSIDE_MEAL_KIND_LABELS[meal.kind];
-  const described = !!(meal.title || meal.description || meal.menuText || meal.photoUrl);
+  const described = isOutsideMealDescribed(meal);
+  const photo = outsideMealCoverPhoto(meal);
+  const courses = meal.kind !== "skipped" && meal.courses.length > 1 ? `${meal.courses.length} courses · ` : "";
   const detail =
-    meal.kind === "skipped"
+    courses +
+    (meal.kind === "skipped"
       ? "Not eaten"
       : meal.calories != null
         ? `${meal.nutritionSource === "manual" ? "" : "≈ "}${meal.calories.toLocaleString()} kcal${
@@ -60,7 +68,7 @@ export function OutsideMealCard({
           ? described
             ? "No nutrition yet — tap to estimate"
             : "Tap to add what you had"
-          : "No reminder · the AI planner leaves this slot";
+          : "No reminder · the AI planner leaves this slot");
 
   return (
     <li>
@@ -72,9 +80,9 @@ export function OutsideMealCard({
           KIND_STYLE[meal.kind]
         )}
       >
-        {meal.photoUrl ? (
+        {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={meal.photoUrl} alt="" className="h-12 w-12 flex-shrink-0 rounded-lg object-cover shadow" />
+          <img src={photo} alt="" className="h-12 w-12 flex-shrink-0 rounded-lg object-cover shadow" />
         ) : (
           <span
             className={cn(

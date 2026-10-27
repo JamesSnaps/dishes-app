@@ -15,8 +15,14 @@ import OpenAI from "openai";
 import sharp from "sharp";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { aiConfigurations, outsideMeals, type OutsideMeal, type MemberRating } from "@dishes/db/schema";
 import {
+  aiConfigurations,
+  outsideMeals,
+  type MemberRating,
+  type OutsideMeal,
+} from "@dishes/db/schema";
+import {
+  isOutsideMealCourseType,
   isOutsideMealKind,
   MEAL_TYPES,
   OUTSIDE_MEAL_PORTIONS,
@@ -33,7 +39,15 @@ import { assertRating, cleanMemberRatings, combineVoices, memberName } from "@/l
 import { ownRating } from "@/lib/cook-ratings";
 import { refreshTasteProfile } from "@/lib/services/taste-profile";
 import type { HouseholdContext } from "@/lib/session";
-import type { OutsideMealView } from "@/lib/outside-meals";
+import {
+  coursesFrom,
+  isOutsideMealDescribed,
+  mergeCourses,
+  type OutsideMealCourseInput,
+  type OutsideMealView,
+} from "@/lib/outside-meals";
+
+export type { OutsideMealCourseInput };
 
 export class OutsideMealNotFoundError extends Error {
   constructor() {
@@ -70,14 +84,25 @@ export type OutsideMealInput = {
   notes?: string | null;
   /** Typed-in figures: marks the nutrition manual, so no estimate replaces it. */
   nutrition?: RecipeNutrition | null;
+  /**
+   * The courses, all of them, in any order (they're shown in eating order).
+   * Null or [] makes it one dish again; absent leaves them as they are.
+   */
+  courses?: OutsideMealCourseInput[] | null;
 };
+
 
 export type UpdateOutsideMealInput = Partial<OutsideMealInput> & {
   removePhoto?: boolean;
   removeMenuPhoto?: boolean;
 };
 
-export type PhotoSlot = "plate" | "menu";
+/** The plate, the menu, or one course's plate (`courseId`). */
+export type PhotoSlot = "plate" | "menu" | "course";
+
+export const MAX_COURSES = 8;
+/** Course photos the estimator looks at, in eating order; the rest go by their words. */
+const MAX_COURSE_PHOTOS = 6;
 
 // --- Helpers ----------------------------------------------------------------
 
@@ -113,6 +138,7 @@ export function toView(row: OutsideMeal): OutsideMealView {
       ? (row.portion as OutsideMealPortion)
       : "typical",
     components: row.components ?? null,
+    courses: coursesFrom(row.courses),
     mainIngredients: row.mainIngredients ?? null,
     menuKcal: row.menuKcal,
     calories: row.calories,
@@ -162,7 +188,26 @@ function assertFields(input: Partial<OutsideMealInput>): void {
     throw new OutsideMealValidationError("menuKcal must be a whole number of kcal");
   }
   assertRating(input.rating);
+  if (input.courses) assertCourses(input.courses);
 }
+
+const COURSE_ID_RE = /^[A-Za-z0-9-]{1,64}$/;
+
+function assertCourses(courses: OutsideMealCourseInput[]): void {
+  if (courses.length > MAX_COURSES) throw new OutsideMealValidationError(`At most ${MAX_COURSES} courses.`);
+  const ids = new Set<string>();
+  for (const c of courses) {
+    if (typeof c.id !== "string" || !COURSE_ID_RE.test(c.id) || ids.has(c.id)) {
+      throw new OutsideMealValidationError("Each course needs its own id.");
+    }
+    ids.add(c.id);
+    if (!isOutsideMealCourseType(c.course)) throw new OutsideMealValidationError("Unknown course");
+    if (c.menuKcal != null && !(Number.isInteger(c.menuKcal) && c.menuKcal > 0 && c.menuKcal < 10000)) {
+      throw new OutsideMealValidationError("A course's menu calories must be a whole number of kcal");
+    }
+  }
+}
+
 
 /** The fields an estimate reads: changing any of them makes it stale. */
 const ESTIMATE_INPUTS = ["kind", "title", "place", "cuisine", "description", "menuText", "portion", "menuKcal"] as const;
@@ -204,6 +249,7 @@ export async function createOutsideMeal(
       eatenBy: input.eatenBy?.length ? input.eatenBy : null,
       ...voices,
       notes: text(input.notes),
+      courses: mergeCourses(null, input.courses ?? null).courses,
       ...(input.nutrition ? nutritionColumns(input.nutrition, "manual") : {}),
     })
     .returning();
@@ -239,7 +285,10 @@ export async function updateOutsideMeal(
     );
   }
 
+  const merged = input.courses !== undefined ? mergeCourses(existing.courses, input.courses) : null;
+
   const set: Partial<typeof outsideMeals.$inferInsert> = {
+    ...(merged ? { courses: merged.courses } : {}),
     ...(input.date !== undefined ? { date: input.date } : {}),
     ...(input.mealType !== undefined ? { mealType: input.mealType } : {}),
     ...(input.kind !== undefined ? { kind: input.kind } : {}),
@@ -265,7 +314,7 @@ export async function updateOutsideMeal(
   const changed = ESTIMATE_INPUTS.some((k) => {
     const v = set[k];
     return v !== undefined && v !== existing[k];
-  }) || !!input.removePhoto || !!input.removeMenuPhoto;
+  }) || !!input.removePhoto || !!input.removeMenuPhoto || !!merged?.changed;
   const source = (set.nutritionSource ?? existing.nutritionSource) as OutsideMeal["nutritionSource"];
   const staleEstimate = source !== "manual" && (changed || input.nutrition === null);
 
@@ -298,14 +347,18 @@ export async function setOutsideMealPhoto(
   id: string,
   slot: PhotoSlot,
   raw: Buffer,
-  contentType: string
+  contentType: string,
+  courseId?: string
 ): Promise<{ url: string }> {
   if (!isStorageAvailable()) throw new OutsideMealValidationError("Storage not configured.");
   if (!PHOTO_TYPES.includes(contentType)) {
     throw new OutsideMealValidationError("Only JPEG, PNG, and WebP images are allowed.");
   }
   if (raw.byteLength > PHOTO_MAX_BYTES) throw new OutsideMealValidationError("Photo must be under 15 MB.");
-  await loadOwned(ctx, id);
+  const row = await loadOwned(ctx, id);
+  if (slot === "course" && !row.courses?.some((c) => c.id === courseId)) {
+    throw new OutsideMealValidationError("That course isn't part of this meal — save it first.");
+  }
 
   const resized = await sharp(raw)
     .rotate() // auto-rotate from EXIF orientation, then strip the tag
@@ -314,22 +367,34 @@ export async function setOutsideMealPhoto(
     .toBuffer();
 
   const base = `households/${ctx.householdId}/outside-meals/${id}`;
-  const name = slot === "menu" ? "menu" : "dish";
+  const name = slot === "menu" ? "menu" : slot === "course" ? `course-${courseId}` : "dish";
   // Each upload gets its own key so a cached old photo can't stand in for it.
   const stamp = Date.now().toString(36);
   const [url] = await Promise.all([
     uploadFile(`${base}/${name}-${stamp}.jpg`, resized, "image/jpeg"),
-    slot === "plate"
+    slot !== "menu"
       ? makeThumbnail(raw)
           .then((thumb) => uploadFile(`${base}/${name}-${stamp}_thumb.jpg`, thumb, "image/jpeg"))
           .catch(() => null)
       : null,
   ]);
 
-  await db
-    .update(outsideMeals)
-    .set(slot === "menu" ? { menuPhotoUrl: url } : { photoUrl: url })
-    .where(and(eq(outsideMeals.id, id), eq(outsideMeals.householdId, ctx.householdId)));
+  if (slot === "course") {
+    // Re-read: the courses may have been edited while the photo uploaded.
+    const now = await loadOwned(ctx, id);
+    const courses = (now.courses ?? []).map((c) =>
+      c.id === courseId ? { ...c, photoUrl: url, name: null, components: null, calories: null } : c
+    );
+    await db
+      .update(outsideMeals)
+      .set({ courses })
+      .where(and(eq(outsideMeals.id, id), eq(outsideMeals.householdId, ctx.householdId)));
+  } else {
+    await db
+      .update(outsideMeals)
+      .set(slot === "menu" ? { menuPhotoUrl: url } : { photoUrl: url })
+      .where(and(eq(outsideMeals.id, id), eq(outsideMeals.householdId, ctx.householdId)));
+  }
 
   return { url };
 }
@@ -387,14 +452,19 @@ export async function estimateOutsideMealNutrition(
   const meal = toView(row);
   if (meal.nutritionSource === "manual") return meal;
   if (meal.kind === "skipped") throw new OutsideMealValidationError("A skipped meal has nothing to estimate.");
-  if (!meal.title && !meal.description && !meal.menuText && !meal.photoUrl && !meal.menuPhotoUrl) {
+  if (!isOutsideMealDescribed(meal)) {
     throw new OutsideMealValidationError("Describe the meal, or add a photo of it or the menu, first.");
   }
 
   const ai = await aiClientFor(ctx.householdId);
   if (!ai) throw new OutsideMealValidationError("AI isn't set up — add a key in Settings → AI.");
 
-  const [platePhoto, menuPhoto] = await Promise.all([photoForModel(meal.photoUrl), photoForModel(meal.menuPhotoUrl)]);
+  const withPhotos = new Set(meal.courses.filter((c) => c.photoUrl).slice(0, MAX_COURSE_PHOTOS).map((c) => c.id));
+  const [platePhoto, menuPhoto, ...coursePhotos] = await Promise.all([
+    photoForModel(meal.photoUrl),
+    photoForModel(meal.menuPhotoUrl),
+    ...meal.courses.map((c) => (withPhotos.has(c.id) ? photoForModel(c.photoUrl) : null)),
+  ]);
 
   let reading;
   try {
@@ -409,6 +479,13 @@ export async function estimateOutsideMealNutrition(
       menuKcal: meal.menuKcal,
       platePhoto,
       menuPhoto,
+      courses: meal.courses.map((c, i) => ({
+        id: c.id,
+        course: c.course,
+        text: c.text,
+        menuKcal: c.menuKcal,
+        photo: coursePhotos[i] ?? null,
+      })),
     });
   } catch (err) {
     console.error(`[outside-meals] estimate failed meal=${id}:`, err instanceof Error ? err.message : err);
@@ -423,6 +500,21 @@ export async function estimateOutsideMealNutrition(
       cuisine: meal.cuisine ?? (reading.cuisine ? reading.cuisine.slice(0, 100) : null),
       components: reading.components.length ? reading.components : null,
       mainIngredients: reading.mainIngredients.length ? reading.mainIngredients : null,
+      ...(row.courses?.length
+        ? {
+            courses: row.courses.map((c) => {
+              const read = reading.courses.find((r) => r.id === c.id);
+              return read
+                ? {
+                    ...c,
+                    name: read.name ? read.name.slice(0, 200) : null,
+                    components: read.components.length ? read.components : null,
+                    calories: read.nutrition.calories,
+                  }
+                : c;
+            }),
+          }
+        : {}),
     })
     // Re-check the source: a figure typed in while the AI was thinking wins.
     .where(

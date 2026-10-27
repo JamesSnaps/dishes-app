@@ -195,6 +195,9 @@ Steps:
   out unticked. Server: `?estimate=false` on the v1 writes so the app asks for one estimate itself
 - [x] Integrations API: outside meals on `today`/`week` (`API.md`, `integrations-catalog.ts`); `dinner.notCooking`;
   `meal-plan/generate` skips not-cooking days and lists them (v1.66.0)
+- [x] Courses (v1.68.0): a sitting can hold several courses (`outside_meals.courses`, migration 0048) —
+  starter, main, side, dessert, drink, each with its words, menu kcal and photo, estimated on its own;
+  the nutrition columns stay the sitting's total. Web and iOS sheets, cards and the integrations API
 - [ ] Later: "Make it at home" (send the meal to the concierge), Memories wall photos, meals out in Wrapped
   (planned recipes they replaced already drop out of it)
 - Not planned: cost/budget tracking, restaurant lookup or maps

@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { createLogger } from "@/lib/logger";
 import type { HouseholdContext } from "@/lib/session";
-import type { OutsideMealView } from "@/lib/outside-meals";
+import { isOutsideMealDescribed, type OutsideMealView } from "@/lib/outside-meals";
 import { estimateOutsideMealNutrition } from "@/lib/services/outside-meals";
 
 const log = createLogger("outside-meals");
@@ -17,7 +17,7 @@ export function estimateInBackground(ctx: HouseholdContext, meal: OutsideMealVie
   // than one per step racing each other.
   if (req && new URL(req.url).searchParams.get("estimate") === "false") return;
   if (meal.nutritionSource === "manual" || meal.kind === "skipped") return;
-  if (!meal.title && !meal.description && !meal.menuText && !meal.photoUrl && !meal.menuPhotoUrl) return;
+  if (!isOutsideMealDescribed(meal)) return;
   const scope = { householdId: ctx.householdId, memberId: ctx.memberId };
   after(async () => {
     try {

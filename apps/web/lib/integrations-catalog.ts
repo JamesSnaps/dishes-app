@@ -249,7 +249,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     scope: "read:meal_plan",
     summary: "Today's meals",
     description:
-      "Every meal planned for today, across all meal types. \"Today\" is the household's date in its own timezone (Settings → Dinner reminders), not the server's. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own. serveAt is when the meal should be ready (its own ready-by time, else the day's dinner time for dinner; null otherwise). dinner is tonight's dinner time and when to start cooking it — the time the start-cooking reminder goes by; startCookingAt is null when no dinner is planned or nobody is cooking. outsideMeals lists meals today not cooked from the plan — kind is eat_out, takeaway, at_friends or skipped; calories is the AI's estimate once made (nutritionSource ai), typed in (manual) or null (none). When dinner is one of them, dinner.notCooking is its kind and there's no reminder. nextDelivery is the next grocery order still open (see getDeliveries), or null when delivery days aren't set up.",
+      "Every meal planned for today, across all meal types. \"Today\" is the household's date in its own timezone (Settings → Dinner reminders), not the server's. Each meal includes a recipe summary; pass recipe.id to getRecipe for ingredients and method. Dishes that are part of a combined meal (a roast and its sides) share a mealGroup { id, title, role }; role is main, side, sauce or other. mealGroup is null for a dish planned on its own. serveAt is when the meal should be ready (its own ready-by time, else the day's dinner time for dinner; null otherwise). dinner is tonight's dinner time and when to start cooking it — the time the start-cooking reminder goes by; startCookingAt is null when no dinner is planned or nobody is cooking. outsideMeals lists meals today not cooked from the plan — kind is eat_out, takeaway, at_friends or skipped; calories is the AI's estimate once made (nutritionSource ai), typed in (manual) or null (none); courses is [] for one dish, else each course in eating order (course starter/main/side/dessert/drink, name, calories) with calories above the whole sitting. When dinner is one of them, dinner.notCooking is its kind and there's no reminder. nextDelivery is the next grocery order still open (see getDeliveries), or null when delivery days aren't set up.",
     response: {
       status: 200,
       description: "Today's meals. `meals` is empty when nothing is planned.",
@@ -292,6 +292,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             cuisine: "British",
             calories: 1150,
             nutritionSource: "ai",
+            courses: [],
           },
         ],
         dinner: {
@@ -354,6 +355,7 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
             cuisine: "Indian",
             calories: null,
             nutritionSource: "none",
+            courses: [],
           },
         ],
       },

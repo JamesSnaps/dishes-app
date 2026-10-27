@@ -340,6 +340,33 @@ public final class APIClient: SyncTransport, Sendable {
         public var notes: String?
         public var removePhoto: Bool = false
         public var removeMenuPhoto: Bool = false
+        /// Every course; empty makes it one dish again. Nil leaves them as
+        /// they are (a plan or a skipped meal, whose form doesn't show them).
+        public var courses: [CourseWrite]?
+
+        /// A course as the eater gives it; its photo goes up separately.
+        public struct CourseWrite: Encodable, Sendable {
+            public var id: String
+            public var course: String
+            public var text: String?
+            public var menuKcal: Int?
+            public var removePhoto: Bool
+
+            public init(id: String, course: String, text: String?, menuKcal: Int?, removePhoto: Bool = false) {
+                self.id = id; self.course = course; self.text = text; self.menuKcal = menuKcal; self.removePhoto = removePhoto
+            }
+
+            enum Keys: String, CodingKey { case id, course, text, menuKcal, removePhoto }
+
+            public func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: Keys.self)
+                try c.encode(id, forKey: .id)
+                try c.encode(course, forKey: .course)
+                try c.encode(text, forKey: .text)
+                try c.encode(menuKcal, forKey: .menuKcal)
+                if removePhoto { try c.encode(true, forKey: .removePhoto) }
+            }
+        }
 
         public init(date: String, mealType: String, kind: String, title: String?, place: String?, description: String?,
                     menuText: String?, menuKcal: Int?, portion: String, eatenBy: [String]?, rating: Double?, notes: String?) {
@@ -350,7 +377,7 @@ public final class APIClient: SyncTransport, Sendable {
 
         enum Keys: String, CodingKey {
             case date, mealType, kind, title, place, description, menuText, menuKcal, portion, eatenBy, rating, notes
-            case removePhoto, removeMenuPhoto
+            case removePhoto, removeMenuPhoto, courses
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -370,6 +397,9 @@ public final class APIClient: SyncTransport, Sendable {
             // Only on an edit: the create schema doesn't take them.
             if removePhoto { try c.encode(true, forKey: .removePhoto) }
             if removeMenuPhoto { try c.encode(true, forKey: .removeMenuPhoto) }
+            if let courses {
+                if courses.isEmpty { try c.encodeNil(forKey: .courses) } else { try c.encode(courses, forKey: .courses) }
+            }
         }
     }
 
@@ -397,9 +427,22 @@ public final class APIClient: SyncTransport, Sendable {
     /// reads both. Raw body, as for a cook photo.
     @discardableResult
     public func uploadOutsideMealPhoto(id: String, menu: Bool, image: Data, mime: String = "image/jpeg") async throws -> String {
+        try await uploadOutsideMealPhoto(id: id, query: [URLQueryItem(name: "slot", value: menu ? "menu" : "plate")],
+                                         image: image, mime: mime)
+    }
+
+    /// A photo of one course, saved on the meal already.
+    @discardableResult
+    public func uploadOutsideMealCoursePhoto(id: String, courseId: String, image: Data, mime: String = "image/jpeg") async throws -> String {
+        try await uploadOutsideMealPhoto(id: id, query: [URLQueryItem(name: "slot", value: "course"),
+                                                         URLQueryItem(name: "course", value: courseId)],
+                                         image: image, mime: mime)
+    }
+
+    private func uploadOutsideMealPhoto(id: String, query: [URLQueryItem], image: Data, mime: String) async throws -> String {
         struct Reply: Decodable { var url: String }
         let data = try await send { token in
-            var r = authorisedRequest(url("/outside-meals/\(id)/photo", query: [URLQueryItem(name: "slot", value: menu ? "menu" : "plate")] + Self.estimateLater),
+            var r = authorisedRequest(url("/outside-meals/\(id)/photo", query: query + Self.estimateLater),
                                       method: "POST", token: token)
             r.httpBody = image
             r.setValue(mime, forHTTPHeaderField: "Content-Type")

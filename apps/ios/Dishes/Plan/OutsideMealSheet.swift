@@ -7,7 +7,9 @@
 //   (no dinner reminder, the AI planner leaves it). Once eaten: what it was,
 //   the dish's line from the menu (a photo of the menu is read on the device
 //   by Vision, so the text can be trimmed to the dish), a photo of the plate,
-//   how big it was, who ate, a rating.
+//   how big it was, who ate, a rating. More than one course (starter, main,
+//   dessert…) gets a card each — its words, printed kcal and photo — and is
+//   estimated course by course.
 //
 // Saving needs a connection: the meal goes to /api/v1/outside-meals, then its
 // photos, then one estimate the sheet waits for (API.md, `estimate=false`) —
@@ -47,6 +49,7 @@ struct OutsideMealSheet: View {
     @State private var menuPhoto: UIImage?
     @State private var removePlate = false
     @State private var removeMenu = false
+    @State private var courses: [CourseDraft] = []
     @State private var picking: PhotosPickerItem?
     @State private var pickingFor = Slot.plate
     @State private var camera: Slot?
@@ -56,8 +59,19 @@ struct OutsideMealSheet: View {
     @State private var confirmRemove = false
     @State private var loaded = false
 
-    enum Slot: Identifiable { case plate, menu; var id: Self { self } }
+    enum Slot: Identifiable, Hashable { case plate, menu, course(String); var id: Self { self } }
     enum Stage { case saving, estimating, removing }
+
+    /// A course on the form; `stored` is its saved photo, unless removed.
+    struct CourseDraft: Identifiable {
+        var id: String
+        var course: OutsideMeal.Course.Kind
+        var text = ""
+        var kcal = ""
+        var photo: UIImage?
+        var stored: String?
+        var removePhoto = false
+    }
 
     private var myName: String? { app.me?.user.displayName }
     private var dayKey: String { localDateKey(day) }
@@ -128,15 +142,21 @@ struct OutsideMealSheet: View {
 
             if !skipped {
                 field(isPlan ? "Where, or what? (optional)" : "What did you have?") {
-                    input(kind == .takeaway ? "Chicken tikka masala, pilau rice" : "Ribeye steak & chips", $title)
+                    input(!courses.isEmpty ? "Optional — named from the courses"
+                          : kind == .takeaway ? "Chicken tikka masala, pilau rice" : "Ribeye steak & chips", $title)
                     input(kind == .atFriends ? "Whose house?" : "Where from?", $place)
                     if !isPlan {
-                        input("Anything else on the plate — sides, sauces, bread, dessert…", $details, lines: 2)
+                        input(courses.isEmpty ? "Anything else on the plate — sides, sauces, bread, dessert…"
+                                              : "Anything else — bread for the table, sides to share, drinks…", $details, lines: 2)
                     }
                 }
                 if !isPlan {
+                    coursesSection
                     menuSection
-                    field("Photo of the plate") { photoRow(.plate) }
+                    // With courses, each has its own photo; a table photo stays if there is one.
+                    if courses.isEmpty || platePhoto != nil || (meal?.photoUrl != nil && !removePlate) {
+                        field(courses.isEmpty ? "Photo of the plate" : "Photo of the table") { photoRow(.plate) }
+                    }
                     field("How big was it?") {
                         HStack(spacing: 8) {
                             ForEach(OutsideMeal.Portion.allCases, id: \.self) { p in
@@ -234,23 +254,22 @@ struct OutsideMealSheet: View {
             Label("From the menu", systemImage: "doc.text")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color(hex: 0x075985))
-            Text("The menu’s description says what’s in the dish — the best guide to its nutrition. A photo of it is read on this \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"); trim the text to the dish you had.")
+            Text(courses.isEmpty
+                 ? "The menu’s description says what’s in the dish — the best guide to its nutrition. A photo of it is read on this \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"); trim the text to the dish you had."
+                 : "Each course’s line can go on its card — or put the menu here and the AI matches them up.")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.mutedForeground)
-            input("Type or paste the dish’s line from the menu", $menuText, lines: 3)
+            input(courses.isEmpty ? "Type or paste the dish’s line from the menu" : "Type or paste the lines from the menu", $menuText, lines: 3)
             if readingMenu {
                 Label("Reading the menu…", systemImage: "text.viewfinder")
                     .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
             }
-            HStack(spacing: 8) {
-                TextField("kcal", text: $menuKcal)
-                    .keyboardType(.numberPad)
-                    .padding(10)
-                    .frame(width: 90)
-                    .background(Theme.background, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .accessibilityLabel("Calories printed on the menu")
-                Text("kcal printed on the menu, if it shows them — used as given")
-                    .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+            if courses.isEmpty {
+                HStack(spacing: 8) {
+                    kcalField($menuKcal, label: "Calories printed on the menu")
+                    Text("kcal printed on the menu, if it shows them — used as given")
+                        .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                }
             }
             photoRow(.menu)
         }
@@ -258,10 +277,106 @@ struct OutsideMealSheet: View {
         .callout(Color(hex: 0xF0F9FF), Theme.indigo50, border: Color(hex: 0xBAE6FD))
     }
 
+    /// A card per course, and buttons to add one of each kind (the web's CoursesField).
+    private var coursesSection: some View {
+        field(courses.isEmpty ? "More than one course?" : "Courses") {
+            if courses.isEmpty {
+                Text("Add a starter, dessert or drinks and each is estimated on its own, with its own menu kcal and photo.")
+                    .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+            }
+            ForEach($courses) { $c in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(c.course.label).font(.system(size: 15, weight: .semibold))
+                        Spacer()
+                        Button { courses.removeAll { $0.id == c.id } } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(width: 28, height: 28)
+                                .background(Theme.background.opacity(0.8), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.mutedForeground)
+                        .accessibilityLabel("Remove the \(c.course.label.lowercased())")
+                    }
+                    input(Self.coursePrompt(c.course), $c.text, lines: 2)
+                    HStack(spacing: 8) {
+                        kcalField($c.kcal, label: "Calories printed on the menu for the \(c.course.label.lowercased())")
+                        Text("kcal on the menu, if shown").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                    }
+                    photoRow(.course(c.id))
+                }
+                .padding(14)
+                .callout(Self.courseTint(c.course).0, Self.courseTint(c.course).1, border: Theme.border)
+            }
+            if courses.count < 8 {
+                FlowLayout(spacing: 8) {
+                    ForEach(OutsideMeal.Course.Kind.allCases, id: \.self) { kind in
+                        Button { addCourse(kind) } label: {
+                            Label(kind.label, systemImage: "plus")
+                                .font(.system(size: 13, weight: .semibold))
+                                .padding(.horizontal, 12)
+                                .frame(height: 32)
+                                .foregroundStyle(Color(hex: 0x9A3412))
+                                .background(LinearGradient(colors: [Color(hex: 0xFFF7ED), Color(hex: 0xFFF1F2)],
+                                                           startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
+                                .overlay(Capsule().strokeBorder(Color(hex: 0xFDBA74)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func kcalField(_ text: Binding<String>, label: String) -> some View {
+        TextField("kcal", text: text)
+            .keyboardType(.numberPad)
+            .padding(10)
+            .frame(width: 90)
+            .background(Theme.background, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .accessibilityLabel(label)
+    }
+
+    static func coursePrompt(_ kind: OutsideMeal.Course.Kind) -> String {
+        switch kind {
+        case .starter: "Salt & pepper squid, aioli"
+        case .main: "8oz ribeye, triple-cooked chips, peppercorn sauce"
+        case .side: "Onion rings"
+        case .dessert: "Sticky toffee pudding, vanilla ice cream"
+        case .drink: "Large glass of red"
+        }
+    }
+
+    static func courseTint(_ kind: OutsideMeal.Course.Kind) -> (Color, Color) {
+        switch kind {
+        case .starter: (Color(light: 0xECFDF5, dark: 0x052E1F), Color(light: 0xF0FDFA, dark: 0x082A28))
+        case .main: (Color(light: 0xFFF7ED, dark: 0x2A1505), Color(light: 0xFFF1F2, dark: 0x2A0E14))
+        case .side: (Color(light: 0xFFFBEB, dark: 0x2A1C05), Color(light: 0xFEFCE8, dark: 0x262005))
+        case .dessert: (Color(light: 0xFDF2F8, dark: 0x2A0F1F), Color(light: 0xFDF4FF, dark: 0x26102A))
+        case .drink: (Color(light: 0xF0F9FF, dark: 0x0B2233), Theme.indigo50)
+        }
+    }
+
+    /// Kept in eating order, as they're shown everywhere else.
+    private func addCourse(_ kind: OutsideMeal.Course.Kind) {
+        let rank = { (k: OutsideMeal.Course.Kind) in OutsideMeal.Course.Kind.allCases.firstIndex(of: k) ?? 0 }
+        let at = courses.firstIndex { rank($0.course) > rank(kind) } ?? courses.endIndex
+        courses.insert(CourseDraft(id: UUID().uuidString.lowercased(), course: kind), at: at)
+    }
+
+    /// The photo picked just now, else the saved one (unless removed).
+    private func photos(_ slot: Slot) -> (shown: UIImage?, stored: URL?) {
+        switch slot {
+        case .plate: (platePhoto, removePlate ? nil : app.imageURL(meal?.photoUrl))
+        case .menu: (menuPhoto, removeMenu ? nil : app.imageURL(meal?.menuPhotoUrl))
+        case .course(let id):
+            courses.first { $0.id == id }.map { ($0.photo, app.imageURL($0.stored)) } ?? (nil, nil)
+        }
+    }
+
     @ViewBuilder private func photoRow(_ slot: Slot) -> some View {
-        let shown = slot == .plate ? platePhoto : menuPhoto
-        let stored = slot == .plate ? (removePlate ? nil : app.imageURL(meal?.photoUrl))
-                                    : (removeMenu ? nil : app.imageURL(meal?.menuPhotoUrl))
+        let (shown, stored) = photos(slot)
         HStack(alignment: .top, spacing: 12) {
             if shown != nil || stored != nil {
                 Group {
@@ -282,7 +397,7 @@ struct OutsideMealSheet: View {
                             .foregroundStyle(.white, .black.opacity(0.55))
                     }
                     .padding(4)
-                    .accessibilityLabel(slot == .plate ? "Remove the plate photo" : "Remove the menu photo")
+                    .accessibilityLabel(slot == .plate ? "Remove the plate photo" : slot == .menu ? "Remove the menu photo" : "Remove the course photo")
                 }
             }
             VStack(alignment: .leading, spacing: 8) {
@@ -307,9 +422,19 @@ struct OutsideMealSheet: View {
                     Label(meal.title ?? "Your meal", systemImage: "sparkles")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color(hex: 0x6D28D9))
-                    if !meal.components.isEmpty {
+                    if !meal.courses.isEmpty {
+                        OutsideMealCourses(meal: meal)
+                    } else if !meal.components.isEmpty {
                         Text(meal.components.joined(separator: " · "))
                             .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                    }
+                    if let error {
+                        Text("\(error) These are the figures from before.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color(hex: 0x92400E))
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Theme.amber50, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     OutsideMealFigures(meal: meal)
                     Text("Restaurant food is hard to pin down — hidden butter and oil, unknown portions — so treat this as a rough guide.")
@@ -388,6 +513,9 @@ struct OutsideMealSheet: View {
             menuPhoto = image
             removeMenu = false
             Task { await readMenu(image) }
+        case .course(let id):
+            guard let i = courses.firstIndex(where: { $0.id == id }) else { return }
+            courses[i].photo = image
         }
     }
 
@@ -399,6 +527,10 @@ struct OutsideMealSheet: View {
         case .menu:
             menuPhoto = nil
             if meal?.menuPhotoUrl != nil { removeMenu = true }
+        case .course(let id):
+            guard let i = courses.firstIndex(where: { $0.id == id }) else { return }
+            courses[i].photo = nil
+            if courses[i].stored != nil { courses[i].stored = nil; courses[i].removePhoto = true }
         }
     }
 
@@ -437,6 +569,9 @@ struct OutsideMealSheet: View {
         portion = meal.portion
         ate = Set(meal.eatenBy)
         notes = meal.notes ?? ""
+        courses = meal.courses.map {
+            CourseDraft(id: $0.id, course: $0.course, text: $0.text ?? "", kcal: $0.menuKcal.map(String.init) ?? "", stored: $0.photoUrl)
+        }
         // Your own voice is stored under your name among everyone's.
         let mine = meal.memberRatings.first { $0.name.caseInsensitiveCompare(myName ?? "") == .orderedSame }
         rating = mine?.rating ?? (meal.memberRatings.isEmpty ? meal.rating : nil)
@@ -453,9 +588,16 @@ struct OutsideMealSheet: View {
         return t.isEmpty ? nil : t
     }
 
+    /// "850" → 850, "" → nil; false when it isn't a usable figure.
+    private func kcal(_ text: String) -> (ok: Bool, value: Int?) {
+        guard let t = trimmed(text) else { return (true, nil) }
+        guard let n = Int(t), (1..<10000).contains(n) else { return (false, nil) }
+        return (true, n)
+    }
+
     private func save() async {
-        let kcal = trimmed(menuKcal).flatMap { Int($0) }
-        if trimmed(menuKcal) != nil, !(1..<10000).contains(kcal ?? 0) {
+        let menu: (ok: Bool, value: Int?) = courses.isEmpty ? kcal(menuKcal) : (true, nil)
+        if !menu.ok || courses.contains(where: { !kcal($0.kcal).ok }) {
             app.toast = "Menu calories should be a whole number, like 850."
             return
         }
@@ -466,11 +608,18 @@ struct OutsideMealSheet: View {
             title: trimmed(title), place: trimmed(place),
             description: skipped ? nil : isPlan ? meal?.description : trimmed(details),
             menuText: skipped || isPlan ? meal?.menuText : trimmed(menuText),
-            menuKcal: skipped || isPlan ? meal?.menuKcal : kcal,
+            menuKcal: skipped || isPlan ? meal?.menuKcal : menu.value,
             portion: portion.rawValue, eatenBy: ate.isEmpty ? nil : ate.sorted(),
             rating: isPlan || skipped ? nil : rating, notes: trimmed(notes))
         write.removePhoto = removePlate && platePhoto == nil
         write.removeMenuPhoto = removeMenu && menuPhoto == nil
+        // A plan or a skipped meal keeps its courses: they aren't on the form for it.
+        if !skipped && !isPlan {
+            write.courses = courses.map { c in
+                APIClient.OutsideMealWrite.CourseWrite(id: c.id, course: c.course.rawValue, text: trimmed(c.text),
+                                                       menuKcal: kcal(c.kcal).value, removePhoto: c.removePhoto && c.photo == nil)
+            }
+        }
 
         saving = .saving
         defer { saving = nil }
@@ -489,7 +638,7 @@ struct OutsideMealSheet: View {
         guard let saved = OutsideMeal(row) else { dismiss(); return }
         HealthLog.shared.loggedHere(saved.id)
 
-        var photosChanged = write.removePhoto || write.removeMenuPhoto
+        var photosChanged = write.removePhoto || write.removeMenuPhoto || (write.courses ?? []).contains { $0.removePhoto }
         for (image, menu) in [(platePhoto, false), (menuPhoto, true)] {
             guard let image, let jpeg = CookReviewSheet.jpeg(image) else { continue }
             do {
@@ -500,17 +649,31 @@ struct OutsideMealSheet: View {
                 app.toast = "Meal saved, but a photo didn’t upload."
             }
         }
+        // Course photos land in the course on the server; the estimate (or the
+        // sync after it) brings the row back with them.
+        if write.courses != nil {
+            for course in courses {
+                guard let image = course.photo, let jpeg = CookReviewSheet.jpeg(image) else { continue }
+                do {
+                    _ = try await app.api.uploadOutsideMealCoursePhoto(id: saved.id, courseId: course.id, image: jpeg)
+                    photosChanged = true
+                } catch {
+                    app.toast = "Meal saved, but a photo didn’t upload."
+                }
+            }
+        }
 
         // What it was changed (or it's new, or never estimated): estimate it.
         var changed = true
         if let m = meal {
             let differences: [Bool] = [m.kind != saved.kind, m.title != saved.title, m.place != saved.place,
                                        m.description != saved.description, m.menuText != saved.menuText,
-                                       m.menuKcal != saved.menuKcal, m.portion != saved.portion]
+                                       m.menuKcal != saved.menuKcal, m.portion != saved.portion,
+                                       Self.courseKey(m) != Self.courseKey(saved)]
             changed = differences.contains(true)
         }
         let wants = !isPlan && !skipped && saved.nutritionSource != "manual"
-            && (saved.isDescribed || platePhoto != nil || menuPhoto != nil)
+            && (saved.isDescribed || platePhoto != nil || menuPhoto != nil || courses.contains { $0.photo != nil })
             && (changed || photosChanged || saved.nutritionSource == "none")
         guard wants else {
             app.toast = meal == nil ? (isPlan ? "Slot kept free." : "Meal logged.") : "Meal updated."
@@ -532,6 +695,11 @@ struct OutsideMealSheet: View {
             result = (saved, app.online ? "The estimate didn’t come back — it’ll be tried again later." : "You’re offline, so there’s no estimate yet.")
         }
         await app.syncNow()
+    }
+
+    /// What the estimate reads from each course: any change to it means a new estimate.
+    private static func courseKey(_ m: OutsideMeal) -> [String] {
+        m.courses.map { "\($0.id)|\($0.course.rawValue)|\($0.text ?? "")|\($0.menuKcal ?? 0)|\($0.photoUrl ?? "")" }
     }
 
     private func remove() async {
@@ -579,7 +747,7 @@ struct OutsideMealFigures: View {
                     Text(Int(kcal.rounded()).formatted()).font(.system(size: 30, weight: .bold).monospacedDigit())
                     Text("kcal").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
                     Spacer()
-                    Text(meal.nutritionSource == "manual" ? "Entered" : meal.menuKcal != nil ? "kcal from the menu · rest estimated" : "Estimate")
+                    Text(meal.nutritionSource == "manual" ? "Entered" : meal.usesMenuKcal ? "kcal from the menu · rest estimated" : "Estimate")
                         .font(.system(size: 11, weight: .semibold))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -597,6 +765,34 @@ struct OutsideMealFigures: View {
                     .padding(.vertical, 6)
                     .background(Theme.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
+            }
+        }
+    }
+}
+
+/// Each course and its share of the calories (the web's OutsideMealCourses).
+struct OutsideMealCourses: View {
+    let meal: OutsideMeal
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ForEach(meal.courses) { c in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(c.course.label.uppercased())
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.mutedForeground)
+                        .frame(width: 62, alignment: .leading)
+                    Text(c.name ?? c.text ?? "—").font(.system(size: 14)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    if let kcal = c.calories {
+                        Text("\(c.menuKcal == nil ? "≈ " : "")\(Int(kcal.rounded()).formatted()) kcal")
+                            .font(.system(size: 13).monospacedDigit())
+                            .foregroundStyle(Theme.mutedForeground)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Theme.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
     }
@@ -623,6 +819,11 @@ struct OutsideMealCard: View {
 
     private var detail: String {
         if meal.kind == .skipped { return "Not eaten" }
+        let courses = meal.courses.count > 1 ? "\(meal.courses.count) courses · " : ""
+        return courses + figures
+    }
+
+    private var figures: String {
         if let kcal = meal.calories {
             let sat = meal.saturatedFatG.map { " · \($0.formatted(.number.precision(.fractionLength(0...1)))) g sat fat" } ?? ""
             return "\(meal.nutritionSource == "manual" ? "" : "≈ ")\(Int(kcal.rounded()).formatted()) kcal\(sat)"
@@ -635,7 +836,7 @@ struct OutsideMealCard: View {
         let colours = tint
         HStack(spacing: 12) {
             Group {
-                if let url = app.imageURL(meal.photoUrl), !compact {
+                if let url = app.imageURL(meal.coverPhotoUrl), !compact {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image { image.resizable().scaledToFill() } else { Theme.muted }
                     }

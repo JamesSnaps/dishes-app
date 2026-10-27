@@ -9,9 +9,13 @@
  */
 
 import assert from "node:assert/strict";
-import { anchorToMenuKcal } from "../lib/ai/outside-meal-nutrition";
+import { anchorToMenuKcal, sumNutrition } from "../lib/ai/outside-meal-nutrition";
 import {
+  coursesFrom,
   countsAsMeal,
+  isOutsideMealDescribed,
+  mergeCourses,
+  outsideMealCoverPhoto,
   outsideMealFacts,
   outsideMealFromRecord,
   outsideMealIngredientNames,
@@ -44,6 +48,7 @@ function meal(patch: Partial<OutsideMealView>): OutsideMealView {
     menuText: null,
     portion: "typical",
     components: null,
+    courses: [],
     mainIngredients: null,
     menuKcal: null,
     calories: null,
@@ -174,6 +179,85 @@ const checks: [string, () => void][] = [
       assert.deepEqual(m.mainIngredients, ["chicken thighs"]);
       assert.deepEqual(m.memberRatings, [{ name: "Sam", rating: 6 }]);
       assert.equal(outsideMealFromRecord({ id: "y" }), null);
+    },
+  ],
+  [
+    "stored courses come back in eating order, junk dropped",
+    () => {
+      const cs = coursesFrom([
+        { id: "d", course: "dessert", text: "Sticky toffee pudding" },
+        { id: "x", course: "pudding" },
+        { id: "m", course: "main", text: "Ribeye", menuKcal: 980, calories: "lots" },
+        { course: "starter" },
+        { id: "s", course: "starter", text: "  ", photoUrl: "https://x/s.jpg" },
+      ]);
+      assert.deepEqual(cs.map((c) => c.id), ["s", "m", "d"]);
+      assert.equal(cs[0]!.text, null);
+      assert.equal(cs[1]!.menuKcal, 980);
+      assert.equal(cs[1]!.calories, null);
+      assert.deepEqual(coursesFrom("nope"), []);
+    },
+  ],
+  [
+    "an unchanged course keeps its photo and estimate; a changed one loses the estimate",
+    () => {
+      const stored = [
+        { id: "s", course: "starter", text: "Squid", menuKcal: null, photoUrl: "https://x/s.jpg", name: "Salt & pepper squid", components: ["squid"], calories: 420 },
+        { id: "m", course: "main", text: "Ribeye", menuKcal: 980, photoUrl: null, name: "Ribeye & chips", components: ["ribeye"], calories: 980 },
+      ];
+      const same = mergeCourses(stored, [
+        { id: "m", course: "main", text: "Ribeye", menuKcal: 980 },
+        { id: "s", course: "starter", text: " Squid " },
+      ]);
+      assert.equal(same.changed, false);
+      assert.equal(same.courses?.find((c) => c.id === "s")?.photoUrl, "https://x/s.jpg");
+      assert.equal(same.courses?.find((c) => c.id === "m")?.calories, 980);
+
+      const edited = mergeCourses(stored, [
+        { id: "s", course: "starter", text: "Squid", removePhoto: true },
+        { id: "m", course: "main", text: "Sirloin", menuKcal: 980 },
+        { id: "d", course: "dessert", text: "Brownie" },
+      ]);
+      assert.equal(edited.changed, true);
+      const [s, m, d] = edited.courses!;
+      assert.equal(s!.photoUrl, null);
+      assert.equal(s!.calories, null);
+      assert.equal(m!.name, null);
+      assert.equal(d!.photoUrl, null);
+
+      assert.deepEqual(mergeCourses(stored, null), { courses: null, changed: true });
+      assert.deepEqual(mergeCourses(null, []), { courses: null, changed: false });
+    },
+  ],
+  [
+    "a sitting's figures are its courses' (each anchored to its own menu kcal) plus anything else",
+    () => {
+      const starter = anchorToMenuKcal({ ...estimate, calories: 400 }, null);
+      const main = anchorToMenuKcal(estimate, 1200);
+      const bread = anchorToMenuKcal(
+        { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, saturatedFatG: 0, fiberG: 0, sugarG: 0, sodiumMg: 0 },
+        null
+      );
+      const total = sumNutrition([starter, main, bread]);
+      assert.equal(total.calories, 1600);
+      assert.equal(total.proteinG, 50 + 66.7);
+      const none = sumNutrition([anchorToMenuKcal({ ...estimate, fiberG: null }, null)]);
+      assert.equal(none.fiberG, null);
+    },
+  ],
+  [
+    "a course alone describes a meal, and its words count for the protein targets",
+    () => {
+      const m = meal({
+        courses: coursesFrom([
+          { id: "s", course: "starter", photoUrl: "https://x/s.jpg" },
+          { id: "m", course: "main", text: "Grilled salmon with greens" },
+        ]),
+      });
+      assert.equal(isOutsideMealDescribed(m), true);
+      assert.equal(isOutsideMealDescribed(meal({})), false);
+      assert.equal(outsideMealCoverPhoto(m), "https://x/s.jpg");
+      assert.ok(proteinsOf(outsideMealIngredientNames(m)).has("oilyFish"));
     },
   ],
 ];

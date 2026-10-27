@@ -422,6 +422,45 @@ public struct OutsideMeal: Hashable, Sendable, Identifiable {
         public var label: String { rawValue.capitalized }
     }
 
+    /// One course of a sitting (outside_meals.courses): what it was and its
+    /// photo from the eater, its name, parts and calories from the estimate.
+    public struct Course: Hashable, Sendable, Identifiable {
+        /// OUTSIDE_MEAL_COURSES in @dishes/shared, in eating order.
+        public enum Kind: String, Sendable, CaseIterable {
+            case starter, main, side, dessert, drink
+            public var label: String { rawValue.capitalized }
+        }
+
+        public var id: String
+        public var course: Kind
+        public var text: String?
+        public var menuKcal: Int?
+        public var photoUrl: String?
+        public var name: String?
+        public var components: [String]
+        public var calories: Double?
+
+        init?(_ json: JSONValue) {
+            guard let id = json.id, let course = json.string("course").flatMap(Kind.init(rawValue:)) else { return nil }
+            self.id = id
+            self.course = course
+            text = json.string("text").flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+            menuKcal = json.int("menuKcal")
+            photoUrl = json.string("photoUrl")
+            name = json.string("name")
+            components = json.strings("components")
+            calories = json.number("calories")
+        }
+
+        /// Stored courses in eating order, anything unreadable dropped (the web's coursesFrom).
+        static func list(_ items: [JSONValue]) -> [Course] {
+            let rank = { (c: Course) in Kind.allCases.firstIndex(of: c.course) ?? 0 }
+            return items.compactMap(Course.init).enumerated()
+                .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }
+                .map(\.element)
+        }
+    }
+
     public var id: String
     /// "yyyy-MM-dd"
     public var date: String
@@ -434,6 +473,8 @@ public struct OutsideMeal: Hashable, Sendable, Identifiable {
     public var menuText: String?
     public var portion: Portion
     public var components: [String]
+    /// Empty for a single dish. The figures below are the whole sitting's.
+    public var courses: [Course]
     public var mainIngredients: [String]
     public var menuKcal: Int?
     public var calories: Double?
@@ -461,10 +502,17 @@ public struct OutsideMeal: Hashable, Sendable, Identifiable {
         nutritionSource != "none" && [calories, proteinG, carbsG, fatG, saturatedFatG, fiberG, sugarG, sodiumMg].contains { $0 != nil }
     }
 
-    /// Enough to estimate from: words, the menu, or a photo.
+    /// Enough to estimate from: words, the menu, or a photo — the meal's or a course's.
     public var isDescribed: Bool {
         [title, description, menuText, photoUrl, menuPhotoUrl].contains { !($0 ?? "").isEmpty }
+            || courses.contains { $0.text != nil || $0.photoUrl != nil }
     }
+
+    /// The picture for a card: the plate, else the first course with one.
+    public var coverPhotoUrl: String? { photoUrl ?? courses.first { $0.photoUrl != nil }?.photoUrl }
+
+    /// Whether any calorie figure came off the menu (the meal's or a course's).
+    public var usesMenuKcal: Bool { courses.isEmpty ? menuKcal != nil : courses.contains { $0.menuKcal != nil } }
 
     /// "Ribeye & chips at The Swan", or the kind when there's nothing else.
     public var label: String {
@@ -489,6 +537,7 @@ public struct OutsideMeal: Hashable, Sendable, Identifiable {
         menuText = json.string("menuText")
         portion = json.string("portion").flatMap(Portion.init(rawValue:)) ?? .typical
         components = json.strings("components")
+        courses = Course.list(json.array("courses"))
         mainIngredients = json.strings("mainIngredients")
         menuKcal = json.int("menuKcal")
         calories = json.number("calories")

@@ -52,6 +52,41 @@ import Testing
         #expect(!meal.countsAsMeal)
     }
 
+    @Test func coursesComeBackInEatingOrder() throws {
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data("""
+            {"id": "m5", "date": "2026-10-27", "calories": 1850, "nutritionSource": "ai",
+             "courses": [
+               {"id": "d", "course": "dessert", "text": "Sticky toffee pudding", "calories": 610},
+               {"id": "x", "course": "pudding"},
+               {"id": "m", "course": "main", "text": "Ribeye", "menuKcal": 980, "name": "Ribeye & chips"},
+               {"id": "s", "course": "starter", "text": " ", "photoUrl": "https://x/s.jpg"}
+             ]}
+            """.utf8))
+        let meal = try #require(OutsideMeal(json))
+        #expect(meal.courses.map(\.id) == ["s", "m", "d"])
+        #expect(meal.courses[0].text == nil)
+        #expect(meal.courses[1].name == "Ribeye & chips")
+        #expect(meal.courses[2].calories == 610)
+        #expect(meal.isDescribed)
+        #expect(meal.coverPhotoUrl == "https://x/s.jpg")
+        #expect(meal.usesMenuKcal)
+    }
+
+    @Test func aWriteSendsCoursesOnlyWhenTheFormHasThem() throws {
+        func body(_ courses: [APIClient.OutsideMealWrite.CourseWrite]?) throws -> [String: Any] {
+            var write = APIClient.OutsideMealWrite(date: "2026-10-27", mealType: "dinner", kind: "eat_out", title: nil, place: nil,
+                                                   description: nil, menuText: nil, menuKcal: nil, portion: "typical",
+                                                   eatenBy: nil, rating: nil, notes: nil)
+            write.courses = courses
+            return try JSONSerialization.jsonObject(with: JSONEncoder().encode(write)) as! [String: Any]
+        }
+        #expect(try body(nil)["courses"] == nil)
+        #expect(try body([])["courses"] is NSNull)
+        let sent = try body([.init(id: "s", course: "starter", text: "Squid", menuKcal: 420, removePhoto: true)])["courses"] as? [[String: Any]]
+        #expect(sent?.first?["course"] as? String == "starter")
+        #expect(sent?.first?["removePhoto"] as? Bool == true)
+    }
+
     @Test func anOlderStoreStartsAFreshSnapshotOnceAndKeepsItsOutbox() async throws {
         let path = folder.appending(path: "dishes.sqlite").path
         do {

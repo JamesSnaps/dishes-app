@@ -122,7 +122,8 @@ Returns today's meal plan entries across all meal types, and tonight's dinner ti
       "place": "The Harbour Café",
       "cuisine": "British",
       "calories": 1150,
-      "nutritionSource": "ai"
+      "nutritionSource": "ai",
+      "courses": []
     }
   ],
   "dinner": {
@@ -142,7 +143,7 @@ Returns today's meal plan entries across all meal types, and tonight's dinner ti
 
 `dinner` is tonight's dinner on the household clock, whether or not one is planned: `time` (`"HH:MM"`, the day's dinner time), `serveAt` (the same as an instant), `startCookingAt` (when to start cooking to eat on time — the first step of the meal's cooking schedule, or the household's real cook time for the longest dish; `null` when no dinner is planned or nobody is cooking it), `reminderEnabled` (`false` when the day's reminders are switched off, or dinner isn't being cooked) and `notCooking` (the kind of outside meal taking tonight's dinner — `"eat_out"`, `"takeaway"`, `"at_friends"`, `"skipped"` — or `null`). `startCookingAt` is what the start-cooking reminder goes by.
 
-`outsideMeals` are today's meals not cooked from the plan — eaten out, a takeaway, at friends', or skipped (`kind`). `calories` is for the portion eaten: the AI's estimate (`nutritionSource: "ai"`), typed in (`"manual"`), or `null` until estimated (`"none"`). A recipe still planned in the same slot won't be cooked.
+`outsideMeals` are today's meals not cooked from the plan — eaten out, a takeaway, at friends', or skipped (`kind`). `calories` is for the portion eaten: the AI's estimate (`nutritionSource: "ai"`), typed in (`"manual"`), or `null` until estimated (`"none"`). A recipe still planned in the same slot won't be cooked. `courses` is `[]` for a single dish; a sitting with several lists each in eating order — `{ "course": "starter" | "main" | "side" | "dessert" | "drink", "name", "calories" }` — and `calories` above is the whole sitting.
 
 `nextDelivery` is the next grocery order that's still open, in the same shape as `next` from [`GET /api/integrations/deliveries`](#get-apiintegrationsdeliveries), or `null` when no delivery is coming (or delivery days aren't set up).
 
@@ -1529,7 +1530,8 @@ date + meal type isn't counted as eaten.
   "rating": 8,
   "memberRatings": [{ "name": "Sam", "rating": 6 }],
   "notes": null,
-  "nutrition": null
+  "nutrition": null,
+  "courses": null
 }
 ```
 
@@ -1541,6 +1543,25 @@ their name like a cook's; the stored `rating` is everyone's average. `nutrition`
 (`calories`, `proteinG`, `carbsG`, `fatG`, `saturatedFatG`, `fiberG`, `sugarG`,
 `sodiumMg`) is for figures typed in: it marks the meal `nutritionSource: "manual"`
 and no estimate ever replaces it.
+
+**Courses.** A sitting with more than one course (starter, main, dessert…) sends
+them in `courses`, up to 8, each estimated on its own:
+
+```json
+"courses": [
+  { "id": "6f1c…", "course": "starter", "text": "Salt & pepper squid, aioli", "menuKcal": null },
+  { "id": "a92e…", "course": "main", "text": "8oz ribeye, chips, peppercorn sauce", "menuKcal": 1200 },
+  { "id": "0d4b…", "course": "dessert", "text": "Sticky toffee pudding" }
+]
+```
+
+`id` is the client's own (a UUID), kept across edits so a course's photo and
+estimate stay with it. `course`: `starter` · `main` · `side` · `dessert` ·
+`drink`. `text` is their words or the course's line from the menu; `menuKcal`
+the figure printed for that course, used as given for it. With courses, the
+top-level `menuKcal` isn't used; `description` and `menuText` still are (bread
+for the table, the whole menu). The meal's figures are the sum of its courses
+plus anything else described. `null` or `[]` makes it one dish again.
 
 `201` with the meal. Unless figures were typed in (or it's skipped, or there's
 nothing to go on), the household's AI estimates its nutrition **after the reply
@@ -1554,22 +1575,30 @@ step racing each other. The iOS app does this.
 
 `OutsideMeal` is the row as sync carries it (`outsideMeals`), with decimals as
 numbers here: the fields above plus `id`, `components`, `mainIngredients`,
-`calories` … `sodiumMg` (one portion, as eaten), `nutritionSource`
-(`none` · `ai` · `manual`), `photoUrl`, `menuPhotoUrl`.
+`calories` … `sodiumMg` (one portion, as eaten — with courses, the whole
+sitting), `nutritionSource` (`none` · `ai` · `manual`), `photoUrl`,
+`menuPhotoUrl`. Each stored course adds `photoUrl` and, from the estimate,
+`name`, `components` and `calories` (null until estimated, and cleared when the
+course changes). Sync carries the raw row, so `courses` there is `null` for a
+single dish.
 
 ### `GET /api/v1/outside-meals/{id}` · `PATCH` · `DELETE`
 
 `PATCH` takes any of the `POST` fields, plus `removePhoto` / `removeMenuPhoto`.
 Changing what the meal was (kind, title, place, cuisine, description, menu
-text or kcal, portion, a photo) re-estimates it in the background; `nutrition:
-null` clears typed-in figures and hands it back to the estimator. `DELETE` → `204`.
+text or kcal, portion, a photo, any course) re-estimates it in the background;
+`nutrition: null` clears typed-in figures and hands it back to the estimator.
+`courses` replaces the whole list (a course can carry `removePhoto: true`);
+leaving `courses` out keeps them as they are. `DELETE` → `204`.
 
-### `POST /api/v1/outside-meals/{id}/photo?slot=plate|menu`
+### `POST /api/v1/outside-meals/{id}/photo?slot=plate|menu|course`
 
 Raw image body with `Content-Type`, as for a cook photo (JPEG, PNG or WebP,
 under 15 MB) → `{ "url": "…" }`. `slot=plate` (default) is the dish as served —
 the best guide to portion size; `slot=menu` is the menu, which the estimator
-reads for what's in the dish. Either one re-estimates in the background.
+reads for what's in the dish; `slot=course&course=<id>` is one course's plate
+(save the course first — an unknown id is a `400`). Any of them re-estimates
+in the background.
 
 ### `POST /api/v1/outside-meals/{id}/estimate`
 
