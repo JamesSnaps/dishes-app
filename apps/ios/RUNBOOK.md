@@ -1526,7 +1526,7 @@ Xcode's account ("No Accounts"). Key `5MW9DFM34T` archived but couldn't export
 isn't an Admin key. Admin key `82B45L27K9` uploaded the same archive
 (`ARCHIVE=build/Dishes-202610262133.xcarchive`), and `dishes.env` now names it.
 
-### 2026-10-27 — Meals eaten out (v1.67.0) — **not yet built**
+### 2026-10-27 — Meals eaten out (v1.67.0)
 
 Written in a cloud session with no Swift toolchain (swift.org is blocked
 there), so none of this has been compiled or run. Build and test it before
@@ -1570,3 +1570,8 @@ To check on a device: a meal out logged with a menu photo (Vision's text,
 then the estimate), the Tonight card and Siri on a night out, the Health entry
 appearing after the estimate and going when the meal's removed, and an update
 from 1.65 keeping unsent changes through the resnapshot.
+
+Uploaded to TestFlight as 1.67.0 (build 202610271707) from
+`fix/ios-recipes-browse-try` (PR #70). Main didn't compile: splitting the guard
+in `RecipesBrowse.swift` (Tonight's load) had dropped its `try`, and
+`PlanData.cookedToday` throws.
