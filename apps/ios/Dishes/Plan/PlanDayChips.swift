@@ -144,15 +144,15 @@ struct DinnerTimeChip: View {
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .padding(.horizontal, compact ? 8 : 10).frame(height: 28)
-            .foregroundStyle(day.overridden ? .white : day.reminderEnabled ? Color(hex: 0x9A3412) : Theme.mutedForeground)
+            .foregroundStyle(day.overridden ? .white : day.reminderEnabled ? Color(light: 0x9A3412, dark: 0xFDBA74) : Theme.mutedForeground)
             .background {
                 if day.overridden {
                     Capsule().fill(LinearGradient(colors: [Color(hex: 0xF97316), Color(hex: 0xF43F5E)], startPoint: .leading, endPoint: .trailing))
                 } else {
-                    Capsule().fill(day.reminderEnabled ? Color(hex: 0xFFEDD5) : Theme.muted)
+                    Capsule().fill(day.reminderEnabled ? Theme.orange50 : Theme.muted)
                 }
             }
-            .overlay(Capsule().strokeBorder(day.overridden ? .clear : day.reminderEnabled ? Color(hex: 0xFED7AA) : Theme.border,
+            .overlay(Capsule().strokeBorder(day.overridden ? .clear : day.reminderEnabled ? Color(light: 0xFED7AA, dark: 0x7C2D12) : Theme.border,
                                             style: StrokeStyle(lineWidth: 1, dash: day.reminderEnabled ? [] : [3, 2])))
         }
         .buttonStyle(.plain)
@@ -396,9 +396,13 @@ struct PlanWeekStrips: View {
         let nutrition = extras.nutrition.flatMap { $0.summary.meals > 0 ? $0 : nil }
         VStack(alignment: .leading, spacing: 0) {
             if next != nil || nutrition != nil {
+                // Always one line: on a narrow phone it scrolls rather than
+                // pushing the days down.
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) { strips(next: next, nutrition: nutrition) }
-                    VStack(alignment: .leading, spacing: 8) { strips(next: next, nutrition: nutrition) }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) { strips(next: next, nutrition: nutrition) }
+                    }
                 }
             }
         }
@@ -436,9 +440,12 @@ struct PlanWeekStrips: View {
     @ViewBuilder private func strips(next: DeliveryOverview.Next?, nutrition: WeekNutrition?) -> some View {
         if let next, next.status != "ordered" || NextDeliveryCard.toDo(next) > 0 {
             let toDo = NextDeliveryCard.toDo(next)
-            pill(icon: "truck.box", text: next.status == "ordered" ? "Ordered for \(next.day)" : "Order for \(next.day)",
-                 note: toDo > 0 ? "\(toDo) to do" : nil, noteIcon: "exclamationmark.triangle.fill", noteTint: Color(hex: 0xB45309),
-                 tint: Color(hex: 0x047857), fill: Theme.emerald100.opacity(0.7), border: Color(hex: 0xA7F3D0)) { showing = .delivery }
+            // "Saturday" → "Sat"; "Today" and "Tomorrow" stay as they are.
+            let day = Calendar.current.weekdaySymbols.contains(next.day) ? String(next.day.prefix(3)) : next.day
+            pill(icon: "truck.box", text: next.status == "ordered" ? "Ordered \(day)" : "Order \(day)",
+                 note: toDo > 0 ? "\(toDo) to do" : nil, noteIcon: "exclamationmark.triangle.fill", noteTint: Self.warn,
+                 tint: Color(light: 0x047857, dark: 0x34D399), fill: Theme.emerald100.opacity(0.7),
+                 border: Color(light: 0xA7F3D0, dark: 0x065F46)) { showing = .delivery }
             .accessibilityLabel("Next order, \(next.day)" + (toDo > 0 ? ", \(toDo) to do" : ""))
         }
         if let nutrition {
@@ -448,13 +455,16 @@ struct PlanWeekStrips: View {
             pill(icon: "heart.fill", text: s.withNutrition > 0 ? "\(s.heartHealthy)/\(s.withNutrition)" : "Nutrition",
                  note: swaps > 0 ? "\(swaps) swap\(swaps == 1 ? "" : "s")" : off > 0 ? "\(off) off" : nil,
                  noteIcon: swaps > 0 ? "lightbulb.fill" : "exclamationmark.triangle.fill",
-                 noteTint: swaps > 0 ? Color(hex: 0x7C3AED) : Color(hex: 0xB45309),
-                 tint: Color(hex: 0xE11D48), fill: Theme.rose50, border: off > 0 ? Color(hex: 0xFCD34D) : Color(hex: 0xFECDD3)) { showing = .nutrition }
+                 noteTint: swaps > 0 ? Color(light: 0x7C3AED, dark: 0xA78BFA) : Self.warn,
+                 tint: Color(hex: 0xE11D48), fill: Theme.rose50,
+                 border: off > 0 ? Color(light: 0xFCD34D, dark: 0x92400E) : Color(light: 0xFECDD3, dark: 0x881337)) { showing = .nutrition }
             .accessibilityLabel("\(s.heartHealthy) of \(s.withNutrition) meals heart-healthy"
                                 + (off > 0 ? ", \(off) target\(off == 1 ? "" : "s") off" : "")
                                 + (swaps > 0 ? ", \(swaps) swap\(swaps == 1 ? "" : "s") suggested" : ""))
         }
     }
+
+    private static let warn = Color(light: 0xB45309, dark: 0xFBBF24)
 
     private func pill(icon: String, text: String, note: String?, noteIcon: String, noteTint: Color,
                       tint: Color, fill: Color, border: Color, tap: @escaping () -> Void) -> some View {

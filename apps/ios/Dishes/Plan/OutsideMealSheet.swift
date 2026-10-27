@@ -141,10 +141,15 @@ struct OutsideMealSheet: View {
             }
 
             if !skipped {
-                field(isPlan ? "Where, or what? (optional)" : "What did you have?") {
-                    input(!courses.isEmpty ? "Optional — named from the courses"
-                          : kind == .takeaway ? "Chicken tikka masala, pilau rice" : "Ribeye steak & chips", $title)
+                field(isPlan ? "Where, or what? (optional)" : courses.isEmpty ? "What did you have?" : "Where was it?") {
+                    // With courses, what was eaten is on their cards: this is just where.
+                    if courses.isEmpty {
+                        input(kind == .takeaway ? "Chicken tikka masala, pilau rice" : "Ribeye steak & chips", $title)
+                    }
                     input(kind == .atFriends ? "Whose house?" : "Where from?", $place)
+                    if !courses.isEmpty {
+                        input("Name it, if you like — else it’s named from the courses", $title)
+                    }
                     if !isPlan {
                         input(courses.isEmpty ? "Anything else on the plate — sides, sauces, bread, dessert…"
                                               : "Anything else — bread for the table, sides to share, drinks…", $details, lines: 2)
@@ -234,8 +239,8 @@ struct OutsideMealSheet: View {
                         Text(k.label).font(.system(size: 12, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
                     }
                     .frame(maxWidth: .infinity, minHeight: 62)
-                    .foregroundStyle(on ? Color(hex: 0x7C2D12) : Theme.mutedForeground)
-                    .background(on ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFFEDD5), Color(hex: 0xFFE4E6)],
+                    .foregroundStyle(on ? Color(light: 0x7C2D12, dark: 0xFDBA74) : Theme.mutedForeground)
+                    .background(on ? AnyShapeStyle(LinearGradient(colors: [Color(light: 0xFFEDD5, dark: 0x2A1608), Color(light: 0xFFE4E6, dark: 0x2A0E14)],
                                                                   startPoint: .topLeading, endPoint: .bottomTrailing))
                                    : AnyShapeStyle(Theme.muted.opacity(0.6)),
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -253,7 +258,7 @@ struct OutsideMealSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("From the menu", systemImage: "doc.text")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color(hex: 0x075985))
+                .foregroundStyle(Color(light: 0x075985, dark: 0x7DD3FC))
             Text(courses.isEmpty
                  ? "The menu’s description says what’s in the dish — the best guide to its nutrition. A photo of it is read on this \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"); trim the text to the dish you had."
                  : "Each course’s line can go on its card — or put the menu here and the AI matches them up.")
@@ -274,7 +279,7 @@ struct OutsideMealSheet: View {
             photoRow(.menu)
         }
         .padding(14)
-        .callout(Color(hex: 0xF0F9FF), Theme.indigo50, border: Color(hex: 0xBAE6FD))
+        .callout(Color(light: 0xF0F9FF, dark: 0x0B2233), Theme.indigo50, border: Color(light: 0xBAE6FD, dark: 0x0C4A6E))
     }
 
     /// A card per course, and buttons to add one of each kind (the web's CoursesField).
@@ -317,10 +322,10 @@ struct OutsideMealSheet: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .padding(.horizontal, 12)
                                 .frame(height: 32)
-                                .foregroundStyle(Color(hex: 0x9A3412))
-                                .background(LinearGradient(colors: [Color(hex: 0xFFF7ED), Color(hex: 0xFFF1F2)],
+                                .foregroundStyle(Color(light: 0x9A3412, dark: 0xFDBA74))
+                                .background(LinearGradient(colors: [Theme.orange50, Color(light: 0xFFF1F2, dark: 0x2A0E14)],
                                                            startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
-                                .overlay(Capsule().strokeBorder(Color(hex: 0xFDBA74)))
+                                .overlay(Capsule().strokeBorder(Color(light: 0xFDBA74, dark: 0x9A3412)))
                         }
                         .buttonStyle(.plain)
                     }
@@ -358,8 +363,16 @@ struct OutsideMealSheet: View {
         }
     }
 
-    /// Kept in eating order, as they're shown everywhere else.
+    /// Kept in eating order, as they're shown everywhere else. The first one
+    /// takes over the dish already described — it becomes the main, with its
+    /// menu kcal — so it isn't typed twice; the AI names the sitting instead.
     private func addCourse(_ kind: OutsideMeal.Course.Kind) {
+        if courses.isEmpty, !title.trimmingCharacters(in: .whitespaces).isEmpty || !menuKcal.isEmpty {
+            courses = [CourseDraft(id: UUID().uuidString.lowercased(), course: .main, text: title, kcal: menuKcal)]
+            title = ""
+            menuKcal = ""
+            if kind == .main { return }
+        }
         let rank = { (k: OutsideMeal.Course.Kind) in OutsideMeal.Course.Kind.allCases.firstIndex(of: k) ?? 0 }
         let at = courses.firstIndex { rank($0.course) > rank(kind) } ?? courses.endIndex
         courses.insert(CourseDraft(id: UUID().uuidString.lowercased(), course: kind), at: at)

@@ -162,6 +162,9 @@ function draftFrom(
 }
 
 /** "850" → 850; "" → null; anything else → NaN, which the save refuses. */
+const byEatingOrder = (a: CourseDraft, b: CourseDraft) =>
+  OUTSIDE_MEAL_COURSES.indexOf(a.course) - OUTSIDE_MEAL_COURSES.indexOf(b.course);
+
 function kcalOf(v: string): number | null {
   const t = v.trim();
   if (!t) return null;
@@ -239,22 +242,26 @@ export function OutsideMealSheet({
   }
 
   function addCourse(course: OutsideMealCourseType) {
-    const draft: CourseDraft = {
+    const blank = (course: OutsideMealCourseType, text = "", menuKcal = ""): CourseDraft => ({
       id: crypto.randomUUID(),
       course,
-      text: "",
-      menuKcal: "",
+      text,
+      menuKcal,
       file: null,
       preview: null,
       stored: null,
       removePhoto: false,
-    };
+    });
+    // The first course takes over the dish already described — it becomes the
+    // main, with its menu kcal — so it isn't typed twice; the AI names the
+    // sitting instead.
+    if (!d.courses.length && (d.title.trim() || d.menuKcal)) {
+      const main = blank("main", d.title, d.menuKcal);
+      update({ title: "", menuKcal: "", courses: course === "main" ? [main] : [main, blank(course)].sort(byEatingOrder) });
+      return;
+    }
     // Kept in eating order, as they're shown everywhere else.
-    const rank = (c: OutsideMealCourseType) => OUTSIDE_MEAL_COURSES.indexOf(c);
-    const at = d.courses.findIndex((c) => rank(c.course) > rank(course));
-    const courses = [...d.courses];
-    courses.splice(at === -1 ? courses.length : at, 0, draft);
-    update({ courses });
+    update({ courses: [...d.courses, blank(course)].sort(byEatingOrder) });
   }
 
   function updateCourse(id: string, patch: Partial<CourseDraft>) {
@@ -476,25 +483,32 @@ export function OutsideMealSheet({
               <>
                 {/* What and where */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">{isPlan ? "Where, or what? (optional)" : "What did you have?"}</label>
-                  <Input
-                    placeholder={
-                      hasCourses
-                        ? "Optional — named from the courses"
-                        : d.kind === "takeaway"
-                          ? "Chicken tikka masala, pilau rice"
-                          : "Ribeye steak & chips"
-                    }
-                    value={d.title}
-                    maxLength={200}
-                    onChange={(e) => update({ title: e.target.value })}
-                  />
+                  <label className="text-sm font-medium">
+                    {isPlan ? "Where, or what? (optional)" : hasCourses ? "Where was it?" : "What did you have?"}
+                  </label>
+                  {/* With courses, what was eaten is on their cards: this is just where. */}
+                  {!hasCourses && (
+                    <Input
+                      placeholder={d.kind === "takeaway" ? "Chicken tikka masala, pilau rice" : "Ribeye steak & chips"}
+                      value={d.title}
+                      maxLength={200}
+                      onChange={(e) => update({ title: e.target.value })}
+                    />
+                  )}
                   <Input
                     placeholder={d.kind === "at_friends" ? "Whose house?" : "Where from?"}
                     value={d.place}
                     maxLength={200}
                     onChange={(e) => update({ place: e.target.value })}
                   />
+                  {hasCourses && (
+                    <Input
+                      placeholder="Name it, if you like — else it’s named from the courses"
+                      value={d.title}
+                      maxLength={200}
+                      onChange={(e) => update({ title: e.target.value })}
+                    />
+                  )}
                   {!isPlan && (
                     <Textarea
                       placeholder={
