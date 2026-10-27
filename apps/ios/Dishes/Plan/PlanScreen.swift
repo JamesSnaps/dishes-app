@@ -240,35 +240,39 @@ struct PlanScreen: View {
                         Text(date.formatted(.dateTime.day()))
                             .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(selected ? Theme.brand : isToday ? Theme.brand.opacity(0.8) : Theme.foreground)
-                        Text(count > 0 ? "\(count)" : " ")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Theme.brandDeep)
-                            .frame(minWidth: 16, minHeight: 14)
-                            .background(count > 0 ? Theme.brand.opacity(0.15) : .clear, in: Capsule())
+                        // One row for everything else about the day, so nothing
+                        // crowds the corners. Away shows as the tile's tint; the
+                        // plane only when today's or the chosen day's colours hide it.
+                        HStack(spacing: 3) {
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Theme.brandDeep)
+                                    .frame(minWidth: 16, minHeight: 14)
+                                    .background(Theme.brand.opacity(0.15), in: Capsule())
+                            }
+                            if out {
+                                Image(systemName: "fork.knife")
+                                    .foregroundStyle(Color(light: 0xD97706, dark: 0xFBBF24))
+                            }
+                            if away && (selected || isToday) {
+                                Image(systemName: "airplane")
+                                    .foregroundStyle(Color(light: 0x0EA5E9, dark: 0x38BDF8))
+                            }
+                        }
+                        .font(.system(size: 9, weight: .semibold))
+                        .frame(minHeight: 14)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 9)
                     .background(selected || isToday ? AnyShapeStyle(Theme.orange50.opacity(selected ? 1 : 0.6))
                                 : away ? AnyShapeStyle(Self.awayFill) : AnyShapeStyle(Theme.muted.opacity(0.4)),
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(alignment: .bottomTrailing) {
-                        if away {
-                            Image(systemName: "airplane")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(Color(light: 0x0EA5E9, dark: 0x38BDF8))
-                                .padding(5)
-                                .accessibilityLabel("Away")
-                        }
-                    }
-                    .overlay(alignment: .topLeading) {
-                        if out {
-                            Image(systemName: "fork.knife")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(Color(hex: 0xD97706))
-                                .padding(5)
-                                .accessibilityLabel("Not cooking")
-                        }
-                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel([date.formatted(.dateTime.weekday(.wide).day().month(.wide)),
+                                         count > 0 ? "\(count) meal\(count == 1 ? "" : "s")" : nil,
+                                         out ? "not cooking" : nil, away ? "away" : nil]
+                        .compactMap { $0 }.joined(separator: ", "))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(selected ? Color(hex: 0xFB923C) : isToday ? Color(hex: 0xFDBA74).opacity(0.6)
                                       : away ? Color(light: 0xC8EBFD, dark: 0x093449) : .clear,
