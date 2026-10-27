@@ -248,14 +248,14 @@ struct PlanScreen: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 9)
-                    .background(selected || isToday ? Theme.orange50.opacity(selected ? 1 : 0.6)
-                                : away ? Color(hex: 0xE0F2FE) : Theme.muted.opacity(0.4),
+                    .background(selected || isToday ? AnyShapeStyle(Theme.orange50.opacity(selected ? 1 : 0.6))
+                                : away ? AnyShapeStyle(Self.awayFill) : AnyShapeStyle(Theme.muted.opacity(0.4)),
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(alignment: .bottomTrailing) {
                         if away {
                             Image(systemName: "airplane")
                                 .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(Color(hex: 0x0EA5E9))
+                                .foregroundStyle(Color(light: 0x0EA5E9, dark: 0x38BDF8))
                                 .padding(5)
                                 .accessibilityLabel("Away")
                         }
@@ -270,13 +270,20 @@ struct PlanScreen: View {
                         }
                     }
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(selected ? Color(hex: 0xFB923C) : isToday ? Color(hex: 0xFDBA74).opacity(0.6) : .clear,
-                                      lineWidth: 2))
+                        .strokeBorder(selected ? Color(hex: 0xFB923C) : isToday ? Color(hex: 0xFDBA74).opacity(0.6)
+                                      : away ? Color(light: 0xC8EBFD, dark: 0x093449) : .clear,
+                                      lineWidth: selected || isToday ? 2 : 1))
                 }
                 .buttonStyle(.plain)
             }
         }
     }
+
+    /// A day away: sky-100 → sky-50, or sky-950 over the page in the dark
+    /// (week-planner.tsx DayChip).
+    private static let awayFill = LinearGradient(colors: [Color(light: 0xE0F2FE, dark: 0x06233A),
+                                                          Color(light: 0xF0F9FF, dark: 0x051B30)],
+                                                 startPoint: .top, endPoint: .bottom)
 
     // MARK: Actions
 

@@ -144,15 +144,15 @@ struct DinnerTimeChip: View {
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .padding(.horizontal, compact ? 8 : 10).frame(height: 28)
-            .foregroundStyle(day.overridden ? .white : day.reminderEnabled ? Color(hex: 0x9A3412) : Theme.mutedForeground)
+            .foregroundStyle(day.overridden ? .white : day.reminderEnabled ? Color(light: 0x9A3412, dark: 0xFDBA74) : Theme.mutedForeground)
             .background {
                 if day.overridden {
                     Capsule().fill(LinearGradient(colors: [Color(hex: 0xF97316), Color(hex: 0xF43F5E)], startPoint: .leading, endPoint: .trailing))
                 } else {
-                    Capsule().fill(day.reminderEnabled ? Color(hex: 0xFFEDD5) : Theme.muted)
+                    Capsule().fill(day.reminderEnabled ? Theme.orange50 : Theme.muted)
                 }
             }
-            .overlay(Capsule().strokeBorder(day.overridden ? .clear : day.reminderEnabled ? Color(hex: 0xFED7AA) : Theme.border,
+            .overlay(Capsule().strokeBorder(day.overridden ? .clear : day.reminderEnabled ? Color(light: 0xFED7AA, dark: 0x7C2D12) : Theme.border,
                                             style: StrokeStyle(lineWidth: 1, dash: day.reminderEnabled ? [] : [3, 2])))
         }
         .buttonStyle(.plain)
