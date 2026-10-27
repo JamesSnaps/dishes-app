@@ -51,17 +51,18 @@ export async function deleteOutsideMeal(id: string): Promise<{ error?: string }>
   return { error };
 }
 
-/** `photo` in the form data; `slot` is the plate or the menu. */
+/** `photo` in the form data; `slot` is the plate, the menu, or a course (`courseId`). */
 export async function uploadOutsideMealPhoto(
   id: string,
   slot: service.PhotoSlot,
-  formData: FormData
+  formData: FormData,
+  courseId?: string
 ): Promise<{ url?: string; error?: string }> {
   const ctx = await requireSession();
   const file = formData.get("photo");
   if (!(file instanceof File) || file.size === 0) return { error: "No photo provided." };
   const raw = Buffer.from(await file.arrayBuffer());
-  const { result, error } = await attempt(() => service.setOutsideMealPhoto(ctx, id, slot, raw, file.type));
+  const { result, error } = await attempt(() => service.setOutsideMealPhoto(ctx, id, slot, raw, file.type, courseId));
   if (result) revalidate();
   return { url: result?.url, error };
 }

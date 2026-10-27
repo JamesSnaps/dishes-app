@@ -60,6 +60,23 @@ export const OUTSIDE_MEAL_PORTION_LABELS: Record<OutsideMealPortion, string> = {
   indulgent: "Indulgent",
 };
 
+// The courses of a meal eaten out (outside_meals.courses[].course), in the
+// order they're eaten — the order they're shown in.
+export const OUTSIDE_MEAL_COURSES = ["starter", "main", "side", "dessert", "drink"] as const;
+export type OutsideMealCourseType = (typeof OUTSIDE_MEAL_COURSES)[number];
+
+export const OUTSIDE_MEAL_COURSE_LABELS: Record<OutsideMealCourseType, string> = {
+  starter: "Starter",
+  main: "Main",
+  side: "Side",
+  dessert: "Dessert",
+  drink: "Drink",
+};
+
+export function isOutsideMealCourseType(v: unknown): v is OutsideMealCourseType {
+  return typeof v === "string" && (OUTSIDE_MEAL_COURSES as readonly string[]).includes(v);
+}
+
 export interface AutheliaUser {
   username: string;
   displayName: string;

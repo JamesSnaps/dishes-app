@@ -12,12 +12,21 @@
  * it was and what actually came. A calorie figure printed on the menu (larger
  * chains in England must show one) is taken as given: the model's other
  * numbers are scaled to it (`anchorToMenuKcal`).
+ *
+ * A sitting with courses (starter, main, dessert…) is estimated course by
+ * course, each anchored to its own printed figure, plus whatever else was
+ * mentioned (bread, drinks); the meal's figures are the sum (`sumNutrition`).
  */
 
 import type OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import type { OutsideMealKind, OutsideMealPortion } from "@dishes/shared";
+import {
+  OUTSIDE_MEAL_COURSE_LABELS,
+  type OutsideMealCourseType,
+  type OutsideMealKind,
+  type OutsideMealPortion,
+} from "@dishes/shared";
 import { maxTokensParam, type RecipeNutrition } from "@/lib/ai/recipe-generation";
 
 export type OutsideMealBrief = {
@@ -32,6 +41,24 @@ export type OutsideMealBrief = {
   /** `data:` URLs, already shrunk. */
   platePhoto: string | null;
   menuPhoto: string | null;
+  /** Empty for a single dish. */
+  courses: CourseBrief[];
+};
+
+export type CourseBrief = {
+  id: string;
+  course: OutsideMealCourseType;
+  text: string | null;
+  menuKcal: number | null;
+  /** `data:` URL, already shrunk. */
+  photo: string | null;
+};
+
+export type CourseReading = {
+  id: string;
+  name: string | null;
+  components: string[];
+  nutrition: RecipeNutrition;
 };
 
 export type OutsideMealReading = {
@@ -39,24 +66,37 @@ export type OutsideMealReading = {
   cuisine: string | null;
   components: string[];
   mainIngredients: string[];
+  /** The whole sitting: with courses, their sum plus anything else eaten. */
   nutrition: RecipeNutrition;
+  /** One per course in the brief, matched by id. */
+  courses: CourseReading[];
 };
+
+const nutritionSchema = z.object({
+  calories: z.number(),
+  proteinG: z.number(),
+  carbsG: z.number(),
+  fatG: z.number(),
+  saturatedFatG: z.number(),
+  fiberG: z.number(),
+  sugarG: z.number(),
+  sodiumMg: z.number(),
+});
 
 const readingSchema = z.object({
   title: z.string().nullable(),
   cuisine: z.string().nullable(),
   components: z.array(z.string()),
   mainIngredients: z.array(z.string()),
-  nutrition: z.object({
-    calories: z.number(),
-    proteinG: z.number(),
-    carbsG: z.number(),
-    fatG: z.number(),
-    saturatedFatG: z.number(),
-    fiberG: z.number(),
-    sugarG: z.number(),
-    sodiumMg: z.number(),
-  }),
+  nutrition: nutritionSchema,
+  courses: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string().nullable(),
+      components: z.array(z.string()),
+      nutrition: nutritionSchema,
+    })
+  ),
 });
 
 const KIND_WORDS: Record<OutsideMealKind, string> = {
@@ -85,7 +125,13 @@ Return JSON:
 - "cuisine": e.g. "British", "Thai", "Italian" (null if unclear)
 - "components": the parts of the plate, e.g. ["8oz ribeye steak", "triple-cooked chips", "peppercorn sauce", "side salad"]
 - "mainIngredients": the main foods by plain name, the way they'd appear in a recipe's ingredient list — "beef ribeye steak", "salmon fillet", "chickpeas", "pork sausages", "paneer". Name the meat or fish species. Leave out sauces, oils and seasonings.
-- "nutrition": calories (kcal), proteinG, carbsG, fatG, saturatedFatG, fiberG, sugarG (grams) and sodiumMg (milligrams), for the whole portion eaten.`;
+- "nutrition": calories (kcal), proteinG, carbsG, fatG, saturatedFatG, fiberG, sugarG (grams) and sodiumMg (milligrams), for the whole portion eaten.
+- "courses": [] — unless the meal is listed as courses (below).
+
+When the meal is listed as courses (a starter, a main, a dessert…), estimate each course on its own:
+- "courses": one entry per listed course, with its "id" exactly as given, a short "name" ("Salt & pepper squid"), its "components" and its "nutrition" — that course alone, one portion as eaten. A calorie figure printed for a course is correct for that course.
+- "nutrition" then covers only what was eaten that ISN'T in any listed course: bread for the table, extra sides or drinks mentioned only in their words. All zeros if there's nothing else.
+- "title" names the sitting briefly, e.g. "Squid, ribeye & sticky toffee pudding"; "components" lists every course's parts; "mainIngredients" covers every course.`;
 
 function userText(b: OutsideMealBrief): string {
   const lines = [`What it was: ${KIND_WORDS[b.kind]}.`];
@@ -94,10 +140,22 @@ function userText(b: OutsideMealBrief): string {
   if (b.cuisine) lines.push(`Cuisine: ${b.cuisine}`);
   if (b.description) lines.push(`In their words: ${b.description}`);
   if (b.menuText) lines.push(`From the menu:\n${b.menuText}`);
-  if (b.menuKcal) lines.push(`Calories printed on the menu: ${b.menuKcal} kcal`);
+  if (b.menuKcal && !b.courses.length) lines.push(`Calories printed on the menu: ${b.menuKcal} kcal`);
   lines.push(`Portion: ${PORTION_WORDS[b.portion]}.`);
-  if (b.menuPhoto) lines.push("The first photo is the menu.");
-  if (b.platePhoto) lines.push(`${b.menuPhoto ? "The second" : "The"} photo is the plate as served.`);
+  let photo = 0;
+  const nth = () => ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"][photo++] ?? "next";
+  if (b.menuPhoto) lines.push(`The ${nth()} photo is the menu.`);
+  if (b.platePhoto) lines.push(`The ${nth()} photo is ${b.courses.length ? "the table as served" : "the plate as served"}.`);
+  if (b.courses.length) {
+    lines.push("", "The meal, as courses:");
+    for (const c of b.courses) {
+      const bits = [`- id ${c.id}: ${OUTSIDE_MEAL_COURSE_LABELS[c.course]}`];
+      if (c.text) bits.push(`— ${c.text}`);
+      if (c.menuKcal) bits.push(`(${c.menuKcal} kcal printed on the menu)`);
+      if (c.photo) bits.push(`— the ${nth()} photo is this course`);
+      lines.push(bits.join(" "));
+    }
+  }
   return lines.join("\n");
 }
 
@@ -108,7 +166,7 @@ export async function readOutsideMeal(
   brief: OutsideMealBrief
 ): Promise<OutsideMealReading> {
   const content: OpenAI.ChatCompletionContentPart[] = [];
-  for (const url of [brief.menuPhoto, brief.platePhoto]) {
+  for (const url of [brief.menuPhoto, brief.platePhoto, ...brief.courses.map((c) => c.photo)]) {
     if (url) content.push({ type: "image_url", image_url: { url, detail: "high" } });
   }
   content.push({ type: "text", text: userText(brief) });
@@ -116,7 +174,7 @@ export async function readOutsideMeal(
   const completion = await client.chat.completions.create({
     model,
     response_format: zodResponseFormat(readingSchema, "outside_meal"),
-    ...maxTokensParam(model, 800),
+    ...maxTokensParam(model, brief.courses.length ? 800 + 350 * brief.courses.length : 800),
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content },
@@ -128,13 +186,56 @@ export async function readOutsideMeal(
   const parsed = readingSchema.parse(JSON.parse(raw));
   const clean = (list: string[]) => list.map((s) => s.trim()).filter(Boolean).slice(0, 12);
 
-  return {
+  const base = {
     title: parsed.title?.trim() || null,
     cuisine: parsed.cuisine?.trim() || null,
     components: clean(parsed.components),
     mainIngredients: clean(parsed.mainIngredients),
-    nutrition: anchorToMenuKcal(parsed.nutrition, brief.menuKcal),
   };
+  if (!brief.courses.length) {
+    return { ...base, nutrition: anchorToMenuKcal(parsed.nutrition, brief.menuKcal), courses: [] };
+  }
+
+  // Each course anchored to its own printed figure; one the model left out
+  // counts as nothing rather than failing the whole meal.
+  const courses = brief.courses.map((c): CourseReading => {
+    const read = parsed.courses.find((r) => r.id === c.id);
+    return {
+      id: c.id,
+      name: read?.name?.trim() || null,
+      components: read ? clean(read.components) : [],
+      nutrition: read ? anchorToMenuKcal(read.nutrition, c.menuKcal) : anchorToMenuKcal(EMPTY, null),
+    };
+  });
+  return {
+    ...base,
+    nutrition: sumNutrition([...courses.map((c) => c.nutrition), anchorToMenuKcal(parsed.nutrition, null)]),
+    courses,
+  };
+}
+
+const EMPTY: RecipeNutrition = {
+  calories: null,
+  proteinG: null,
+  carbsG: null,
+  fatG: null,
+  saturatedFatG: null,
+  fiberG: null,
+  sugarG: null,
+  sodiumMg: null,
+};
+
+/** Figure by figure; null only where every part is null. */
+export function sumNutrition(parts: RecipeNutrition[]): RecipeNutrition {
+  const keys = Object.keys(EMPTY) as (keyof RecipeNutrition)[];
+  const out = { ...EMPTY };
+  for (const k of keys) {
+    const values = parts.map((p) => p[k]).filter((v): v is number => v != null);
+    if (!values.length) continue;
+    const total = values.reduce((a, b) => a + b, 0);
+    out[k] = k === "calories" ? Math.round(total) : Math.round(total * 10) / 10;
+  }
+  return out;
 }
 
 /**

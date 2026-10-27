@@ -1575,3 +1575,27 @@ Uploaded to TestFlight as 1.67.0 (build 202610271707) from
 `fix/ios-recipes-browse-try` (PR #70). Main didn't compile: splitting the guard
 in `RecipesBrowse.swift` (Tonight's load) had dropped its `try`, and
 `PlanData.cookedToday` throws.
+
+### 2026-10-27 — Courses on a meal out (v1.68.0)
+
+A meal out is one sitting; it can now hold courses (starter, main, side,
+dessert, drink) in `outside_meals.courses` (migration 0048).
+
+- **Model**: `OutsideMeal.Course` (eating order, unknown types dropped),
+  `coverPhotoUrl` (the plate, else the first course photo), `usesMenuKcal`.
+  The meal's figures stay the whole sitting's, so `HealthLog` is unchanged.
+- **API**: `OutsideMealWrite.courses` — nil leaves them (plans, skipped),
+  `[]` sends null (one dish again). Course photos go to
+  `…/photo?slot=course&course=<id>` after the meal is saved.
+- **Sheet**: "More than one course?" with + Starter / Main / Side / Dessert /
+  Drink; a tinted card each with its words, menu kcal and photo. With courses
+  the meal-level kcal is hidden and the plate photo becomes "the table" (only
+  if one's set). The result lists each course's name and kcal, and a failed
+  re-estimate now says so above the old figures.
+- Tests: `OutsideMealTests.coursesComeBackInEatingOrder`,
+  `aWriteSendsCoursesOnlyWhenTheFormHasThem`.
+
+Checked in the iPhone 18 Pro simulator against the dev server: courses load
+on the sheet, the card shows "3 courses", an edit keeps unchanged courses'
+estimates and the result view lists them. Not checked: a real AI estimate (no
+key locally) and course photo uploads (no storage locally).

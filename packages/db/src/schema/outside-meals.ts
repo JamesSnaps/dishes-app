@@ -16,6 +16,26 @@ import { nutritionSourceEnum } from "./recipes";
 import type { MemberRating } from "./cook-history";
 
 /**
+ * One course of a meal eaten out: a starter, the main, a dessert… What it was
+ * and its photo come from the eater; `name`, `components` and `calories` from
+ * the estimate (null until then, and cleared when the course changes).
+ */
+export type OutsideMealCourse = {
+  /** Made by the client, so a photo can follow the course it belongs to. */
+  id: string;
+  /** One of OUTSIDE_MEAL_COURSES (@dishes/shared). */
+  course: string;
+  /** Their words or the course's line from the menu. */
+  text: string | null;
+  /** Calories printed on the menu for this course: taken as given. */
+  menuKcal: number | null;
+  photoUrl: string | null;
+  name: string | null;
+  components: string[] | null;
+  calories: number | null;
+};
+
+/**
  * A meal not cooked from the library — eaten out, a takeaway, at friends', or
  * skipped. Without these the health picture has holes: a steak out never
  * counts towards the red-meat target and a takeaway's salt never reaches the
@@ -28,6 +48,10 @@ import type { MemberRating } from "./cook-history";
  * Nutrition is for one portion, as eaten, and always an estimate unless typed
  * in. `mainIngredients` is what the protein targets read (`proteinsOf`), so a
  * meal counts towards them before its numbers are estimated.
+ *
+ * A row is one sitting. Several courses (starter, main, dessert) go in
+ * `courses`, each estimated on its own; the nutrition columns are still the
+ * whole sitting's, so everything that reads them counts the lot.
  */
 export const outsideMeals = pgTable(
   "outside_meals",
@@ -53,8 +77,10 @@ export const outsideMeals = pgTable(
     menuText: text("menu_text"),
     // One of OUTSIDE_MEAL_PORTIONS: lighter / typical / indulgent.
     portion: varchar("portion", { length: 20 }).notNull().default("typical"),
-    /** The parts of the plate, as read: ["8oz ribeye", "triple-cooked chips", …]. */
+    /** The parts of the plate, as read: ["8oz ribeye", "triple-cooked chips", …] — every course's. */
     components: jsonb("components").$type<string[]>(),
+    /** Null or empty: one dish, described by the fields above. */
+    courses: jsonb("courses").$type<OutsideMealCourse[]>(),
     mainIngredients: text("main_ingredients").array().$type<string[]>(),
     /** Calories printed on the menu: taken as given, the rest scaled to it. */
     menuKcal: integer("menu_kcal"),

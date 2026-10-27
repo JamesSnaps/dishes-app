@@ -19,5 +19,7 @@ export async function outsideMealsJson(householdId: string, from: string, to: st
     calories: m.calories,
     /** "ai" = estimated, "manual" = typed in, "none" = not yet. */
     nutritionSource: m.nutritionSource,
+    /** Empty for a single dish; `calories` above is the whole sitting. */
+    courses: m.courses.map((c) => ({ course: c.course, name: c.name ?? c.text, calories: c.calories })),
   }));
 }
