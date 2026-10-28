@@ -25,11 +25,17 @@ Tokens carry granular scopes. Each endpoint documents the required scope. Reques
 
 ## OpenAPI spec
 
-`GET /api/integrations/openapi.json` returns an OpenAPI 3.1 description of every endpoint below — parameters, request schemas, example responses, and an `operationId` per endpoint (`getToday`, `getWeekMealPlan`, `getRecipe`, `getShoppingList`, `addShoppingItems`, `quickAddShoppingItem`, `generateMealPlan`, `getDeliveries`, `ingestDeliveryEmail`, `recordDeliveryOrder`). It needs **no token**, so AI assistants (Grok, ChatGPT custom actions, Claude) and n8n can import it before auth is configured; it contains no household data. `servers[0].url` is taken from the request's `X-Forwarded-Host`/`X-Forwarded-Proto`.
+`GET /api/integrations/openapi.json` returns an OpenAPI 3.1 description of every endpoint below — parameters, request schemas, example responses, and an `operationId` per endpoint (`getToday`, `getWeekMealPlan`, `getRecipe`, `getShoppingList`, `addShoppingItems`, `quickAddShoppingItem`, `generateMealPlan`, `getDeliveries`, `ingestDeliveryEmail`, `recordDeliveryOrder`, `getDinerBrief`, `listOutsideMeals`, `logOutsideMeal`, `getOutsideMeal`, `updateOutsideMeal` and the rest). It needs **no token**, so AI assistants (Grok, ChatGPT custom actions, Claude) and n8n can import it before auth is configured; it contains no household data. `servers[0].url` is taken from the request's `X-Forwarded-Host`/`X-Forwarded-Proto`.
 
 The spec and the **Settings → Integrations** reference page are both generated from `apps/web/lib/integrations-catalog.ts` — update that file alongside this one when an endpoint changes.
 
 For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's for dinner and how do I make it?": `getToday` → `getRecipe` with the meal's `recipe.id`.
+
+**Trimmed specs.** `GET /api/integrations/openapi.json?ops=<set>` serves only the operations for one job, so an assistant is offered nothing else. Each operation's description, and the spec's own, is at most 300 characters, which ChatGPT Actions require; `scripts/check-integrations-spec.ts` keeps it that way. An unknown set is a `400`. Sets are defined in `OPERATION_SETS` in the catalog:
+
+| `ops` | Operations | For |
+|---|---|---|
+| `meals-out` | `getDinerBrief`, `listOutsideMeals`, `logOutsideMeal`, `getOutsideMeal`, `updateOutsideMeal` | A ChatGPT custom GPT that helps choose from a restaurant menu and logs what was ordered. Settings → Integrations has the setup steps and its instructions to copy (`apps/web/lib/menu-assistant.ts`) |
 
 ## Rate limiting
 
@@ -46,6 +52,8 @@ For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's f
 | `read:deliveries` | Read grocery delivery days and order status |
 | `write:deliveries` | Record grocery orders (e.g. from retailer emails) |
 | `read:cooking` | See who is cooking right now: the dish, the step and the running timers |
+| `read:preferences` | Read each member's dietary requirements, dislikes and tastes, and this week's eating, to help an AI choose from a menu |
+| `write:outside_meals` | Log and update meals eaten out, as the member the token acts as |
 
 ## Common error shape
 
@@ -497,6 +505,164 @@ Who's cooking right now: every cook in progress in cooking mode, on any of the h
 Timer `state` is `"running"`, `"paused"` or `"finished"`; `endsAt` is set only while it runs, and `remainingSeconds` is as of the response.
 
 Cooks are published by the device cooking them every time the screen changes and every 5 minutes while it doesn't. A cook not heard from for 15 minutes is left out unless one of its timers is still running — so a cooking mode left open on a closed laptop drops off rather than showing someone cooking for hours. Read-only: nothing here can change a cook.
+
+---
+
+### `GET /api/integrations/preferences`
+
+The diner brief: what an AI choosing from a restaurant menu (Claude, ChatGPT) should know about who's eating. Fetch it first, then suggest dishes from the menu. A separate scope from `read:meal_plan` because it holds personal details (dietary requirements, ages, notes), so a dashboard token doesn't get them.
+
+**Scope:** `read:preferences`
+
+**Query params**
+
+| Param | Required | Description |
+|---|---|---|
+| `date` | No | The day of the meal, `YYYY-MM-DD`. Defaults to today in the household's timezone |
+| `members` | No | Who's eating: display names or member ids, comma-separated, any case. Defaults to everyone |
+
+**Response `200`**
+
+```json
+{
+  "date": "2026-10-28",
+  "diners": [
+    {
+      "id": "uuid",
+      "name": "James",
+      "age": 44,
+      "child": false,
+      "dietaryRequirements": ["Cholesterol-lowering"],
+      "dislikes": ["blue cheese"],
+      "loves": ["spicy food"],
+      "notes": null
+    }
+  ],
+  "heartFocus": true,
+  "taste": {
+    "ratedCookCount": 42,
+    "preferredCuisines": [{ "name": "Indian", "score": 4.6 }],
+    "lovedIngredients": ["chickpeas", "salmon"],
+    "dislikedIngredients": ["aubergine"]
+  },
+  "week": {
+    "weekStartDate": "2026-10-26",
+    "meals": 6,
+    "avgCalories": 610,
+    "avgSaturatedFatG": 6.2,
+    "avgFiberG": 9.1,
+    "proteins": [
+      { "kind": "oilyFish", "label": "Oily fish", "count": 1, "target": "aim 2+", "status": "under" },
+      { "kind": "redMeat", "label": "Red meat", "count": 1, "target": "max 1", "status": "at_limit" }
+    ]
+  },
+  "recentMeals": [
+    { "date": "2026-10-25", "title": "Mushroom Risotto", "cuisine": "Italian", "outside": false, "place": null, "rating": 2 }
+  ],
+  "promptText": "Choosing a meal for 2026-10-28.\n\nWho's eating:\n- James (age 44) — dietary requirements: Cholesterol-lowering …"
+}
+```
+
+- `taste` is `null` until the household has rated 10 meals; it's the same taste profile the app's own AI prompts use.
+- `week` covers Monday to Sunday of `date`'s week. It counts meals already eaten and meals still planned, including meals out, and `proteins` lists every kind (`oilyFish`, `otherFish`, `poultry`, `pulses`, `redMeat`, `processedMeat`) with how many meals contained it.
+- `heartFocus` is `true` when someone eating is on a cholesterol-lowering diet. Only then do proteins with a weekly target carry `target` and `status`: `under`, `met`, `at_limit` (one more would go over) or `over`. Otherwise both are `null`.
+- `recentMeals` are the 7 days before `date` that any of the diners ate, oldest first. `outside` marks a meal out or takeaway, with `place`. `rating` is 1–5 stars, halves allowed, or `null`.
+- `promptText` is the whole brief as plain text, ready to paste into a prompt. It leaves out what isn't known.
+
+**Errors:** `400` for a bad `date`, or a name in `members` that matches nobody (the error lists them, and `members` in the reply lists the household's names).
+
+---
+
+### Meals out — `/api/integrations/outside-meals`
+
+Meals not cooked at home: eaten out, takeaways, at friends', skipped. An AI assistant that helped choose from a menu (with the diner brief above) logs what was ordered here, and the household's AI estimates its nutrition, so it counts towards the week's heart-health targets and Apple Health like any meal out logged in the app.
+
+**Tokens that write act as a member.** A meal out is someone's: it's filed as theirs, and the rating sent is theirs. So `write:outside_meals` needs a token with **Acts as** set to a member when it's created (Settings → Integrations); a token without one gets `403`. If that member is later removed or deactivated, the token's writes stop working. Reading needs only `read:meal_plan`.
+
+A useful token for Claude or ChatGPT: `read:preferences`, `read:meal_plan`, `write:outside_meals`, acting as you.
+
+Ratings here are **1–5 stars**, halves allowed (the app stores 0–10). Names (`eatenBy`, `memberRatings[].name`) are members' display names in any case; one that matches nobody is a `400` listing the members.
+
+#### The meal
+
+```json
+{
+  "id": "uuid",
+  "date": "2026-10-28",
+  "mealType": "dinner",
+  "kind": "eat_out",
+  "title": "Sea bass",
+  "place": "Côte",
+  "cuisine": "French",
+  "description": null,
+  "menuText": null,
+  "portion": "typical",
+  "menuKcal": null,
+  "eatenBy": ["James"],
+  "rating": 4,
+  "memberRatings": [{ "name": "James", "rating": 4 }],
+  "notes": null,
+  "courses": [
+    { "id": "uuid", "course": "starter", "text": "French onion soup", "name": null, "menuKcal": null, "calories": null },
+    { "id": "uuid", "course": "main", "text": "Sea bass, crushed potatoes, beurre blanc", "name": null, "menuKcal": 720, "calories": null }
+  ],
+  "nutritionSource": "none",
+  "nutrition": null,
+  "hasPhoto": false,
+  "url": "https://dishes.example.com/meal-plan?week=2026-10-28"
+}
+```
+
+- `kind`: `eat_out`, `takeaway`, `at_friends` or `skipped`. `portion`: `lighter`, `typical` or `indulgent`.
+- `rating` is the household's view, the average of everyone in `memberRatings`.
+- `nutritionSource` is `"none"` until the estimate arrives (a few seconds after a write, if the household has an AI key), then `"ai"`. `"manual"` means figures were typed in. `nutrition` holds the 8 figures (`calories`, `proteinG`, `carbsG`, `fatG`, `saturatedFatG`, `fiberG`, `sugarG`, `sodiumMg`) once there are any; they're for the whole sitting. A course's `name` and `calories` come from the estimate too.
+- Photos are added in the app; `hasPhoto` says whether there is one.
+- `url` opens the meal's week on the planner.
+
+#### `GET /api/integrations/outside-meals`
+
+**Scope:** `read:meal_plan`. Query: `from`, `to` (`YYYY-MM-DD`, inclusive), defaulting to this week (Monday to Sunday) on the household's clock. Returns `{ "from", "to", "meals": [meal…] }`, oldest first.
+
+#### `POST /api/integrations/outside-meals`
+
+**Scope:** `write:outside_meals`, token acting as a member.
+
+```json
+{
+  "date": "2026-10-28",
+  "place": "Côte",
+  "cuisine": "French",
+  "eatenBy": ["James"],
+  "courses": [
+    { "course": "starter", "text": "French onion soup" },
+    { "course": "main", "text": "Sea bass, crushed potatoes, beurre blanc", "menuKcal": 720 }
+  ]
+}
+```
+
+Only `date` is required, but give at least a `title` or `description` (or `courses`) so there's something to estimate from. Every other field is optional: `mealType` (default `dinner`), `kind` (default `eat_out`), `title`, `place`, `cuisine`, `description`, `menuText` (the dish's menu line, word for word: the best clue to what's in it), `portion`, `menuKcal` (calories printed on the menu: taken as given, the other nutrients scaled to it), `eatenBy` (left out: everyone), `rating` (yours), `memberRatings` (others'), `notes`, `nutrition` (typed-in figures, marked manual so no estimate replaces them), and `courses`. A course's `id` is optional; new courses get one.
+
+**Response:** `201` `{ "action": "created", "meal": {…} }`. If the day already has an empty "Not cooking" slot for that meal type (marked on the planner, no dish yet), that row is filled in instead of adding a second one: `200` `{ "action": "filled", "meal": {…} }`. Its `place` and `kind` stay unless you send them, except that a slot marked `skipped` becomes `eat_out`.
+
+#### `GET /api/integrations/outside-meals/{id}`
+
+**Scope:** `read:meal_plan`. The meal; `404` if it isn't this household's. Use it to pick up the nutrition once estimated.
+
+#### `PATCH /api/integrations/outside-meals/{id}`
+
+**Scope:** `write:outside_meals`, token acting as a member. Any of the POST fields, including `date`; the others stay as they are. Rate a meal afterwards (`{ "rating": 4.5 }` sets yours and keeps everyone else's), fix the place, add a dessert. `courses` replaces them all, so send every course, keeping the `id`s of those already there. Changing what was eaten re-estimates the nutrition. Returns the meal; `400` for no fields, `404` for an unknown id.
+
+---
+
+### MCP — `/api/integrations/mcp`
+
+The eating-out operations as an MCP server, for Claude. It speaks Streamable HTTP, statelessly: each `POST` is answered with JSON, there's no server-to-client stream, and `GET`/`DELETE` are `405`. The tools have the operations' names and take the same fields: `getDinerBrief` (`members` as an array, `date`), `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` (`date` defaults to today) and `updateOutsideMeal` (`id` plus fields). Results are the same JSON as the REST endpoints, except that `getDinerBrief` returns the brief's `promptText`. A mistake the model can fix (an unknown name, a bad field, no meal with that id) comes back as a tool error saying what was wrong. The server's instructions are the same as the ChatGPT GPT's (`apps/web/lib/menu-assistant.ts`).
+
+**Auth:** `Authorization: Bearer <token>`, either of:
+- **An integration token.** Tools are offered by its scopes: `getDinerBrief` needs `read:preferences`; the list and get tools need `read:meal_plan`; `logOutsideMeal` and `updateOutsideMeal` need `write:outside_meals` and a token that acts as a member.
+- **An Authelia access token** (claude.ai custom connectors, when `DISHES_OIDC_ISSUER` is set). It acts as whoever signed in, with all five tools.
+
+Rate-limited like the rest of the API: per token, or per member for Authelia tokens. Without a valid token the reply is `401`. When OIDC is set up, its `WWW-Authenticate` header carries `resource_metadata` pointing at `GET /.well-known/oauth-protected-resource/api/integrations/mcp`. That is the RFC 9728 metadata naming the Authelia issuer, and it's also served at `/.well-known/oauth-protected-resource`; it's `404` without OIDC. Setup for Claude Code, Claude Desktop and claude.ai is in the README.
 
 ---
 
@@ -1606,6 +1772,59 @@ Estimate now and wait for it → the meal with its figures. For a client that
 wants to show them straight away; the background estimate makes this optional.
 `400` when there's nothing to estimate from, it's skipped, or AI isn't set up.
 Typed-in figures come back untouched.
+
+### `POST /api/v1/outside-meals/menu-picks`
+
+"Help me choose": the household's AI reads a menu and suggests dishes for each
+person eating, from the diner brief (`GET /api/integrations/preferences` has the
+same brief). It waits for the AI (10–30 s), and **nothing is saved**: picking a
+dish fills in the log sheet, which saves through the routes above. The web
+reaches it as `/api/web/outside-meals/menu-picks`.
+
+`multipart/form-data`. Give the menu as any mix of:
+
+| Field | Description |
+|---|---|
+| `photo` | A photo of the menu. Up to 4 (one per page). |
+| `pdf` | A PDF of the menu. The model reads it as it is, so a scanned one works too. |
+| `url` | A link to the menu: a web page (its text is used), a PDF or an image. Fetched with `safeFetch`, so private addresses are refused. A page with too little text to be the menu (built by script) is a `400` that says so. |
+| `text` | The menu, typed or pasted. The iOS app sends what Vision read from its photos here, and sends the photos as well only when Vision read little. |
+
+Plus `member` (repeat for each person eating; leave it out for everyone) and
+`date` (`YYYY-MM-DD`; default today, for the brief's week). Files are 15 MB at
+most.
+
+```json
+{
+  "date": "2026-10-28",
+  "restaurant": { "name": "Côte", "cuisine": "French" },
+  "diners": [
+    {
+      "name": "James",
+      "picks": [
+        {
+          "dish": "Sea bass",
+          "course": "main",
+          "menuLine": "Sea bass, crushed potatoes, beurre blanc",
+          "menuKcal": 720,
+          "estimatedKcal": null,
+          "why": "Oily fish would help: you're short this week.",
+          "lighterTweak": "Beurre blanc on the side"
+        }
+      ],
+      "avoid": [{ "dish": "Steak frites", "why": "Red meat's at its limit this week." }]
+    }
+  ],
+  "note": null
+}
+```
+
+- `diners` follows the brief: one entry per person, in its order, with up to 3 `picks` and up to 3 dishes to `avoid` each.
+- `menuLine` is the dish's line from the menu, word for word, and `menuKcal` is only ever a figure printed on the menu. `estimatedKcal` is the AI's rough figure when nothing is printed.
+- A menu the AI couldn't read gives no picks, and `note` says why.
+
+`400` for no menu, an unknown `member`, a file or link it can't use, no AI key,
+or the AI failing, each with a message to show.
 
 ### `POST /api/v1/upload`
 

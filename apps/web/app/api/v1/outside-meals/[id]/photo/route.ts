@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/session";
 import { withApiErrors, apiError } from "@/lib/api/respond";
 import { photoSlotSchema } from "@/lib/api/schemas/outside-meals";
 import { getOutsideMeal, setOutsideMealPhoto } from "@/lib/services/outside-meals";
-import { estimateInBackground } from "../../estimate-later";
+import { estimateInBackground } from "@/lib/outside-meal-estimate-later";
 
 /**
  * A photo of the plate (`?slot=plate`, the default), of the menu

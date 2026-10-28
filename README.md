@@ -42,7 +42,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Ask AI about a recipe** — one "Ask AI" menu on the recipe page gathers the AI actions: ask a free-form question about the dish (what to serve with it, when to start cooking to eat at a given time, what can be prepped ahead, substitutions), "Tweak for tonight", "Generate a side dish", and "Find similar recipes". Questions are answered against the full ingredient list, method, and your past cooks of that recipe. Answers render as formatted markdown (headings, lists, bold), and each conversation is saved per recipe — reopen a past question to reread the answer or carry it on, delete one, or clear the whole recipe's history. Settings → AI conversation history shows how many conversations are stored and lets an admin purge them in bulk — everything, or only those older than 7/30/90/365 days, across recipe questions, cooking-mode questions, or both
 - **Taste profiling** — builds a per-household preference model from accumulated cook history; scores cuisines, ingredients, and tags by recency-weighted average rating and uses it to personalise AI generation and surface recipe suggestions on Recipes ("Suggested for you")
 - **Nutrition** — per-serving calorie and macro breakdown (protein, carbs, fat, saturated fat, fibre, sugar, sodium) on every recipe, shown as a calories line that opens to the full breakdown (open or closed is remembered per device), scaling with serving size. The AI fills it in automatically when generating or editing a recipe, an on-demand "Estimate nutrition" button backfills existing recipes, and values can be entered manually. The concierge accepts a per-serving calorie target and the meal planner accepts a max-calories-per-meal cap
-- **Meals eaten out** — log the meals you didn't cook: eating out, a takeaway, at friends', or skipped. "Ate out?" / "Not cooking?" on a planner day (or Not cooking in the orange + menu) opens the sheet. Planned ahead, it keeps the slot free: no dinner reminder or cooking cues that day, the AI planner (and the integrations API's plan generation) leaves the slot alone, and a recipe still planned there is marked as not counted. Logged afterwards, describe what you had, paste the dish's line from the menu, add photos of the menu and the plate and say how big it was — the household's AI estimates the nutrition of the portion you ate (a calorie figure printed on the menu is used as given). Had a starter and a dessert too? Add each course (starter, main, side, dessert, drink) with its own words, menu kcal and photo: each is estimated on its own and the sitting's figures are their sum. Meals out then count everywhere a cooked meal does: the planner's weekly nutrition and heart-health protein targets (a steak out is that week's red meat — even before the AI has looked, from the words you used), Stats, and the taste profile when you rate them. Restaurant estimates are rough and are labelled as estimates. In the iOS app too (planner chip and cards, the same sheet — a menu photo is read on the device — and Apple Health once the estimate is in; the Tonight card, widgets and Siri know you're out). Synced as `outsideMeals`; `/api/v1/outside-meals` for clients; `outsideMeals` on the integrations `today` and `meal-plan/week`
+- **Meals eaten out** — log the meals you didn't cook: eating out, a takeaway, at friends', or skipped. "Ate out?" / "Not cooking?" on a planner day (or Not cooking in the orange + menu) opens the sheet. Planned ahead, it keeps the slot free: no dinner reminder or cooking cues that day, the AI planner (and the integrations API's plan generation) leaves the slot alone, and a recipe still planned there is marked as not counted. Logged afterwards, describe what you had, paste the dish's line from the menu, add photos of the menu and the plate and say how big it was — the household's AI estimates the nutrition of the portion you ate (a calorie figure printed on the menu is used as given). Had a starter and a dessert too? Add each course (starter, main, side, dessert, drink) with its own words, menu kcal and photo: each is estimated on its own and the sitting's figures are their sum. Meals out then count everywhere a cooked meal does: the planner's weekly nutrition and heart-health protein targets (a steak out is that week's red meat — even before the AI has looked, from the words you used), Stats, and the taste profile when you rate them. Restaurant estimates are rough and are labelled as estimates. **Help me choose**: on the day (or before), give the sheet the menu (photos, a PDF, a link or the text) and say who's eating, and the household's AI suggests two or three dishes for each person. Each comes with why it suits them: their dietary requirements (never broken), what they like, this week's heart-health targets ("red meat's at its limit this week") and what they've had lately. It gives the calories when the menu prints them, a lighter tweak to ask for, and what to steer clear of. Tick what you ordered and the sheet fills in the dish, its menu line and printed calories, ready to log. In the iOS app the menu photo is read on the device first. In the iOS app too (planner chip and cards, the same sheet — a menu photo is read on the device — and Apple Health once the estimate is in; the Tonight card, widgets and Siri know you're out). Synced as `outsideMeals`; `/api/v1/outside-meals` for clients; `outsideMeals` on the integrations `today` and `meal-plan/week`
 - **Stats** — a household stats page (side nav, or Settings → Kitchen and insights on a phone): meals eaten, different and new recipes, ratings and cooking time over 4 weeks / 3 months / 12 months / all time; heart-healthy share by week or month, average saturated fat, fibre and calories; protein mix per week (oily fish, pulses, red and processed meat) against cholesterol-lowering targets; most-eaten dishes and cuisines; a per-person breakdown; and "worth a look" nudges (favourites not eaten in 8+ weeks, heart-healthy recipes never tried). Narrow it to one person, and "Download PDF" saves a print-friendly snapshot (light theme, no navigation, dated, with a note that figures are estimates) — e.g. to take to a GP or dietitian. "Eaten" means planned meals whose day has passed plus logged cooks; a meal counts for everyone unless a logged cook names who ate it
 - **Dishes Wrapped** — a Spotify-Wrapped-style story of your year in food (`/wrapped`, side nav, the Stats page, Settings, or a banner at the top of Recipes in December and January): meals eaten, different and brand-new recipes, your top dish and top 5, MVP ingredient (salt, oil and water don't count), favourite cuisine, busiest month, favourite day, longest streak, behind-the-scenes numbers, everyone's favourite, and a cooking personality. Full-screen slides auto-advance (tap left/right to step, hold or Space to pause, pick earlier years), and "Share this" turns a slide into a story-sized 1080×1920 PNG for the phone's share sheet (or a download on desktop) It also uses per-person ratings for each person's favourite, a "biggest disagreement" slide, the harshest critic and easiest to please, a collage and "photo of the year" from your cook photos, a quote from your review notes, and an optional AI-written recap of the year from those notes (generated on request with your household's AI key, cached in Redis)
 - **Heart-healthy (cholesterol-lowering) support** — recipes with at most 4 g saturated fat and at least 3 g fibre per serving get a "Heart-healthy" badge and can be filtered on (recipes page and `GET /api/v1/recipes?heartHealthy=1`). The AI concierge has a "Heart-healthy" option that steers concepts toward suitable dishes, checks the generated nutrition against those targets and revises the recipe once if it misses. "Ask AI → Make it heart-healthy" rewrites an existing recipe with swaps (butter → olive oil, cream → yoghurt, mince → part lentils…), shows before/after saturated fat and fibre, and saves as a copy or over the original. The meal planner has a "Heart-healthy week" quick-select (oily fish twice, pulses three times, red meat at most once, scaled to the slots picked; library recipes known to be high in saturated fat are skipped and new ones are written to the targets). Members can be given a "Cholesterol-lowering" dietary toggle: the AI then keeps every dish heart-healthy when they're eating, and ticking them in the concierge or planner switches the heart-healthy option on. The meal planner shows a collapsible weekly nutrition strip (heart-healthy count, saturated fat, fibre, and the protein targets when someone is on a cholesterol-lowering diet) with **swap suggestions** when the week misses a target: each names the meal to change and a library recipe that fixes it (ranked by heart-healthiness, favourites, household rating and cuisine; recipes rated 2★ or less are never suggested), with Swap / Other ideas buttons, a 💡 marker on the affected meal and day, and an "Ask AI" fallback that proposes new dishes and writes, saves and swaps in the one you pick, plan previews mark each suggestion's heart-healthy status, and the shopping list suggests swaps (butter → olive oil, cream → Greek yoghurt, mince → 5% or half lentils, white pasta → wholewheat…) for households with a cholesterol-lowering member. Settings → Maintenance → "Estimate saturated fat" fills in the new value for recipes created before it existed
@@ -56,7 +56,7 @@ A self-hosted, family-oriented recipe management and meal planning app. Mobile-f
 - **Stale-paint repaint budget** — the service worker tells an open page when a cached copy it just painted turned out to be out of date, and the page repaints itself. That repaint is now capped at two per route visit, no closer than five seconds apart, with a matching cooldown in the worker. Without the cap a page whose server render is not byte-identical on consecutive requests (a relative timestamp is enough) repainted in a loop, and on iOS Safari killed the tab outright with "Application error: a client-side exception has occurred" once it passed 100 `history.replaceState()` calls in 10 seconds
 - **Crash diagnostics** — when a device hits a client-side error, the browser posts the real message, stack, route and app version to the server, where it is written both to `docker logs dishes` (`grep -A 12 "client exception"`) and to **Settings → Crash reports** (admin only), so "Application error: a client-side exception has occurred" can be diagnosed from the phone that hit it rather than over SSH. On iOS 27 the iPhone and iPad app sends its crash, hang and memory reports there too, each saying what it was doing at the time (cooking, planning, shopping…). Reports that can't be delivered — the device was offline, or the page was torn down mid-send — are held locally and sent when the app next opens online. A report from an app version older than the server's is flagged as a stale bundle (a PWA left open across a deploy) rather than a bug in the screen it crashed on
 - **Clean sign-in after an expired session** — when the Authelia session runs out, the app notices on its next sync, goes to the sign-in page once, and comes straight back afterwards. The service worker only caches real pages, never the proxy's redirect to the login portal, and throws away its cached copy of a page as soon as the server answers with a redirect or a 401. Previously it could store that redirect as the page and replay it after you signed in, bouncing the browser between Dishes and Authelia until it cleared itself; and an expired session looked to the app exactly like being offline, because Authelia's redirect to another domain surfaced as a network error
-- **Integrations API** — JSON API with bearer token auth for n8n, Home Assistant, dashboards, and AI assistants (Grok, ChatGPT, Claude). Today's meals (with serve and start-cooking times on the household clock), the week plan, full recipes (ingredients + steps), the shopping list (add, tick off, remove), who's cooking right now with their step and timers, and AI plan generation. The [Dishes Home Assistant integration](https://github.com/JamesSnaps/dishes-hass) turns these into sensors, a meal calendar, a shopping to-do list and "who's cooking" presence. **Settings → Integrations** is a full API reference: create/revoke scoped tokens, expandable docs with example requests and responses, copy-ready `curl` commands for your domain, a Try-it console that runs requests live, and a public OpenAPI spec (`/api/integrations/openapi.json`) an AI assistant can import directly
+- **Integrations API** — JSON API with bearer token auth for n8n, Home Assistant, dashboards, and AI assistants (Grok, ChatGPT, Claude). Today's meals (with serve and start-cooking times on the household clock), the week plan, full recipes (ingredients + steps), the shopping list (add, tick off, remove), who's cooking right now with their step and timers, AI plan generation, and a diner brief (who's eating, their dietary needs and tastes, this week's protein targets and recent meals) so Claude or ChatGPT can help choose from a restaurant menu and then log what you ordered as a meal out, which the app estimates the nutrition for. A token can act as a household member, so meals out it logs are filed as theirs, with their rating. Settings → Integrations has setup for a ChatGPT custom GPT and for Claude, which gets the same tools through an MCP server (`/api/integrations/mcp`). The [Dishes Home Assistant integration](https://github.com/JamesSnaps/dishes-hass) turns these into sensors, a meal calendar, a shopping to-do list and "who's cooking" presence. **Settings → Integrations** is a full API reference: create/revoke scoped tokens, expandable docs with example requests and responses, copy-ready `curl` commands for your domain, a Try-it console that runs requests live, and a public OpenAPI spec (`/api/integrations/openapi.json`) an AI assistant can import directly
 - **Client API** — a separate `/api/v1` JSON API for Dishes' own clients, authenticated as a specific household member rather than as an anonymous household token. Recipes, the full shopping list, and the meal planner (week view, assigning and moving meals, per-meal and whole-week shopping generation) are covered today; it is the groundwork for a native iOS app and for offline writes beyond the shopping list
 - **Delta sync** — `/api/v1/sync` gives a client everything that changed since its last cursor, and accepts a batch of queued offline mutations back. Backed by a database-trigger change log, so every write is captured — including deletes, and anything done outside the app — and the cursor is a sequence number rather than a timestamp, so there is no clock skew to reason about. This is the foundation for local-first reads on both the PWA and a native app
 - **Apple Watch app** — comes with the iPhone app. The shopping list on the wrist, grouped by aisle: tap to tick, add an item by voice or Scribble, or say "add to shopping in Dishes" to Siri on the Watch. Tonight's meal with its cooking schedule as clock times, and the cook in progress — the step and every timer counting down — **even when it's being cooked on the kitchen iPad or in a browser**: the device cooking (the iPhone/iPad app or the web's cooking mode) shares its cook through the server (`/api/v1/cooking-sessions`), and the Watch follows it read-only, so nothing on the Watch can change cooking mode and the alarms stay on the device cooking. Complications show items left to get, and tonight's next step or the running timer. The Watch never signs in: everything goes through the iPhone over WatchConnectivity, and ticks made out of range wait on the Watch until the phone is back
@@ -347,6 +347,36 @@ Tokens are created at **Settings → Integrations** (admin only). Each token car
 
 **AI assistants (Grok etc.):** create a `read:meal_plan`-only token, import `https://dishes.yourdomain.com/api/integrations/openapi.json` as a custom action/tool (no token needed to fetch the spec), and set auth to Bearer with the token. The existing Authelia bypass for `^/api/integrations([/?].*)?$` already covers both the spec and the new recipe endpoint.
 
+**ChatGPT: help choosing when eating out.** A custom GPT reads a menu you send it (photo, PDF or link), suggests dishes using the diner brief (dietary needs, tastes, this week's heart-health targets, recent meals), and logs what you ordered as a meal out, whose nutrition Dishes then estimates.
+
+1. Create a token with `read:preferences`, `read:meal_plan` and `write:outside_meals`, **acting as** you.
+2. In ChatGPT, GPTs → Create → Configure → Actions → Create new action → **Import from URL**: `https://dishes.yourdomain.com/api/integrations/openapi.json?ops=meals-out`. This trimmed spec has only the eating-out operations.
+3. Authentication: API Key, auth type Bearer, then paste the token.
+4. Paste the instructions from Settings → Integrations (there's a Copy button) into the GPT's Instructions.
+5. Keep the GPT shared with **Only me**. Anyone who can use it can read the household's brief and log meals as you.
+
+ChatGPT calls the API from OpenAI's servers, so the domain must be reachable from the internet. The Authelia bypass for `^/api/integrations` already lets these calls through, and the token does the authentication.
+
+**Claude: the same, as an MCP server.** `/api/integrations/mcp` serves the same eating-out tools to Claude over MCP (Streamable HTTP, stateless). The tools are `getDinerBrief`, `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` and `updateOutsideMeal`, with the GPT's instructions sent as the server's instructions. Claude only sees the tools the caller can use. Settings → Integrations has the URL and the snippets below, filled in for your domain.
+
+- **Claude Code:** `claude mcp add --transport http dishes https://dishes.yourdomain.com/api/integrations/mcp --header "Authorization: Bearer <token>"`
+- **Claude Desktop:** add this to `claude_desktop_config.json`. It runs [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), which needs Node.js, to pass the token:
+
+  ```json
+  {
+    "mcpServers": {
+      "dishes": {
+        "command": "npx",
+        "args": ["-y", "mcp-remote", "https://dishes.yourdomain.com/api/integrations/mcp", "--header", "Authorization:${DISHES_AUTH}"],
+        "env": { "DISHES_AUTH": "Bearer <token>" }
+      }
+    }
+  }
+  ```
+- **claude.ai and the Claude apps:** a custom connector signs in with OAuth, not a pasted token. See [Claude custom connector via Authelia](#claude-custom-connector-via-authelia-untested). Not yet tried end to end.
+
+Use a token with `read:preferences`, `read:meal_plan` and `write:outside_meals`, acting as you, as for the GPT.
+
 | Scope | Description |
 |---|---|
 | `read:meal_plan` | Read meal plan and full recipes |
@@ -356,6 +386,8 @@ Tokens are created at **Settings → Integrations** (admin only). Each token car
 | `read:deliveries` | Read grocery delivery days and order status |
 | `write:deliveries` | Record grocery orders (e.g. forwarded retailer emails) |
 | `read:cooking` | See who is cooking right now — dish, step and running timers |
+| `read:preferences` | Read members' dietary requirements, dislikes and tastes, and this week's eating — the diner brief an AI uses to choose from a menu |
+| `write:outside_meals` | Log and update meals eaten out. The token must **act as** a member (chosen when it's created): the meal and its rating are theirs |
 
 ### Quick examples
 
@@ -373,6 +405,14 @@ curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/js
 
 # Who's cooking right now, with their step and timers (Home Assistant)
 curl -H "Authorization: Bearer <token>" https://dishes.yourdomain.com/api/integrations/cooking
+
+# The diner brief for James and Sam tonight, for an AI choosing from a menu
+curl -H "Authorization: Bearer <token>" "https://dishes.yourdomain.com/api/integrations/preferences?members=James,Sam"
+
+# Log what was ordered (the token acts as a member; the nutrition estimate follows)
+curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+  -d '{"date":"2026-10-28","place":"Côte","menuText":"Sea bass, crushed potatoes, beurre blanc","menuKcal":720}' \
+  https://dishes.yourdomain.com/api/integrations/outside-meals
 
 # Next grocery order and what's still to do before it closes (Home Assistant)
 curl -H "Authorization: Bearer <token>" https://dishes.yourdomain.com/api/integrations/deliveries
@@ -467,6 +507,7 @@ access_control:
         - '^/api/integrations([/?].*)?$'  # n8n / Home Assistant household tokens
         - '^/share/.*$'
         - '^/\.well-known/apple-app-site-association$'  # iOS universal links; Apple fetches it with no login
+        - '^/\.well-known/oauth-protected-resource(/.*)?$'  # MCP sign-in discovery for claude.ai; names the issuer, nothing private
         - '^/_next/static/.*$'
         - '^/_next/image.*$'
         - '^/favicon\.ico$'
@@ -550,6 +591,47 @@ docker exec dishes printenv DISHES_OIDC_ISSUER
 Empty output means it didn't arrive — the Compose file maps environment
 variables explicitly, so a new variable in `.env` also has to be added there.
 
+
+### Claude custom connector via Authelia (untested)
+
+A custom connector on claude.ai (which the Claude apps share) signs in with OAuth. The server side is in place:
+
+- `/api/integrations/mcp` answers `401` with a `WWW-Authenticate` header pointing at `/.well-known/oauth-protected-resource/api/integrations/mcp`.
+- That metadata names `DISHES_OIDC_ISSUER` as the authorization server.
+- The endpoint then accepts the Authelia access token Claude gets. The connector acts as whoever signed in, with the eating-out tools, and the user must be in an allowed group, as for the iOS app.
+
+Authelia has no dynamic client registration, so register Claude as a confidential client and give claude.ai its ID and secret. Generate the secret and its hash with `authelia crypto hash generate pbkdf2 --random`:
+
+```yaml
+      - client_id: dishes-claude
+        client_name: Claude
+        client_secret: '$pbkdf2-sha512$310000$…'  # the hash; claude.ai gets the plain secret
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://claude.ai/api/mcp/auth_callback
+        scopes: [openid, profile, email, groups, offline_access]
+        grant_types: [authorization_code, refresh_token]
+        response_types: [code]
+        require_pkce: true
+        pkce_challenge_method: S256
+        token_endpoint_auth_method: client_secret_post
+        # A third party acting as you: ask, unlike the first-party iOS app.
+        consent_mode: explicit
+```
+
+Add the `/.well-known/oauth-protected-resource` bypass rule shown in step 3. Then, in Claude, go to **Settings → Connectors → Add custom connector**:
+
+- URL: `https://dishes.yourdomain.com/api/integrations/mcp`
+- Under **Advanced settings**: client ID `dishes-claude` and the plain secret
+
+This hasn't been tried against claude.ai yet. If it fails, these are the likely causes:
+
+- **The token exchange is rejected as `invalid_client`.** Claude may send the secret in the `Authorization` header rather than the body. Switch `token_endpoint_auth_method` to `client_secret_basic`.
+- **Authelia rejects the authorization request.** Claude sends an RFC 8707 `resource` parameter (the MCP URL), and Authelia may not accept it for this client. Its logs will say which parameter it refused.
+- **The connector signs in but every call is `401`.** Check that `/api/integrations/mcp` is still bypassed, and that Dishes can reach the issuer's userinfo endpoint.
+
+If it won't work, Claude Desktop with a token (above) is the Claude route.
 ---
 
 ## Household Roles

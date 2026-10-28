@@ -202,6 +202,144 @@ Steps:
   (planned recipes they replaced already drop out of it)
 - Not planned: cost/budget tracking, restaurant lookup or maps
 
+## Choosing From a Menu
+Two ways to get help picking what to eat out, both built on what the app already knows: who's
+eating and their dietary flags, the taste profile and ratings, and how this week's heart-health
+targets stand. Claude and ChatGPT are already good at reading a menu, but they don't know any of
+that, and nothing they decide gets back into the app.
+
+- **Part A: Claude or ChatGPT.** The app hands them a brief about the diners and they log the
+  choice back to it. Small, and most of the code already exists
+- **Part B: "Help me choose" in the app.** Give it a menu photo, text or a link (including a PDF)
+  and get picks for each person. The pick fills in the log sheet
+
+Scope decisions (28 Oct 2026):
+- **One "diner brief", shared by both parts.** `getDinerBrief(householdId, { date, memberIds? })`
+  in `lib/services/diner-brief.ts` returns:
+  - each diner's dietary flags, dislikes, preferences and age band (from `getAiContext`)
+  - the taste profile summary (`summariseTasteProfile`): what they rate well and badly
+  - the week's protein targets so far, counting meals out and the rest of the week's plan
+    (`getWeekNutrition`)
+  - the last 7 days' meals, so suggestions vary
+  - a plain-text `promptText` rendering of all of it
+
+  Part A serves it over the API and Part B puts it in its own prompt, so both suggest the same way
+- **Integration tokens carry no member, but a meal out needs one.** `createOutsideMeal` records
+  `createdById`, and the saver's own rating is filed under their name. So a token can be bound to
+  a member when it's created (`integration_tokens.member_id`, nullable): writes act as that
+  member, and the new write scope can only be granted to a bound token. Existing tokens are
+  unchanged. Claude's hosted connectors may come through Authelia OIDC instead, which carries
+  the member already (`getBearerUser()`, see A6)
+- **New scopes:**
+  - `read:preferences`: dietary flags and dislikes are personal, so a Home Assistant dashboard
+    token with `read:meal_plan` shouldn't get them
+  - `write:outside_meals`
+- **Logging fills the day's existing slot.** If the day already has a "Not cooking" chip (an
+  `outside_meals` row with no dish yet), a POST for that date and meal type fills that row in
+  rather than adding a second one
+- **Photos are optional and text is the reliable path.** Claude can't pass an image from the chat
+  into a tool call. ChatGPT Actions can pass chat files as download links (`openaiFileIdRefs`,
+  to be verified), which the server would fetch with `safeFetch`. The menu's words and its
+  printed kcal are enough for a good estimate; the plate photo can be added in the app later
+- **Part B runs on the server with the household key, as an AI job** (`/api/ai-jobs`), like
+  recipe generation. Reading a menu with vision takes 10–20 s and the corner job card already
+  handles leaving the screen. On iOS, Vision reads the menu photo into text on the device first
+  (as the log sheet already does), which is cheaper and faster. The photo is only sent as well
+  when the OCR came back thin. Choosing needs the diner brief and real judgement, so it isn't an
+  on-device model job; revisit after the on-device evaluation (`TODO_MOBILE.md` Phase D)
+- **Picks are suggestions, not stored.** The menu text is kept on the meal out (`menuText`) once
+  one is picked. Estimates are labelled as estimates, as elsewhere for meals out
+
+### Part A — Claude and ChatGPT
+- [x] A1 — Diner brief service + `GET /api/integrations/preferences` (`read:preferences`;
+  `?date=`, `?members=`): JSON plus `promptText`. Add it to `integrations-catalog.ts`, `API.md`
+  and the OpenAPI spec. Shared with Part B. *`lib/diner-brief.ts` (pure, `check:diner-brief`) and
+  `lib/services/diner-brief.ts` (v1.69.0)*
+- [x] A2 — Bind a token to a member:
+  - migration adding `integration_tokens.member_id` (FK to `household_members`, `ON DELETE SET
+    NULL`, after which the write scope stops working)
+  - "Acts as" picker on `/settings/integrations`, required when `write:outside_meals` is ticked
+  - `IntegrationContext.memberId`
+
+  *Migration 0049; a member who's removed or deactivated stops the token's writes (v1.70.0)*
+- [x] A3 — `/api/integrations/outside-meals`, using the `createOutsideMealSchema` the `/api/v1`
+  routes use. The nutrition estimate runs after the reply with `estimateInBackground`, and
+  devices get the meal on their next sync.
+  - `GET`: a date range (`read:meal_plan`)
+  - `POST`: log a meal out, filling the day's chip if there is one
+  - `PATCH /{id}`: rate it later, add courses, fix the place
+  - every response includes the meal's URL in the app
+
+  *Also `GET /{id}` to pick up the estimate. Its own wire schema rather than v1's: ratings are 1–5 stars,
+  like the brief, course ids are optional, and names are checked against the members (v1.70.0)*
+- [x] A4 — ChatGPT custom GPT:
+  - `openapi.json?ops=meals-out` serves only the brief and meal-out operations, so the GPT
+    isn't offered shopping and deliveries
+  - a ready-made instructions block with a copy button on Settings → Integrations: "fetch the
+    brief first, read the menu, suggest, log the pick when the user says what they ordered"
+  - a README section on API-key auth
+
+  *`OPERATION_SETS` in the catalog with a ≤300-char `shortDescription` per operation (ChatGPT Actions'
+  limit, held by `check:integrations-spec`); instructions in `lib/menu-assistant.ts`, shown on Settings →
+  Integrations. Not yet tried in ChatGPT itself (v1.70.0)*
+- [x] A5 — MCP endpoint for Claude at `/api/integrations/mcp` (streamable HTTP, stateless):
+  - tools `getDinerBrief`, `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` and
+    `updateOutsideMeal`, wrapping the same services
+  - token auth with the same scopes
+  - a Claude Desktop config snippet with the bearer header in the README
+
+  *`@modelcontextprotocol/sdk` 1.32.1's web-standard transport, one server per request
+  (`lib/mcp/dishes-mcp.ts`). Tools take the operation ids as names so `MENU_ASSISTANT_INSTRUCTIONS` serve
+  both assistants; the POST/PATCH logic moved to `logMealOut`/`editMealOut` for both. Tested with the SDK's
+  own client; not yet from Claude Desktop (v1.70.0)*
+- [ ] A6 — Spike: a claude.ai custom connector through Authelia OIDC. It needs OAuth
+  protected-resource metadata on the MCP route and a static Authelia client, since Authelia has
+  no dynamic client registration; check that claude.ai accepts a client ID and secret. The route
+  would accept OIDC bearers as well as tokens, and those carry the member. If it doesn't work,
+  Claude Desktop (A5) is the Claude path
+
+  *Server side done: the MCP route takes Authelia access tokens as well (acting as whoever signed in), its
+  401 points at `/.well-known/oauth-protected-resource/api/integrations/mcp`, which names the issuer.
+  Claude takes a static client ID and secret when there's no DCR (Advanced settings; callback
+  `https://claude.ai/api/mcp/auth_callback`). Left: add the `dishes-claude` Authelia client and the
+  bypass rule (README), then try it from claude.ai — unknowns there are the token endpoint auth method and
+  whether Authelia accepts Claude's `resource` parameter*
+- [ ] A7 — Optional: photos by URL on the POST and PATCH (plate, menu, course), fetched with
+  `safeFetch`. Images only, with a size cap, into the existing photo slots. Only if A4 shows
+  ChatGPT really passes chat files
+
+### Part B — "Help me choose" in the app
+- [x] B1 — Menu sources, `lib/ai/menu-sources.ts`: photos (up to 4), a PDF, a link or pasted text →
+  model content. *Simpler than planned: PDFs go to the model as they are (OpenAI reads the text layer and
+  the page images), so no PDF library and scanned menus just work. Links go through `safeFetch`; a page
+  with too little text says so rather than letting the model guess (v1.70.0)*
+- [x] B2 — Chooser, `lib/ai/menu-picks.ts`: menu + diner brief → for each diner, up to 3 picks and 3 to
+  avoid.
+  - each pick says why in the brief's terms, carries its menu line word for word and the printed kcal
+    (or a labelled estimate), and a lighter tweak
+  - dietary flags are hard rules; the weekly targets and tastes steer
+  - *One call does the reading and the choosing (they're at the table). `tidyPicks` holds the answer to
+    the brief (`check:menu-picks`)*
+- [x] B3 — `POST /api/v1/outside-meals/menu-picks` (multipart), the web through `/api/web`. *Changed
+  from the plan: synchronous, not an AI job. One route serves web and iOS, the result only makes sense
+  inside the sheet so the corner tray has nothing to offer, and it answers in 10–30 s*
+- [x] B4 — Web: a "Help me choose" step in `outside-meal-sheet.tsx` (`menu-chooser.tsx`), for today or a
+  future day.
+  - menu input; who's choosing (defaults to who's eating)
+  - pick cards; ticking and "Use these" fills in the dish, menu line and `menuKcal`, or courses for
+    several; who it was for becomes "Who ate?", the restaurant fills an empty "where", and the first
+    menu photo is kept for the estimate
+  - a plan keeps only the names
+- [x] B5 — iOS: `MenuChooserView`, pushed from the sheet. Vision reads the photos on the device; the
+  text goes up when it read enough, the photos only when it didn't. The PDF comes from Files.
+  *`MenuPicks.apply` in DishesCore mirrors the web's `applyChoice`, with tests*
+- Not planned: storing past picks, comparing what was ordered with what was suggested, exposing
+  the in-app chooser over the integrations API (Claude and ChatGPT do their own choosing in Part A)
+
+Suggested order: A1–A4 (ChatGPT working end to end, about a day), then B1–B4, then A5–A6 and B5.
+A1 is the base for both parts. *All but A7 built on `feat/diner-brief` (PR #75); A6 and the AI calls
+themselves still to try on the real server.*
+
 ## AI — Photo Recipe Import
 - [x] Scan a recipe photo (camera or gallery) from the New Recipe page
 - [x] Client-side image resize before sending (≤ 1600 px JPEG)

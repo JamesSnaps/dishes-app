@@ -1,6 +1,6 @@
 {
   "name": "@dishes/web",
-  "version": "1.68.1",
+  "version": "1.70.0",
   "private": true,
   "scripts": {
     "check:share-scope": "tsx scripts/check-share-scope.ts",
@@ -8,6 +8,9 @@
     "check:recipe-web-import": "tsx scripts/check-recipe-web-import.ts",
     "check:ai-context": "tsx scripts/check-ai-context.ts",
     "check:outside-meals": "tsx scripts/check-outside-meals.ts",
+    "check:diner-brief": "tsx scripts/check-diner-brief.ts",
+    "check:integrations-spec": "tsx scripts/check-integrations-spec.ts",
+    "check:menu-picks": "tsx scripts/check-menu-picks.ts",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
@@ -24,6 +27,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@types/jszip": "^3.4.1",
     "@types/nodemailer": "^8.0.0",
     "class-variance-authority": "^0.7.1",

@@ -212,7 +212,7 @@ function assertCourses(courses: OutsideMealCourseInput[]): void {
 /** The fields an estimate reads: changing any of them makes it stale. */
 const ESTIMATE_INPUTS = ["kind", "title", "place", "cuisine", "description", "menuText", "portion", "menuKcal"] as const;
 
-async function loadOwned(ctx: HouseholdContext, id: string): Promise<OutsideMeal> {
+async function loadOwned(ctx: Pick<HouseholdContext, "householdId">, id: string): Promise<OutsideMeal> {
   const [row] = await db
     .select()
     .from(outsideMeals)
@@ -401,7 +401,8 @@ export async function setOutsideMealPhoto(
 
 // --- Nutrition estimate -----------------------------------------------------
 
-async function aiClientFor(householdId: string): Promise<{ client: OpenAI; model: string } | null> {
+/** The household's AI client and model, or null with no key set. */
+export async function aiClientFor(householdId: string): Promise<{ client: OpenAI; model: string } | null> {
   const [config] = await db
     .select({ encryptedApiKey: aiConfigurations.encryptedApiKey, model: aiConfigurations.model })
     .from(aiConfigurations)
@@ -531,7 +532,10 @@ export async function estimateOutsideMealNutrition(
 
 // --- Reads ------------------------------------------------------------------
 
-export async function getOutsideMeal(ctx: HouseholdContext, id: string): Promise<OutsideMealView> {
+export async function getOutsideMeal(
+  ctx: Pick<HouseholdContext, "householdId">,
+  id: string
+): Promise<OutsideMealView> {
   return toView(await loadOwned(ctx, id));
 }
 

@@ -92,6 +92,13 @@
       "when": 1792886400000,
       "tag": "0048_outside_meal_courses",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792972800000,
+      "tag": "0049_integration_token_member",
+      "breakpoints": true
     }
   ]
 }

@@ -1621,3 +1621,22 @@ Checked in the iPhone 18 Pro and iPad Pro 11-inch simulators, dark and light.
 Uploaded to TestFlight as 1.68.1 (build 202610272100) from main, after PR #73
 merged. Server not redeployed yet — the web half (the courses change) needs
 the new image.
+
+### 2026-10-28 — Help me choose (v1.70.0, branch `feat/diner-brief`)
+
+- **Help me choose**: the meal-out sheet has a green "Help me choose" button for today or a future day.
+  It pushes `MenuChooserView`, which takes the menu (camera or library photos, up to 4; a link; a PDF
+  from Files; pasted text) and who's eating. It shows the household AI's picks for each person, each
+  with why, the printed or estimated kcal, and a lighter tweak, plus what to avoid. Ticking picks and
+  "Use these" fills in the sheet through `MenuPicks.apply` (DishesCore), which mirrors the web's
+  `applyChoice`: one dish fills in the dish and its menu line, several become courses, a plan keeps
+  only the names, and the first menu photo is kept for the estimate.
+- Vision reads the menu photos first. 300+ characters of text and only the text goes up; less and
+  the photos do.
+- Server: `POST /api/v1/outside-meals/menu-picks` (multipart), synchronous, 10–30 s
+  (`APIClient.menuPicks`, 90 s timeout).
+- Tests: `MenuPicksTests` (decoding, apply for one dish, several and a plan, the multipart body).
+
+Checked in the iPhone 18 Pro simulator: the button shows on today's sheet and the chooser screen
+renders. Not checked: a real set of picks. The dev database was down (Docker stuck), and there's no
+AI key locally.

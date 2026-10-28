@@ -2,16 +2,27 @@
 
 import { useRef, useState, useTransition } from "react";
 import { createIntegrationToken } from "@/app/actions/integrations";
-import { ALL_SCOPES } from "@/app/actions/integration-constants";
+import { ALL_SCOPES, MEMBER_SCOPES, type TokenScope } from "@/app/actions/integration-constants";
 import { SCOPE_DESCRIPTIONS } from "@/lib/integrations-catalog";
 import { TOKEN_CREATED_EVENT } from "./try-it";
 
-export function CreateTokenForm() {
+export function CreateTokenForm({ members }: { members: { id: string; displayName: string }[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [ticked, setTicked] = useState<Set<TokenScope>>(new Set());
+  const needsMember = [...ticked].some((s) => MEMBER_SCOPES.includes(s));
+
+  function toggleScope(scope: TokenScope, on: boolean) {
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(scope);
+      else next.delete(scope);
+      return next;
+    });
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,6 +36,7 @@ export function CreateTokenForm() {
         setNewToken(result.rawToken);
         window.dispatchEvent(new CustomEvent(TOKEN_CREATED_EVENT, { detail: result.rawToken }));
         formRef.current?.reset();
+        setTicked(new Set());
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to create token");
       }
@@ -78,12 +90,41 @@ export function CreateTokenForm() {
           <div className="space-y-2">
             {ALL_SCOPES.map((scope) => (
               <label key={scope} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name={scope} className="rounded" />
+                <input
+                  type="checkbox"
+                  name={scope}
+                  className="rounded"
+                  onChange={(e) => toggleScope(scope, e.target.checked)}
+                />
                 <span>{SCOPE_DESCRIPTIONS[scope]}</span>
                 <code className="ml-auto text-xs text-muted-foreground">{scope}</code>
               </label>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="token-member" className="mb-1 block text-sm font-medium">
+            Acts as{needsMember ? "" : " — optional"}
+          </label>
+          <select
+            id="token-member"
+            name="memberId"
+            required={needsMember}
+            defaultValue=""
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">{needsMember ? "Choose a member…" : "Nobody — household only"}</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.displayName}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Meals out logged with this token are filed as theirs, with their rating. Needed for{" "}
+            <code>write:outside_meals</code>.
+          </p>
         </div>
 
         <div>

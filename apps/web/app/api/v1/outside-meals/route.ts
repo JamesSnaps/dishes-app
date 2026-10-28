@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/session";
 import { withApiErrors } from "@/lib/api/respond";
 import { createOutsideMealSchema, outsideMealRangeSchema } from "@/lib/api/schemas/outside-meals";
 import { createOutsideMeal, listOutsideMeals } from "@/lib/services/outside-meals";
-import { estimateInBackground } from "./estimate-later";
+import { estimateInBackground } from "@/lib/outside-meal-estimate-later";
 
 /** Outside meals in a date range (both ends optional, inclusive), oldest first. */
 export const GET = withApiErrors(async (req: NextRequest) => {

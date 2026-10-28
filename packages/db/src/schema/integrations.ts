@@ -49,6 +49,12 @@ export const integrationTokens = pgTable("integration_tokens", {
   createdById: uuid("created_by_id").references(() => householdMembers.id, {
     onDelete: "set null",
   }),
+  /**
+   * The member the token acts as, for writes that belong to someone (logging a
+   * meal out files its rating under their name). Null: household-only, which
+   * is all the read scopes and the older write scopes need.
+   */
+  memberId: uuid("member_id").references(() => householdMembers.id, { onDelete: "set null" }),
   name: varchar("name", { length: 255 }).notNull(),
   tokenHash: varchar("token_hash", { length: 255 }).notNull().unique(),
   scopes: json("scopes").$type<string[]>().notNull().default([]),

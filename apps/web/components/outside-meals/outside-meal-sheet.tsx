@@ -13,6 +13,10 @@
  *
  * More than one course (starter, main, dessert) gets a card each — its words
  * or menu line, printed kcal and photo — and is estimated course by course.
+ *
+ * For today or a future day, "Help me choose" (`MenuChooser`) reads the menu
+ * and suggests dishes for each person eating; the ones ticked fill in what was
+ * eaten here, with their menu lines and printed calories.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +31,7 @@ import {
   Trash2,
   Users,
   UtensilsCrossed,
+  Wand2,
   X,
 } from "lucide-react";
 import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea, cn } from "@dishes/ui";
@@ -60,6 +65,7 @@ import {
 } from "@/lib/outside-meals";
 import { PROTEIN_LABELS, proteinsOf } from "@/lib/meal-stats";
 import type { ReviewMember } from "@/components/cook-review/cook-review-form";
+import { MenuChooser, type MenuChoice } from "./menu-chooser";
 
 export const OUTSIDE_MEAL_KIND_ICON: Record<OutsideMealKind, typeof UtensilsCrossed> = {
   eat_out: UtensilsCrossed,
@@ -212,6 +218,7 @@ export function OutsideMealSheet({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ meal: OutsideMealView; estimateError: string | null } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const update = (patch: Partial<Draft>) => setD((s) => ({ ...s, ...patch }));
 
   // Start from the meal's current values each time the sheet opens.
@@ -221,6 +228,7 @@ export function OutsideMealSheet({
     setError(null);
     setResult(null);
     setConfirmDelete(false);
+    setChoosing(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -282,6 +290,57 @@ export function OutsideMealSheet({
       preview: file ? URL.createObjectURL(file) : null,
       ...(file ? {} : { stored: null, removePhoto: !!c?.stored || c?.removePhoto }),
     });
+  }
+
+  /**
+   * What "Help me choose" picked becomes what was eaten: one dish fills in the
+   * dish and its menu line, several become courses. A plan only keeps the
+   * names (its menu fields aren't on the form). Whoever the picks were for are
+   * the ones eating, and the first menu photo is kept for the estimate.
+   */
+  function applyChoice({ picks, restaurant, menuPhoto }: MenuChoice) {
+    const patch: Partial<Draft> = {};
+    if (!d.place.trim() && restaurant.name) patch.place = restaurant.name.slice(0, 200);
+    const who = [...new Set(picks.map((p) => p.diner))];
+    patch.eatenBy = who.length >= names.length ? [] : who;
+
+    if (isPlan) {
+      patch.title = picks.map((p) => p.dish).join(", ").slice(0, 200);
+    } else {
+      for (const c of d.courses) if (c.preview) URL.revokeObjectURL(c.preview);
+      if (picks.length === 1) {
+        const [p] = picks;
+        Object.assign(patch, {
+          title: p!.dish.slice(0, 200),
+          menuText: p!.menuLine,
+          menuKcal: p!.menuKcal ? String(p!.menuKcal) : "",
+          courses: [],
+        });
+      } else {
+        Object.assign(patch, {
+          title: "",
+          menuText: "",
+          menuKcal: "",
+          courses: picks
+            .map(
+              (p): CourseDraft => ({
+                id: crypto.randomUUID(),
+                course: p.course,
+                text: p.menuLine,
+                menuKcal: p.menuKcal ? String(p.menuKcal) : "",
+                file: null,
+                preview: null,
+                stored: null,
+                removePhoto: false,
+              })
+            )
+            .sort(byEatingOrder),
+        });
+      }
+    }
+    update(patch);
+    if (menuPhoto && !isPlan && storageAvailable && !d.menuFile && !meal?.menuPhotoUrl) setPhoto("menu", menuPhoto);
+    setChoosing(false);
   }
 
   async function handleSave() {
@@ -416,11 +475,15 @@ export function OutsideMealSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="max-h-[92dvh] overflow-y-auto px-4 pb-8 sm:left-1/2 sm:max-w-md sm:-translate-x-1/2 sm:rounded-2xl">
         <SheetHeader className="mb-5">
-          <SheetTitle>{meal ? OUTSIDE_MEAL_KIND_LABELS[d.kind] : isPlan ? "Not cooking" : "Log a meal out"}</SheetTitle>
+          <SheetTitle>
+            {choosing ? "Help me choose" : meal ? OUTSIDE_MEAL_KIND_LABELS[d.kind] : isPlan ? "Not cooking" : "Log a meal out"}
+          </SheetTitle>
           <p className="text-sm text-muted-foreground">
             {result
               ? "Saved."
-              : isPlan
+              : choosing
+                ? "Add the menu and the AI suggests dishes for each of you."
+                : isPlan
                 ? "Keeps the slot free — no reminder, and the AI planner leaves it alone."
                 : "Counts towards the week's nutrition, like a meal from the plan."}
           </p>
@@ -428,6 +491,14 @@ export function OutsideMealSheet({
 
         {result ? (
           <EstimateResult meal={result.meal} error={result.estimateError} onDone={() => onOpenChange(false)} />
+        ) : choosing ? (
+          <MenuChooser
+            date={d.date}
+            names={names}
+            initialDiners={d.eatenBy}
+            onUse={applyChoice}
+            onCancel={() => setChoosing(false)}
+          />
         ) : (
           <div className="space-y-6">
             {/* What kind of not-cooking */}
@@ -478,6 +549,20 @@ export function OutsideMealSheet({
                 </p>
               )}
             </div>
+
+            {!skipped && d.date >= localToday() && (
+              <button
+                type="button"
+                onClick={() => setChoosing(true)}
+                className="flex w-full items-center gap-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 text-left text-white shadow-md transition-opacity hover:opacity-95"
+              >
+                <Wand2 className="h-5 w-5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Help me choose</span>
+                  <span className="block text-xs text-white/85">Snap the menu for suggestions that suit each of you</span>
+                </span>
+              </button>
+            )}
 
             {!skipped && (
               <>

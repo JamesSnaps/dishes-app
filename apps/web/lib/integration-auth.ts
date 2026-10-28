@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { db } from "@/lib/db";
-import { integrationTokens } from "@dishes/db/schema";
-import { eq } from "drizzle-orm";
+import { householdMembers, integrationTokens } from "@dishes/db/schema";
+import { and, eq } from "drizzle-orm";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -9,13 +9,16 @@ export type IntegrationContext = {
   householdId: string;
   tokenId: string;
   scopes: string[];
+  /** The member the token acts as (still active in the household), or null. */
+  memberId: string | null;
 };
 
 function hashToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
-async function resolveToken(raw: string): Promise<IntegrationContext | null> {
+/** The token's household, scopes and member, or null for an unknown or expired one. */
+export async function resolveToken(raw: string): Promise<IntegrationContext | null> {
   const hash = hashToken(raw);
 
   const [token] = await db
@@ -24,8 +27,18 @@ async function resolveToken(raw: string): Promise<IntegrationContext | null> {
       householdId: integrationTokens.householdId,
       scopes: integrationTokens.scopes,
       expiresAt: integrationTokens.expiresAt,
+      memberId: householdMembers.id,
     })
     .from(integrationTokens)
+    // Only a member still active in the token's household counts.
+    .leftJoin(
+      householdMembers,
+      and(
+        eq(householdMembers.id, integrationTokens.memberId),
+        eq(householdMembers.householdId, integrationTokens.householdId),
+        eq(householdMembers.isActive, true)
+      )
+    )
     .where(eq(integrationTokens.tokenHash, hash))
     .limit(1);
 
@@ -38,7 +51,7 @@ async function resolveToken(raw: string): Promise<IntegrationContext | null> {
     .where(eq(integrationTokens.id, token.id))
     .catch(() => {});
 
-  return { householdId: token.householdId, tokenId: token.id, scopes: token.scopes };
+  return { householdId: token.householdId, tokenId: token.id, scopes: token.scopes, memberId: token.memberId };
 }
 
 type RouteHandler = (
