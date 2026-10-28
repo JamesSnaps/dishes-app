@@ -301,9 +301,10 @@ Scope decisions (28 Oct 2026):
   *Server side done: the MCP route takes Authelia access tokens as well (acting as whoever signed in), its
   401 points at `/.well-known/oauth-protected-resource/api/integrations/mcp`, which names the issuer.
   Claude takes a static client ID and secret when there's no DCR (Advanced settings; callback
-  `https://claude.ai/api/mcp/auth_callback`). Left: add the `dishes-claude` Authelia client and the
-  bypass rule (README), then try it from claude.ai — unknowns there are the token endpoint auth method and
-  whether Authelia accepts Claude's `resource` parameter*
+  `https://claude.ai/api/mcp/auth_callback`). The `dishes-claude` client and bypass rule are live on
+  vm-core (docker repo PR #16). Authelia refused Claude's `resource` parameter (`invalid_target`) until the
+  MCP URL was added as the client's `audience`. Left: sign in from claude.ai; if the token exchange is
+  `invalid_client`, switch to `client_secret_basic`*
 - [ ] A7 — Optional: photos by URL on the POST and PATCH (plate, menu, course), fetched with
   `safeFetch`. Images only, with a size cap, into the existing photo slots. Only if A4 shows
   ChatGPT really passes chat files
