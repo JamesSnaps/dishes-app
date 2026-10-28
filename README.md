@@ -347,6 +347,16 @@ Tokens are created at **Settings → Integrations** (admin only). Each token car
 
 **AI assistants (Grok etc.):** create a `read:meal_plan`-only token, import `https://dishes.yourdomain.com/api/integrations/openapi.json` as a custom action/tool (no token needed to fetch the spec), and set auth to Bearer with the token. The existing Authelia bypass for `^/api/integrations([/?].*)?$` already covers both the spec and the new recipe endpoint.
 
+**ChatGPT: help choosing when eating out.** A custom GPT reads a menu you send it (photo, PDF or link), suggests dishes using the diner brief (dietary needs, tastes, this week's heart-health targets, recent meals), and logs what you ordered as a meal out, whose nutrition Dishes then estimates.
+
+1. Create a token with `read:preferences`, `read:meal_plan` and `write:outside_meals`, **acting as** you.
+2. In ChatGPT, GPTs → Create → Configure → Actions → Create new action → **Import from URL**: `https://dishes.yourdomain.com/api/integrations/openapi.json?ops=meals-out`. This trimmed spec has only the eating-out operations.
+3. Authentication: API Key, auth type Bearer, then paste the token.
+4. Paste the instructions from Settings → Integrations (there's a Copy button) into the GPT's Instructions.
+5. Keep the GPT shared with **Only me**. Anyone who can use it can read the household's brief and log meals as you.
+
+ChatGPT calls the API from OpenAI's servers, so the domain must be reachable from the internet. The Authelia bypass for `^/api/integrations` already lets these calls through, and the token does the authentication.
+
 | Scope | Description |
 |---|---|
 | `read:meal_plan` | Read meal plan and full recipes |

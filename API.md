@@ -25,11 +25,17 @@ Tokens carry granular scopes. Each endpoint documents the required scope. Reques
 
 ## OpenAPI spec
 
-`GET /api/integrations/openapi.json` returns an OpenAPI 3.1 description of every endpoint below — parameters, request schemas, example responses, and an `operationId` per endpoint (`getToday`, `getWeekMealPlan`, `getRecipe`, `getShoppingList`, `addShoppingItems`, `quickAddShoppingItem`, `generateMealPlan`, `getDeliveries`, `ingestDeliveryEmail`, `recordDeliveryOrder`). It needs **no token**, so AI assistants (Grok, ChatGPT custom actions, Claude) and n8n can import it before auth is configured; it contains no household data. `servers[0].url` is taken from the request's `X-Forwarded-Host`/`X-Forwarded-Proto`.
+`GET /api/integrations/openapi.json` returns an OpenAPI 3.1 description of every endpoint below — parameters, request schemas, example responses, and an `operationId` per endpoint (`getToday`, `getWeekMealPlan`, `getRecipe`, `getShoppingList`, `addShoppingItems`, `quickAddShoppingItem`, `generateMealPlan`, `getDeliveries`, `ingestDeliveryEmail`, `recordDeliveryOrder`, `getDinerBrief`, `listOutsideMeals`, `logOutsideMeal`, `getOutsideMeal`, `updateOutsideMeal` and the rest). It needs **no token**, so AI assistants (Grok, ChatGPT custom actions, Claude) and n8n can import it before auth is configured; it contains no household data. `servers[0].url` is taken from the request's `X-Forwarded-Host`/`X-Forwarded-Proto`.
 
 The spec and the **Settings → Integrations** reference page are both generated from `apps/web/lib/integrations-catalog.ts` — update that file alongside this one when an endpoint changes.
 
 For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's for dinner and how do I make it?": `getToday` → `getRecipe` with the meal's `recipe.id`.
+
+**Trimmed specs.** `GET /api/integrations/openapi.json?ops=<set>` serves only the operations for one job, so an assistant is offered nothing else. Each operation's description, and the spec's own, is at most 300 characters, which ChatGPT Actions require; `scripts/check-integrations-spec.ts` keeps it that way. An unknown set is a `400`. Sets are defined in `OPERATION_SETS` in the catalog:
+
+| `ops` | Operations | For |
+|---|---|---|
+| `meals-out` | `getDinerBrief`, `listOutsideMeals`, `logOutsideMeal`, `getOutsideMeal`, `updateOutsideMeal` | A ChatGPT custom GPT that helps choose from a restaurant menu and logs what was ordered. Settings → Integrations has the setup steps and its instructions to copy (`apps/web/lib/menu-assistant.ts`) |
 
 ## Rate limiting
 

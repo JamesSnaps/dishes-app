@@ -49,6 +49,12 @@ export type EndpointDoc = {
   errors?: { status: number; description: string }[];
   /** Calls the AI provider — slow and costs credit. Flagged in the Try-it console. */
   costly?: boolean;
+  /**
+   * At most 300 characters, for the trimmed specs (`OPERATION_SETS`): ChatGPT
+   * Actions refuse a longer operation description. Required for any endpoint
+   * in a set (`scripts/check-integrations-spec.ts`).
+   */
+  shortDescription?: string;
 };
 
 export const SCOPE_DESCRIPTIONS: Record<TokenScope, string> = {
@@ -569,6 +575,8 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     summary: "Diner brief",
     description:
       "What an AI choosing from a restaurant menu should know about who's eating: each diner's dietary requirements, dislikes, loves and notes; the household's taste profile (taste, null until enough meals are rated); this week's meals, eaten and still planned, with how many contained each kind of protein; and what the diners ate in the 7 days before date (ratings are 1–5 stars). When someone eating is on a cholesterol-lowering diet, heartFocus is true and each protein with a weekly target carries it, with status under, met, at_limit (one more would go over) or over. promptText is the whole brief as plain text, ready to paste into a prompt. Fetch it before suggesting dishes from a menu.",
+    shortDescription:
+      "Who's eating and what to know before choosing from a menu: dietary requirements (hard rules), dislikes, tastes, this week's protein targets and recent meals. promptText has it all as text. Call it before suggesting dishes.",
     params: [
       {
         name: "date",
@@ -646,6 +654,8 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     summary: "Meals out",
     description:
       "Meals not cooked at home (eaten out, takeaways, at friends', skipped) in full, oldest first: what was eaten, the courses, everyone's ratings in stars and the nutrition once estimated. The ids are what updateOutsideMeal takes.",
+    shortDescription:
+      "Meals out in a date range (default this week), with their ids, courses, ratings in stars and nutrition once estimated.",
     params: [
       {
         name: "from",
@@ -677,6 +687,8 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     summary: "Log a meal out",
     description:
       "Record what someone ate out, filed as the member the token acts as (their rating, their name). Give at least a title or description; the menu's line (menuText) and any printed calories (menuKcal) make the nutrition estimate much better. The household's AI estimates the nutrition a few seconds after the reply; fetch getOutsideMeal later to see it. If the day already has an empty \"Not cooking\" slot for that meal (planned on the planner, no dish yet), that one is filled in instead of adding a second: 200 with action \"filled\" rather than 201 \"created\".",
+    shortDescription:
+      "Log what was ordered. Put each dish's menu line, word for word, in courses[].text with any printed kcal in menuKcal. Fills the day's empty \"Not cooking\" slot if there is one. Dishes estimates the nutrition afterwards.",
     body: {
       schema: {
         type: "object",
@@ -713,6 +725,8 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     summary: "One meal out",
     description:
       "One meal out in full. nutritionSource is \"ai\" once the estimate has arrived (nutrition then holds the figures; they're estimates), \"manual\" for typed-in figures and \"none\" before.",
+    shortDescription:
+      "One meal out by id. nutritionSource is \"ai\" once Dishes has estimated it (a few seconds after logging); nutrition then holds the figures.",
     params: [
       {
         name: "id",
@@ -733,6 +747,8 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     summary: "Update a meal out",
     description:
       "Change any of logOutsideMeal's fields; the rest stay as they are. Use it to rate a meal afterwards, fix the place or add a dessert. courses replaces them all, so send every course and keep the ids of the ones already there. Changing what was eaten re-estimates the nutrition in the background.",
+    shortDescription:
+      "Change a logged meal: rate it (1–5 stars), fix the place, add a dessert. courses replaces them all, so send every course with the ids of those already there.",
     params: [
       {
         name: "id",
@@ -1031,3 +1047,18 @@ export function curlExample(ep: EndpointDoc, origin: string): string {
   }
   return lines.join(" \\\n");
 }
+
+/**
+ * Trimmed specs for one job, served as `openapi.json?ops=<name>`: an AI
+ * assistant given only these operations is offered nothing else (no shopping
+ * list, no deliveries) and its prompt stays small. `description` is the spec's
+ * own, also at most 300 characters.
+ */
+export const OPERATION_SETS: Record<string, { title: string; description: string; ids: string[] }> = {
+  "meals-out": {
+    title: "Dishes — eating out",
+    description:
+      "Help choose from a restaurant menu using what Dishes knows about who's eating (getDinerBrief), then log what was ordered (logOutsideMeal). Ratings are 1–5 stars. Dishes estimates the nutrition after logging.",
+    ids: ["getDinerBrief", "listOutsideMeals", "logOutsideMeal", "getOutsideMeal", "updateOutsideMeal"],
+  },
+};

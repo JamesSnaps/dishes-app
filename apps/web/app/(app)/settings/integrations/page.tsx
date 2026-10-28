@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { Bot, ChevronLeft, Plug } from "lucide-react";
+import { Bot, ChevronLeft, Plug, UtensilsCrossed } from "lucide-react";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { publicOrigin } from "@/lib/public-origin";
@@ -10,6 +10,7 @@ import { CreateTokenForm } from "./_components/create-token-form";
 import { EndpointReference } from "./_components/endpoint-reference";
 import { TryIt } from "./_components/try-it";
 import { CopyButton } from "./_components/copy-button";
+import { MENU_ASSISTANT_INSTRUCTIONS } from "@/lib/menu-assistant";
 
 export const metadata = { title: "Integrations" };
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export default async function IntegrationsPage() {
   ]);
   const origin = publicOrigin(headerList);
   const specUrl = `${origin}/api/integrations/openapi.json`;
+  const mealsOutSpecUrl = `${specUrl}?ops=meals-out`;
 
   return (
     <div className="p-4 lg:p-8 max-w-2xl mx-auto">
@@ -121,6 +123,54 @@ export default async function IntegrationsPage() {
             an assistant <code className="rounded bg-background/70 px-1">write:meal_plan</code> unless you want it
             spending AI credit on meal generation.
           </p>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-sky-500/10 p-4 text-sm shadow-sm dark:border-emerald-900/60">
+          <div className="mb-1 flex items-center gap-2 font-semibold">
+            <UtensilsCrossed className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            ChatGPT: help choosing when eating out
+          </div>
+          <p className="mb-3 text-muted-foreground">
+            A custom GPT that reads the menu you send it (photo, PDF or link), suggests dishes using what Dishes knows
+            about who&apos;s eating (dietary needs, tastes, this week&apos;s heart-health targets), then logs what you
+            ordered as a meal out. Dishes estimates the nutrition, as it does for meals out logged here.
+          </p>
+          <ol className="list-decimal space-y-1.5 pl-5">
+            <li>
+              Create a token with <code className="rounded bg-background/70 px-1">read:preferences</code>,{" "}
+              <code className="rounded bg-background/70 px-1">read:meal_plan</code> and{" "}
+              <code className="rounded bg-background/70 px-1">write:outside_meals</code>, with <strong>Acts as</strong>{" "}
+              set to you. Meals it logs and their ratings will be yours.
+            </li>
+            <li>
+              In ChatGPT: <strong>GPTs → Create → Configure</strong>. Under Actions, <strong>Create new action</strong>{" "}
+              and <strong>Import from URL</strong> with this spec, which only has the eating-out operations:
+              <div className="mt-1.5">
+                <CopyRow label="Eating-out spec" value={mealsOutSpecUrl} />
+              </div>
+            </li>
+            <li>
+              Authentication: <strong>API Key</strong>, auth type <strong>Bearer</strong>, and paste the token.
+            </li>
+            <li>
+              Paste these into <strong>Instructions</strong>:
+              <div className="mt-1.5 rounded-lg bg-background/80 shadow-sm">
+                <div className="flex items-center justify-between gap-2 border-b px-3 py-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                    Instructions
+                  </span>
+                  <CopyButton text={MENU_ASSISTANT_INSTRUCTIONS} />
+                </div>
+                <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 font-sans text-xs">
+                  {MENU_ASSISTANT_INSTRUCTIONS}
+                </pre>
+              </div>
+            </li>
+            <li>
+              Keep the GPT shared with <strong>Only me</strong>: anyone who can use it can read your household&apos;s
+              brief and log meals as you.
+            </li>
+          </ol>
         </div>
       </section>
 

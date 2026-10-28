@@ -272,12 +272,16 @@ Scope decisions (28 Oct 2026):
 
   *Also `GET /{id}` to pick up the estimate. Its own wire schema rather than v1's: ratings are 1–5 stars,
   like the brief, course ids are optional, and names are checked against the members (v1.70.0)*
-- [ ] A4 — ChatGPT custom GPT:
+- [x] A4 — ChatGPT custom GPT:
   - `openapi.json?ops=meals-out` serves only the brief and meal-out operations, so the GPT
     isn't offered shopping and deliveries
   - a ready-made instructions block with a copy button on Settings → Integrations: "fetch the
     brief first, read the menu, suggest, log the pick when the user says what they ordered"
   - a README section on API-key auth
+
+  *`OPERATION_SETS` in the catalog with a ≤300-char `shortDescription` per operation (ChatGPT Actions'
+  limit, held by `check:integrations-spec`); instructions in `lib/menu-assistant.ts`, shown on Settings →
+  Integrations. Not yet tried in ChatGPT itself (v1.70.0)*
 - [ ] A5 — MCP endpoint for Claude at `/api/integrations/mcp` (streamable HTTP, stateless):
   - tools `get_diner_brief`, `list_meals_out`, `log_meal_out` and `update_meal_out`, wrapping the
     same services
