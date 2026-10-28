@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { integrationTokens } from "@dishes/db/schema";
+import { householdMembers, integrationTokens } from "@dishes/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { resolveIdentity } from "@/lib/auth";
@@ -9,7 +9,7 @@ import { requireHousehold } from "@/lib/household";
 import { generateToken } from "@/lib/integration-auth";
 // Note: a "use server" module may only export async functions — no type
 // re-exports. Import TokenScope from "./integration-constants" directly.
-import { ALL_SCOPES } from "./integration-constants";
+import { ALL_SCOPES, MEMBER_SCOPES } from "./integration-constants";
 
 export async function createIntegrationToken(formData: FormData) {
   const user = await resolveIdentity();
@@ -23,6 +23,25 @@ export async function createIntegrationToken(formData: FormData) {
   const scopes = ALL_SCOPES.filter((s) => formData.get(s) === "on");
   if (scopes.length === 0) throw new Error("Select at least one scope");
 
+  // Who the token acts as: needed for writes that belong to someone.
+  const actsAs = ((formData.get("memberId") as string | null) ?? "").trim() || null;
+  if (actsAs) {
+    const [member] = await db
+      .select({ id: householdMembers.id })
+      .from(householdMembers)
+      .where(
+        and(
+          eq(householdMembers.id, actsAs),
+          eq(householdMembers.householdId, householdId),
+          eq(householdMembers.isActive, true)
+        )
+      )
+      .limit(1);
+    if (!member) throw new Error("That member isn't in this household");
+  } else if (scopes.some((s) => MEMBER_SCOPES.includes(s))) {
+    throw new Error("Choose who the token acts as — logging meals out needs a member");
+  }
+
   const expiresInDays = parseInt(formData.get("expiresInDays") as string, 10) || 0;
   const expiresAt = expiresInDays > 0
     ? new Date(Date.now() + expiresInDays * 86_400_000)
@@ -33,6 +52,7 @@ export async function createIntegrationToken(formData: FormData) {
   await db.insert(integrationTokens).values({
     householdId,
     createdById: memberId,
+    memberId: actsAs,
     name,
     tokenHash: hash,
     scopes,

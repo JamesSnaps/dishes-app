@@ -7,6 +7,8 @@ type Token = {
   id: string;
   name: string;
   scopes: string[];
+  /** The member it acts as, or null for household-only. */
+  actsAs: string | null;
   lastUsedAt: Date | null;
   expiresAt: Date | null;
   createdAt: Date;
@@ -69,6 +71,7 @@ function TokenRow({ token }: { token: Token }) {
         </button>
       </div>
       <p className="text-xs text-muted-foreground">
+        {token.actsAs && <>Acts as {token.actsAs} · </>}
         Last used: {relativeDate(token.lastUsedAt)}
         {token.expiresAt && (
           <>

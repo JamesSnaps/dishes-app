@@ -47,6 +47,7 @@ For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's f
 | `write:deliveries` | Record grocery orders (e.g. from retailer emails) |
 | `read:cooking` | See who is cooking right now: the dish, the step and the running timers |
 | `read:preferences` | Read each member's dietary requirements, dislikes and tastes, and this week's eating, to help an AI choose from a menu |
+| `write:outside_meals` | Log and update meals eaten out, as the member the token acts as |
 
 ## Common error shape
 
@@ -563,6 +564,87 @@ The diner brief: what an AI choosing from a restaurant menu (Claude, ChatGPT) sh
 - `promptText` is the whole brief as plain text, ready to paste into a prompt. It leaves out what isn't known.
 
 **Errors:** `400` for a bad `date`, or a name in `members` that matches nobody (the error lists them, and `members` in the reply lists the household's names).
+
+---
+
+### Meals out — `/api/integrations/outside-meals`
+
+Meals not cooked at home: eaten out, takeaways, at friends', skipped. An AI assistant that helped choose from a menu (with the diner brief above) logs what was ordered here, and the household's AI estimates its nutrition, so it counts towards the week's heart-health targets and Apple Health like any meal out logged in the app.
+
+**Tokens that write act as a member.** A meal out is someone's: it's filed as theirs, and the rating sent is theirs. So `write:outside_meals` needs a token with **Acts as** set to a member when it's created (Settings → Integrations); a token without one gets `403`. If that member is later removed or deactivated, the token's writes stop working. Reading needs only `read:meal_plan`.
+
+A useful token for Claude or ChatGPT: `read:preferences`, `read:meal_plan`, `write:outside_meals`, acting as you.
+
+Ratings here are **1–5 stars**, halves allowed (the app stores 0–10). Names (`eatenBy`, `memberRatings[].name`) are members' display names in any case; one that matches nobody is a `400` listing the members.
+
+#### The meal
+
+```json
+{
+  "id": "uuid",
+  "date": "2026-10-28",
+  "mealType": "dinner",
+  "kind": "eat_out",
+  "title": "Sea bass",
+  "place": "Côte",
+  "cuisine": "French",
+  "description": null,
+  "menuText": null,
+  "portion": "typical",
+  "menuKcal": null,
+  "eatenBy": ["James"],
+  "rating": 4,
+  "memberRatings": [{ "name": "James", "rating": 4 }],
+  "notes": null,
+  "courses": [
+    { "id": "uuid", "course": "starter", "text": "French onion soup", "name": null, "menuKcal": null, "calories": null },
+    { "id": "uuid", "course": "main", "text": "Sea bass, crushed potatoes, beurre blanc", "name": null, "menuKcal": 720, "calories": null }
+  ],
+  "nutritionSource": "none",
+  "nutrition": null,
+  "hasPhoto": false,
+  "url": "https://dishes.example.com/meal-plan?week=2026-10-28"
+}
+```
+
+- `kind`: `eat_out`, `takeaway`, `at_friends` or `skipped`. `portion`: `lighter`, `typical` or `indulgent`.
+- `rating` is the household's view, the average of everyone in `memberRatings`.
+- `nutritionSource` is `"none"` until the estimate arrives (a few seconds after a write, if the household has an AI key), then `"ai"`. `"manual"` means figures were typed in. `nutrition` holds the 8 figures (`calories`, `proteinG`, `carbsG`, `fatG`, `saturatedFatG`, `fiberG`, `sugarG`, `sodiumMg`) once there are any; they're for the whole sitting. A course's `name` and `calories` come from the estimate too.
+- Photos are added in the app; `hasPhoto` says whether there is one.
+- `url` opens the meal's week on the planner.
+
+#### `GET /api/integrations/outside-meals`
+
+**Scope:** `read:meal_plan`. Query: `from`, `to` (`YYYY-MM-DD`, inclusive), defaulting to this week (Monday to Sunday) on the household's clock. Returns `{ "from", "to", "meals": [meal…] }`, oldest first.
+
+#### `POST /api/integrations/outside-meals`
+
+**Scope:** `write:outside_meals`, token acting as a member.
+
+```json
+{
+  "date": "2026-10-28",
+  "place": "Côte",
+  "cuisine": "French",
+  "eatenBy": ["James"],
+  "courses": [
+    { "course": "starter", "text": "French onion soup" },
+    { "course": "main", "text": "Sea bass, crushed potatoes, beurre blanc", "menuKcal": 720 }
+  ]
+}
+```
+
+Only `date` is required, but give at least a `title` or `description` (or `courses`) so there's something to estimate from. Every other field is optional: `mealType` (default `dinner`), `kind` (default `eat_out`), `title`, `place`, `cuisine`, `description`, `menuText` (the dish's menu line, word for word: the best clue to what's in it), `portion`, `menuKcal` (calories printed on the menu: taken as given, the other nutrients scaled to it), `eatenBy` (left out: everyone), `rating` (yours), `memberRatings` (others'), `notes`, `nutrition` (typed-in figures, marked manual so no estimate replaces them), and `courses`. A course's `id` is optional; new courses get one.
+
+**Response:** `201` `{ "action": "created", "meal": {…} }`. If the day already has an empty "Not cooking" slot for that meal type (marked on the planner, no dish yet), that row is filled in instead of adding a second one: `200` `{ "action": "filled", "meal": {…} }`. Its `place` and `kind` stay unless you send them, except that a slot marked `skipped` becomes `eat_out`.
+
+#### `GET /api/integrations/outside-meals/{id}`
+
+**Scope:** `read:meal_plan`. The meal; `404` if it isn't this household's. Use it to pick up the nutrition once estimated.
+
+#### `PATCH /api/integrations/outside-meals/{id}`
+
+**Scope:** `write:outside_meals`, token acting as a member. Any of the POST fields, including `date`; the others stay as they are. Rate a meal afterwards (`{ "rating": 4.5 }` sets yours and keeps everyone else's), fix the place, add a dessert. `courses` replaces them all, so send every course, keeping the `id`s of those already there. Changing what was eaten re-estimates the nutrition. Returns the meal; `400` for no fields, `404` for an unknown id.
 
 ---
 

@@ -255,18 +255,23 @@ Scope decisions (28 Oct 2026):
   `?date=`, `?members=`): JSON plus `promptText`. Add it to `integrations-catalog.ts`, `API.md`
   and the OpenAPI spec. Shared with Part B. *`lib/diner-brief.ts` (pure, `check:diner-brief`) and
   `lib/services/diner-brief.ts` (v1.69.0)*
-- [ ] A2 — Bind a token to a member:
+- [x] A2 — Bind a token to a member:
   - migration adding `integration_tokens.member_id` (FK to `household_members`, `ON DELETE SET
     NULL`, after which the write scope stops working)
   - "Acts as" picker on `/settings/integrations`, required when `write:outside_meals` is ticked
   - `IntegrationContext.memberId`
-- [ ] A3 — `/api/integrations/outside-meals`, using the `createOutsideMealSchema` the `/api/v1`
+
+  *Migration 0049; a member who's removed or deactivated stops the token's writes (v1.70.0)*
+- [x] A3 — `/api/integrations/outside-meals`, using the `createOutsideMealSchema` the `/api/v1`
   routes use. The nutrition estimate runs after the reply with `estimateInBackground`, and
   devices get the meal on their next sync.
   - `GET`: a date range (`read:meal_plan`)
   - `POST`: log a meal out, filling the day's chip if there is one
   - `PATCH /{id}`: rate it later, add courses, fix the place
   - every response includes the meal's URL in the app
+
+  *Also `GET /{id}` to pick up the estimate. Its own wire schema rather than v1's: ratings are 1–5 stars,
+  like the brief, course ids are optional, and names are checked against the members (v1.70.0)*
 - [ ] A4 — ChatGPT custom GPT:
   - `openapi.json?ops=meals-out` serves only the brief and meal-out operations, so the GPT
     isn't offered shopping and deliveries

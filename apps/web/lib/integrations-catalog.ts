@@ -61,6 +61,7 @@ export const SCOPE_DESCRIPTIONS: Record<TokenScope, string> = {
   "read:cooking": "See who is cooking right now: the dish, the step and the running timers",
   "read:preferences":
     "Read each member's dietary requirements, dislikes and tastes, and this week's eating, to help an AI choose from a menu",
+  "write:outside_meals": "Log and update meals eaten out, as the member the token acts as",
 };
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
@@ -224,6 +225,90 @@ const DELIVERY_ENDPOINTS: EndpointDoc[] = [
     errors: [{ status: 400, description: "Bad JSON, unknown kind, bad date, or neither date nor reference." }],
   },
 ];
+
+const OUTSIDE_MEAL_DETAIL_EXAMPLE = {
+  id: "c9f0f895-fb98-4b91-8a2b-3c4d5e6f7a8b",
+  date: "2026-10-28",
+  mealType: "dinner",
+  kind: "eat_out",
+  title: "Sea bass",
+  place: "Côte",
+  cuisine: "French",
+  description: null,
+  menuText: null,
+  portion: "typical",
+  menuKcal: null,
+  eatenBy: ["James"],
+  rating: 4,
+  memberRatings: [{ name: "James", rating: 4 }],
+  notes: null,
+  courses: [
+    { id: "0aa1d3e2-6f1b-4c1e-9a7d-2b3c4d5e6f70", course: "starter", text: "French onion soup", name: null, menuKcal: null, calories: null },
+    { id: "b514c7c3-1d2e-4f3a-8b9c-0d1e2f3a4b5c", course: "main", text: "Sea bass, crushed potatoes, beurre blanc", name: null, menuKcal: 720, calories: null },
+  ],
+  nutritionSource: "none",
+  nutrition: null,
+  hasPhoto: false,
+  url: "https://dishes.example.com/meal-plan?week=2026-10-28",
+};
+
+const OUTSIDE_MEAL_FIELDS: Record<string, JsonSchema> = {
+  mealType: { type: "string", enum: MEAL_TYPES, default: "dinner" },
+  kind: {
+    type: "string",
+    enum: ["eat_out", "takeaway", "at_friends", "skipped"],
+    default: "eat_out",
+    description: "eat_out = a restaurant or café, at_friends = cooked by someone else, skipped = didn't eat.",
+  },
+  title: { type: "string", description: "What was eaten, in a few words: \"Steak frites\"." },
+  place: { type: "string", description: "Where: the restaurant, takeaway or friend." },
+  cuisine: { type: "string" },
+  description: { type: "string", description: "What came, in the user's own words." },
+  menuText: {
+    type: "string",
+    description: "The dish's line from the menu, word for word: the best clue to what's in it.",
+  },
+  portion: { type: "string", enum: ["lighter", "typical", "indulgent"], default: "typical" },
+  menuKcal: {
+    type: "integer",
+    description: "A calorie figure printed on the menu. Taken as given; the other nutrients are scaled to it.",
+  },
+  eatenBy: {
+    type: "array",
+    items: { type: "string" },
+    description: "Who ate it: members' display names, any case. Left out, everyone.",
+  },
+  rating: {
+    type: "number",
+    minimum: 0,
+    maximum: 5,
+    description: "The token's member's own rating, 1–5 stars (halves allowed).",
+  },
+  memberRatings: {
+    type: "array",
+    items: {
+      type: "object",
+      required: ["name", "rating"],
+      properties: { name: { type: "string" }, rating: { type: "number", minimum: 0, maximum: 5 } },
+    },
+    description: "Other members' ratings, by display name.",
+  },
+  notes: { type: "string" },
+  courses: {
+    type: "array",
+    items: {
+      type: "object",
+      required: ["course"],
+      properties: {
+        id: { type: "string", description: "Keep a course's id to keep it; a course without one is new." },
+        course: { type: "string", enum: ["starter", "main", "side", "dessert", "drink"] },
+        text: { type: "string", description: "The course's words or menu line." },
+        menuKcal: { type: "integer", description: "The course's printed calories." },
+      },
+    },
+    description: "Every course of a sitting with several (starter, main, dessert…), in any order. Leave out for one dish.",
+  },
+};
 
 export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
   {
@@ -551,6 +636,121 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     },
     errors: [
       { status: 400, description: "Bad date, or a member name that matches nobody (the reply lists the members)." },
+    ],
+  },
+  {
+    id: "listOutsideMeals",
+    method: "GET",
+    path: "/api/integrations/outside-meals",
+    scope: "read:meal_plan",
+    summary: "Meals out",
+    description:
+      "Meals not cooked at home (eaten out, takeaways, at friends', skipped) in full, oldest first: what was eaten, the courses, everyone's ratings in stars and the nutrition once estimated. The ids are what updateOutsideMeal takes.",
+    params: [
+      {
+        name: "from",
+        in: "query",
+        required: false,
+        schema: { type: "string", format: "date" },
+        description: "First day (YYYY-MM-DD, inclusive). Defaults to this week's Monday.",
+      },
+      {
+        name: "to",
+        in: "query",
+        required: false,
+        schema: { type: "string", format: "date" },
+        description: "Last day (inclusive). Defaults to this week's Sunday.",
+      },
+    ],
+    response: {
+      status: 200,
+      description: "The meals.",
+      example: { from: "2026-10-26", to: "2026-11-01", meals: [OUTSIDE_MEAL_DETAIL_EXAMPLE] },
+    },
+    errors: [{ status: 400, description: "from or to isn't a date." }],
+  },
+  {
+    id: "logOutsideMeal",
+    method: "POST",
+    path: "/api/integrations/outside-meals",
+    scope: "write:outside_meals",
+    summary: "Log a meal out",
+    description:
+      "Record what someone ate out, filed as the member the token acts as (their rating, their name). Give at least a title or description; the menu's line (menuText) and any printed calories (menuKcal) make the nutrition estimate much better. The household's AI estimates the nutrition a few seconds after the reply; fetch getOutsideMeal later to see it. If the day already has an empty \"Not cooking\" slot for that meal (planned on the planner, no dish yet), that one is filled in instead of adding a second: 200 with action \"filled\" rather than 201 \"created\".",
+    body: {
+      schema: {
+        type: "object",
+        required: ["date"],
+        properties: { date: { type: "string", format: "date", description: "YYYY-MM-DD." }, ...OUTSIDE_MEAL_FIELDS },
+      },
+      example: {
+        date: "2026-10-28",
+        place: "Côte",
+        cuisine: "French",
+        eatenBy: ["James"],
+        courses: [
+          { course: "starter", text: "French onion soup" },
+          { course: "main", text: "Sea bass, crushed potatoes, beurre blanc", menuKcal: 720 },
+        ],
+      },
+    },
+    response: {
+      status: 201,
+      description: "The meal, created (201) or filled in (200).",
+      example: { action: "created", meal: OUTSIDE_MEAL_DETAIL_EXAMPLE },
+    },
+    errors: [
+      { status: 400, description: "Bad JSON or field, or a name that matches no member (the reply lists them)." },
+      { status: 403, description: "Missing scope, or the token doesn't act as a member." },
+    ],
+    costly: true,
+  },
+  {
+    id: "getOutsideMeal",
+    method: "GET",
+    path: "/api/integrations/outside-meals/{id}",
+    scope: "read:meal_plan",
+    summary: "One meal out",
+    description:
+      "One meal out in full. nutritionSource is \"ai\" once the estimate has arrived (nutrition then holds the figures; they're estimates), \"manual\" for typed-in figures and \"none\" before.",
+    params: [
+      {
+        name: "id",
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
+        description: "The meal's id, from logOutsideMeal or listOutsideMeals.",
+      },
+    ],
+    response: { status: 200, description: "The meal.", example: OUTSIDE_MEAL_DETAIL_EXAMPLE },
+    errors: [{ status: 404, description: "No meal out with that id in this household." }],
+  },
+  {
+    id: "updateOutsideMeal",
+    method: "PATCH",
+    path: "/api/integrations/outside-meals/{id}",
+    scope: "write:outside_meals",
+    summary: "Update a meal out",
+    description:
+      "Change any of logOutsideMeal's fields; the rest stay as they are. Use it to rate a meal afterwards, fix the place or add a dessert. courses replaces them all, so send every course and keep the ids of the ones already there. Changing what was eaten re-estimates the nutrition in the background.",
+    params: [
+      {
+        name: "id",
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
+        description: "The meal's id.",
+      },
+    ],
+    body: {
+      schema: { type: "object", properties: { date: { type: "string", format: "date" }, ...OUTSIDE_MEAL_FIELDS } },
+      example: { rating: 4.5, notes: "Best sea bass in ages" },
+    },
+    response: { status: 200, description: "The meal as it is now.", example: OUTSIDE_MEAL_DETAIL_EXAMPLE },
+    errors: [
+      { status: 400, description: "Bad JSON or field, no fields, or a name that matches no member." },
+      { status: 403, description: "Missing scope, or the token doesn't act as a member." },
+      { status: 404, description: "No meal out with that id in this household." },
     ],
   },
   {

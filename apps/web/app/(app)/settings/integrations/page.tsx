@@ -4,7 +4,7 @@ import { Bot, ChevronLeft, Plug } from "lucide-react";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { publicOrigin } from "@/lib/public-origin";
-import { listIntegrationTokens } from "@/lib/services/integration-tokens";
+import { listIntegrationTokens, listTokenMembers } from "@/lib/services/integration-tokens";
 import { TokenList } from "./_components/token-list";
 import { CreateTokenForm } from "./_components/create-token-form";
 import { EndpointReference } from "./_components/endpoint-reference";
@@ -35,8 +35,9 @@ export default async function IntegrationsPage() {
   const { householdId, role } = await requireHousehold(user);
   const isAdmin = role === "admin";
 
-  const [tokens, headerList] = await Promise.all([
+  const [tokens, members, headerList] = await Promise.all([
     isAdmin ? listIntegrationTokens({ householdId, role }) : [],
+    isAdmin ? listTokenMembers(householdId) : [],
     headers(),
   ]);
   const origin = publicOrigin(headerList);
@@ -79,7 +80,7 @@ export default async function IntegrationsPage() {
           <>
             <TokenList tokens={tokens} />
             <div className="mt-3">
-              <CreateTokenForm />
+              <CreateTokenForm members={members} />
             </div>
           </>
         ) : (

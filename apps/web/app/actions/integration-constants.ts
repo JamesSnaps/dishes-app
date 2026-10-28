@@ -7,6 +7,10 @@ export const ALL_SCOPES = [
   "write:deliveries",
   "read:cooking",
   "read:preferences",
+  "write:outside_meals",
 ] as const;
 
 export type TokenScope = (typeof ALL_SCOPES)[number];
+
+/** Scopes whose writes belong to a person, so the token must act as a member. */
+export const MEMBER_SCOPES: readonly TokenScope[] = ["write:outside_meals"];

@@ -212,7 +212,7 @@ function assertCourses(courses: OutsideMealCourseInput[]): void {
 /** The fields an estimate reads: changing any of them makes it stale. */
 const ESTIMATE_INPUTS = ["kind", "title", "place", "cuisine", "description", "menuText", "portion", "menuKcal"] as const;
 
-async function loadOwned(ctx: HouseholdContext, id: string): Promise<OutsideMeal> {
+async function loadOwned(ctx: Pick<HouseholdContext, "householdId">, id: string): Promise<OutsideMeal> {
   const [row] = await db
     .select()
     .from(outsideMeals)
@@ -531,7 +531,10 @@ export async function estimateOutsideMealNutrition(
 
 // --- Reads ------------------------------------------------------------------
 
-export async function getOutsideMeal(ctx: HouseholdContext, id: string): Promise<OutsideMealView> {
+export async function getOutsideMeal(
+  ctx: Pick<HouseholdContext, "householdId">,
+  id: string
+): Promise<OutsideMealView> {
   return toView(await loadOwned(ctx, id));
 }
 
