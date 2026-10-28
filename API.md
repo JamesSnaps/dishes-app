@@ -46,6 +46,7 @@ For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's f
 | `read:deliveries` | Read grocery delivery days and order status |
 | `write:deliveries` | Record grocery orders (e.g. from retailer emails) |
 | `read:cooking` | See who is cooking right now: the dish, the step and the running timers |
+| `read:preferences` | Read each member's dietary requirements, dislikes and tastes, and this week's eating, to help an AI choose from a menu |
 
 ## Common error shape
 
@@ -497,6 +498,71 @@ Who's cooking right now: every cook in progress in cooking mode, on any of the h
 Timer `state` is `"running"`, `"paused"` or `"finished"`; `endsAt` is set only while it runs, and `remainingSeconds` is as of the response.
 
 Cooks are published by the device cooking them every time the screen changes and every 5 minutes while it doesn't. A cook not heard from for 15 minutes is left out unless one of its timers is still running — so a cooking mode left open on a closed laptop drops off rather than showing someone cooking for hours. Read-only: nothing here can change a cook.
+
+---
+
+### `GET /api/integrations/preferences`
+
+The diner brief: what an AI choosing from a restaurant menu (Claude, ChatGPT) should know about who's eating. Fetch it first, then suggest dishes from the menu. A separate scope from `read:meal_plan` because it holds personal details (dietary requirements, ages, notes), so a dashboard token doesn't get them.
+
+**Scope:** `read:preferences`
+
+**Query params**
+
+| Param | Required | Description |
+|---|---|---|
+| `date` | No | The day of the meal, `YYYY-MM-DD`. Defaults to today in the household's timezone |
+| `members` | No | Who's eating: display names or member ids, comma-separated, any case. Defaults to everyone |
+
+**Response `200`**
+
+```json
+{
+  "date": "2026-10-28",
+  "diners": [
+    {
+      "id": "uuid",
+      "name": "James",
+      "age": 44,
+      "child": false,
+      "dietaryRequirements": ["Cholesterol-lowering"],
+      "dislikes": ["blue cheese"],
+      "loves": ["spicy food"],
+      "notes": null
+    }
+  ],
+  "heartFocus": true,
+  "taste": {
+    "ratedCookCount": 42,
+    "preferredCuisines": [{ "name": "Indian", "score": 4.6 }],
+    "lovedIngredients": ["chickpeas", "salmon"],
+    "dislikedIngredients": ["aubergine"]
+  },
+  "week": {
+    "weekStartDate": "2026-10-26",
+    "meals": 6,
+    "avgCalories": 610,
+    "avgSaturatedFatG": 6.2,
+    "avgFiberG": 9.1,
+    "proteins": [
+      { "kind": "oilyFish", "label": "Oily fish", "count": 1, "target": "aim 2+", "status": "under" },
+      { "kind": "redMeat", "label": "Red meat", "count": 1, "target": "max 1", "status": "at_limit" }
+    ]
+  },
+  "recentMeals": [
+    { "date": "2026-10-25", "title": "Mushroom Risotto", "cuisine": "Italian", "outside": false, "place": null, "rating": 2 }
+  ],
+  "promptText": "Choosing a meal for 2026-10-28.\n\nWho's eating:\n- James (age 44) — dietary requirements: Cholesterol-lowering …"
+}
+```
+
+- `taste` is `null` until the household has rated 10 meals; it's the same taste profile the app's own AI prompts use.
+- `week` covers Monday to Sunday of `date`'s week. It counts meals already eaten and meals still planned, including meals out, and `proteins` lists every kind (`oilyFish`, `otherFish`, `poultry`, `pulses`, `redMeat`, `processedMeat`) with how many meals contained it.
+- `heartFocus` is `true` when someone eating is on a cholesterol-lowering diet. Only then do proteins with a weekly target carry `target` and `status`: `under`, `met`, `at_limit` (one more would go over) or `over`. Otherwise both are `null`.
+- `recentMeals` are the 7 days before `date` that any of the diners ate, oldest first. `outside` marks a meal out or takeaway, with `place`. `rating` is 1–5 stars, halves allowed, or `null`.
+- `promptText` is the whole brief as plain text, ready to paste into a prompt. It leaves out what isn't known.
+
+**Errors:** `400` for a bad `date`, or a name in `members` that matches nobody (the error lists them, and `members` in the reply lists the household's names).
 
 ---
 

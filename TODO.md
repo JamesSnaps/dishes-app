@@ -251,9 +251,10 @@ Scope decisions (28 Oct 2026):
   one is picked. Estimates are labelled as estimates, as elsewhere for meals out
 
 ### Part A — Claude and ChatGPT
-- [ ] A1 — Diner brief service + `GET /api/integrations/preferences` (`read:preferences`;
+- [x] A1 — Diner brief service + `GET /api/integrations/preferences` (`read:preferences`;
   `?date=`, `?members=`): JSON plus `promptText`. Add it to `integrations-catalog.ts`, `API.md`
-  and the OpenAPI spec. Shared with Part B
+  and the OpenAPI spec. Shared with Part B. *`lib/diner-brief.ts` (pure, `check:diner-brief`) and
+  `lib/services/diner-brief.ts` (v1.69.0)*
 - [ ] A2 — Bind a token to a member:
   - migration adding `integration_tokens.member_id` (FK to `household_members`, `ON DELETE SET
     NULL`, after which the write scope stops working)

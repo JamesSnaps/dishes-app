@@ -59,6 +59,8 @@ export const SCOPE_DESCRIPTIONS: Record<TokenScope, string> = {
   "read:deliveries": "Read grocery delivery days and order status",
   "write:deliveries": "Record grocery orders (e.g. from retailer emails)",
   "read:cooking": "See who is cooking right now: the dish, the step and the running timers",
+  "read:preferences":
+    "Read each member's dietary requirements, dislikes and tastes, and this week's eating, to help an AI choose from a menu",
 };
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
@@ -473,6 +475,83 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
         ],
       },
     },
+  },
+  {
+    id: "getDinerBrief",
+    method: "GET",
+    path: "/api/integrations/preferences",
+    scope: "read:preferences",
+    summary: "Diner brief",
+    description:
+      "What an AI choosing from a restaurant menu should know about who's eating: each diner's dietary requirements, dislikes, loves and notes; the household's taste profile (taste, null until enough meals are rated); this week's meals, eaten and still planned, with how many contained each kind of protein; and what the diners ate in the 7 days before date (ratings are 1–5 stars). When someone eating is on a cholesterol-lowering diet, heartFocus is true and each protein with a weekly target carries it, with status under, met, at_limit (one more would go over) or over. promptText is the whole brief as plain text, ready to paste into a prompt. Fetch it before suggesting dishes from a menu.",
+    params: [
+      {
+        name: "date",
+        in: "query",
+        required: false,
+        schema: { type: "string", format: "date" },
+        description: "The day of the meal (YYYY-MM-DD). Defaults to today in the household's timezone.",
+      },
+      {
+        name: "members",
+        in: "query",
+        required: false,
+        schema: { type: "string" },
+        description: "Who's eating: display names or member ids, comma-separated, any case. Defaults to everyone.",
+        example: "James,Sam",
+      },
+    ],
+    response: {
+      status: 200,
+      description: "The brief.",
+      example: {
+        date: "2026-10-28",
+        diners: [
+          {
+            id: "1679091c-5a88-4faf-8fb6-1c2d3e4f5a6b",
+            name: "James",
+            age: 44,
+            child: false,
+            dietaryRequirements: ["Cholesterol-lowering"],
+            dislikes: ["blue cheese"],
+            loves: ["spicy food"],
+            notes: null,
+          },
+        ],
+        heartFocus: true,
+        taste: {
+          ratedCookCount: 42,
+          preferredCuisines: [{ name: "Indian", score: 4.6 }],
+          lovedIngredients: ["chickpeas", "salmon"],
+          dislikedIngredients: ["aubergine"],
+        },
+        week: {
+          weekStartDate: "2026-10-26",
+          meals: 6,
+          avgCalories: 610,
+          avgSaturatedFatG: 6.2,
+          avgFiberG: 9.1,
+          proteins: [
+            { kind: "oilyFish", label: "Oily fish", count: 1, target: "aim 2+", status: "under" },
+            { kind: "redMeat", label: "Red meat", count: 1, target: "max 1", status: "at_limit" },
+          ],
+        },
+        recentMeals: [
+          {
+            date: "2026-10-25",
+            title: "Mushroom Risotto",
+            cuisine: "Italian",
+            outside: false,
+            place: null,
+            rating: 2,
+          },
+        ],
+        promptText: "Choosing a meal for 2026-10-28.\n\nWho's eating:\n- James (age 44) — dietary requirements: Cholesterol-lowering …",
+      },
+    },
+    errors: [
+      { status: 400, description: "Bad date, or a member name that matches nobody (the reply lists the members)." },
+    ],
   },
   {
     id: "getShoppingList",

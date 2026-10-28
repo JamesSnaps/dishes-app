@@ -1,6 +1,6 @@
 {
   "name": "@dishes/web",
-  "version": "1.68.1",
+  "version": "1.69.0",
   "private": true,
   "scripts": {
     "check:share-scope": "tsx scripts/check-share-scope.ts",
@@ -8,6 +8,7 @@
     "check:recipe-web-import": "tsx scripts/check-recipe-web-import.ts",
     "check:ai-context": "tsx scripts/check-ai-context.ts",
     "check:outside-meals": "tsx scripts/check-outside-meals.ts",
+    "check:diner-brief": "tsx scripts/check-diner-brief.ts",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

@@ -37,7 +37,7 @@ export type AiContext = {
   collections: Array<{ id: string; name: string; description: string | null }>;
 };
 
-export async function getAiContext(ctx: HouseholdContext): Promise<AiContext> {
+export async function getAiContext(ctx: Pick<HouseholdContext, "householdId">): Promise<AiContext> {
   const [configRows, memberRows, profileRows, collectionRows] = await Promise.all([
     db
       .select({
