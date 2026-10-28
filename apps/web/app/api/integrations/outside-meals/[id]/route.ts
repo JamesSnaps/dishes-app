@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withIntegrationAuth } from "@/lib/integration-auth";
 import { publicOrigin } from "@/lib/public-origin";
-import { getOutsideMeal, updateOutsideMeal } from "@/lib/services/outside-meals";
-import { listTokenMembers } from "@/lib/services/integration-tokens";
+import { getOutsideMeal } from "@/lib/services/outside-meals";
 import {
+  editMealOut,
   editOutsideMealSchema,
   noActingMember,
   outsideMealDetailJson,
   outsideMealErrorResponse,
-  toOutsideMealInput,
 } from "@/lib/integration-outside-meals";
-import { estimateInBackground } from "@/app/api/v1/outside-meals/estimate-later";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -42,13 +40,10 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   return withIntegrationAuth("write:outside_meals", async (req, ctx) => {
     if (!ctx.memberId) return noActingMember();
     if (!UUID_RE.test(id)) return notFound();
-    const session = { householdId: ctx.householdId, memberId: ctx.memberId };
 
     try {
       const body = editOutsideMealSchema.parse(await req.json());
-      const input = toOutsideMealInput(body, await listTokenMembers(ctx.householdId));
-      const { meal, staleEstimate } = await updateOutsideMeal(session, id, input);
-      if (staleEstimate) estimateInBackground(session, meal, req);
+      const meal = await editMealOut({ householdId: ctx.householdId, memberId: ctx.memberId }, id, body, req);
       return NextResponse.json(outsideMealDetailJson(meal, publicOrigin(req.headers)));
     } catch (err) {
       const res = outsideMealErrorResponse(err);

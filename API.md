@@ -654,6 +654,18 @@ Only `date` is required, but give at least a `title` or `description` (or `cours
 
 ---
 
+### MCP — `/api/integrations/mcp`
+
+The eating-out operations as an MCP server, for Claude. It speaks Streamable HTTP, statelessly: each `POST` is answered with JSON, there's no server-to-client stream, and `GET`/`DELETE` are `405`. The tools have the operations' names and take the same fields: `getDinerBrief` (`members` as an array, `date`), `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` (`date` defaults to today) and `updateOutsideMeal` (`id` plus fields). Results are the same JSON as the REST endpoints, except that `getDinerBrief` returns the brief's `promptText`. A mistake the model can fix (an unknown name, a bad field, no meal with that id) comes back as a tool error saying what was wrong. The server's instructions are the same as the ChatGPT GPT's (`apps/web/lib/menu-assistant.ts`).
+
+**Auth:** `Authorization: Bearer <token>`, either of:
+- **An integration token.** Tools are offered by its scopes: `getDinerBrief` needs `read:preferences`; the list and get tools need `read:meal_plan`; `logOutsideMeal` and `updateOutsideMeal` need `write:outside_meals` and a token that acts as a member.
+- **An Authelia access token** (claude.ai custom connectors, when `DISHES_OIDC_ISSUER` is set). It acts as whoever signed in, with all five tools.
+
+Rate-limited like the rest of the API: per token, or per member for Authelia tokens. Without a valid token the reply is `401`. When OIDC is set up, its `WWW-Authenticate` header carries `resource_metadata` pointing at `GET /.well-known/oauth-protected-resource/api/integrations/mcp`. That is the RFC 9728 metadata naming the Authelia issuer, and it's also served at `/.well-known/oauth-protected-resource`; it's `404` without OIDC. Setup for Claude Code, Claude Desktop and claude.ai is in the README.
+
+---
+
 ### `POST /api/integrations/meal-plan/generate`
 
 Triggers AI meal plan generation for a given week. Each meal is written up as a **complete recipe** — ingredients, steps, tags and per-serving nutrition — saved to the household library and linked into the meal plan. The household must have an AI API key configured in **Settings → AI**.

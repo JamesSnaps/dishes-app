@@ -282,16 +282,28 @@ Scope decisions (28 Oct 2026):
   *`OPERATION_SETS` in the catalog with a ≤300-char `shortDescription` per operation (ChatGPT Actions'
   limit, held by `check:integrations-spec`); instructions in `lib/menu-assistant.ts`, shown on Settings →
   Integrations. Not yet tried in ChatGPT itself (v1.70.0)*
-- [ ] A5 — MCP endpoint for Claude at `/api/integrations/mcp` (streamable HTTP, stateless):
-  - tools `get_diner_brief`, `list_meals_out`, `log_meal_out` and `update_meal_out`, wrapping the
-    same services
+- [x] A5 — MCP endpoint for Claude at `/api/integrations/mcp` (streamable HTTP, stateless):
+  - tools `getDinerBrief`, `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` and
+    `updateOutsideMeal`, wrapping the same services
   - token auth with the same scopes
   - a Claude Desktop config snippet with the bearer header in the README
+
+  *`@modelcontextprotocol/sdk` 1.32.1's web-standard transport, one server per request
+  (`lib/mcp/dishes-mcp.ts`). Tools take the operation ids as names so `MENU_ASSISTANT_INSTRUCTIONS` serve
+  both assistants; the POST/PATCH logic moved to `logMealOut`/`editMealOut` for both. Tested with the SDK's
+  own client; not yet from Claude Desktop (v1.70.0)*
 - [ ] A6 — Spike: a claude.ai custom connector through Authelia OIDC. It needs OAuth
   protected-resource metadata on the MCP route and a static Authelia client, since Authelia has
   no dynamic client registration; check that claude.ai accepts a client ID and secret. The route
   would accept OIDC bearers as well as tokens, and those carry the member. If it doesn't work,
   Claude Desktop (A5) is the Claude path
+
+  *Server side done: the MCP route takes Authelia access tokens as well (acting as whoever signed in), its
+  401 points at `/.well-known/oauth-protected-resource/api/integrations/mcp`, which names the issuer.
+  Claude takes a static client ID and secret when there's no DCR (Advanced settings; callback
+  `https://claude.ai/api/mcp/auth_callback`). Left: add the `dishes-claude` Authelia client and the
+  bypass rule (README), then try it from claude.ai — unknowns there are the token endpoint auth method and
+  whether Authelia accepts Claude's `resource` parameter*
 - [ ] A7 — Optional: photos by URL on the POST and PATCH (plate, menu, course), fetched with
   `safeFetch`. Images only, with a size cap, into the existing photo slots. Only if A4 shows
   ChatGPT really passes chat files

@@ -28,8 +28,10 @@ const CLIENT_API_PREFIX = "/api/v1/";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+  // Mcp-*: the MCP endpoint's protocol headers (/api/integrations/mcp).
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id",
+  "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id",
 };
 
 export function middleware(request: NextRequest) {

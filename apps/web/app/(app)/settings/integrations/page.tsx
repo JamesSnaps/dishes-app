@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { Bot, ChevronLeft, Plug, UtensilsCrossed } from "lucide-react";
+import { Bot, ChevronLeft, Plug, Sparkles, UtensilsCrossed } from "lucide-react";
 import { getAutheliaUser } from "@/lib/auth";
 import { requireHousehold } from "@/lib/household";
 import { publicOrigin } from "@/lib/public-origin";
@@ -44,6 +44,21 @@ export default async function IntegrationsPage() {
   const origin = publicOrigin(headerList);
   const specUrl = `${origin}/api/integrations/openapi.json`;
   const mealsOutSpecUrl = `${specUrl}?ops=meals-out`;
+  const mcpUrl = `${origin}/api/integrations/mcp`;
+  const claudeCodeCommand = `claude mcp add --transport http dishes ${mcpUrl} --header "Authorization: Bearer <token>"`;
+  const claudeDesktopConfig = JSON.stringify(
+    {
+      mcpServers: {
+        dishes: {
+          command: "npx",
+          args: ["-y", "mcp-remote", mcpUrl, "--header", "Authorization:${DISHES_AUTH}"],
+          env: { DISHES_AUTH: "Bearer <token>" },
+        },
+      },
+    },
+    null,
+    2
+  );
 
   return (
     <div className="p-4 lg:p-8 max-w-2xl mx-auto">
@@ -171,6 +186,41 @@ export default async function IntegrationsPage() {
               brief and log meals as you.
             </li>
           </ol>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-amber-300/50 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-rose-500/10 p-4 text-sm shadow-sm dark:border-amber-900/60">
+          <div className="mb-1 flex items-center gap-2 font-semibold">
+            <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            Claude: the same, as an MCP server
+          </div>
+          <p className="mb-3 text-muted-foreground">
+            The same eating-out tools and instructions as the GPT above, for Claude. Use a token with the same three
+            scopes, acting as you; Claude only sees the tools its token allows.
+          </p>
+          <div className="space-y-3">
+            <CopyRow label="MCP server URL" value={mcpUrl} />
+            <CopyRow label="Claude Code" value={claudeCodeCommand} />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-orange-700 dark:text-orange-300">
+                Claude Desktop — claude_desktop_config.json
+              </p>
+              <div className="mt-1 rounded-lg bg-background/80 shadow-sm">
+                <div className="flex justify-end border-b px-3 py-1.5">
+                  <CopyButton text={claudeDesktopConfig} />
+                </div>
+                <pre className="overflow-x-auto px-3 py-2 text-xs">{claudeDesktopConfig}</pre>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Replace <code className="rounded bg-background/70 px-1">&lt;token&gt;</code>, keeping the word
+                Bearer. <code className="rounded bg-background/70 px-1">mcp-remote</code> needs Node.js on the computer
+                running Claude Desktop.
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            On claude.ai (and the Claude apps) a custom connector signs in through Authelia instead of using a token.
+            It needs an Authelia client for Claude; the README has the setup.
+          </p>
         </div>
       </section>
 

@@ -17,7 +17,8 @@ function hashToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
-async function resolveToken(raw: string): Promise<IntegrationContext | null> {
+/** The token's household, scopes and member, or null for an unknown or expired one. */
+export async function resolveToken(raw: string): Promise<IntegrationContext | null> {
   const hash = hashToken(raw);
 
   const [token] = await db

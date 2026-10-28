@@ -203,7 +203,10 @@ POST /api/integrations/meal-plan/generate
 GET  /api/integrations/deliveries
 POST /api/integrations/deliveries/email
 POST /api/integrations/deliveries/order
-GET  /api/integrations/openapi.json   (public, no token)
+GET  /api/integrations/preferences          (diner brief)
+GET  /api/integrations/outside-meals        (+ POST; GET/PATCH /{id})
+POST /api/integrations/mcp                  (MCP server for Claude)
+GET  /api/integrations/openapi.json   (public, no token; ?ops=meals-out for a trimmed spec)
 ```
 
 `API.md` is the authoritative reference for these — keep it in step with the routes

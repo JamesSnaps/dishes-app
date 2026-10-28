@@ -3,13 +3,17 @@ import { NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { MEAL_TYPES, OUTSIDE_MEAL_COURSES, OUTSIDE_MEAL_KINDS, OUTSIDE_MEAL_PORTIONS } from "@dishes/shared";
 import {
+  createOutsideMeal,
   listOutsideMeals,
   MAX_COURSES,
   OutsideMealNotFoundError,
   OutsideMealValidationError,
+  updateOutsideMeal,
   type UpdateOutsideMealInput,
 } from "@/lib/services/outside-meals";
-import type { OutsideMealView } from "@/lib/outside-meals";
+import { listTokenMembers } from "@/lib/services/integration-tokens";
+import { isOutsideMealDescribed, type OutsideMealView } from "@/lib/outside-meals";
+import { estimateInBackground } from "@/lib/outside-meal-estimate-later";
 import { matchDiners } from "@/lib/diner-brief";
 
 /**
@@ -48,7 +52,7 @@ const stars = z.number().min(0).max(5);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");
 const figure = z.number().nonnegative().nullable();
 
-const writeFields = {
+export const outsideMealWriteFields = {
   date,
   mealType: z.enum(MEAL_TYPES),
   kind: z.enum(OUTSIDE_MEAL_KINDS),
@@ -88,9 +92,9 @@ const writeFields = {
     .nullable(),
 };
 
-export const logOutsideMealSchema = z.object(writeFields).partial().required({ date: true });
+export const logOutsideMealSchema = z.object(outsideMealWriteFields).partial().required({ date: true });
 export const editOutsideMealSchema = z
-  .object(writeFields)
+  .object(outsideMealWriteFields)
   .partial()
   .refine((v) => Object.keys(v).length > 0, "No fields to update");
 
@@ -215,4 +219,46 @@ export function noActingMember(): NextResponse {
     },
     { status: 403 }
   );
+}
+
+/** The member a meal out is filed under: a token's "Acts as", or who signed in. */
+export type MealOutActor = { householdId: string; memberId: string };
+
+/**
+ * Log a meal out for the integrations API and the MCP tools. When the slot
+ * already holds an empty "Not cooking" chip (kind and place, no dish yet),
+ * that one is filled in rather than a second added. The nutrition estimate
+ * follows after the response (`req` passes on `?estimate=false`).
+ */
+export async function logMealOut(
+  actor: MealOutActor,
+  body: z.infer<typeof logOutsideMealSchema>,
+  req?: Request
+): Promise<{ action: "created" | "filled"; meal: OutsideMealView }> {
+  const input = toOutsideMealInput(body, await listTokenMembers(actor.householdId));
+  const mealType = body.mealType ?? "dinner";
+
+  const sameDay = await listOutsideMeals(actor.householdId, { from: body.date, to: body.date });
+  const chip = sameDay.find((m) => m.mealType === mealType && !isOutsideMealDescribed(m));
+
+  // A slot marked skipped that turns out to have a meal was eaten out after all.
+  const kind = input.kind ?? (chip?.kind === "skipped" ? "eat_out" : undefined);
+  const meal = chip
+    ? (await updateOutsideMeal(actor, chip.id, { ...input, kind, date: undefined, mealType: undefined })).meal
+    : await createOutsideMeal(actor, { ...input, date: body.date });
+  estimateInBackground(actor, meal, req);
+  return { action: chip ? "filled" : "created", meal };
+}
+
+/** Partial update; changing what was eaten re-estimates it in the background. */
+export async function editMealOut(
+  actor: MealOutActor,
+  id: string,
+  body: z.infer<typeof editOutsideMealSchema>,
+  req?: Request
+): Promise<OutsideMealView> {
+  const input = toOutsideMealInput(body, await listTokenMembers(actor.householdId));
+  const { meal, staleEstimate } = await updateOutsideMeal(actor, id, input);
+  if (staleEstimate) estimateInBackground(actor, meal, req);
+  return meal;
 }

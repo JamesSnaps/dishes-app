@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/session";
 import { withApiErrors } from "@/lib/api/respond";
 import { updateOutsideMealSchema } from "@/lib/api/schemas/outside-meals";
 import { deleteOutsideMeal, getOutsideMeal, updateOutsideMeal } from "@/lib/services/outside-meals";
-import { estimateInBackground } from "../estimate-later";
+import { estimateInBackground } from "@/lib/outside-meal-estimate-later";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
