@@ -202,6 +202,121 @@ Steps:
   (planned recipes they replaced already drop out of it)
 - Not planned: cost/budget tracking, restaurant lookup or maps
 
+## Choosing From a Menu
+Two ways to get help picking what to eat out, both built on what the app already knows: who's
+eating and their dietary flags, the taste profile and ratings, and how this week's heart-health
+targets stand. Claude and ChatGPT are already good at reading a menu, but they don't know any of
+that, and nothing they decide gets back into the app.
+
+- **Part A: Claude or ChatGPT.** The app hands them a brief about the diners and they log the
+  choice back to it. Small, and most of the code already exists
+- **Part B: "Help me choose" in the app.** Give it a menu photo, text or a link (including a PDF)
+  and get picks for each person. The pick fills in the log sheet
+
+Scope decisions (28 Oct 2026):
+- **One "diner brief", shared by both parts.** `getDinerBrief(householdId, { date, memberIds? })`
+  in `lib/services/diner-brief.ts` returns:
+  - each diner's dietary flags, dislikes, preferences and age band (from `getAiContext`)
+  - the taste profile summary (`summariseTasteProfile`): what they rate well and badly
+  - the week's protein targets so far, counting meals out and the rest of the week's plan
+    (`getWeekNutrition`)
+  - the last 7 days' meals, so suggestions vary
+  - a plain-text `promptText` rendering of all of it
+
+  Part A serves it over the API and Part B puts it in its own prompt, so both suggest the same way
+- **Integration tokens carry no member, but a meal out needs one.** `createOutsideMeal` records
+  `createdById`, and the saver's own rating is filed under their name. So a token can be bound to
+  a member when it's created (`integration_tokens.member_id`, nullable): writes act as that
+  member, and the new write scope can only be granted to a bound token. Existing tokens are
+  unchanged. Claude's hosted connectors may come through Authelia OIDC instead, which carries
+  the member already (`getBearerUser()`, see A6)
+- **New scopes:**
+  - `read:preferences`: dietary flags and dislikes are personal, so a Home Assistant dashboard
+    token with `read:meal_plan` shouldn't get them
+  - `write:outside_meals`
+- **Logging fills the day's existing slot.** If the day already has a "Not cooking" chip (an
+  `outside_meals` row with no dish yet), a POST for that date and meal type fills that row in
+  rather than adding a second one
+- **Photos are optional and text is the reliable path.** Claude can't pass an image from the chat
+  into a tool call. ChatGPT Actions can pass chat files as download links (`openaiFileIdRefs`,
+  to be verified), which the server would fetch with `safeFetch`. The menu's words and its
+  printed kcal are enough for a good estimate; the plate photo can be added in the app later
+- **Part B runs on the server with the household key, as an AI job** (`/api/ai-jobs`), like
+  recipe generation. Reading a menu with vision takes 10–20 s and the corner job card already
+  handles leaving the screen. On iOS, Vision reads the menu photo into text on the device first
+  (as the log sheet already does), which is cheaper and faster. The photo is only sent as well
+  when the OCR came back thin. Choosing needs the diner brief and real judgement, so it isn't an
+  on-device model job; revisit after the on-device evaluation (`TODO_MOBILE.md` Phase D)
+- **Picks are suggestions, not stored.** The menu text is kept on the meal out (`menuText`) once
+  one is picked. Estimates are labelled as estimates, as elsewhere for meals out
+
+### Part A — Claude and ChatGPT
+- [ ] A1 — Diner brief service + `GET /api/integrations/preferences` (`read:preferences`;
+  `?date=`, `?members=`): JSON plus `promptText`. Add it to `integrations-catalog.ts`, `API.md`
+  and the OpenAPI spec. Shared with Part B
+- [ ] A2 — Bind a token to a member:
+  - migration adding `integration_tokens.member_id` (FK to `household_members`, `ON DELETE SET
+    NULL`, after which the write scope stops working)
+  - "Acts as" picker on `/settings/integrations`, required when `write:outside_meals` is ticked
+  - `IntegrationContext.memberId`
+- [ ] A3 — `/api/integrations/outside-meals`, using the `createOutsideMealSchema` the `/api/v1`
+  routes use. The nutrition estimate runs after the reply with `estimateInBackground`, and
+  devices get the meal on their next sync.
+  - `GET`: a date range (`read:meal_plan`)
+  - `POST`: log a meal out, filling the day's chip if there is one
+  - `PATCH /{id}`: rate it later, add courses, fix the place
+  - every response includes the meal's URL in the app
+- [ ] A4 — ChatGPT custom GPT:
+  - `openapi.json?ops=meals-out` serves only the brief and meal-out operations, so the GPT
+    isn't offered shopping and deliveries
+  - a ready-made instructions block with a copy button on Settings → Integrations: "fetch the
+    brief first, read the menu, suggest, log the pick when the user says what they ordered"
+  - a README section on API-key auth
+- [ ] A5 — MCP endpoint for Claude at `/api/integrations/mcp` (streamable HTTP, stateless):
+  - tools `get_diner_brief`, `list_meals_out`, `log_meal_out` and `update_meal_out`, wrapping the
+    same services
+  - token auth with the same scopes
+  - a Claude Desktop config snippet with the bearer header in the README
+- [ ] A6 — Spike: a claude.ai custom connector through Authelia OIDC. It needs OAuth
+  protected-resource metadata on the MCP route and a static Authelia client, since Authelia has
+  no dynamic client registration; check that claude.ai accepts a client ID and secret. The route
+  would accept OIDC bearers as well as tokens, and those carry the member. If it doesn't work,
+  Claude Desktop (A5) is the Claude path
+- [ ] A7 — Optional: photos by URL on the POST and PATCH (plate, menu, course), fetched with
+  `safeFetch`. Images only, with a size cap, into the existing photo slots. Only if A4 shows
+  ChatGPT really passes chat files
+
+### Part B — "Help me choose" in the app
+- [ ] B1 — Menu reader, `lib/ai/menu-reader.ts`: photos (several, for menus that run over a few
+  pages), pasted text or a URL in; a structured menu out (sections; each item with name,
+  description, price and printed kcal).
+  - URLs go through `safeFetch`
+  - an HTML page is reduced to its text
+  - a PDF uses its text layer (add a PDF text library, e.g. `unpdf`). A scanned PDF falls back to
+    page images for vision, capped at a few pages
+- [ ] B2 — Chooser, `lib/ai/menu-picks.ts`: structured menu + diner brief → for each diner, about 3
+  picks and what to avoid.
+  - each pick says why ("red meat's used up this week", "you rated the last risotto 2★"),
+    gives its kcal (the printed figure when there is one, otherwise an estimate) and a lighter
+    tweak ("sauce on the side")
+  - dietary flags are hard rules
+  - cholesterol-lowering and the weekly targets steer the picks but don't forbid anything
+- [ ] B3 — Run it as an AI job (`job-types.ts`) behind `POST /api/v1/outside-meals/menu-picks`, with
+  a server action for the web
+- [ ] B4 — Web UI in `outside-meal-sheet.tsx`:
+  - a "Help me choose" step before the log form, also on today's or a future "Not cooking" chip
+  - menu input; who's choosing (defaults to who's eating)
+  - pick cards; "I'll have this" prefills title, menu line, `menuKcal` and courses (starter /
+    main / dessert)
+  - the existing nutrition estimate runs on save as now. Version bump (minor) and README
+- [ ] B5 — iOS (`OutsideMealSheet.swift`): the same step; Vision OCR on the device sends text, and
+  photos only when OCR is thin. The AI job is polled like generation. Add to `apps/ios/RUNBOOK.md`
+- Not planned: storing past picks, comparing what was ordered with what was suggested, exposing
+  the in-app chooser over the integrations API (Claude and ChatGPT do their own choosing in Part A)
+
+Suggested order: A1–A4 (ChatGPT working end to end, about a day), then B1–B4, then A5–A6 and B5.
+A1 is the base for both parts.
+
 ## AI — Photo Recipe Import
 - [x] Scan a recipe photo (camera or gallery) from the New Recipe page
 - [x] Client-side image resize before sending (≤ 1600 px JPEG)
