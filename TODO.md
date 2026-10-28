@@ -309,35 +309,36 @@ Scope decisions (28 Oct 2026):
   ChatGPT really passes chat files
 
 ### Part B — "Help me choose" in the app
-- [ ] B1 — Menu reader, `lib/ai/menu-reader.ts`: photos (several, for menus that run over a few
-  pages), pasted text or a URL in; a structured menu out (sections; each item with name,
-  description, price and printed kcal).
-  - URLs go through `safeFetch`
-  - an HTML page is reduced to its text
-  - a PDF uses its text layer (add a PDF text library, e.g. `unpdf`). A scanned PDF falls back to
-    page images for vision, capped at a few pages
-- [ ] B2 — Chooser, `lib/ai/menu-picks.ts`: structured menu + diner brief → for each diner, about 3
-  picks and what to avoid.
-  - each pick says why ("red meat's used up this week", "you rated the last risotto 2★"),
-    gives its kcal (the printed figure when there is one, otherwise an estimate) and a lighter
-    tweak ("sauce on the side")
-  - dietary flags are hard rules
-  - cholesterol-lowering and the weekly targets steer the picks but don't forbid anything
-- [ ] B3 — Run it as an AI job (`job-types.ts`) behind `POST /api/v1/outside-meals/menu-picks`, with
-  a server action for the web
-- [ ] B4 — Web UI in `outside-meal-sheet.tsx`:
-  - a "Help me choose" step before the log form, also on today's or a future "Not cooking" chip
+- [x] B1 — Menu sources, `lib/ai/menu-sources.ts`: photos (up to 4), a PDF, a link or pasted text →
+  model content. *Simpler than planned: PDFs go to the model as they are (OpenAI reads the text layer and
+  the page images), so no PDF library and scanned menus just work. Links go through `safeFetch`; a page
+  with too little text says so rather than letting the model guess (v1.70.0)*
+- [x] B2 — Chooser, `lib/ai/menu-picks.ts`: menu + diner brief → for each diner, up to 3 picks and 3 to
+  avoid.
+  - each pick says why in the brief's terms, carries its menu line word for word and the printed kcal
+    (or a labelled estimate), and a lighter tweak
+  - dietary flags are hard rules; the weekly targets and tastes steer
+  - *One call does the reading and the choosing (they're at the table). `tidyPicks` holds the answer to
+    the brief (`check:menu-picks`)*
+- [x] B3 — `POST /api/v1/outside-meals/menu-picks` (multipart), the web through `/api/web`. *Changed
+  from the plan: synchronous, not an AI job. One route serves web and iOS, the result only makes sense
+  inside the sheet so the corner tray has nothing to offer, and it answers in 10–30 s*
+- [x] B4 — Web: a "Help me choose" step in `outside-meal-sheet.tsx` (`menu-chooser.tsx`), for today or a
+  future day.
   - menu input; who's choosing (defaults to who's eating)
-  - pick cards; "I'll have this" prefills title, menu line, `menuKcal` and courses (starter /
-    main / dessert)
-  - the existing nutrition estimate runs on save as now. Version bump (minor) and README
-- [ ] B5 — iOS (`OutsideMealSheet.swift`): the same step; Vision OCR on the device sends text, and
-  photos only when OCR is thin. The AI job is polled like generation. Add to `apps/ios/RUNBOOK.md`
+  - pick cards; ticking and "Use these" fills in the dish, menu line and `menuKcal`, or courses for
+    several; who it was for becomes "Who ate?", the restaurant fills an empty "where", and the first
+    menu photo is kept for the estimate
+  - a plan keeps only the names
+- [x] B5 — iOS: `MenuChooserView`, pushed from the sheet. Vision reads the photos on the device; the
+  text goes up when it read enough, the photos only when it didn't. The PDF comes from Files.
+  *`MenuPicks.apply` in DishesCore mirrors the web's `applyChoice`, with tests*
 - Not planned: storing past picks, comparing what was ordered with what was suggested, exposing
   the in-app chooser over the integrations API (Claude and ChatGPT do their own choosing in Part A)
 
 Suggested order: A1–A4 (ChatGPT working end to end, about a day), then B1–B4, then A5–A6 and B5.
-A1 is the base for both parts.
+A1 is the base for both parts. *All but A7 built on `feat/diner-brief` (PR #75); A6 and the AI calls
+themselves still to try on the real server.*
 
 ## AI — Photo Recipe Import
 - [x] Scan a recipe photo (camera or gallery) from the New Recipe page

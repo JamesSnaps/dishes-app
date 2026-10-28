@@ -11,6 +11,9 @@
 //   dessert…) gets a card each — its words, printed kcal and photo — and is
 //   estimated course by course.
 //
+// For today or later, "Help me choose" (MenuChooserView) reads the menu and
+// suggests dishes for each person eating; the ones ticked fill in the form.
+//
 // Saving needs a connection: the meal goes to /api/v1/outside-meals, then its
 // photos, then one estimate the sheet waits for (API.md, `estimate=false`) —
 // and shows, with what it counts towards, before closing. The server row goes
@@ -58,6 +61,7 @@ struct OutsideMealSheet: View {
     @State private var result: (meal: OutsideMeal, error: String?)?
     @State private var confirmRemove = false
     @State private var loaded = false
+    @State private var choosing = false
 
     enum Slot: Identifiable, Hashable { case plate, menu, course(String); var id: Self { self } }
     enum Stage { case saving, estimating, removing }
@@ -84,6 +88,11 @@ struct OutsideMealSheet: View {
                 if let result { resultView(result.meal, error: result.error) } else { form }
             }
             .background(Theme.background)
+            .navigationDestination(isPresented: $choosing) {
+                MenuChooserView(date: dayKey, initialDiners: ate) { picks, chosen, photo in
+                    apply(picks, chosen, menuPhoto: photo)
+                }
+            }
             .navigationTitle(meal.map { $0.kind.label } ?? (isPlan ? "Not cooking" : "Log a meal out"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -138,6 +147,28 @@ struct OutsideMealSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Theme.amber50, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
+            }
+
+            if !skipped && dayKey >= localDateKey(Date()) {
+                Button { choosing = true } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "wand.and.stars").font(.system(size: 20, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Help me choose").font(.system(size: 15, weight: .semibold))
+                            Text("Snap the menu for suggestions that suit each of you")
+                                .font(.system(size: 12))
+                                .opacity(0.85)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Theme.Gradient.emeraldTeal.linear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+                }
+                .buttonStyle(.plain)
             }
 
             if !skipped {
@@ -545,6 +576,35 @@ struct OutsideMealSheet: View {
             courses[i].photo = nil
             if courses[i].stored != nil { courses[i].stored = nil; courses[i].removePhoto = true }
         }
+    }
+
+    /// What "Help me choose" picked becomes what was eaten (`MenuPicks.apply`,
+    /// as the web sheet): one dish fills in the dish and its menu line, several
+    /// become courses; a plan keeps only the names. The menu photo is kept for
+    /// the estimate, unless the meal has one already.
+    private func apply(_ picks: MenuPicks, _ chosen: [MenuPicks.Chosen], menuPhoto photo: UIImage?) {
+        let a = picks.apply(chosen, everyone: app.members.map(\.displayName), isPlan: isPlan,
+                            placeIsEmpty: trimmed(place) == nil)
+        if let p = a.place { place = p }
+        ate = Set(a.eatenBy)
+        if isPlan {
+            title = a.title
+        } else if a.courses.isEmpty {
+            title = a.title
+            menuText = a.menuText
+            menuKcal = a.menuKcal
+            courses = []
+        } else {
+            title = ""
+            menuText = ""
+            menuKcal = ""
+            courses = a.courses.map { CourseDraft(id: UUID().uuidString.lowercased(), course: $0.kind, text: $0.text, kcal: $0.kcal) }
+        }
+        if let photo, !isPlan, menuPhoto == nil, meal?.menuPhotoUrl == nil || removeMenu {
+            menuPhoto = photo
+            removeMenu = false
+        }
+        choosing = false
     }
 
     /// Vision reads the menu on the device; the text lands in the field to be

@@ -401,7 +401,8 @@ export async function setOutsideMealPhoto(
 
 // --- Nutrition estimate -----------------------------------------------------
 
-async function aiClientFor(householdId: string): Promise<{ client: OpenAI; model: string } | null> {
+/** The household's AI client and model, or null with no key set. */
+export async function aiClientFor(householdId: string): Promise<{ client: OpenAI; model: string } | null> {
   const [config] = await db
     .select({ encryptedApiKey: aiConfigurations.encryptedApiKey, model: aiConfigurations.model })
     .from(aiConfigurations)

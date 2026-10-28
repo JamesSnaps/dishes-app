@@ -459,6 +459,61 @@ public final class APIClient: SyncTransport, Sendable {
         try await slowPost("/outside-meals/\(id)/estimate", json: [String: String](), timeout: 90, as: JSONValue.self)
     }
 
+    /// What "Help me choose" is given: the menu, any of photos (up to 4), a
+    /// PDF, a link or its text, and who's eating (none means everyone).
+    public struct MenuPicksRequest: Sendable {
+        public var date: String
+        public var members: [String]
+        /// JPEG data.
+        public var photos: [Data]
+        public var pdf: Data?
+        public var link: String?
+        public var text: String?
+
+        public init(date: String, members: [String], photos: [Data] = [], pdf: Data? = nil, link: String? = nil, text: String? = nil) {
+            self.date = date; self.members = members; self.photos = photos; self.pdf = pdf; self.link = link; self.text = text
+        }
+    }
+
+    /// Suggestions from a menu for each person eating, from the diner brief.
+    /// Waits for the AI (10–30 s); nothing is saved. A 400 says why there are
+    /// none (no AI key, a link that won't load, a menu it couldn't read).
+    public func menuPicks(_ request: MenuPicksRequest) async throws -> MenuPicks {
+        let boundary = "dishes-\(UUID().uuidString)"
+        let body = Self.menuPicksBody(request, boundary: boundary)
+        let data = try await send { token in
+            var r = authorisedRequest(url("/outside-meals/menu-picks"), method: "POST", token: token)
+            r.timeoutInterval = 90
+            r.httpBody = body
+            r.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            return r
+        }
+        return try JSONDecoder().decode(MenuPicks.self, from: data)
+    }
+
+    /// multipart/form-data for `menuPicks`, the fields as the route reads them.
+    static func menuPicksBody(_ m: MenuPicksRequest, boundary: String) -> Data {
+        var body = Data()
+        func add(_ s: String) { body.append(Data(s.utf8)) }
+        func field(_ name: String, _ value: String) {
+            add("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n")
+        }
+        func file(_ name: String, _ filename: String, _ mime: String, _ data: Data) {
+            add("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"; filename=\"\(filename)\"\r\n")
+            add("Content-Type: \(mime)\r\n\r\n")
+            body.append(data)
+            add("\r\n")
+        }
+        field("date", m.date)
+        for member in m.members { field("member", member) }
+        for (i, photo) in m.photos.enumerated() { file("photo", "menu-\(i + 1).jpg", "image/jpeg", photo) }
+        if let pdf = m.pdf { file("pdf", "menu.pdf", "application/pdf", pdf) }
+        if let link = m.link?.trimmingCharacters(in: .whitespacesAndNewlines), !link.isEmpty { field("url", link) }
+        if let text = m.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { field("text", text) }
+        add("--\(boundary)--\r\n")
+        return body
+    }
+
     // MARK: Shopping
 
     public struct GenerateResult: Decodable, Sendable { public var listId: String; public var changed: Bool }

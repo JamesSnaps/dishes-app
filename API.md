@@ -1773,6 +1773,59 @@ wants to show them straight away; the background estimate makes this optional.
 `400` when there's nothing to estimate from, it's skipped, or AI isn't set up.
 Typed-in figures come back untouched.
 
+### `POST /api/v1/outside-meals/menu-picks`
+
+"Help me choose": the household's AI reads a menu and suggests dishes for each
+person eating, from the diner brief (`GET /api/integrations/preferences` has the
+same brief). It waits for the AI (10–30 s), and **nothing is saved**: picking a
+dish fills in the log sheet, which saves through the routes above. The web
+reaches it as `/api/web/outside-meals/menu-picks`.
+
+`multipart/form-data`. Give the menu as any mix of:
+
+| Field | Description |
+|---|---|
+| `photo` | A photo of the menu. Up to 4 (one per page). |
+| `pdf` | A PDF of the menu. The model reads it as it is, so a scanned one works too. |
+| `url` | A link to the menu: a web page (its text is used), a PDF or an image. Fetched with `safeFetch`, so private addresses are refused. A page with too little text to be the menu (built by script) is a `400` that says so. |
+| `text` | The menu, typed or pasted. The iOS app sends what Vision read from its photos here, and sends the photos as well only when Vision read little. |
+
+Plus `member` (repeat for each person eating; leave it out for everyone) and
+`date` (`YYYY-MM-DD`; default today, for the brief's week). Files are 15 MB at
+most.
+
+```json
+{
+  "date": "2026-10-28",
+  "restaurant": { "name": "Côte", "cuisine": "French" },
+  "diners": [
+    {
+      "name": "James",
+      "picks": [
+        {
+          "dish": "Sea bass",
+          "course": "main",
+          "menuLine": "Sea bass, crushed potatoes, beurre blanc",
+          "menuKcal": 720,
+          "estimatedKcal": null,
+          "why": "Oily fish would help: you're short this week.",
+          "lighterTweak": "Beurre blanc on the side"
+        }
+      ],
+      "avoid": [{ "dish": "Steak frites", "why": "Red meat's at its limit this week." }]
+    }
+  ],
+  "note": null
+}
+```
+
+- `diners` follows the brief: one entry per person, in its order, with up to 3 `picks` and up to 3 dishes to `avoid` each.
+- `menuLine` is the dish's line from the menu, word for word, and `menuKcal` is only ever a figure printed on the menu. `estimatedKcal` is the AI's rough figure when nothing is printed.
+- A menu the AI couldn't read gives no picks, and `note` says why.
+
+`400` for no menu, an unknown `member`, a file or link it can't use, no AI key,
+or the AI failing, each with a message to show.
+
 ### `POST /api/v1/upload`
 
 Recipe image. Raw body again, with `Content-Type`. JPEG, PNG, WebP or GIF, under

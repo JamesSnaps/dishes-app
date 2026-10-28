@@ -10,6 +10,7 @@
     "check:outside-meals": "tsx scripts/check-outside-meals.ts",
     "check:diner-brief": "tsx scripts/check-diner-brief.ts",
     "check:integrations-spec": "tsx scripts/check-integrations-spec.ts",
+    "check:menu-picks": "tsx scripts/check-menu-picks.ts",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
