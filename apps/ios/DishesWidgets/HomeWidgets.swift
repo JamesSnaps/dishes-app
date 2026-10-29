@@ -40,28 +40,28 @@ enum WidgetStore {
 
 // MARK: Colours
 
-/// The app's Theme, copied (the extension can't see app code): the Tonight
-/// card's orange-to-rose, the AI violet, the shopping blue.
+/// The app's Cookbook colours, copied (the extension can't see app code):
+/// terracotta for Tonight, herb green once it's cooked, ink for the rest.
 enum WidgetTheme {
-    static let brand = Color(red: 0.976, green: 0.451, blue: 0.086)    // #F97316
-    static let rose = Color(red: 0.957, green: 0.247, blue: 0.369)     // #F43F5E
-    static let violet = Color(red: 0.486, green: 0.227, blue: 0.929)   // #7C3AED
-    static let blue = Color(red: 0.145, green: 0.388, blue: 0.922)     // #2563EB
-    static let sky = Color(red: 0.055, green: 0.647, blue: 0.914)      // #0EA5E9
-    static let emerald = Color(red: 0.020, green: 0.588, blue: 0.412)  // #059669
-    static let teal = Color(red: 0.078, green: 0.722, blue: 0.651)     // #14B8A6
-    static let tonight = LinearGradient(colors: [brand, rose], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let brand = Color(red: 0.710, green: 0.275, blue: 0.169)    // #B5462B terracotta
+    static let rose = brand
+    static let violet = Color(red: 0.165, green: 0.141, blue: 0.125)   // #2A2420 ink
+    static let blue = violet
+    static let sky = violet
+    static let emerald = Color(red: 0.239, green: 0.420, blue: 0.310)  // #3D6B4F herb
+    static let teal = emerald
+    static let tonight = brand
     /// Tonight's meal, cooked: the Recipes tab's card goes green too.
-    static let cooked = LinearGradient(colors: [emerald, teal], startPoint: .topLeading, endPoint: .bottomTrailing)
-    static let week = LinearGradient(colors: [violet, brand], startPoint: .topLeading, endPoint: .bottomTrailing)
-    static let shopping = LinearGradient(colors: [blue, sky], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let cooked = emerald
+    static let week = violet
+    static let shopping = violet
 }
 
 /// A widget's background: its gradient in full colour; in the tinted and clear
 /// Home Screen styles the system draws its own, so none.
 private struct WidgetBackground: ViewModifier {
     @Environment(\.widgetRenderingMode) private var mode
-    let gradient: LinearGradient
+    let gradient: Color
     func body(content: Content) -> some View {
         content.containerBackground(for: .widget) {
             if mode == .fullColor { gradient } else { Color.clear }
@@ -70,7 +70,7 @@ private struct WidgetBackground: ViewModifier {
 }
 
 private extension View {
-    func widgetBackground(_ gradient: LinearGradient) -> some View { modifier(WidgetBackground(gradient: gradient)) }
+    func widgetBackground(_ gradient: Color) -> some View { modifier(WidgetBackground(gradient: gradient)) }
 }
 
 // MARK: Settings

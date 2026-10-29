@@ -83,7 +83,7 @@ struct WebPage<T: Decodable & Sendable, Trailing: View, Content: View>: View {
                         Label("Couldn’t load this", systemImage: "wifi.exclamationmark")
                             .font(.system(size: 15, weight: .semibold))
                         Text(error).font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
-                        Button("Try again") { Task { await data.load() } }.buttonStyle(.outline)
+                        Button("Try again") { Task { await data.load() } }.buttonStyle(.secondary)
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,7 +156,7 @@ struct CardList<Item: Identifiable, Row: View>: View {
 struct StatTile: View {
     let value: String
     let label: String
-    var tint: Color = Theme.orange50
+    var tint: Color = Theme.highlight
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {

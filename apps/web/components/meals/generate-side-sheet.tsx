@@ -121,9 +121,9 @@ function SideFlow({
                   type="button"
                   disabled={phase === "loading-recipe"}
                   onClick={() => handleSelectConcept(concept, index)}
-                  className="flex w-full items-start gap-3 rounded-xl border border-emerald-300/70 bg-gradient-to-br from-emerald-50 to-lime-50 p-3 text-left shadow-sm transition-colors hover:from-emerald-100 hover:to-lime-100 disabled:opacity-60 dark:border-emerald-800/60 dark:from-emerald-950/50 dark:to-lime-950/30 dark:hover:from-emerald-950/70 dark:hover:to-lime-950/40"
+                  className="flex w-full items-start gap-3 rounded-xl border border-transparent bg-success-tint p-3 text-left shadow-sm transition-colors disabled:opacity-60"
                 >
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success-tint text-success">
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Salad className="h-4 w-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -160,7 +160,7 @@ function SideFlow({
       </div>
       <Button
         type="button"
-        className="w-full border-0 bg-gradient-to-r from-emerald-600 to-lime-600 text-white hover:from-emerald-700 hover:to-lime-700"
+        className="w-full border-0 bg-success text-card"
         disabled={!recipeIds.length}
         onClick={() => runGenerateConcepts(note)}
       >
@@ -202,7 +202,7 @@ export function GenerateSideSheet({
 
   if (inline) {
     return (
-      <div className="space-y-2 rounded-xl border border-emerald-300/70 bg-gradient-to-br from-emerald-500/10 to-lime-500/5 p-3 dark:border-emerald-800/60">
+      <div className="space-y-2 rounded-xl border border-transparent bg-success-tint p-3">
         <p className="text-sm font-semibold">Generate a new side dish</p>
         <p className="text-xs text-muted-foreground">
           A new recipe, marked as a side, written to go with {accompanies || "this meal"}.
@@ -217,7 +217,7 @@ export function GenerateSideSheet({
       {!hideTrigger && (
         <Button
           type="button"
-          className="border-0 bg-gradient-to-r from-emerald-600 to-lime-600 text-white shadow-sm hover:from-emerald-700 hover:to-lime-700"
+          className="border-0 bg-success text-card shadow-sm"
           onClick={() => setOpen(true)}
         >
           <Salad className="mr-2 h-4 w-4" />

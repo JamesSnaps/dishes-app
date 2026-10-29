@@ -46,9 +46,9 @@ struct PantryScreen: View {
                             Spacer()
                             let qty = Format.quantity(item.amount, item.unit)
                             if !qty.isEmpty {
-                                Text(qty).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.brandDeep)
+                                Text(qty).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.brand)
                                     .padding(.horizontal, 10).padding(.vertical, 4)
-                                    .background(Theme.orange50, in: Capsule())
+                                    .background(Theme.highlight, in: Capsule())
                             }
                         }
                         .padding(.horizontal, 14).padding(.vertical, 11)
@@ -80,8 +80,8 @@ struct PantryScreen: View {
                                 .accessibilityLabel("Remove \(staple.ingredientName)")
                             }
                             .padding(.horizontal, 12).frame(height: 32)
-                            .foregroundStyle(Color(hex: 0x047857))
-                            .background(Theme.emerald100, in: Capsule())
+                            .foregroundStyle(Theme.success)
+                            .background(Theme.successTint, in: Capsule())
                             .buttonStyle(.plain)
                         }
                     }

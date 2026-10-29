@@ -123,13 +123,13 @@ struct MenuChooserView: View {
                                 Label(photos.isEmpty ? "Camera" : "Another page", systemImage: "camera")
                                     .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.outline)
+                            .buttonStyle(.secondary)
                         }
                         PhotosPicker(selection: $picking, maxSelectionCount: Self.maxPhotos - photos.count, matching: .images) {
                             Label("Library", systemImage: "photo.on.rectangle")
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.outline)
+                        .buttonStyle(.secondary)
                     }
                 }
 
@@ -155,7 +155,7 @@ struct MenuChooserView: View {
                         Label("Or choose a PDF", systemImage: "doc.richtext")
                             .font(.system(size: 14, weight: .medium))
                     }
-                    .foregroundStyle(Color(light: 0x075985, dark: 0x7DD3FC))
+                    .foregroundStyle(Theme.ink)
                 }
 
                 TextField("Or paste the menu", text: $text, axis: .vertical)
@@ -198,7 +198,7 @@ struct MenuChooserView: View {
             Button { Task { await suggest() } } label: {
                 Label(stage ?? "Suggest dishes", systemImage: stage == nil ? "sparkles" : "hourglass")
             }
-            .buttonStyle(.gradient(.emeraldTeal))
+            .buttonStyle(.primary)
             .disabled(!hasMenu || diners.isEmpty || stage != nil)
         }
     }
@@ -214,10 +214,10 @@ struct MenuChooserView: View {
             if let note = r.note {
                 Label(note, systemImage: "exclamationmark.triangle")
                     .font(.system(size: 13))
-                    .foregroundStyle(Color(light: 0x92400E, dark: 0xFCD34D))
+                    .foregroundStyle(Theme.brand)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Theme.amber50, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(Theme.warningTint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
 
             ForEach(r.diners) { d in
@@ -234,8 +234,7 @@ struct MenuChooserView: View {
                     }
                 }
                 .padding(14)
-                .callout(Color(light: 0xECFDF5, dark: 0x052E1F), Color(light: 0xF0FDFA, dark: 0x042F2E),
-                         border: Color(light: 0xA7F3D0, dark: 0x065F46))
+                .panel()
             }
 
             Text("Calories are estimates unless the menu prints them. Tick what you ordered to fill in the log.")
@@ -244,7 +243,7 @@ struct MenuChooserView: View {
 
             HStack(spacing: 10) {
                 Button { result = nil } label: { Text("Change the menu").frame(maxWidth: .infinity) }
-                    .buttonStyle(.outline)
+                    .buttonStyle(.secondary)
                 Button {
                     let picks = r.diners.flatMap { d in
                         d.picks.indices.compactMap { i in chosen.contains(key(d, i)) ? MenuPicks.Chosen(diner: d.name, pick: d.picks[i]) : nil }
@@ -253,7 +252,7 @@ struct MenuChooserView: View {
                 } label: {
                     Text(chosen.count > 1 ? "Use these \(chosen.count)" : "Use this")
                 }
-                .buttonStyle(.gradient(.emeraldTeal))
+                .buttonStyle(.primary)
                 .disabled(chosen.isEmpty)
             }
         }
@@ -271,7 +270,7 @@ struct MenuChooserView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(on ? Color(hex: 0x10B981) : Color(light: 0x6EE7B7, dark: 0x047857))
+                    .foregroundStyle(on ? Theme.success : Theme.success)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(p.dish).font(.system(size: 15, weight: .semibold))
@@ -281,7 +280,7 @@ struct MenuChooserView: View {
                     }
                     Text(p.why).font(.system(size: 14))
                     if let tweak = p.lighterTweak {
-                        Text("Ask for: \(tweak)").font(.system(size: 12)).foregroundStyle(Theme.emerald700)
+                        Text("Ask for: \(tweak)").font(.system(size: 12)).foregroundStyle(Theme.success)
                     }
                     if let kcal = p.kcalText {
                         Text(kcal).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
@@ -293,7 +292,7 @@ struct MenuChooserView: View {
             .padding(12)
             .background(Theme.background.opacity(0.9), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(on ? Color(hex: 0x10B981) : .clear, lineWidth: 2))
+                .strokeBorder(on ? Theme.success : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain)
         .foregroundStyle(Theme.foreground)

@@ -8,9 +8,10 @@ import UIKit
 struct ShareView: View {
     let model: ShareModel
 
-    private static let orange = Color(red: 0xF9 / 255, green: 0x73 / 255, blue: 0x16 / 255)
-    private static let rose = Color(red: 0xF4 / 255, green: 0x3F / 255, blue: 0x5E / 255)
-    private static let brand = LinearGradient(colors: [orange, rose], startPoint: .leading, endPoint: .trailing)
+    // Cookbook terracotta (the extension can't see the app's Theme).
+    private static let orange = Color(red: 0xB5 / 255, green: 0x46 / 255, blue: 0x2B / 255)
+    private static let rose = orange
+    private static let brand = orange
 
     var body: some View {
         NavigationStack {
@@ -115,7 +116,7 @@ struct ShareView: View {
                     .font(.system(size: 14)).foregroundStyle(.secondary)
                 if let notice {
                     Label(notice, systemImage: "info.circle")
-                        .font(.system(size: 13)).foregroundStyle(.orange)
+                        .font(.system(size: 13)).foregroundStyle(Self.orange)
                 }
             }
             primary("Done") { model.finish() }

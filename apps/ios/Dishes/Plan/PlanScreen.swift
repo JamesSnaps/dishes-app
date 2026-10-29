@@ -1,11 +1,14 @@
-// The meal planner, as the web's /meal-plan: week arrows and the orange + menu
-// (Add meal, Generate plan, add the week to the list), small pills for the next
-// order and the week's nutrition, a strip of seven day pills, then the chosen
-// day's meals as the web's entry cards — a combined meal as one card with its dishes.
+// The meal planner, as the web's /meal-plan: week arrows and the + menu (Add
+// meal, Generate plan, add the week to the list), small pills for the next
+// order and the week's nutrition, then the week in one of three layouts picked
+// by the planner's width, not the device (DESIGN.md → Planner):
 //
-// With room for it (≥1000pt: an iPad in landscape, or the 13-inch either way)
-// the whole week shows at once instead — seven day columns, each with its
-// meals and its own +. A layout the web could take up too.
+// - under 700pt (iPhone, Slide Over, ⅓ and ½ splits): fold-up days. The chosen
+//   day is open; the others are one row each — date, dinner, "+2 more", plates.
+// - 700–1100pt (iPad portrait, ⅔ split): the same rows on the left with the
+//   week at a glance under them, and the chosen day open on the right.
+// - 1100pt and up (iPad landscape, the 13-inch): seven day columns, each with
+//   its meals and its own +; drag a meal between days.
 //
 // Read from the local store, so paging weeks needs no network. Adding and
 // removing a dish are sync mutations (`meal_plan_entry.add` / `.delete`), so
@@ -41,23 +44,24 @@ struct PlanScreen: View {
         var plannedHere: [String]
     }
 
-    private var wholeWeek: Bool { pageWidth >= 1000 }
+    private enum Layout { case fold, split, grid }
+
+    private var layout: Layout { pageWidth >= 1100 ? .grid : pageWidth >= 700 ? .split : .fold }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     header
-                    if wholeWeek {
-                        weekGrid
-                    } else {
-                        dayStrip
-                        dayDetail
+                    switch layout {
+                    case .grid: weekGrid
+                    case .split: splitView
+                    case .fold: foldView
                     }
                 }
                 .padding(.horizontal, width == .regular ? 32 : 16)
                 .padding(.vertical, 18)
-                .frame(maxWidth: wholeWeek ? .infinity : 900)
+                .frame(maxWidth: layout == .fold ? 700 : .infinity)
                 .frame(maxWidth: .infinity)
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
@@ -167,7 +171,7 @@ struct PlanScreen: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Previous week")
                 Text(week.title)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(Theme.serif(width == .regular ? 32 : 26))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 if !week.isCurrent {
@@ -187,7 +191,7 @@ struct PlanScreen: View {
         }
     }
 
-    /// The orange +: add a meal to the chosen day, generate a plan, or put
+    /// The +: add a meal to the chosen day, generate a plan, or put
     /// the week's meals on the shopping list.
     private var addMenu: some View {
         let plan = data.value.plan(for: week)
@@ -206,10 +210,9 @@ struct PlanScreen: View {
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 38, height: 38)
+                .foregroundStyle(Theme.brandForeground)
+                .frame(width: 44, height: 44)
                 .background(Theme.brand, in: Circle())
-                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add or plan")
@@ -220,74 +223,150 @@ struct PlanScreen: View {
         selectedDay = week.isCurrent ? Week.todayIndex : 0
     }
 
-    // MARK: Day strip (week-planner.tsx DayChip)
+    // MARK: Fold-up days and the split view (planner-layouts.tsx)
 
-    private var dayStrip: some View {
-        HStack(spacing: width == .regular ? 10 : 6) {
+    /// Under 700pt: the chosen day open where it falls in the week, the rest folded.
+    private var foldView: some View {
+        VStack(spacing: 6) {
             ForEach(0..<7, id: \.self) { day in
-                let date = week.day(day)
-                let isToday = Calendar.current.isDateInToday(date)
-                let selected = day == selectedDay
-                let count = data.value.meals(on: day, in: week).count + data.value.outsideMeals(on: day, in: week).count
-                let away = extras.deliveries?.away(on: localDateKey(date)) != nil
-                let out = data.value.notCooking("dinner", on: day, in: week) != nil
-                Button { selectedDay = day } label: {
-                    VStack(spacing: 4) {
-                        Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
-                            .font(.system(size: 10, weight: .semibold))
-                            .tracking(0.4)
-                            .foregroundStyle(selected || isToday ? Theme.brand : Theme.mutedForeground)
-                        Text(date.formatted(.dateTime.day()))
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(selected ? Theme.brand : isToday ? Theme.brand.opacity(0.8) : Theme.foreground)
-                        // One row for everything else about the day, so nothing
-                        // crowds the corners. Away shows as the tile's tint; the
-                        // plane only when today's or the chosen day's colours hide it.
-                        HStack(spacing: 3) {
-                            if count > 0 {
-                                Text("\(count)")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(Theme.brandDeep)
-                                    .frame(minWidth: 16, minHeight: 14)
-                                    .background(Theme.brand.opacity(0.15), in: Capsule())
-                            }
-                            if out {
-                                Image(systemName: "fork.knife")
-                                    .foregroundStyle(Color(light: 0xD97706, dark: 0xFBBF24))
-                            }
-                            if away && (selected || isToday) {
-                                Image(systemName: "airplane")
-                                    .foregroundStyle(Color(light: 0x0EA5E9, dark: 0x38BDF8))
-                            }
-                        }
-                        .font(.system(size: 9, weight: .semibold))
-                        .frame(minHeight: 14)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background(selected || isToday ? AnyShapeStyle(Theme.orange50.opacity(selected ? 1 : 0.6))
-                                : away ? AnyShapeStyle(Self.awayFill) : AnyShapeStyle(Theme.muted.opacity(0.4)),
-                                in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel([date.formatted(.dateTime.weekday(.wide).day().month(.wide)),
-                                         count > 0 ? "\(count) meal\(count == 1 ? "" : "s")" : nil,
-                                         out ? "not cooking" : nil, away ? "away" : nil]
-                        .compactMap { $0 }.joined(separator: ", "))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(selected ? Color(hex: 0xFB923C) : isToday ? Color(hex: 0xFDBA74).opacity(0.6)
-                                      : away ? Color(light: 0xC8EBFD, dark: 0x093449) : .clear,
-                                      lineWidth: selected || isToday ? 2 : 1))
+                if day == selectedDay {
+                    dayDetail
+                        .padding(16)
+                        .panel(fill: Theme.highlight)
+                        .dropDestination(for: String.self) { items, _ in drop(items, on: day) }
+                } else {
+                    dayRow(day)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
 
-    /// A day away: sky-100 → sky-50, or sky-950 over the page in the dark
-    /// (week-planner.tsx DayChip).
-    private static let awayFill = LinearGradient(colors: [Color(light: 0xE0F2FE, dark: 0x06233A),
-                                                          Color(light: 0xF0F9FF, dark: 0x051B30)],
-                                                 startPoint: .top, endPoint: .bottom)
+    /// 700–1100pt: the folded rows and the week at a glance, the chosen day beside them.
+    private var splitView: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 6) {
+                ForEach(0..<7, id: \.self) { dayRow($0) }
+                weekGlance.padding(.top, 10)
+            }
+            .frame(width: 290)
+            dayDetail
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .panel(fill: Theme.highlight)
+        }
+    }
+
+    /// A folded day: the date, its dinner (or first meal), "+2 more · 3 meals"
+    /// and up to three plates. A meal dragged onto it moves there.
+    private func dayRow(_ day: Int) -> some View {
+        let date = week.day(day)
+        let isToday = Calendar.current.isDateInToday(date)
+        let meals = data.value.meals(on: day, in: week)
+        let outside = data.value.outsideMeals(on: day, in: week)
+        let count = meals.count + outside.count
+        let dinnerOut = outside.first { $0.mealType == "dinner" }
+        let lead = meals.first { $0.mealType == "dinner" } ?? meals.first
+        let title: String? = dinnerOut?.label
+            ?? lead.map { $0.title ?? $0.dishes.first?.recipe?.title ?? "A meal" }
+            ?? outside.first?.label
+        // A meal out or a combined meal's name is set in italic.
+        let italic = dinnerOut != nil || lead?.title != nil || (lead == nil && !outside.isEmpty)
+        let plates = Array(meals.compactMap { m in
+            m.dishes.first(where: { $0.recipe?.imageUrl != nil })?.recipe ?? m.dishes.first?.recipe
+        }.prefix(3))
+        let away = extras.deliveries?.away(on: localDateKey(date)) != nil
+        let highlighted = layout == .split && day == selectedDay
+        return Button { withAnimation(.snappy) { selectedDay = day } } label: {
+            HStack(spacing: 12) {
+                VStack(spacing: 1) {
+                    Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1)
+                        .foregroundStyle(isToday ? Theme.brand : Theme.mutedForeground)
+                    Text(date.formatted(.dateTime.day()))
+                        .font(Theme.serif(24))
+                        .foregroundStyle(isToday ? Theme.brand : Theme.foreground)
+                }
+                .frame(width: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title ?? "Nothing planned")
+                        .font(Theme.serif(16, weight: title == nil ? .regular : .semibold, italic: italic || title == nil))
+                        .foregroundStyle(title == nil ? Theme.mutedForeground : Theme.foreground)
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        if count > 1 { Text("+\(count - 1) more · \(count) meals") }
+                        if dinnerOut != nil { Image(systemName: "fork.knife") }
+                        if away { Image(systemName: "airplane") }
+                    }
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.mutedForeground)
+                }
+                Spacer(minLength: 4)
+                HStack(spacing: -10) {
+                    ForEach(Array(plates.enumerated()), id: \.offset) { _, recipe in
+                        RecipeImage(recipe: recipe)
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Theme.background, lineWidth: 2))
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(highlighted ? Theme.card : isToday ? Theme.highlight : .clear,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: .black.opacity(highlighted ? 0.06 : 0), radius: 4, y: 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .dropDestination(for: String.self) { items, _ in
+            drop(items, on: day)
+        } isTargeted: { over in
+            dropTarget = over ? day : (dropTarget == day ? nil : dropTarget)
+        }
+        .overlay {
+            if dropTarget == day {
+                RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.brand, lineWidth: 2)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([date.formatted(.dateTime.weekday(.wide).day().month(.wide)),
+                             title ?? "nothing planned",
+                             count > 1 ? "\(count) meals" : nil, away ? "away" : nil]
+            .compactMap { $0 }.joined(separator: ", "))
+        .accessibilityAddTraits(day == selectedDay ? .isSelected : [])
+    }
+
+    /// Dinners planned and meals in all, under the day list.
+    private var weekGlance: some View {
+        let dinners = (0..<7).filter { day in
+            data.value.meals(on: day, in: week).contains { $0.mealType == "dinner" }
+                || data.value.notCooking("dinner", on: day, in: week) != nil
+        }.count
+        let meals = (0..<7).reduce(0) { $0 + data.value.meals(on: $1, in: week).count + data.value.outsideMeals(on: $1, in: week).count }
+        return VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(text: "Week at a glance")
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("\(dinners)/7").font(Theme.serif(24))
+                    Text("dinners planned").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Rectangle().fill(Theme.border).frame(width: 1).padding(.trailing, 12)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("\(meals)").font(Theme.serif(24))
+                    Text("meals in all").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(Theme.foreground)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .panel()
+    }
 
     // MARK: Actions
 
@@ -314,46 +393,53 @@ struct PlanScreen: View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Text(date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(Calendar.current.isDateInToday(date) ? Theme.brand : Theme.foreground)
+                    .font(Theme.serif(24))
+                    .foregroundStyle(Theme.foreground)
                 if Calendar.current.isDateInToday(date) {
-                    Text("Today")
-                        .font(.system(size: 12, weight: .semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Theme.orange50, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Color(hex: 0xFED7AA)))
-                        .foregroundStyle(Theme.brandDeep)
+                    BadgeView(text: "Today", style: .brand)
                 }
             }
-            .padding(.top, 6)
             FlowLayout(spacing: 8) { dayChips(selectedDay) }
 
             if meals.isEmpty && outside.isEmpty {
-                EmptyBox(message: "No meals planned for this day")
+                Text("Nothing planned for this day yet.")
+                    .font(Theme.serif(18, weight: .regular, italic: true))
+                    .foregroundStyle(Theme.mutedForeground)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
             }
             ForEach(outside) { meal in
                 Button { openOutside(meal, day: selectedDay) } label: { OutsideMealCard(meal: meal) }
                     .buttonStyle(.plain)
             }
+            // Each slot named once, over its first meal (DESIGN.md → Planner).
+            let firsts = Set(meals.indices.filter { $0 == 0 || meals[$0 - 1].mealType != meals[$0].mealType }.map { meals[$0].id })
             // iOS 27: drag a meal up or down to arrange the day (D6).
             VStack(alignment: .leading, spacing: 12) {
                 if #available(iOS 27, *) {
-                    ForEach(meals) { mealCard($0, day: selectedDay) }.reorderable()
+                    ForEach(meals) { mealCard($0, day: selectedDay, labelled: firsts.contains($0.id)) }.reorderable()
                 } else {
-                    ForEach(meals) { mealCard($0, day: selectedDay) }
+                    ForEach(meals) { mealCard($0, day: selectedDay, labelled: firsts.contains($0.id)) }
                 }
             }
             .modifier(ReorderDay { sources, before in reorder(sources, before: before, in: meals) })
 
-            Button { adding = true } label: { Label("Add meal", systemImage: "plus") }
-                .buttonStyle(.gradient(.violetIndigo))
-                .padding(.top, 4)
+            Button { adding = true } label: {
+                Label("Add meal", systemImage: "plus")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.brand)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .overlay(Capsule().strokeBorder(Theme.input, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
         }
     }
 
-    private func mealCard(_ meal: PlannedMeal, day: Int) -> some View {
+    private func mealCard(_ meal: PlannedMeal, day: Int, labelled: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            if labelled { SectionLabel(text: meal.mealType).padding(.top, 4) }
             Group {
                 if meal.title != nil {
                     MealGroupCard(meal: meal, delete: delete, cook: cook)
@@ -366,7 +452,7 @@ struct PlanScreen: View {
             if data.value.notCooking(meal.mealType, on: day, in: week) != nil {
                 Label("Not cooking this \(meal.mealType) — it isn’t counted. Move it to another day to keep it.", systemImage: "fork.knife")
                     .font(.system(size: 12))
-                    .foregroundStyle(Color(hex: 0x92400E))
+                    .foregroundStyle(Theme.warning)
                     .padding(.horizontal, 4)
             }
         }
@@ -407,22 +493,12 @@ struct PlanScreen: View {
                 let isToday = Calendar.current.isDateInToday(date)
                 VStack(alignment: .leading, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
-                            .font(.system(size: 11, weight: .semibold))
-                            .tracking(0.5)
-                            .foregroundStyle(isToday ? Theme.brand : Theme.mutedForeground)
+                        SectionLabel(text: date.formatted(.dateTime.weekday(.abbreviated)), brand: isToday)
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(date.formatted(.dateTime.day()))
-                                .font(.system(size: 22, weight: .bold))
+                                .font(Theme.serif(24))
                                 .foregroundStyle(isToday ? Theme.brand : Theme.foreground)
-                            if isToday {
-                                Text("Today")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 1)
-                                    .background(Theme.orange50, in: Capsule())
-                                    .foregroundStyle(Theme.brandDeep)
-                            }
+                            if isToday { BadgeView(text: "Today", style: .brand) }
                         }
                         VStack(alignment: .leading, spacing: 6) { dayChips(day, compact: true) }
                     }
@@ -447,10 +523,10 @@ struct PlanScreen: View {
                         Image(systemName: "plus")
                             .font(.system(size: 14, weight: .semibold))
                             .frame(maxWidth: .infinity, minHeight: 36)
-                            .foregroundStyle(Theme.mutedForeground)
-                            .background(Theme.muted.opacity(0.25), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(Theme.border, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                            .foregroundStyle(Theme.brand)
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Theme.input, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+                            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Add a meal on \(date.formatted(.dateTime.weekday(.wide)))")
@@ -469,10 +545,9 @@ struct PlanScreen: View {
                             .strokeBorder(Theme.brand, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     }
                 }
-                .background(isToday ? Theme.orange50.opacity(0.5) : Theme.muted.opacity(0.3),
-                            in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(isToday ? Color(hex: 0xFDBA74).opacity(0.7) : .clear, lineWidth: 1.5))
+                // Today's column on highlight (DESIGN.md → Planner, week grid).
+                .background(isToday ? Theme.highlight : Theme.muted.opacity(0.45),
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         }
     }
@@ -749,7 +824,7 @@ struct WeekMealCard: View {
             VStack(alignment: .leading, spacing: 5) {
                 MealTypePill(type: meal.mealType)
                 if let title = meal.title {
-                    Text(title).font(.system(size: 14, weight: .bold)).lineLimit(2)
+                    Text(title).font(Theme.serif(15, italic: true)).lineLimit(2)
                     ForEach(meal.dishes, id: \.entry.id) { dish in
                         Text("· \(dish.recipe?.title ?? "A dish")")
                             .font(.system(size: 12))
@@ -758,7 +833,7 @@ struct WeekMealCard: View {
                     }
                 } else if let dish = meal.dishes.first {
                     Text(dish.recipe?.title ?? dish.entry.notes ?? "A meal")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(Theme.serif(15))
                         .lineLimit(3)
                     if let time = Format.shortMinutes(dish.recipe?.totalMinutes) {
                         Label(time, systemImage: "clock")
@@ -772,7 +847,7 @@ struct WeekMealCard: View {
             .padding(9)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(radius: 10)
+        .panel(radius: 14, fill: Theme.card)
     }
 
     @ViewBuilder private var menu: some View {
@@ -802,7 +877,9 @@ struct EntryCard: View {
     let recipe: Recipe?
     let delete: (MealPlanEntry) -> Void
     let cook: () -> Void
-    var showsType = true
+    /// The day names each slot over its meals now, so the card needn't.
+    var showsType = false
+    var fill: Color = Theme.card
 
     var body: some View {
         HStack(spacing: 0) {
@@ -812,11 +889,12 @@ struct EntryCard: View {
                         if let recipe {
                             RecipeImage(recipe: recipe)
                         } else {
-                            ZStack { Theme.muted; Text("🍽").font(.system(size: 28)).opacity(0.4) }
+                            PlateView()
                         }
                     }
-                    .frame(width: 96, height: 96)
-                    .clipped()
+                    .frame(width: 80, height: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .padding(.leading, 8)
 
                     VStack(alignment: .leading, spacing: 5) {
                         if showsType { MealTypePill(type: entry.mealType) }
@@ -825,12 +903,12 @@ struct EntryCard: View {
                                 .font(.system(size: 11, weight: .semibold))
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 2)
-                                .background(Theme.emerald100, in: Capsule())
-                                .foregroundStyle(Theme.emerald700)
+                                .background(Theme.successTint, in: Capsule())
+                                .foregroundStyle(Theme.success)
                                 .labelStyle(TightLabel())
                         }
                         Text(recipe?.title ?? entry.notes ?? "A meal")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(Theme.serif(17))
                             .foregroundStyle(Theme.foreground)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
@@ -854,7 +932,6 @@ struct EntryCard: View {
             .buttonStyle(.plain)
             .disabled(recipe == nil)
 
-            Rectangle().fill(Theme.border).frame(width: 1)
             Menu {
                 if recipe?.steps.isEmpty == false {
                     Button("Cook", systemImage: "frying.pan", action: cook)
@@ -872,11 +949,11 @@ struct EntryCard: View {
             }
         }
         .frame(height: 96)
-        .card()
+        .panel(fill: fill)
     }
 }
 
-/// bg-{meal}-50 text-{meal}-500 rounded-full with the meal's icon.
+/// The slot's name and icon, in neutral: Cookbook doesn't colour-code slots.
 struct MealTypePill: View {
     let type: String
 
@@ -886,8 +963,8 @@ struct MealTypePill: View {
             .font(.system(size: 12, weight: .semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .background(Theme.mealBackground(type), in: Capsule())
-            .foregroundStyle(Theme.mealColor(type))
+            .background(Theme.secondary, in: Capsule())
+            .foregroundStyle(Theme.secondaryForeground)
     }
 }
 
@@ -900,33 +977,32 @@ struct MealGroupCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                MealTypePill(type: meal.mealType)
-                Text(meal.title ?? "Meal").font(.system(size: 16, weight: .bold))
+                Text(meal.title ?? "Meal").font(Theme.serif(18, italic: true))
                 if let serveAt = meal.serveAt {
                     Label(serveAt, systemImage: "alarm")
                         .labelStyle(TightLabel())
                         .font(.system(size: 12, weight: .semibold))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
-                        .background(Theme.amber50, in: Capsule())
-                        .foregroundStyle(Color(hex: 0xB45309))
+                        .background(Theme.highlight, in: Capsule())
+                        .foregroundStyle(Theme.brand)
                 }
                 Spacer()
                 if meal.dishes.contains(where: { $0.recipe?.steps.isEmpty == false }) {
                     Button { cook(meal) } label: {
                         Label("Cook", systemImage: "frying.pan").font(.system(size: 13, weight: .semibold))
                     }
-                    .buttonStyle(GradientButtonStyle(gradient: .brand, height: 32))
+                    .buttonStyle(PillButtonStyle(kind: .primary, height: 34))
                     .fixedSize()
                 }
                 MealMenu(meal: meal)
             }
             ForEach(meal.dishes, id: \.entry.id) { dish in
-                EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete, cook: { cook(meal) }, showsType: false)
+                EntryCard(entry: dish.entry, recipe: dish.recipe, delete: delete, cook: { cook(meal) }, fill: Theme.muted)
             }
         }
         .padding(12)
-        .callout(Theme.orange50, Theme.rose50, border: Color(hex: 0xFED7AA).opacity(0.7))
+        .panel(fill: Theme.card)
     }
 }
 
@@ -956,13 +1032,13 @@ struct MealDetailView: View {
                         Button { Task { await toggleLockScreen() } } label: {
                             Label("Remove from Lock Screen", systemImage: "lock.slash")
                         }
-                        .buttonStyle(.outline)
+                        .buttonStyle(.secondary)
                     } else {
                         Button { Task { await toggleLockScreen() } } label: {
                             Label(meal.serveAt.map { "Show schedule on Lock Screen · ready \($0)" } ?? "Show schedule on Lock Screen",
                                   systemImage: "lock.iphone")
                         }
-                        .buttonStyle(.gradient(.orangeRose))
+                        .buttonStyle(.primary)
                         .disabled(starting)
                     }
                 }
@@ -1097,7 +1173,7 @@ struct AddMealSheet: View {
                         Image(systemName: "square.stack.3d.up.fill")
                             .foregroundStyle(Theme.brand)
                             .frame(width: 52, height: 52)
-                            .background(Theme.orange50, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .background(Theme.highlight, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         VStack(alignment: .leading, spacing: 3) {
                             Text(meal.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.foreground)
                             Text(meal.slots.map { $0.label ?? $0.role?.capitalized ?? "Dish" }.joined(separator: " · "))
@@ -1199,7 +1275,7 @@ struct SavedMealChooser: View {
             Button { add(Array(chosen)) } label: {
                 Label("Add \(meal.title)", systemImage: "plus")
             }
-            .buttonStyle(.brand)
+            .buttonStyle(.primary)
             .disabled(chosen.isEmpty)
             .padding(16)
             .background(.bar)

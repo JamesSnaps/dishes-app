@@ -50,12 +50,12 @@ struct CookAssistSheet: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("STEP \(stepIndex + 1) · \(dish.recipe.title.uppercased())")
                                         .font(.system(size: 12, weight: .semibold)).tracking(0.6)
-                                        .foregroundStyle(Theme.brandDeep)
+                                        .foregroundStyle(Theme.brand)
                                     Text(step.instruction).font(.system(size: 15))
                                 }
                                 .padding(14)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Theme.orange50, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .background(Theme.highlight, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                             }
                             if !previous.isEmpty {
                                 previousSection
@@ -68,7 +68,7 @@ struct CookAssistSheet: View {
                                             .padding(.horizontal, 12)
                                             .frame(height: 34)
                                             .foregroundStyle(Theme.foreground)
-                                            .background(Theme.violet50, in: Capsule())
+                                            .background(Theme.muted, in: Capsule())
                                             .buttonStyle(.plain)
                                     }
                                 }
@@ -102,9 +102,9 @@ struct CookAssistSheet: View {
                     Button(action: send) {
                         Image(systemName: answering ? "ellipsis" : "arrow.up")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.brandForeground)
                             .frame(width: 40, height: 40)
-                            .background(Theme.brandGradient, in: Circle())
+                            .background(Theme.brand, in: Circle())
                     }
                     .buttonStyle(.plain)
                     .disabled(answering || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -159,7 +159,7 @@ struct CookAssistSheet: View {
                 .font(.system(size: 15))
                 .padding(12)
                 .foregroundStyle(mine ? .white : Theme.foreground)
-                .background(mine ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Theme.muted),
+                .background(mine ? AnyShapeStyle(Theme.brand) : AnyShapeStyle(Theme.muted),
                             in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .textSelection(.enabled)
             if !mine { Spacer(minLength: 40) }

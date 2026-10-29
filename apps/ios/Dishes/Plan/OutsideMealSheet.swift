@@ -142,10 +142,10 @@ struct OutsideMealSheet: View {
                 if !plannedHere.isEmpty {
                     Text("\(plannedHere.joined(separator: ", ")) \(plannedHere.count == 1 ? "is" : "are") still planned here. It won’t count towards the week’s nutrition — move it to another day if you still want to make it.")
                         .font(.system(size: 13))
-                        .foregroundStyle(Color(hex: 0x92400E))
+                        .foregroundStyle(Theme.brand)
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Theme.amber50, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(Theme.warningTint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
 
@@ -162,10 +162,10 @@ struct OutsideMealSheet: View {
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.brandForeground)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .background(Theme.Gradient.emeraldTeal.linear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Theme.brand, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
                 }
                 .buttonStyle(.plain)
@@ -243,7 +243,7 @@ struct OutsideMealSheet: View {
                 default: Label(meal != nil ? "Save" : isPlan ? "Keep this slot free" : "Log it", systemImage: "checkmark")
                 }
             }
-            .buttonStyle(.gradient(.orangeRose))
+            .buttonStyle(.primary)
             .disabled(saving != nil || readingMenu)
 
             if meal != nil {
@@ -251,7 +251,7 @@ struct OutsideMealSheet: View {
                     Label(confirmRemove ? "Tap again to remove it" : "Remove", systemImage: "trash")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
                 .disabled(saving != nil)
             }
         }
@@ -270,13 +270,12 @@ struct OutsideMealSheet: View {
                         Text(k.label).font(.system(size: 12, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
                     }
                     .frame(maxWidth: .infinity, minHeight: 62)
-                    .foregroundStyle(on ? Color(light: 0x7C2D12, dark: 0xFDBA74) : Theme.mutedForeground)
-                    .background(on ? AnyShapeStyle(LinearGradient(colors: [Color(light: 0xFFEDD5, dark: 0x2A1608), Color(light: 0xFFE4E6, dark: 0x2A0E14)],
-                                                                  startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .foregroundStyle(on ? Theme.brand : Theme.mutedForeground)
+                    .background(on ? AnyShapeStyle(Theme.highlight)
                                    : AnyShapeStyle(Theme.muted.opacity(0.6)),
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(on ? Color(hex: 0xFB923C) : .clear, lineWidth: 2))
+                        .strokeBorder(on ? Theme.brand : .clear, lineWidth: 2))
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(on ? .isSelected : [])
@@ -289,7 +288,7 @@ struct OutsideMealSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("From the menu", systemImage: "doc.text")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color(light: 0x075985, dark: 0x7DD3FC))
+                .foregroundStyle(Theme.ink)
             Text(courses.isEmpty
                  ? "The menu’s description says what’s in the dish — the best guide to its nutrition. A photo of it is read on this \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"); trim the text to the dish you had."
                  : "Each course’s line can go on its card — or put the menu here and the AI matches them up.")
@@ -310,7 +309,7 @@ struct OutsideMealSheet: View {
             photoRow(.menu)
         }
         .padding(14)
-        .callout(Color(light: 0xF0F9FF, dark: 0x0B2233), Theme.indigo50, border: Color(light: 0xBAE6FD, dark: 0x0C4A6E))
+        .panel()
     }
 
     /// A card per course, and buttons to add one of each kind (the web's CoursesField).
@@ -343,7 +342,7 @@ struct OutsideMealSheet: View {
                     photoRow(.course(c.id))
                 }
                 .padding(14)
-                .callout(Self.courseTint(c.course).0, Self.courseTint(c.course).1, border: Theme.border)
+                .panel()
             }
             if courses.count < 8 {
                 FlowLayout(spacing: 8) {
@@ -353,10 +352,9 @@ struct OutsideMealSheet: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .padding(.horizontal, 12)
                                 .frame(height: 32)
-                                .foregroundStyle(Color(light: 0x9A3412, dark: 0xFDBA74))
-                                .background(LinearGradient(colors: [Theme.orange50, Color(light: 0xFFF1F2, dark: 0x2A0E14)],
-                                                           startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
-                                .overlay(Capsule().strokeBorder(Color(light: 0xFDBA74, dark: 0x9A3412)))
+                                .foregroundStyle(Theme.brand)
+                                .background(Theme.highlight, in: Capsule())
+                                .overlay(Capsule().strokeBorder(Theme.brand))
                         }
                         .buttonStyle(.plain)
                     }
@@ -386,11 +384,11 @@ struct OutsideMealSheet: View {
 
     static func courseTint(_ kind: OutsideMeal.Course.Kind) -> (Color, Color) {
         switch kind {
-        case .starter: (Color(light: 0xECFDF5, dark: 0x052E1F), Color(light: 0xF0FDFA, dark: 0x082A28))
-        case .main: (Color(light: 0xFFF7ED, dark: 0x2A1505), Color(light: 0xFFF1F2, dark: 0x2A0E14))
-        case .side: (Color(light: 0xFFFBEB, dark: 0x2A1C05), Color(light: 0xFEFCE8, dark: 0x262005))
-        case .dessert: (Color(light: 0xFDF2F8, dark: 0x2A0F1F), Color(light: 0xFDF4FF, dark: 0x26102A))
-        case .drink: (Color(light: 0xF0F9FF, dark: 0x0B2233), Theme.indigo50)
+        case .starter: (Theme.successTint, Theme.successTint)
+        case .main: (Theme.highlight, Theme.highlight)
+        case .side: (Theme.warningTint, Theme.warningTint)
+        case .dessert: (Theme.highlight, Theme.muted)
+        case .drink: (Theme.muted, Theme.muted)
         }
     }
 
@@ -447,12 +445,12 @@ struct OutsideMealSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     Button { camera = slot } label: { Label("Take a photo", systemImage: "camera") }
-                        .buttonStyle(.outline)
+                        .buttonStyle(.secondary)
                 }
                 PhotosPicker(selection: Binding(get: { picking }, set: { pickingFor = slot; picking = $0 }), matching: .images) {
                     Label(shown == nil && stored == nil ? "Choose a photo" : "Choose another", systemImage: "photo")
                 }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
             }
         }
     }
@@ -465,7 +463,7 @@ struct OutsideMealSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Label(meal.title ?? "Your meal", systemImage: "sparkles")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x6D28D9))
+                        .foregroundStyle(Theme.ink)
                     if !meal.courses.isEmpty {
                         OutsideMealCourses(meal: meal)
                     } else if !meal.components.isEmpty {
@@ -475,26 +473,26 @@ struct OutsideMealSheet: View {
                     if let error {
                         Text("\(error) These are the figures from before.")
                             .font(.system(size: 12))
-                            .foregroundStyle(Color(hex: 0x92400E))
+                            .foregroundStyle(Theme.brand)
                             .padding(8)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Theme.amber50, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .background(Theme.warningTint, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     OutsideMealFigures(meal: meal)
                     Text("Restaurant food is hard to pin down — hidden butter and oil, unknown portions — so treat this as a rough guide.")
                         .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
                 }
                 .padding(16)
-                .callout(Theme.violet50, Theme.pink50, border: Color(hex: 0xDDD6FE))
+                .panel()
             } else {
                 Text("\(error ?? "No estimate this time.") The meal is saved; its protein still counts from what you described.")
                     .font(.system(size: 14))
-                    .foregroundStyle(Color(hex: 0x92400E))
+                    .foregroundStyle(Theme.brand)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Theme.amber50, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Theme.warningTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            Button("Done") { dismiss() }.buttonStyle(.brand)
+            Button("Done") { dismiss() }.buttonStyle(.primary)
         }
         .padding(20)
         .frame(maxWidth: 560)
@@ -824,8 +822,8 @@ struct OutsideMealFigures: View {
                         .font(.system(size: 11, weight: .semibold))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Theme.violet50, in: Capsule())
-                        .foregroundStyle(Color(hex: 0x6D28D9))
+                        .background(Theme.muted, in: Capsule())
+                        .foregroundStyle(Theme.ink)
                 }
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
@@ -881,15 +879,6 @@ struct OutsideMealCard: View {
 
     private var isPast: Bool { meal.date <= localDateKey(Date()) }
 
-    private var tint: (from: Color, to: Color, border: Color, icon: [Color]) {
-        switch meal.kind {
-        case .eatOut: (Color(light: 0xFEF3C7, dark: 0x2A1C05), Color(light: 0xFFE4E6, dark: 0x2A0E14), Color(hex: 0xFCD34D), [Color(hex: 0xF59E0B), Color(hex: 0xF43F5E)])
-        case .takeaway: (Color(light: 0xEDE9FE, dark: 0x1C1433), Color(light: 0xFCE7F3, dark: 0x2A0F1F), Color(hex: 0xC4B5FD), [Color(hex: 0x8B5CF6), Color(hex: 0xEC4899)])
-        case .atFriends: (Color(light: 0xD1FAE5, dark: 0x052E1F), Color(light: 0xE0F2FE, dark: 0x0B2233), Color(hex: 0x6EE7B7), [Color(hex: 0x10B981), Color(hex: 0x0EA5E9)])
-        case .skipped: (Theme.muted, Theme.muted.opacity(0.6), Theme.border, [Color(hex: 0x94A3B8), Color(hex: 0x71717A)])
-        }
-    }
-
     private var detail: String {
         if meal.kind == .skipped { return "Not eaten" }
         let courses = meal.courses.count > 1 ? "\(meal.courses.count) courses · " : ""
@@ -906,7 +895,6 @@ struct OutsideMealCard: View {
     }
 
     var body: some View {
-        let colours = tint
         HStack(spacing: 12) {
             Group {
                 if let url = app.imageURL(meal.coverPhotoUrl), !compact {
@@ -914,15 +902,15 @@ struct OutsideMealCard: View {
                         if let image = phase.image { image.resizable().scaledToFill() } else { Theme.muted }
                     }
                 } else {
-                    LinearGradient(colors: colours.icon, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    // DESIGN.md → Planner: a fork-and-knife tile on the plate colour.
+                    Theme.plate
                         .overlay(Image(systemName: OutsideMealSheet.icon(meal.kind))
                             .font(.system(size: compact ? 14 : 20, weight: .semibold))
-                            .foregroundStyle(.white))
+                            .foregroundStyle(Theme.foreground.opacity(0.7)))
                 }
             }
             .frame(width: compact ? 30 : 48, height: compact ? 30 : 48)
-            .clipShape(RoundedRectangle(cornerRadius: compact ? 8 : 10, style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+            .clipShape(RoundedRectangle(cornerRadius: compact ? 8 : 12, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(meal.mealType.capitalized) · \(meal.kind.label)")
@@ -930,7 +918,7 @@ struct OutsideMealCard: View {
                     .foregroundStyle(Theme.mutedForeground)
                     .lineLimit(1)
                 Text(meal.label)
-                    .font(.system(size: compact ? 13 : 16, weight: .bold))
+                    .font(Theme.serif(compact ? 14 : 17, italic: true))
                     .foregroundStyle(Theme.foreground)
                     .lineLimit(compact ? 2 : 1)
                 if !compact {
@@ -949,8 +937,7 @@ struct OutsideMealCard: View {
         }
         .padding(compact ? 8 : 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .callout(colours.from, colours.to, border: colours.border.opacity(0.7))
-        .shadow(color: .black.opacity(0.05), radius: 3, y: 2)
+        .panel(fill: Theme.card)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens it to edit")

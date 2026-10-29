@@ -43,7 +43,7 @@ struct MealReviewSheet: View {
                     VStack(spacing: 6) {
                         Image(systemName: "fork.knife.circle.fill")
                             .font(.system(size: 44))
-                            .foregroundStyle(Theme.brandGradient)
+                            .foregroundStyle(Theme.brand)
                         Text("Meal finished").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.brand)
                         Text(title).font(.system(size: 26, weight: .bold))
                         Text("How did the whole meal go?").font(.system(size: 15)).foregroundStyle(Theme.mutedForeground)
@@ -117,7 +117,7 @@ struct MealReviewSheet: View {
                     Button { Task { await save(later: false) } } label: {
                         Label(saving ? "Saving…" : "Save the meal", systemImage: "checkmark")
                     }
-                    .buttonStyle(.brand)
+                    .buttonStyle(.primary)
                     .disabled(saving)
                 }
                 .padding(20)
@@ -186,7 +186,7 @@ struct MealReviewSheet: View {
             }
         }
         .padding(16)
-        .callout(Theme.orange50, Theme.amber50, border: Color(hex: 0xFED7AA).opacity(0.7))
+        .panel()
     }
 
     @ViewBuilder private var photoField: some View {
@@ -205,12 +205,12 @@ struct MealReviewSheet: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button { usingCamera = true } label: { Label("Take a photo", systemImage: "camera") }.buttonStyle(.outline)
+                    Button { usingCamera = true } label: { Label("Take a photo", systemImage: "camera") }.buttonStyle(.secondary)
                 }
                 PhotosPicker(selection: $picked, matching: .images) {
                     Label(photo == nil ? "Choose a photo" : "Choose another", systemImage: "photo")
                 }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
             }
         }
     }

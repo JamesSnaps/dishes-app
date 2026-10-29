@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   Button,
+  Plate,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -51,7 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ComponentSuggestions } from "@/components/meals/component-suggestions";
 import { AddEntryDialog } from "./add-entry-dialog";
 import { MealScheduleDialog } from "./meal-schedule-dialog";
-import { MEAL_BG, MEAL_COLOR, MEAL_ICON, MEAL_LABELS } from "./entry-card";
+import { MEAL_COLOR, MEAL_ICON, MEAL_LABELS } from "./entry-card";
 import type { PlanWriter } from "./plan-writer";
 import type { SavedMeal } from "@/lib/services/meals";
 import { slotName, withArticle } from "@/lib/saved-meals";
@@ -62,10 +63,10 @@ type MealType = Entry["mealType"];
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 const ROLE_CHIP: Record<MealRole, string> = {
-  main: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-  side: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  sauce: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
-  other: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
+  main: "bg-highlight text-primary",
+  side: "bg-secondary text-secondary-foreground",
+  sauce: "bg-secondary text-secondary-foreground",
+  other: "bg-secondary text-secondary-foreground",
 };
 
 /** Main first, then sides, sauces, extras. */
@@ -293,7 +294,7 @@ export function MealGroupCard({
       <li
         ref={dragNodeRef}
         {...(dragAttributes ?? {})}
-        className={`list-none rounded-2xl overflow-hidden border border-orange-200/70 dark:border-orange-900/50 bg-gradient-to-br from-orange-50 via-amber-50/80 to-rose-50 dark:from-orange-950/30 dark:via-amber-950/15 dark:to-rose-950/25 shadow-md transition-all ${
+        className={`list-none rounded-2xl overflow-hidden bg-card transition-all ${
           pending || isDragging ? "opacity-40" : ""
         }`}
       >
@@ -302,7 +303,7 @@ export function MealGroupCard({
           {dragListeners ? (
             <div
               {...dragListeners}
-              className="flex-shrink-0 flex items-center justify-center px-1 cursor-grab active:cursor-grabbing touch-none text-orange-900/25 hover:text-orange-900/50 dark:text-orange-100/25 transition-colors"
+              className="flex-shrink-0 flex items-center justify-center px-1 cursor-grab active:cursor-grabbing touch-none text-muted-foreground/25 hover:text-muted-foreground/60 transition-colors"
               aria-label="Drag to move the whole meal to another day"
             >
               <GripVertical className="h-4 w-4" />
@@ -311,19 +312,13 @@ export function MealGroupCard({
             <span className="w-2" />
           )}
 
-          <div className="flex-shrink-0 h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 text-white flex items-center justify-center shadow-sm">
+          <div className="flex-shrink-0 h-10 w-10 rounded-full bg-highlight text-primary flex items-center justify-center">
             <UtensilsCrossed className="h-5 w-5" />
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="font-bold text-base leading-snug line-clamp-1">{group.title}</p>
+            <p className="font-serif text-lg font-semibold italic leading-snug line-clamp-1">{group.title}</p>
             <div className="mt-0.5 flex items-center gap-1.5 flex-wrap text-xs text-muted-foreground">
-              <span
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${MEAL_BG[mealType]} ${MEAL_COLOR[mealType]}`}
-              >
-                {MEAL_ICON[mealType]}
-                <span className="font-semibold">{MEAL_LABELS[mealType]}</span>
-              </span>
               <span>
                 {entries.length} dish{entries.length === 1 ? "" : "es"}
               </span>
@@ -339,7 +334,7 @@ export function MealGroupCard({
                 </span>
               )}
               {allOnList && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-success-tint text-success">
                   <Check className="h-3 w-3" />
                   <span className="font-semibold">On list</span>
                 </span>
@@ -351,7 +346,7 @@ export function MealGroupCard({
             <DropdownMenuTrigger asChild>
               <button
                 disabled={pending}
-                className="p-2 rounded-lg hover:bg-white/60 dark:hover:bg-black/20 transition-colors text-muted-foreground hover:text-foreground"
+                className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                 aria-label="Meal options"
               >
                 <MoreVertical className="h-5 w-5" />
@@ -453,7 +448,7 @@ export function MealGroupCard({
 
         {/* Quick swaps from the saved meal's options */}
         {choiceSlots.length > 0 && (
-          <div className="mx-2 mb-2 space-y-1.5 rounded-xl bg-white/50 dark:bg-black/15 px-2.5 py-2">
+          <div className="mx-2 mb-2 space-y-1.5 rounded-xl bg-muted px-2.5 py-2">
             {choiceSlots.map((slot) => (
               <div key={slot.id} className="flex items-start gap-2">
                 <span className="mt-1 w-12 shrink-0 text-[10px] font-bold uppercase tracking-wide text-muted-foreground line-clamp-1">
@@ -471,8 +466,8 @@ export function MealGroupCard({
                         onClick={() => toggleOption(slot, o.recipe.id)}
                         className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
                           on
-                            ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
-                            : "border border-orange-200 dark:border-orange-900/60 bg-white dark:bg-black/30 text-muted-foreground hover:text-foreground hover:border-orange-400"
+                            ? "bg-ink text-ink-foreground"
+                            : "bg-card text-muted-foreground hover:text-foreground"
                         }`}
                       >
                         {o.recipe.title}
@@ -486,33 +481,31 @@ export function MealGroupCard({
         )}
 
         {/* Dishes */}
-        <ul className="mx-2 mb-2 rounded-xl bg-white/70 dark:bg-black/20 divide-y divide-orange-100 dark:divide-orange-950/60 shadow-sm">
+        <ul className="mx-2 mb-2 rounded-xl bg-muted divide-y divide-border">
           {dishes.map((entry) => {
             const role = entry.mealRole ?? "side";
             const thumb = entry.recipe.thumbnailUrl ?? entry.recipe.imageUrl;
             return (
               <li
                 key={entry.id}
-                className="flex items-center gap-3 px-2 py-2 cursor-pointer hover:bg-white/80 dark:hover:bg-white/5 first:rounded-t-xl last:rounded-b-xl transition-colors"
+                className="flex items-center gap-3 px-2 py-2 cursor-pointer hover:bg-secondary/60 first:rounded-t-xl last:rounded-b-xl transition-colors"
                 onClick={() =>
                   router.push(`/recipes/${entry.recipe.id}?from=meal-plan&week=${weekStartDate}`)
                 }
               >
-                {thumb ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={thumb} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
-                ) : (
-                  <div className="h-11 w-11 shrink-0 rounded-lg bg-muted flex items-center justify-center text-lg text-muted-foreground/40">
-                    🍽
-                  </div>
-                )}
+                {/* The main dish large, the sides smaller beneath (DESIGN.md → Planner). */}
+                <Plate
+                  src={thumb}
+                  alt=""
+                  className={`shrink-0 rounded-lg ${role === "main" ? "h-16 w-16" : "h-11 w-11"}`}
+                />
                 <div className="min-w-0 flex-1">
                   <span
                     className={`inline-block rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-wide ${ROLE_CHIP[role]}`}
                   >
                     {MEAL_ROLE_LABELS[role]}
                   </span>
-                  <p className="text-sm font-semibold leading-snug line-clamp-1">{entry.recipe.title}</p>
+                  <p className={`font-serif font-semibold leading-snug line-clamp-1 ${role === "main" ? "text-base" : "text-sm"}`}>{entry.recipe.title}</p>
                 </div>
 
                 <DropdownMenu>
@@ -581,7 +574,7 @@ export function MealGroupCard({
               type="button"
               onClick={cookMeal}
               disabled={pending}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 py-2 text-sm font-semibold text-white shadow-md transition-colors"
+              className="flex-1 flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               <ChefHat className="h-4 w-4" />
               Cook this meal
@@ -591,7 +584,7 @@ export function MealGroupCard({
             <button
               type="button"
               onClick={() => setScheduleOpen(true)}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-orange-300/70 dark:border-orange-800/60 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm font-semibold text-orange-700 dark:text-orange-300 shadow-sm hover:bg-white dark:hover:bg-black/30 transition-colors"
+              className="flex h-10 items-center justify-center gap-1.5 rounded-full bg-secondary px-3.5 text-sm font-semibold text-secondary-foreground hover:bg-secondary/70 transition-colors"
               aria-label="Cooking schedule"
             >
               <AlarmClock className="h-4 w-4" />
@@ -602,7 +595,7 @@ export function MealGroupCard({
             <DropdownMenuTrigger asChild>
               <button
                 disabled={pending}
-                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-orange-300/70 dark:border-orange-800/60 bg-white/60 dark:bg-black/20 py-2 text-sm font-semibold text-orange-700 dark:text-orange-300 shadow-sm hover:bg-white dark:hover:bg-black/30 transition-colors"
+                className="flex-1 flex h-10 items-center justify-center gap-1.5 rounded-full bg-secondary text-sm font-semibold text-secondary-foreground hover:bg-secondary/70 transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 Add a dish

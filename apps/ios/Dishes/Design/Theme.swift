@@ -76,6 +76,12 @@ enum Theme {
     static let plate = Color(light: 0xE6D8C2, dark: 0x3A322A)
     /// Favourite heart: brand, like everything else that means "yours"
     static let heart = brand
+    /// Stats charts only (DESIGN.md → Charts): terracotta, herb, ochre, slate blue, plum.
+    static let chart1 = Color(light: 0xB5462B, dark: 0xE07A5F)
+    static let chart2 = Color(light: 0x3D6B4F, dark: 0x8FBF9F)
+    static let chart3 = Color(light: 0xB7791F, dark: 0xE0B45C)
+    static let chart4 = Color(light: 0x4A6A8A, dark: 0x8FAFCF)
+    static let chart5 = Color(light: 0x7A4A6E, dark: 0xC48FB4)
 
     // MARK: Type
 
@@ -92,74 +98,7 @@ enum Theme {
     /// The small-caps overline: "BREAKFAST", "TONIGHT · 6:30PM".
     static let overline = Font.system(size: 11, weight: .bold)
 
-    // MARK: Tailwind colours the web uses directly
-
-    static let orange50 = Color(light: 0xFFF7ED, dark: 0x2A1608)
-    static let rose50 = Color(light: 0xFFF1F2, dark: 0x2A0E14)
-    static let violet50 = Color(light: 0xF5F3FF, dark: 0x1C1433)
-    static let amber50 = Color(light: 0xFFFBEB, dark: 0x271C05)
-    static let indigo50 = Color(light: 0xEEF2FF, dark: 0x161A3A)
-    static let pink50 = Color(light: 0xFDF2F8, dark: 0x2A0F1F)
-    static let emerald100 = Color(light: 0xD1FAE5, dark: 0x052E1F)
-    static let emerald700 = Color(light: 0x047857, dark: 0x34D399)
-
-    // MARK: Gradients (the web's bg-gradient-to-r pairs)
-
-    enum Gradient {
-        /// Banners and hero accents: from-orange-500 to-rose-500
-        case orangeRose
-        /// "Generate plan": from-violet-600 to-orange-500
-        case violetOrange
-        /// "Add N meals to list": from-blue-600 to-sky-500
-        case blueSky
-        /// "Add meal": from-violet-500 to-indigo-500
-        case violetIndigo
-        /// "Generate a side dish": from-emerald-600 to-teal-500
-        case emeraldTeal
-        /// Plain primary (bg-primary), in the same shape as the gradients
-        case brand
-
-        var colors: [Color] {
-            switch self {
-            case .orangeRose: [Color(hex: 0xF97316), Color(hex: 0xF43F5E)]
-            case .violetOrange: [Color(hex: 0x7C3AED), Color(hex: 0xF97316)]
-            case .blueSky: [Color(hex: 0x2563EB), Color(hex: 0x0EA5E9)]
-            case .violetIndigo: [Color(hex: 0x8B5CF6), Color(hex: 0x6366F1)]
-            case .emeraldTeal: [Color(hex: 0x059669), Color(hex: 0x14B8A6)]
-            // Fixed terracotta: these buttons always carry white text.
-            case .brand: [Color(hex: 0xB5462B), Color(hex: 0xB5462B)]
-            }
-        }
-
-        var linear: LinearGradient { LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing) }
-    }
-
-    static let brandGradient = Gradient.orangeRose.linear
-
-    /// Placeholder icon colour (text-muted-foreground/30).
-    static let placeholderIcon = Color(light: 0x64748B, dark: 0x94A3B8).opacity(0.3)
-
-    // MARK: Meal types (meal-plan/_components/entry-card.tsx)
-
-    static func mealColor(_ type: String) -> Color {
-        switch type {
-        case "breakfast": Color(hex: 0xF59E0B) // amber-500
-        case "lunch": Color(hex: 0x8B5CF6) // violet-500
-        case "dinner": Color(hex: 0x6366F1) // indigo-500
-        case "dessert": Color(hex: 0xEC4899) // pink-500
-        default: mutedForeground
-        }
-    }
-
-    static func mealBackground(_ type: String) -> Color {
-        switch type {
-        case "breakfast": amber50
-        case "lunch": violet50
-        case "dinner": indigo50
-        case "dessert": pink50
-        default: muted.opacity(0.5)
-        }
-    }
+    // MARK: Meal types
 
     static func mealIcon(_ type: String) -> String {
         switch type {
@@ -196,14 +135,6 @@ extension View {
     /// packages/ui Card `panel`: a tinted group, no border or shadow.
     func panel(radius: CGFloat = 16, fill: Color = Theme.muted) -> some View {
         background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-    }
-
-    /// The tinted callout boxes (nutrition, "What kind of dish is this?"): a soft
-    /// gradient wash with a matching border.
-    func callout(_ from: Color, _ to: Color, border: Color) -> some View {
-        background(LinearGradient(colors: [from, to], startPoint: .topLeading, endPoint: .bottomTrailing),
-                   in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(border))
     }
 }
 
@@ -286,50 +217,6 @@ extension PlateView where Photo == EmptyView {
 
 // MARK: Buttons
 
-/// The web's big action buttons: a gradient, white text, rounded-lg, shadow-md.
-struct GradientButtonStyle: ButtonStyle {
-    var gradient: Theme.Gradient = .brand
-    var height: CGFloat = 46
-
-    func makeBody(configuration: Configuration) -> some View {
-        Filled(configuration: configuration, gradient: gradient, height: height)
-    }
-
-    /// A disabled one fades, with no shadow, so it doesn't look ready to tap
-    /// ("Draft 0 dinners" with the week already planned).
-    private struct Filled: View {
-        @Environment(\.isEnabled) private var enabled
-        let configuration: Configuration
-        let gradient: Theme.Gradient
-        let height: CGFloat
-
-        var body: some View {
-            configuration.label
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, minHeight: height)
-                .padding(.horizontal, 14)
-                .background(gradient.linear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .shadow(color: .black.opacity(enabled ? 0.12 : 0), radius: 5, y: 3)
-                .opacity(!enabled ? 0.45 : configuration.isPressed ? 0.88 : 1)
-        }
-    }
-}
-
-/// Button variant="outline": border, background, foreground text.
-struct OutlineButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(Theme.foreground)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 38)
-            .background(configuration.isPressed ? Theme.muted : Theme.background,
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.border))
-    }
-}
-
 /// packages/ui Button: a pill. `.primary` (terracotta, one per area),
 /// `.secondary` (everything else), `.ink` (AI — pair it with the sparkles icon).
 struct PillButtonStyle: ButtonStyle {
@@ -368,15 +255,6 @@ extension ButtonStyle where Self == PillButtonStyle {
     static var primary: PillButtonStyle { PillButtonStyle(kind: .primary) }
     static var secondary: PillButtonStyle { PillButtonStyle(kind: .secondary) }
     static var ink: PillButtonStyle { PillButtonStyle(kind: .ink) }
-}
-
-extension ButtonStyle where Self == GradientButtonStyle {
-    static var brand: GradientButtonStyle { GradientButtonStyle() }
-    static func gradient(_ g: Theme.Gradient) -> GradientButtonStyle { GradientButtonStyle(gradient: g) }
-}
-
-extension ButtonStyle where Self == OutlineButtonStyle {
-    static var outline: OutlineButtonStyle { OutlineButtonStyle() }
 }
 
 /// The round terracotta "+" in page headers.

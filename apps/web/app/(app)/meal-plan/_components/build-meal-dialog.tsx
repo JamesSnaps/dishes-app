@@ -54,7 +54,7 @@ export function BuildMealDialog({ meal, dayLabel, onOpenChange, onConfirm }: Pro
       <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-orange-500 to-rose-500 text-white flex items-center justify-center shadow-sm">
+            <span className="h-8 w-8 shrink-0 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
               <UtensilsCrossed className="h-4 w-4" />
             </span>
             <span className="min-w-0">
@@ -89,8 +89,8 @@ export function BuildMealDialog({ meal, dayLabel, onOpenChange, onConfirm }: Pro
                         aria-pressed={on}
                         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-all ${
                           on
-                            ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
-                            : "border bg-white dark:bg-black/30 text-muted-foreground hover:text-foreground hover:border-orange-300"
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "border bg-card dark:bg-black/30 text-muted-foreground hover:text-foreground hover:border-input"
                         }`}
                       >
                         {on && <Check className="h-3.5 w-3.5" />}
@@ -108,7 +108,7 @@ export function BuildMealDialog({ meal, dayLabel, onOpenChange, onConfirm }: Pro
           <Button
             onClick={() => onConfirm(selection)}
             disabled={count === 0}
-            className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-md"
+            className="bg-primary text-primary-foreground border-0 shadow-md"
           >
             Add to plan ({count} dish{count === 1 ? "" : "es"})
           </Button>

@@ -19,7 +19,7 @@ struct SavedMealsScreen: View {
                 PageHeader(title: "Saved meals", subtitle: "Combinations you make again — a main with its sides and sauces.") {
                     Button { editing = MealDraft() } label: {
                         Label("New meal", systemImage: "plus")
-                            .font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                            .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.brandForeground)
                             .padding(.horizontal, 14).frame(height: 38)
                             .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                     }
@@ -65,9 +65,9 @@ struct SavedMealsScreen: View {
                     .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
             }
             if r.combinations.count > 1, let best = r.combinations.first, let worst = r.combinations.last {
-                Text("\(Text("Best \(String(format: "%.1f", best.average))★").bold().foregroundStyle(Color(hex: 0x047857))) \(best.titles.joined(separator: " + "))")
+                Text("\(Text("Best \(String(format: "%.1f", best.average))★").bold().foregroundStyle(Theme.success)) \(best.titles.joined(separator: " + "))")
                     .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground).lineLimit(2)
-                Text("\(Text("Lowest \(String(format: "%.1f", worst.average))★").bold().foregroundStyle(Color(hex: 0xB45309))) \(worst.titles.joined(separator: " + "))")
+                Text("\(Text("Lowest \(String(format: "%.1f", worst.average))★").bold().foregroundStyle(Theme.brand)) \(worst.titles.joined(separator: " + "))")
                     .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground).lineLimit(2)
             }
         }
@@ -87,7 +87,7 @@ struct SavedMealsScreen: View {
             ForEach(meal.slots) { slot in
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text((slot.label ?? slot.role ?? "Dish").capitalizedFirst)
-                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.brandDeep)
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.brand)
                         .frame(width: 70, alignment: .leading)
                     Text(slot.options.map(\.title).joined(separator: " / "))
                         .font(.system(size: 14)).lineLimit(2)
@@ -96,7 +96,7 @@ struct SavedMealsScreen: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .callout(Theme.orange50, Theme.rose50, border: Color(hex: 0xFED7AA).opacity(0.7))
+        .panel()
     }
 }
 
@@ -173,7 +173,7 @@ private struct MealEditor: View {
                                 Button {
                                     for i in slot.options.indices { slot.options[i].isDefault = slot.allowMultiple ? (i == index ? !slot.options[i].isDefault : slot.options[i].isDefault) : i == index }
                                 } label: {
-                                    Image(systemName: option.isDefault ? "star.fill" : "star").foregroundStyle(option.isDefault ? Color(hex: 0xF59E0B) : Theme.mutedForeground)
+                                    Image(systemName: option.isDefault ? "star.fill" : "star").foregroundStyle(option.isDefault ? Theme.brand : Theme.mutedForeground)
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(option.isDefault ? "Default" : "Make default")

@@ -91,11 +91,11 @@ struct DeliveriesScreen: View {
                     Text("Pick the days your shopping arrives and when orders close.")
                         .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
                     if o.isAdmin {
-                        Button("Set up deliveries") { editingSettings = true }.buttonStyle(.gradient(.emeraldTeal))
+                        Button("Set up deliveries") { editingSettings = true }.buttonStyle(.primary)
                     }
                 }
                 .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                .callout(Theme.emerald100.opacity(0.5), Theme.background, border: Color(hex: 0xA7F3D0))
+                .panel()
             }
             if let next = o.next { nextCard(next, canEdit: o.canEdit) }
 
@@ -150,7 +150,7 @@ struct DeliveriesScreen: View {
                 Button { editingSettings = true } label: {
                     Label("Delivery days and deadline", systemImage: "gearshape")
                 }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
             }
         }
         // An order email can land while this is open without a push reaching
@@ -187,7 +187,7 @@ struct DeliveriesScreen: View {
                         .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                     .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
                 if let min = day.belowMinimum {
-                    Text("Under the \(min) minimum").font(.system(size: 12, weight: .medium)).foregroundStyle(Color(hex: 0xB45309))
+                    Text("Under the \(min) minimum").font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.brand)
                 }
             }
             Spacer()
@@ -226,10 +226,10 @@ struct DeliveryStatusBadge: View {
     let status: String
     var body: some View {
         let (text, fg, bg): (String, Color, Color) = switch status {
-        case "ordered": ("Ordered", Color(hex: 0x047857), Theme.emerald100)
+        case "ordered": ("Ordered", Theme.success, Theme.successTint)
         case "skipped": ("Skipped", Theme.mutedForeground, Theme.muted)
         case "away": ("Away", Theme.mutedForeground, Theme.muted)
-        default: ("To order", Color(hex: 0xB45309), Theme.amber50)
+        default: ("To order", Theme.brand, Theme.warningTint)
         }
         return Text(text).font(.system(size: 12, weight: .semibold))
             .padding(.horizontal, 10).padding(.vertical, 4)
@@ -456,7 +456,7 @@ struct NextDeliveryCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("NEXT ORDER").font(.system(size: 12, weight: .bold)).tracking(0.6).foregroundStyle(Color(hex: 0x047857))
+                    Text("NEXT ORDER").font(.system(size: 12, weight: .bold)).tracking(0.6).foregroundStyle(Theme.success)
                     Text(n.label.hasPrefix(String(n.day.prefix(3))) ? n.label : "\(n.day) \(n.label)").font(.system(size: 20, weight: .bold))
                     Text("Covers \(n.coverageLabel) · \(n.cutoffLabel)").font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
                 }
@@ -467,18 +467,18 @@ struct NextDeliveryCard: View {
                 ForEach(Array(Self.checklist(n).enumerated()), id: \.offset) { _, line in
                     Label(line.text, systemImage: line.done ? "checkmark.circle.fill" : "exclamationmark.circle")
                         .font(.system(size: 14))
-                        .foregroundStyle(line.done ? Color(hex: 0x047857) : Color(hex: 0xB45309))
+                        .foregroundStyle(line.done ? Theme.success : Theme.brand)
                 }
             }
             if canEdit && n.status != "ordered" {
                 Button {
                     Task { if await WebAction.run("deliveries.set", [.string(n.date), .string("ordered")], done: "Marked as ordered.") { await changed() } }
                 } label: { Label("Mark as ordered", systemImage: "checkmark.circle") }
-                .buttonStyle(.gradient(.emeraldTeal))
+                .buttonStyle(.primary)
             }
         }
         .padding(16)
-        .callout(Theme.emerald100.opacity(0.6), Theme.background, border: Color(hex: 0xA7F3D0))
+        .panel()
     }
 
     /// What's left before ordering, done items included.

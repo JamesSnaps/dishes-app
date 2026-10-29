@@ -41,7 +41,7 @@ struct NotificationsScreen: View {
                         Label("Couldn’t load your notifications", systemImage: "wifi.exclamationmark")
                             .font(.system(size: 15, weight: .semibold))
                         Text(error).font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
-                        Button("Try again") { Task { await load() } }.buttonStyle(.outline)
+                        Button("Try again") { Task { await load() } }.buttonStyle(.secondary)
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -73,9 +73,9 @@ struct NotificationsScreen: View {
             HStack(spacing: 12) {
                 Image(systemName: push.authorization == .denied ? "bell.slash.fill" : "bell.badge.fill")
                     .font(.system(size: 18))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.brandForeground)
                     .frame(width: 40, height: 40)
-                    .background(Theme.brandGradient, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(Theme.brand, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("On this \(device)").font(.system(size: 16, weight: .semibold))
                     Text(permissionLine(device)).font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
@@ -88,28 +88,28 @@ struct NotificationsScreen: View {
                 } label: {
                     Label("Allow notifications", systemImage: "bell")
                 }
-                .buttonStyle(.brand)
+                .buttonStyle(.primary)
             case .denied:
                 Button {
                     if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
                 } label: {
                     Label("Open iOS Settings", systemImage: "gear")
                 }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
             default:
                 Button {
                     Task { await sendTest() }
                 } label: {
                     Label(testing ? "Sending…" : "Send a test", systemImage: "paperplane")
                 }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
                 .disabled(testing || push.token == nil)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [Theme.orange50, Theme.rose50], startPoint: .topLeading, endPoint: .bottomTrailing),
+            Theme.highlight,
             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
         )
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.brand.opacity(0.25)))
@@ -129,12 +129,9 @@ struct NotificationsScreen: View {
         HStack(spacing: 12) {
             Image(systemName: Self.icon(kind.id))
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(kind.enabled ? Theme.brand : Theme.mutedForeground)
                 .frame(width: 34, height: 34)
-                .background(
-                    kind.enabled ? Self.tint(kind.group) : LinearGradient(colors: [Color(hex: 0x94A3B8), Color(hex: 0x64748B)], startPoint: .leading, endPoint: .trailing),
-                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                )
+                .background(kind.enabled ? Theme.highlight : Theme.muted, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(kind.title).font(.system(size: 15, weight: .medium))
                 Text(kind.description).font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
@@ -161,14 +158,6 @@ struct NotificationsScreen: View {
         case "delivery_deadline", "delivery_orders": "shippingbox.fill"
         case "delivery_booking": "calendar.badge.clock"
         default: "bell.fill"
-        }
-    }
-
-    private static func tint(_ group: String) -> LinearGradient {
-        switch group {
-        case "Cooking": LinearGradient(colors: [Color(hex: 0xF59E0B), Color(hex: 0xF97316)], startPoint: .leading, endPoint: .trailing)
-        case "Deliveries": Theme.Gradient.emeraldTeal.linear
-        default: Theme.brandGradient
         }
     }
 

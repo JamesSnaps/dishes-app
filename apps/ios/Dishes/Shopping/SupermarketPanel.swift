@@ -32,9 +32,9 @@ struct SupermarketPanel: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: "cart.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.brandForeground)
                     .frame(width: 28, height: 28)
-                    .background(Color(hex: 0xF06C00), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .background(Theme.brand, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 Text("Sainsbury’s").font(.system(size: 16, weight: .semibold))
                 Spacer()
                 Button { openURL(url) } label: {

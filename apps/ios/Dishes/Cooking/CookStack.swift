@@ -242,7 +242,7 @@ private struct CookCardEdge: View {
     var body: some View {
         Capsule()
             .fill(Theme.card)
-            .overlay(Capsule().fill(LinearGradient(colors: [Theme.orange50, Theme.rose50], startPoint: .leading, endPoint: .trailing)))
+            .overlay(Capsule().fill(Theme.highlight))
             .overlay(Capsule().fill(Theme.brand.opacity(0.07 * Double(depth))))
             .overlay(Capsule().strokeBorder(Theme.brand.opacity(0.4), lineWidth: 1))
             .shadow(color: .black.opacity(0.1), radius: 3, y: -1)
@@ -366,9 +366,9 @@ private struct CookCard: View {
                     HStack(spacing: 12) {
                         Image(systemName: "frying.pan.fill")
                             .font(.system(size: 16))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.brandForeground)
                             .frame(width: 38, height: 38)
-                            .background(Theme.brandGradient, in: Circle())
+                            .background(Theme.brand, in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
                             Text(session.title)
                                 .font(.system(size: 16, weight: .bold))
@@ -406,9 +406,9 @@ private struct CookCard: View {
             if confirming {
                 HStack(spacing: 8) {
                     Button("End, keep timers") { withAnimation { nav.end(session) } }
-                        .buttonStyle(OutlineButtonStyle())
+                        .buttonStyle(.secondary)
                     Button("End and cancel timers", role: .destructive) { withAnimation { nav.end(session, cancelTimers: true) } }
-                        .buttonStyle(GradientButtonStyle(gradient: .orangeRose, height: 38))
+                        .buttonStyle(PillButtonStyle(kind: .primary, height: 38))
                 }
                 .font(.system(size: 13, weight: .semibold))
                 .lineLimit(1)
@@ -424,8 +424,7 @@ private struct CookCard: View {
                 .fill(Theme.card)
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(LinearGradient(colors: [Theme.orange50.opacity(front ? 0.9 : 0.55), Theme.rose50.opacity(front ? 0.7 : 0.35)],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .fill(Theme.highlight)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -450,7 +449,7 @@ struct CookSwitcher: View {
                 Text("\(nav.sessions.count) cooks").monospacedDigit()
             }
             .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(Theme.brandDeep)
+            .foregroundStyle(Theme.brand)
             .padding(.horizontal, 4)
         }
         .accessibilityLabel("Switch cook — \(nav.sessions.count) in progress")

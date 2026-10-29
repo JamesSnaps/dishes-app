@@ -38,6 +38,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Input,
+  Plate,
   ToastAction,
 } from "@dishes/ui";
 import {
@@ -70,20 +71,21 @@ export const MEAL_ICON: Record<MealType, React.ReactNode> = {
   snack: <Cookie className="h-3.5 w-3.5" />,
 };
 
+/** Slots used to be colour-coded; Cookbook names them instead (DESIGN.md). */
 export const MEAL_COLOR: Record<MealType, string> = {
-  breakfast: "text-amber-500",
-  lunch: "text-violet-500",
-  dinner: "text-indigo-500",
-  dessert: "text-pink-500",
+  breakfast: "text-muted-foreground",
+  lunch: "text-muted-foreground",
+  dinner: "text-muted-foreground",
+  dessert: "text-muted-foreground",
   snack: "text-muted-foreground",
 };
 
 export const MEAL_BG: Record<MealType, string> = {
-  breakfast: "bg-amber-50 dark:bg-amber-950/20",
-  lunch: "bg-violet-50 dark:bg-violet-950/20",
-  dinner: "bg-indigo-50 dark:bg-indigo-950/20",
-  dessert: "bg-pink-50 dark:bg-pink-950/20",
-  snack: "bg-muted/30",
+  breakfast: "bg-muted",
+  lunch: "bg-muted",
+  dinner: "bg-muted",
+  dessert: "bg-muted",
+  snack: "bg-muted",
 };
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -295,10 +297,10 @@ export function EntryCard({
       <li
         ref={dragNodeRef}
         {...(dragAttributes ?? {})}
-        className={`flex items-stretch rounded-xl border bg-card overflow-hidden shadow-sm transition-all ${
+        className={`flex items-center rounded-2xl bg-card overflow-hidden transition-all ${
           pending || isDragging
             ? "opacity-40"
-            : "cursor-pointer hover:shadow-md hover:bg-muted/20"
+            : "cursor-pointer hover:shadow-md"
         }`}
         onClick={handleNavigate}
       >
@@ -314,38 +316,14 @@ export function EntryCard({
           </div>
         )}
 
-        {recipe.imageUrl ? (
-          <div className="flex-shrink-0 w-[120px] h-[120px]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={recipe.thumbnailUrl ?? recipe.imageUrl}
-              alt={recipe.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ) : (
-          <div className="flex-shrink-0 w-[120px] h-[120px] bg-muted flex items-center justify-center">
-            <span className="text-3xl text-muted-foreground/30">🍽</span>
-          </div>
-        )}
+        <Plate
+          src={recipe.imageUrl ? recipe.thumbnailUrl ?? recipe.imageUrl : null}
+          alt={recipe.title}
+          className={`flex-shrink-0 h-[88px] w-[88px] rounded-xl sm:h-[104px] sm:w-[104px] ${dragListeners ? "" : "ml-2"} my-2`}
+        />
 
         <div className="flex-1 min-w-0 px-4 py-3 flex flex-col justify-center gap-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <div
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit ${MEAL_BG[entry.mealType]} ${MEAL_COLOR[entry.mealType]}`}
-            >
-              {MEAL_ICON[entry.mealType]}
-              <span className="text-xs font-semibold">{MEAL_LABELS[entry.mealType]}</span>
-            </div>
-            {onShoppingList && (
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                <Check className="h-3 w-3" />
-                <span className="text-xs font-semibold">On list</span>
-              </div>
-            )}
-          </div>
-
-          <p className="font-bold text-base leading-snug line-clamp-2">{recipe.title}</p>
+          <p className="font-serif text-[17px] font-semibold leading-snug line-clamp-2">{recipe.title}</p>
 
           {(totalTime > 0 || effectiveServings) && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -358,7 +336,7 @@ export function EntryCard({
                 </span>
               )}
               {effectiveServings && (
-                <span className={`flex items-center gap-1 ${isOverridden ? "text-orange-500 font-medium" : ""}`}>
+                <span className={`flex items-center gap-1 ${isOverridden ? "text-primary font-medium" : ""}`}>
                   <Users className="h-3.5 w-3.5" />
                   Serves {effectiveServings}
                   {isOverridden && <span className="text-[10px]">✎</span>}
@@ -366,9 +344,16 @@ export function EntryCard({
               )}
             </div>
           )}
+
+          {onShoppingList && (
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit bg-success-tint text-success">
+              <Check className="h-3 w-3" />
+              <span className="text-xs font-semibold">On list</span>
+            </div>
+          )}
         </div>
 
-        <div className="flex-shrink-0 flex flex-col items-center justify-center px-2 border-l">
+        <div className="flex-shrink-0 flex flex-col items-center justify-center px-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

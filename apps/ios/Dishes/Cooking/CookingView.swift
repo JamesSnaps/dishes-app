@@ -338,7 +338,7 @@ struct CookingView: View {
 
     /// " · ▤ 2" after the title's subtitle, when the title switches cooks.
     private var cooksNote: Text {
-        switchInTitle ? Text(" · \(Image(systemName: "rectangle.stack.fill")) \(nav.sessions.count)").foregroundStyle(Theme.brandDeep) : Text("")
+        switchInTitle ? Text(" · \(Image(systemName: "rectangle.stack.fill")) \(nav.sessions.count)").foregroundStyle(Theme.brand) : Text("")
     }
 
     @ToolbarContentBuilder
@@ -423,7 +423,7 @@ struct CookingView: View {
                         VStack(spacing: 0) {
                             Text(dish.recipe.title).font(.headline).lineLimit(1)
                             Text("\(Image(systemName: "rectangle.stack.fill")) \(nav.sessions.count) cooks")
-                                .font(.caption2).foregroundStyle(Theme.brandDeep)
+                                .font(.caption2).foregroundStyle(Theme.brand)
                         }
                         Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold))
                     }
@@ -475,7 +475,7 @@ struct CookingView: View {
                     Label("Back to the meal — your place is kept", systemImage: "list.number")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(GradientButtonStyle(gradient: .brand, height: 44))
+                .buttonStyle(PillButtonStyle(kind: .primary, height: 44))
             }
             progress
             if session.inSequence { SequenceDueView(session: session) }
@@ -488,13 +488,13 @@ struct CookingView: View {
                     if let label = step?.groupLabel {
                         Text(label)
                             .font(.headline)
-                            .foregroundStyle(Theme.brandDeep)
+                            .foregroundStyle(Theme.brand)
                             .textCase(.uppercase)
                     }
                     // An ingredient in the text shows its amount in a tooltip
                     // above it when tapped, as on the web; tapping the words
                     // doesn't move on (Next, swipes and the keyboard do).
-                    (step.map { _ in match.text(color: Theme.brandDeep) } ?? Text("This recipe has no steps."))
+                    (step.map { _ in match.text(color: Theme.brand) } ?? Text("This recipe has no steps."))
                         .font(.system(size: size, weight: .medium, design: .rounded))
                         .lineSpacing(size * 0.18)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -516,7 +516,7 @@ struct CookingView: View {
                             Label("Ask about this step", systemImage: "bubble.left.and.text.bubble.right")
                                 .font(.system(size: 15, weight: .semibold))
                         }
-                        .buttonStyle(.outline)
+                        .buttonStyle(.secondary)
                     }
                     }
                 }
@@ -543,7 +543,7 @@ struct CookingView: View {
             GeometryReader { geo in
                 Capsule().fill(Color.secondary.opacity(0.15))
                     .overlay(alignment: .leading) {
-                        Capsule().fill(Theme.brandGradient)
+                        Capsule().fill(Theme.brand)
                             .frame(width: geo.size.width * CGFloat(place + 1) / CGFloat(count))
                     }
             }
@@ -665,7 +665,7 @@ struct CookingView: View {
                     .labelStyle(TrailingIconLabelStyle())
                     .font(.system(size: 19, weight: .bold))
             }
-            .buttonStyle(GradientButtonStyle(gradient: .brand, height: 60))
+            .buttonStyle(PillButtonStyle(kind: .primary, height: 60))
         }
     }
 
@@ -760,15 +760,15 @@ private struct TimerButtonStyle: ButtonStyle {
     @ViewBuilder func makeBody(configuration: Configuration) -> some View {
         if running {
             configuration.label
-                .foregroundStyle(Theme.brandDeep)
+                .foregroundStyle(Theme.brand)
                 .frame(maxWidth: .infinity, minHeight: 46)
                 .padding(.horizontal, 14)
-                .background(LinearGradient(colors: [Theme.orange50, Theme.amber50], startPoint: .leading, endPoint: .trailing),
+                .background(Theme.highlight,
                             in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.brand, lineWidth: 2))
                 .opacity(configuration.isPressed ? 0.8 : 1)
         } else {
-            GradientButtonStyle().makeBody(configuration: configuration)
+            PillButtonStyle(kind: .primary).makeBody(configuration: configuration)
         }
     }
 }
@@ -821,7 +821,7 @@ struct IngredientsPanel: View {
                                     Text("NOW").font(.system(size: 10, weight: .bold))
                                         .padding(.horizontal, 6).padding(.vertical, 2)
                                         .background(Theme.brand, in: Capsule())
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(Theme.brandForeground)
                                 }
                             }
                         } else {
@@ -895,7 +895,7 @@ struct IngredientsPanel: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .background(now ? Theme.orange50 : .clear)
+            .background(now ? Theme.highlight : .clear)
             .overlay(alignment: .leading) {
                 if now { Rectangle().fill(Theme.brand).frame(width: 3) }
             }
@@ -949,7 +949,7 @@ struct TimersPanel: View {
                     Button(action: add) {
                         Label("Add timer", systemImage: "plus")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.brandForeground)
                             .padding(.horizontal, 10)
                             .frame(height: 26)
                             .background(Theme.brand, in: Capsule())
@@ -1011,7 +1011,7 @@ struct TimerRow: View {
                 HStack(spacing: 10) {
                     Image(systemName: finished ? "checkmark.circle.fill" : timer.state == .paused ? "pause.circle.fill" : "timer")
                         .font(.system(size: compact ? 16 : 20, weight: .semibold))
-                        .foregroundStyle(finished ? Theme.emerald700 : timer.state == .paused ? Theme.mutedForeground : Theme.brand)
+                        .foregroundStyle(finished ? Theme.success : timer.state == .paused ? Theme.mutedForeground : Theme.brand)
                         .symbolEffect(.pulse, isActive: timer.state == .running)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(timer.label)
@@ -1028,7 +1028,7 @@ struct TimerRow: View {
                     Text(finished ? "0:00" : Self.clock(left))
                         .font(.system(size: compact ? 17 : 22, weight: .bold, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(finished ? Theme.emerald700 : timer.state == .paused ? Theme.mutedForeground : Theme.brandDeep)
+                        .foregroundStyle(finished ? Theme.success : timer.state == .paused ? Theme.mutedForeground : Theme.brand)
                         .contentTransition(.numericText(countsDown: true))
                         .fixedSize()
                 }
@@ -1121,7 +1121,7 @@ struct TimerStrip: View {
                     Button(action: add) {
                         Label(timers.timers.isEmpty ? "Add timer" : "Add", systemImage: "plus")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.brandForeground)
                             .padding(.horizontal, 14)
                             .frame(height: 44)
                             .background(Theme.brand, in: Capsule())
@@ -1181,12 +1181,12 @@ struct RingingBanner: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 14)
                     .background(.white, in: Capsule())
-                    .foregroundStyle(Theme.brandDeep)
+                    .foregroundStyle(Theme.brand)
                     .keyboardShortcut(.return, modifiers: [])
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.brandForeground)
             .padding(22)
-            .background(Theme.brandGradient, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .background(Theme.brand, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
             .shadow(color: Theme.brand.opacity(0.5), radius: 24, y: 10)
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -1245,10 +1245,10 @@ struct MealCueLine: View {
             if let next = upcoming.first(where: { $0.id != "serve" }) ?? upcoming.first {
                 Button { go(to: next) } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "alarm").foregroundStyle(Theme.brandDeep)
+                        Image(systemName: "alarm").foregroundStyle(Theme.brand)
                         Text(next.at <= now ? "Now" : MealStartSheet.hhmm(Date(timeIntervalSince1970: next.at / 1000)))
                             .font(.system(size: 15, weight: .bold).monospacedDigit())
-                            .foregroundStyle(next.at <= now ? Color(hex: 0xE11D48) : Theme.foreground)
+                            .foregroundStyle(next.at <= now ? Theme.brand : Theme.foreground)
                         Text("\(Text(next.dish.map { "\($0): " } ?? "").bold())\(next.text)")
                             .font(.system(size: 15))
                             .foregroundStyle(Theme.foreground)
@@ -1257,7 +1257,7 @@ struct MealCueLine: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .callout(Theme.amber50, Theme.orange50, border: Color(hex: 0xFDE68A).opacity(0.7))
+                    .panel()
                 }
                 .buttonStyle(.plain)
             }

@@ -45,9 +45,9 @@ const DIFFICULTY_LABELS: Record<string, string> = {
 };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  easy: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
-  medium: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
-  hard: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400",
+  easy: "bg-success-tint text-success",
+  medium: "bg-warning-tint text-warning",
+  hard: "bg-destructive/10 text-destructive",
 };
 
 type Recipe = {
@@ -93,6 +93,8 @@ interface Props {
   /** Controlled open state, for picker mode where there is no trigger. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** The slot it opens on, for the week grid's "+" in a particular row. */
+  defaultMealType?: MealType;
   /**
    * How the entry is written. Defaults to the `addMealEntry` server action;
    * `WeekPlannerLocal` supplies a version that queues `meal_plan_entry.add` on
@@ -115,7 +117,7 @@ function StarRow({ rating, size = "sm" }: { rating: number; size?: "sm" | "xs" }
           key={i}
           className={`${px} ${
             i <= Math.round(rating)
-              ? "fill-amber-400 text-amber-400"
+              ? "fill-primary text-warning"
               : "fill-transparent text-muted-foreground/30"
           }`}
         />
@@ -150,6 +152,7 @@ export function AddEntryDialog({
   onAddSavedMeal,
   pick,
   open: openProp,
+  defaultMealType,
   onOpenChange,
 }: Props) {
   const [openState, setOpenState] = useState(false);
@@ -170,6 +173,9 @@ export function AddEntryDialog({
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [matchMealType, setMatchMealType] = useState(true);
   const [roleFilter, setRoleFilter] = useState<MealRole | null>(pick?.role ?? null);
+  useEffect(() => {
+    if (open && defaultMealType) setMealType(defaultMealType);
+  }, [open, defaultMealType]);
   const [pending, startTransition] = useTransition();
   const deferredSearch = useDeferredValue(search);
 
@@ -308,8 +314,8 @@ export function AddEntryDialog({
                 onClick={() => toggleCuisine(c)}
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-all border ${
                   selectedCuisines.includes(c)
-                    ? "bg-indigo-500 text-white border-indigo-500"
-                    : "bg-background border-border hover:border-indigo-300 text-muted-foreground hover:text-foreground"
+                    ? "bg-ink text-ink-foreground border-transparent"
+                    : "bg-background border-border hover:border-input text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {c}
@@ -329,8 +335,8 @@ export function AddEntryDialog({
                 onClick={() => toggleTag(t)}
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-all border ${
                   selectedTags.includes(t)
-                    ? "bg-violet-500 text-white border-violet-500"
-                    : "bg-background border-border hover:border-violet-300 text-muted-foreground hover:text-foreground"
+                    ? "bg-ink text-ink-foreground border-transparent"
+                    : "bg-background border-border hover:border-input text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {t}
@@ -350,10 +356,10 @@ export function AddEntryDialog({
               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all border ${
                 selectedDifficulty === d
                   ? d === "easy"
-                    ? "bg-emerald-500 text-white border-emerald-500"
+                    ? "bg-success text-card border-transparent"
                     : d === "medium"
-                      ? "bg-amber-500 text-white border-amber-500"
-                      : "bg-red-500 text-white border-red-500"
+                      ? "bg-warning text-card border-transparent"
+                      : "bg-destructive text-destructive-foreground border-transparent"
                   : "bg-background border-border text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -372,9 +378,9 @@ export function AddEntryDialog({
               onClick={() => setMinRating((prev) => (prev === n ? null : n))}
               className={`rounded-md px-1.5 py-0.5 text-xs font-medium transition-all border flex items-center gap-0.5 ${
                 minRating === n
-                  ? "bg-amber-400 text-white border-amber-400"
+                  ? "bg-warning text-card border-transparent"
                   : minRating !== null && n < minRating
-                    ? "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/20"
+                    ? "bg-warning-tint border-border text-warning"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -418,12 +424,12 @@ export function AddEntryDialog({
                   className="w-full h-full object-cover transition-transform group-hover:scale-105"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/60">
+                <div className="w-full h-full flex items-center justify-center bg-muted">
                   <span className="text-3xl opacity-30">🍽</span>
                 </div>
               )}
               {recipe.isFavourite && (
-                <div className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-rose-500/90 flex items-center justify-center shadow">
+                <div className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-primary flex items-center justify-center shadow">
                   <Heart className="h-2.5 w-2.5 fill-white text-white" />
                 </div>
               )}
@@ -455,7 +461,7 @@ export function AddEntryDialog({
                       key={tag}
                       className={`rounded-full px-1.5 py-0 text-[9px] font-medium leading-4 ${
                         selectedTags.includes(tag)
-                          ? "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+                          ? "bg-muted text-foreground"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
@@ -487,9 +493,9 @@ export function AddEntryDialog({
           <button
             key={meal.id}
             onClick={() => handleSelectMeal(meal)}
-            className="group flex gap-3 rounded-xl border border-orange-200/70 dark:border-orange-900/50 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 dark:from-orange-950/30 dark:via-amber-950/20 dark:to-rose-950/20 p-3 text-left shadow-sm transition-all hover:shadow-md hover:border-orange-300 active:scale-[0.99]"
+            className="group flex gap-3 rounded-xl border border-border bg-highlight p-3 text-left shadow-sm transition-all hover:shadow-md hover:border-input active:scale-[0.99]"
           >
-            <div className="grid grid-cols-2 gap-0.5 h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-orange-100 dark:bg-orange-950/40">
+            <div className="grid grid-cols-2 gap-0.5 h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-highlight">
               {thumbs.length ? (
                 thumbs.map((src, i) => (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -502,7 +508,7 @@ export function AddEntryDialog({
                 ))
               ) : (
                 <div className="col-span-2 row-span-2 flex items-center justify-center">
-                  <UtensilsCrossed className="h-6 w-6 text-orange-400" />
+                  <UtensilsCrossed className="h-6 w-6 text-primary" />
                 </div>
               )}
             </div>
@@ -511,7 +517,7 @@ export function AddEntryDialog({
               <ul className="mt-1 space-y-0.5">
                 {meal.slots.slice(0, 4).map((slot) => (
                   <li key={slot.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <span className="shrink-0 rounded-full bg-white/70 dark:bg-black/20 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">
+                    <span className="shrink-0 rounded-full bg-card/70 dark:bg-black/20 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
                       {slotName(slot)}
                     </span>
                     <span className="truncate">
@@ -549,7 +555,7 @@ export function AddEntryDialog({
       {(trigger !== undefined || openProp === undefined) && (
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button className="w-full gap-2 bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white border-0 shadow-sm">
+          <Button variant="outline" className="w-full gap-2 border-dashed text-primary">
             <Plus className="h-4 w-4" />
             Add meal
           </Button>
@@ -570,7 +576,7 @@ export function AddEntryDialog({
                     onClick={() => setTab(t)}
                     className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                       tab === t
-                        ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
+                        ? "bg-primary text-primary-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -628,11 +634,11 @@ export function AddEntryDialog({
                   onClick={() => setFavouritesOnly((v) => !v)}
                   className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border shadow-sm transition-all ${
                     favouritesOnly
-                      ? "bg-rose-500 text-white border-rose-500"
-                      : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300"
+                      ? "bg-primary text-primary-foreground border-transparent"
+                      : "bg-highlight border-border text-primary hover:bg-highlight"
                   }`}
                 >
-                  <Heart className={`h-3 w-3 ${favouritesOnly ? "fill-white" : "fill-rose-500 text-rose-500"}`} />
+                  <Heart className={`h-3 w-3 ${favouritesOnly ? "fill-white" : "fill-primary text-primary"}`} />
                   Favourites
                 </button>
                 {!pick && (
@@ -659,7 +665,7 @@ export function AddEntryDialog({
                     onClick={() => setRoleFilter(null)}
                     className={`rounded-full px-2.5 py-0.5 text-xs font-semibold border transition-all ${
                       roleFilter === null
-                        ? "bg-orange-500 text-white border-orange-500"
+                        ? "bg-primary text-primary-foreground border-transparent"
                         : "bg-background border-border text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -673,8 +679,8 @@ export function AddEntryDialog({
                       onClick={() => setRoleFilter((prev) => (prev === role ? null : role))}
                       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold border transition-all ${
                         roleFilter === role
-                          ? "bg-orange-500 text-white border-orange-500"
-                          : "bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100 dark:bg-orange-950/40 dark:border-orange-900 dark:text-orange-200"
+                          ? "bg-primary text-primary-foreground border-transparent"
+                          : "bg-highlight border-border text-primary hover:bg-highlight"
                       }`}
                     >
                       {MEAL_ROLE_LABELS[role]}
@@ -714,7 +720,7 @@ export function AddEntryDialog({
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 Filters
                 {activeFilterCount > 0 && (
-                  <span className="ml-0.5 h-4 w-4 rounded-full bg-white/25 text-[10px] font-bold flex items-center justify-center">
+                  <span className="ml-0.5 h-4 w-4 rounded-full bg-card/25 text-[10px] font-bold flex items-center justify-center">
                     {activeFilterCount}
                   </span>
                 )}

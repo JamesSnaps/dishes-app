@@ -29,7 +29,7 @@ struct CookingView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(WatchTheme.brandGradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(WatchTheme.brand, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     ForEach(cook.timers) { timer in TimerRow(timer: timer) }
 

@@ -23,7 +23,7 @@ struct ShoppingView: View {
             } onSubmit: { text in
                 model.add(text)
             }
-            .listRowBackground(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(WatchTheme.brandGradient))
+            .listRowBackground(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(WatchTheme.brand))
 
             if open.isEmpty {
                 Text(basket.isEmpty ? "Nothing on the list" : "Everything’s in the basket 🎉")

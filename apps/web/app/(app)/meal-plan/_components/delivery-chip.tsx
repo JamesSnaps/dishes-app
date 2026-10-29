@@ -57,9 +57,9 @@ export function useWeekDeliveries(weekStartDate: string, refreshKey: string) {
 
 const STATUS_STYLE: Record<DeliveryDayView["status"], string> = {
   scheduled:
-    "bg-gradient-to-r from-teal-500/20 to-emerald-500/15 text-teal-800 dark:text-teal-200 border-teal-300/70 dark:border-teal-800",
+    "bg-success-tint text-success border-transparent",
   ordered:
-    "bg-gradient-to-r from-emerald-600 to-teal-500 text-white border-transparent shadow-sm",
+    "bg-success text-card border-transparent shadow-sm",
   skipped: "bg-muted text-muted-foreground border-border line-through",
 };
 
@@ -132,17 +132,17 @@ export function DeliveryChip({
               {day.status === "scheduled" && (
                 <>
                   <DropdownMenuItem onSelect={() => change("ordered", "Marked as ordered")}>
-                    <Check className="mr-2 h-4 w-4 text-emerald-600" /> Mark as ordered
+                    <Check className="mr-2 h-4 w-4 text-success" /> Mark as ordered
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={openEditor}>
-                    <PencilLine className="mr-2 h-4 w-4 text-emerald-600" /> Ordered — add slot &amp; total
+                    <PencilLine className="mr-2 h-4 w-4 text-success" /> Ordered — add slot &amp; total
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() =>
                       change(day.regular ? "skipped" : "default", "Delivery skipped")
                     }
                   >
-                    <SkipForward className="mr-2 h-4 w-4 text-amber-600" />
+                    <SkipForward className="mr-2 h-4 w-4 text-warning" />
                     {day.regular ? "Skip this delivery" : "Remove this delivery"}
                   </DropdownMenuItem>
                 </>
@@ -150,7 +150,7 @@ export function DeliveryChip({
               {day.status === "ordered" && (
                 <>
                   <DropdownMenuItem onSelect={openEditor}>
-                    <PencilLine className="mr-2 h-4 w-4 text-emerald-600" /> Edit order details
+                    <PencilLine className="mr-2 h-4 w-4 text-success" /> Edit order details
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => change("scheduled", "Order unmarked")}>
                     <Undo2 className="mr-2 h-4 w-4" /> Not ordered yet
@@ -159,7 +159,7 @@ export function DeliveryChip({
               )}
               {day.status === "skipped" && (
                 <DropdownMenuItem onSelect={() => change("scheduled", "Delivery restored")}>
-                  <RotateCcw className="mr-2 h-4 w-4 text-emerald-600" /> Restore delivery
+                  <RotateCcw className="mr-2 h-4 w-4 text-success" /> Restore delivery
                 </DropdownMenuItem>
               )}
             </>

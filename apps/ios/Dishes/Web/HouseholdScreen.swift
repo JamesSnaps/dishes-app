@@ -41,7 +41,7 @@ struct HouseholdScreen: View {
                     Text(h.household.name).font(.system(size: 19, weight: .bold))
                 }
                 Spacer()
-                if h.isAdmin { Button("Rename") { renaming = true }.buttonStyle(.outline).fixedSize() }
+                if h.isAdmin { Button("Rename") { renaming = true }.buttonStyle(.secondary).fixedSize() }
             }
             .padding(16).card()
 
@@ -263,7 +263,7 @@ struct AISettingsScreen: View {
             Section {
                 LabeledContent("Reading recipes and ingredients") {
                     Text(DeviceAI.isAvailable ? "On this device" : "On the server")
-                        .foregroundStyle(DeviceAI.isAvailable ? Theme.brandDeep : Theme.mutedForeground)
+                        .foregroundStyle(DeviceAI.isAvailable ? Theme.brand : Theme.mutedForeground)
                 }
                 if let model = DeviceAI.modelDescription {
                     LabeledContent("Model", value: model)
