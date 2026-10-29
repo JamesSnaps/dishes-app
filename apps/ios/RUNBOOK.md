@@ -1752,3 +1752,7 @@ these 3" into the log).
 Checked in the simulator with the form forced on (the dev household has no AI key): iPhone 18 Pro
 and iPad Pro 11-inch landscape, light. Note: the simulator tool's taps can land at the previous
 tap's position, which looks like a menu "forgetting" a tick — it isn't.
+
+Uploaded to TestFlight as 1.73.1 (build 202610291833) from main after PRs #83 and #84 merged —
+carries Help me choose (courses, mood, streamed progress, swaps, the whole menu) and the tidied
+Create with AI page. The server was not redeployed with it.
