@@ -1770,3 +1770,6 @@ Create with AI page. The server was not redeployed with it.
   doesn't stream. The app needs a server at 1.73.0 or later.
 
 Not checked in the simulator: the dev household has one member (no tabs) and no AI key.
+
+Uploaded to TestFlight as 1.73.2 (build 202610291905) from main after PR #85 merged. The server was
+deployed at 1.73.1 just before (no migrations), so Help me choose has its streaming endpoint.
