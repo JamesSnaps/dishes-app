@@ -220,6 +220,8 @@ export function MenuChooser({
             return setPhase("input");
         }
       });
+      // A stream that ends without "done" or "error" still finishes.
+      if (mounted.current) setPhase((p) => (p === "working" ? "done" : p));
     } catch (err) {
       if (!mounted.current) return;
       setError((err as Error).message || "Couldn't read the menu — please try again.");
@@ -242,6 +244,7 @@ export function MenuChooser({
     setSwapOpen(null);
     setError(null);
     const fresh: MenuPick[] = [];
+    let failed = false;
     try {
       await streamMenuPicks(form, (e) => {
         if (!mounted.current) return;
@@ -251,9 +254,12 @@ export function MenuChooser({
           setOptions((o) => ({ ...o, [key]: [...fresh] }));
           if (fresh.length === 1) setChosen((c) => ({ ...c, [key]: e.pick.item }));
         }
-        if (e.type === "error") setError(e.message);
+        if (e.type === "error") {
+          failed = true;
+          setError(e.message);
+        }
       });
-      if (!fresh.length && mounted.current) setError("Nothing else on the menu suits — the options above are the best fit.");
+      if (!fresh.length && !failed && mounted.current) setError("Nothing else on the menu suits — the options above are the best fit.");
     } catch (err) {
       if (mounted.current) setError((err as Error).message);
     } finally {

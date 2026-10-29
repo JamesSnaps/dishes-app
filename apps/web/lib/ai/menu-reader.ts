@@ -102,17 +102,23 @@ export function tidyMenu(parsed: z.infer<typeof readSchema>): ReadMenu {
   return { restaurant: { name: clean(parsed.restaurant.name), cuisine: clean(parsed.restaurant.cuisine) }, items };
 }
 
-/** A menu sent back by a client for a swap, checked rather than trusted. */
+/**
+ * A menu sent back by a client for a swap, checked rather than trusted. The
+ * nullable keys may also be missing: Swift's JSONEncoder leaves nil out.
+ */
 export const readMenuSchema = z.object({
-  restaurant: z.object({ name: z.string().max(200).nullable(), cuisine: z.string().max(100).nullable() }),
+  restaurant: z.object({
+    name: z.string().max(200).nullable().default(null),
+    cuisine: z.string().max(100).nullable().default(null),
+  }),
   items: z
     .array(
       z.object({
         id: z.number().int().positive(),
-        section: z.string().max(200).nullable(),
+        section: z.string().max(200).nullable().default(null),
         name: z.string().min(1).max(300),
         line: z.string().min(1).max(1000),
-        kcal: z.number().int().positive().max(9999).nullable(),
+        kcal: z.number().int().positive().max(9999).nullable().default(null),
       })
     )
     .min(1)
