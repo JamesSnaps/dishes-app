@@ -32,7 +32,7 @@ export function BackfillMealTypesButton() {
           Use AI to label untagged recipes (breakfast/lunch/dinner/…) so the
           weekly planner stops putting dinners into breakfast slots.
           {result && (
-            <span className="ml-1 text-green-600 dark:text-green-400">
+            <span className="ml-1 text-success">
               Done — {result.updated} of {result.total} tagged.
             </span>
           )}
@@ -49,7 +49,7 @@ export function BackfillMealTypesButton() {
         {state === "running" ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
         ) : state === "done" ? (
-          <CheckCircle2 className="mr-1.5 h-4 w-4 text-green-600" />
+          <CheckCircle2 className="mr-1.5 h-4 w-4 text-success" />
         ) : state === "error" ? (
           <AlertCircle className="mr-1.5 h-4 w-4 text-destructive" />
         ) : (

@@ -35,7 +35,7 @@ const chip = (active: boolean) =>
     "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
     active
       ? "border-primary bg-primary text-primary-foreground shadow-sm"
-      : "border-orange-200 bg-orange-50 text-orange-800 hover:border-orange-300 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300"
+      : "border-transparent bg-highlight text-primary hover:border-input"
   );
 
 function kcalText(p: MenuPick): string | null {
@@ -131,7 +131,7 @@ export function MenuChooser({
           </p>
         )}
         {result.note && (
-          <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <p className="flex gap-2 rounded-lg bg-warning-tint px-3 py-2 text-xs text-warning">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {result.note}
           </p>
@@ -140,7 +140,7 @@ export function MenuChooser({
         {result.diners.map((d) => (
           <div
             key={d.name}
-            className="space-y-2 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 p-3 shadow-sm dark:from-emerald-950/30 dark:to-teal-950/30"
+            className="space-y-2 rounded-xl bg-success-tint p-3 shadow-sm"
           >
             {result.diners.length > 1 && <p className="text-sm font-semibold">{d.name}</p>}
             {d.picks.length === 0 && <p className="text-xs text-muted-foreground">No suggestions.</p>}
@@ -163,13 +163,13 @@ export function MenuChooser({
                   }
                   className={cn(
                     "flex w-full gap-3 rounded-lg border-2 bg-background/90 p-3 text-left shadow-sm transition-all",
-                    on ? "border-emerald-500 ring-2 ring-emerald-500/30" : "border-transparent hover:border-emerald-300"
+                    on ? "border-input ring-2 ring-ring" : "border-transparent hover:border-input"
                   )}
                 >
                   <span
                     className={cn(
                       "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
-                      on ? "border-emerald-500 bg-emerald-500 text-white" : "border-emerald-300"
+                      on ? "border-transparent bg-success text-card" : "border-input"
                     )}
                   >
                     {on && <Check className="h-3 w-3" />}
@@ -183,7 +183,7 @@ export function MenuChooser({
                     </span>
                     <span className="block text-sm">{p.why}</span>
                     {p.lighterTweak && (
-                      <span className="block text-xs text-emerald-800 dark:text-emerald-300">Ask for: {p.lighterTweak}</span>
+                      <span className="block text-xs text-success">Ask for: {p.lighterTweak}</span>
                     )}
                     {kcal && <span className="block text-xs text-muted-foreground">{kcal}</span>}
                   </span>
@@ -210,7 +210,7 @@ export function MenuChooser({
             Change the menu
           </Button>
           <Button
-            className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md hover:from-emerald-600 hover:to-teal-600"
+            className="flex-1 bg-success text-card shadow-md"
             onClick={use}
             disabled={chosen.size === 0}
           >
@@ -241,7 +241,7 @@ export function MenuChooser({
             </div>
           ))}
           {photos.length < MAX_PHOTOS && (
-            <label className="flex aspect-[3/4] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-orange-300 bg-orange-50/60 text-center text-xs font-medium text-orange-800 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-300">
+            <label className="flex aspect-[3/4] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-transparent bg-highlight text-center text-xs font-medium text-primary hover:bg-highlight">
               <ImagePlus className="h-5 w-5" />
               {photos.length ? "Another page" : "Photo"}
               <input
@@ -271,14 +271,14 @@ export function MenuChooser({
 
         {pdf ? (
           <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">
-            <FileText className="h-4 w-4 shrink-0 text-sky-600" />
+            <FileText className="h-4 w-4 shrink-0 text-foreground" />
             <span className="min-w-0 flex-1 truncate">{pdf.name}</span>
             <button type="button" onClick={() => setPdf(null)} aria-label="Remove the PDF" className="text-muted-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
         ) : (
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-sky-800 dark:text-sky-300">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
             <FileText className="h-4 w-4" />
             <span className="underline underline-offset-2">Or choose a PDF</span>
             <input
@@ -326,7 +326,7 @@ export function MenuChooser({
           Back
         </Button>
         <Button
-          className="flex-[2] bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md hover:from-emerald-600 hover:to-teal-600"
+          className="flex-[2] bg-success text-card shadow-md"
           onClick={suggest}
           disabled={!hasMenu || diners.length === 0 || loading}
         >

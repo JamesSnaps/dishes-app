@@ -96,9 +96,9 @@ export function MealDishTabs({
   const dishTitle = new Map(dishes.map((d) => [d.recipeId, d.recipeTitle]));
 
   return (
-    <div className="border-t bg-gradient-to-r from-orange-50 via-amber-50/70 to-rose-50 dark:from-orange-950/30 dark:via-amber-950/10 dark:to-rose-950/20">
+    <div className="border-t bg-highlight">
       <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 scrollbar-none">
-        <span className="hidden sm:flex shrink-0 items-center gap-1.5 pr-1 text-xs font-semibold text-orange-800 dark:text-orange-200">
+        <span className="hidden sm:flex shrink-0 items-center gap-1.5 pr-1 text-xs font-semibold text-primary">
           <UtensilsCrossed className="h-3.5 w-3.5" />
           <span className="max-w-[10rem] truncate">{title}</span>
         </span>
@@ -114,8 +114,8 @@ export function MealDishTabs({
               aria-current={current ? "page" : undefined}
               className={`relative flex shrink-0 items-center gap-2 rounded-xl px-2.5 py-1.5 text-left transition-all ${
                 current
-                  ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md"
-                  : "bg-white/90 dark:bg-black/30 border border-orange-200 dark:border-orange-900/60 shadow-sm hover:border-orange-400 hover:shadow"
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "bg-card/90 dark:bg-black/30 border border-border shadow-sm hover:border-input hover:shadow"
               }`}
             >
               {dish.recipeImageUrl ? (
@@ -124,7 +124,7 @@ export function MealDishTabs({
               ) : (
                 <span
                   className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${
-                    current ? "bg-white/20" : "bg-muted"
+                    current ? "bg-card/20" : "bg-muted"
                   }`}
                 >
                   <ChefHat className="h-3.5 w-3.5" />
@@ -136,7 +136,7 @@ export function MealDishTabs({
                 </span>
                 <span
                   className={`flex items-center gap-1 text-[11px] leading-tight ${
-                    current ? "text-white/85" : "text-muted-foreground"
+                    current ? "text-background/85" : "text-muted-foreground"
                   }`}
                 >
                   {urgent ? (
@@ -145,7 +145,7 @@ export function MealDishTabs({
                       <span
                         className={`font-mono tabular-nums ${
                           urgent[1].done
-                            ? `font-semibold ${current ? "" : "text-green-600 dark:text-green-400"}`
+                            ? `font-semibold ${current ? "" : "text-success"}`
                             : ""
                         }`}
                       >
@@ -166,7 +166,7 @@ export function MealDishTabs({
               </span>
               {ringing && (
                 <span
-                  className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-green-500 ring-2 ring-background animate-pulse"
+                  className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-success ring-2 ring-background animate-pulse"
                   aria-label="Timer finished"
                 />
               )}
@@ -175,16 +175,16 @@ export function MealDishTabs({
         })}
       </div>
       {nextUp && (
-        <div className="flex items-center border-t border-orange-200/60 dark:border-orange-900/40">
+        <div className="flex items-center border-t border-border">
         <button
           type="button"
           onClick={() => nextUp.recipeId && switchTo(nextUp.recipeId, nextUp.stepIndex)}
           className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-xs"
         >
-          <AlarmClock className="h-3.5 w-3.5 shrink-0 text-orange-600 dark:text-orange-400" />
+          <AlarmClock className="h-3.5 w-3.5 shrink-0 text-primary" />
           <span
             className={`shrink-0 font-mono font-semibold tabular-nums ${
-              nextUp.at <= now ? "text-rose-600 dark:text-rose-400" : ""
+              nextUp.at <= now ? "text-primary" : ""
             }`}
           >
             {nextUp.at <= now ? "Now" : clockOf(nextUp.at)}
@@ -200,7 +200,7 @@ export function MealDishTabs({
           type="button"
           onClick={onChangeStart}
           title="Started at a different time…"
-          className="mr-2 flex shrink-0 items-center gap-1 rounded-lg border border-orange-300 bg-white/90 px-2 py-1 text-[11px] font-semibold text-orange-800 shadow-sm hover:border-orange-500 dark:border-orange-800 dark:bg-black/30 dark:text-orange-200"
+          className="mr-2 flex shrink-0 items-center gap-1 rounded-lg border border-input bg-card/90 px-2 py-1 text-[11px] font-semibold text-primary shadow-sm hover:border-input dark:bg-black/30"
         >
           <Clock className="h-3 w-3" />
           <span className="hidden sm:inline">Started at a different time…</span>
@@ -254,7 +254,7 @@ export function MealTimelinePanel({
         <button
           type="button"
           onClick={onChangeStart}
-          className="flex shrink-0 items-center gap-1 rounded-lg border border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 px-2 py-1 text-[11px] font-semibold text-orange-800 shadow-sm hover:border-orange-500 dark:border-orange-800 dark:from-orange-950/40 dark:to-amber-950/20 dark:text-orange-200"
+          className="flex shrink-0 items-center gap-1 rounded-lg border border-transparent bg-highlight px-2 py-1 text-[11px] font-semibold text-primary shadow-sm hover:border-input"
         >
           <Clock className="h-3 w-3" />
           Started at a different time…
@@ -272,7 +272,7 @@ export function MealTimelinePanel({
                 onClick={() => pick(cue, i)}
                 className={`flex w-full items-start gap-2 rounded-lg px-2 py-1 text-left text-xs transition-colors ${
                   current
-                    ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
+                    ? "bg-primary text-primary-foreground shadow-sm"
                     : past
                     ? "opacity-45"
                     : "hover:bg-muted/60"
@@ -322,7 +322,7 @@ export function MealTimersPanel({
   if (!rows.length) return null;
 
   return (
-    <div className="shrink-0 px-6 py-5 border-t bg-gradient-to-b from-orange-50/60 to-transparent dark:from-orange-950/20">
+    <div className="shrink-0 px-6 py-5 border-t bg-highlight">
       <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
         <UtensilsCrossed className="h-3.5 w-3.5" />
         Rest of the meal
@@ -333,9 +333,9 @@ export function MealTimersPanel({
             key={`${dish.recipeId}:${idx}`}
             className={`rounded-lg border p-2.5 ${
               timer.done
-                ? "border-green-500/30 bg-green-500/5"
+                ? "border-transparent bg-success-tint"
                 : timer.running
-                ? "border-orange-500/30 bg-orange-500/5"
+                ? "border-transparent bg-highlight"
                 : "border-border bg-muted/30"
             }`}
           >
@@ -356,9 +356,9 @@ export function MealTimersPanel({
               <span
                 className={`font-mono text-base font-bold tabular-nums ${
                   timer.done
-                    ? "text-green-500 animate-pulse"
+                    ? "text-success animate-pulse"
                     : timer.running && timer.remaining <= 30
-                    ? "text-orange-500"
+                    ? "text-primary"
                     : ""
                 }`}
               >

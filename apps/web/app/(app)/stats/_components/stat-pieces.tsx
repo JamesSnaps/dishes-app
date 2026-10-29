@@ -47,13 +47,13 @@ export function StatTile({
 }) {
   const tones = {
     neutral: "from-muted/60 to-muted/20",
-    rose: "from-rose-100 to-pink-50 dark:from-rose-950/50 dark:to-pink-950/20",
-    orange: "from-orange-100 to-amber-50 dark:from-orange-950/50 dark:to-amber-950/20",
-    violet: "from-violet-100 to-fuchsia-50 dark:from-violet-950/50 dark:to-fuchsia-950/20",
-    emerald: "from-emerald-100 to-teal-50 dark:from-emerald-950/50 dark:to-teal-950/20",
+    rose: "bg-muted",
+    orange: "bg-muted",
+    violet: "bg-muted",
+    emerald: "bg-muted",
   };
   return (
-    <div className={cn("rounded-xl bg-gradient-to-br p-3 shadow-sm", tones[tone])} title={hint}>
+    <div className={cn("rounded-xl p-3 shadow-sm", tones[tone])} title={hint}>
       <div className="text-2xl font-bold leading-tight tabular-nums">{value}</div>
       <div className="mt-0.5 text-xs font-medium text-muted-foreground">{label}</div>
     </div>
@@ -104,7 +104,7 @@ export function BarList({
  */
 export function ShareColumns({
   columns,
-  barClassName = "bg-rose-500",
+  barClassName = "bg-primary",
   emptyLabel = "No data",
 }: {
   columns: { key: string; label: string; share: number | null; tooltip: string }[];

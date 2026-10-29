@@ -48,10 +48,10 @@ const MEAL_TYPE_LABEL: Record<MealType, string> = {
 };
 
 const ROLE_CHIP: Record<MealRole, string> = {
-  main: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-  side: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  sauce: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
-  other: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
+  main: "bg-highlight text-primary",
+  side: "bg-success-tint text-success",
+  sauce: "bg-warning-tint text-warning",
+  other: "bg-muted text-foreground",
 };
 
 /** The longest dish's time, taking each slot's slowest option — a fair upper bound. */
@@ -259,7 +259,7 @@ export function MealsManager({
         </div>
         <Button
           onClick={() => setDraft(emptyDraft())}
-          className="shrink-0 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-md"
+          className="shrink-0 bg-primary text-primary-foreground border-0 shadow-md"
         >
           <Plus className="mr-1 h-4 w-4" />
           New meal
@@ -267,8 +267,8 @@ export function MealsManager({
       </div>
 
       {savedMeals.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 dark:from-orange-950/20 dark:via-amber-950/10 dark:to-rose-950/20 py-20 px-6 text-center gap-3 shadow-sm">
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-500 text-white flex items-center justify-center shadow-md">
+        <div className="flex flex-col items-center justify-center rounded-2xl bg-highlight py-20 px-6 text-center gap-3 shadow-sm">
+          <div className="h-14 w-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md">
             <UtensilsCrossed className="h-7 w-7" />
           </div>
           <p className="font-semibold">No saved meals yet</p>
@@ -287,10 +287,10 @@ export function MealsManager({
             return (
               <div
                 key={meal.id}
-                className="flex flex-col rounded-2xl border border-orange-200/70 dark:border-orange-900/50 bg-gradient-to-br from-orange-50 via-amber-50/80 to-rose-50 dark:from-orange-950/30 dark:via-amber-950/15 dark:to-rose-950/25 p-4 shadow-md"
+                className="flex flex-col rounded-2xl border border-transparent bg-highlight p-4 shadow-md"
               >
                 <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 text-white flex items-center justify-center shadow-sm">
+                  <div className="h-10 w-10 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
                     <UtensilsCrossed className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -314,7 +314,7 @@ export function MealsManager({
 
                 {meal.rating && <MealRatingSummary rating={meal.rating} />}
 
-                <ul className="mt-3 flex-1 rounded-xl bg-white/70 dark:bg-black/20 divide-y divide-orange-100 dark:divide-orange-950/60 shadow-sm">
+                <ul className="mt-3 flex-1 rounded-xl bg-card/70 dark:bg-black/20 divide-y divide-border shadow-sm">
                   {meal.slots.map((slot) => (
                     <li key={slot.id} className="flex items-start gap-2 px-2.5 py-2">
                       <span
@@ -347,7 +347,7 @@ export function MealsManager({
                   <Button
                     size="sm"
                     onClick={() => setDraft(draftFrom(meal))}
-                    className="flex-1 bg-white/80 dark:bg-black/30 text-foreground border border-orange-300/70 dark:border-orange-800/60 hover:bg-white shadow-sm"
+                    className="flex-1 bg-card/80 dark:bg-black/30 text-foreground border border-input hover:bg-card shadow-sm"
                   >
                     <Pencil className="mr-1 h-3.5 w-3.5" />
                     Edit
@@ -427,7 +427,7 @@ export function MealsManager({
                   {sortedDraftSlots.map((slot) => (
                     <li
                       key={slot.key}
-                      className="rounded-xl border border-orange-200/70 dark:border-orange-900/50 bg-gradient-to-br from-orange-50 to-rose-50 dark:from-orange-950/30 dark:to-rose-950/20 p-3 shadow-sm space-y-2.5"
+                      className="rounded-xl border border-transparent bg-highlight p-3 shadow-sm space-y-2.5"
                     >
                       <div className="flex items-center gap-1.5">
                         <div className="flex flex-wrap gap-1 flex-1">
@@ -438,8 +438,8 @@ export function MealsManager({
                               onClick={() => updateSlot(slot.key, (s) => ({ ...s, role: r }))}
                               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
                                 slot.role === r
-                                  ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
-                                  : "bg-white dark:bg-black/30 border text-muted-foreground hover:text-foreground"
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "bg-card dark:bg-black/30 border text-muted-foreground hover:text-foreground"
                               }`}
                             >
                               {MEAL_ROLE_LABELS[r]}
@@ -463,7 +463,7 @@ export function MealsManager({
                         onChange={(e) => updateSlot(slot.key, (s) => ({ ...s, label: e.target.value }))}
                         placeholder={`Name (optional) — e.g. ${slot.role === "main" ? "Meat" : "Veg"}`}
                         maxLength={100}
-                        className="h-8 text-sm bg-white/80 dark:bg-black/20"
+                        className="h-8 text-sm bg-card/80 dark:bg-black/20"
                       />
 
                       <div className="flex flex-wrap gap-1.5">
@@ -472,8 +472,8 @@ export function MealsManager({
                             key={o.key}
                             className={`inline-flex items-center rounded-full text-xs font-semibold shadow-sm ${
                               o.isDefault
-                                ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white"
-                                : "bg-white dark:bg-black/30 border text-foreground"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-card dark:bg-black/30 border text-foreground"
                             }`}
                           >
                             <button
@@ -500,7 +500,7 @@ export function MealsManager({
                         <button
                           type="button"
                           onClick={() => setPickTarget({ kind: "option", slotKey: slot.key })}
-                          className="inline-flex items-center gap-1 rounded-full border border-dashed border-orange-400 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:text-orange-300 hover:bg-white/70 dark:hover:bg-black/20"
+                          className="inline-flex items-center gap-1 rounded-full border border-dashed border-input px-2.5 py-1 text-xs font-semibold text-primary hover:bg-card/70 dark:hover:bg-black/20"
                         >
                           <Plus className="h-3 w-3" />
                           Option
@@ -517,11 +517,11 @@ export function MealsManager({
                         >
                           <span
                             className={`relative h-4 w-7 rounded-full transition-colors ${
-                              slot.allowMultiple ? "bg-orange-500" : "bg-muted-foreground/30"
+                              slot.allowMultiple ? "bg-primary" : "bg-muted-foreground/30"
                             }`}
                           >
                             <span
-                              className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${
+                              className={`absolute top-0.5 h-3 w-3 rounded-full bg-card shadow transition-all ${
                                 slot.allowMultiple ? "left-3.5" : "left-0.5"
                               }`}
                             />
@@ -546,7 +546,7 @@ export function MealsManager({
                       key={r}
                       type="button"
                       onClick={() => setPickTarget({ kind: "slot", role: r })}
-                      className="flex items-center justify-center gap-1 rounded-xl border border-orange-300/70 dark:border-orange-800/60 bg-white/70 dark:bg-black/20 py-1.5 text-xs font-semibold text-orange-700 dark:text-orange-300 shadow-sm hover:bg-white dark:hover:bg-black/30 transition-colors"
+                      className="flex items-center justify-center gap-1 rounded-xl border border-input bg-card/70 dark:bg-black/20 py-1.5 text-xs font-semibold text-primary shadow-sm hover:bg-card dark:hover:bg-black/30 transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Add {withArticle(MEAL_ROLE_LABELS[r].toLowerCase())}
@@ -561,7 +561,7 @@ export function MealsManager({
             <Button
               onClick={save}
               disabled={pending || !draft?.title.trim() || !draft?.slots.length}
-              className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-md"
+              className="bg-primary text-primary-foreground border-0 shadow-md"
             >
               {pending ? "Saving…" : "Save meal"}
             </Button>
@@ -629,7 +629,7 @@ function MealRatingSummary({ rating }: { rating: SavedMealRating }) {
   const best = combos[0];
   const worst = combos.length > 1 ? combos[combos.length - 1] : null;
   return (
-    <div className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs shadow-sm dark:bg-black/20">
+    <div className="mt-3 rounded-xl bg-card/70 px-3 py-2 text-xs shadow-sm dark:bg-black/20">
       <div className="flex items-center gap-2">
         {rating.average != null ? (
           <>
@@ -645,13 +645,13 @@ function MealRatingSummary({ rating }: { rating: SavedMealRating }) {
       </div>
       {best && combos.length > 1 && (
         <p className="mt-1 text-muted-foreground">
-          <span className="font-semibold text-emerald-700 dark:text-emerald-400">Best {best.average.toFixed(1)}★</span>{" "}
+          <span className="font-semibold text-success">Best {best.average.toFixed(1)}★</span>{" "}
           {best.titles.join(" + ")}
         </p>
       )}
       {worst && (
         <p className="mt-0.5 text-muted-foreground">
-          <span className="font-semibold text-amber-700 dark:text-amber-400">Lowest {worst.average.toFixed(1)}★</span>{" "}
+          <span className="font-semibold text-warning">Lowest {worst.average.toFixed(1)}★</span>{" "}
           {worst.titles.join(" + ")}
         </p>
       )}

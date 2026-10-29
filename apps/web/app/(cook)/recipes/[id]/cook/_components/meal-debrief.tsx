@@ -92,7 +92,7 @@ export function MealDebrief({
       <div className="mx-auto w-full max-w-lg flex-1 px-5 py-6">
         <div className="mb-6 flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-orange-600 dark:text-orange-400">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">
               Meal finished
             </p>
             <h2 className="text-2xl font-bold">{title}</h2>
@@ -117,14 +117,14 @@ export function MealDebrief({
           ownName={ownName}
         />
 
-        <div className="mt-8 rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-4 shadow-sm dark:border-orange-900/60 dark:from-orange-950/30 dark:to-amber-950/20">
+        <div className="mt-8 rounded-2xl border border-transparent bg-highlight p-4 shadow-sm">
           <p className="mb-1 text-sm font-semibold">Each dish</p>
           <p className="mb-4 text-xs text-muted-foreground">
             A quick rating for each part — skip any you like. These go on each recipe&apos;s own history.
           </p>
           <ul className="space-y-3">
             {dishes.map((d) => (
-              <li key={d.id} className="rounded-xl bg-white/80 p-3 shadow-sm dark:bg-black/30">
+              <li key={d.id} className="rounded-xl bg-card/80 p-3 shadow-sm dark:bg-black/30">
                 <div className="flex items-center gap-3">
                   {d.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -187,7 +187,7 @@ export function MealDebrief({
             size="lg"
             onClick={() => save(false)}
             disabled={saving}
-            className="bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md hover:from-orange-600 hover:to-rose-600"
+            className="bg-primary text-primary-foreground shadow-md"
           >
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Save the meal

@@ -130,8 +130,8 @@ export function CookDebrief({
           <div className="px-5 py-8 space-y-6 flex-1">
             {/* AI review card */}
             {aiReview && (
-              <div className="rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/40 p-4 space-y-2">
-                <div className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
+              <div className="rounded-xl border border-transparent bg-muted p-4 space-y-2">
+                <div className="flex items-center gap-2 text-foreground">
                   <Sparkles className="h-4 w-4 shrink-0" />
                   <span className="text-sm font-semibold">AI feedback</span>
                 </div>
@@ -158,8 +158,8 @@ export function CookDebrief({
     <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-y-auto">
       {/* Header */}
       <div className="flex flex-col items-center pt-12 pb-8 px-6 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/15 mb-4">
-          <CheckCircle2 className="h-9 w-9 text-green-500" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success-tint mb-4">
+          <CheckCircle2 className="h-9 w-9 text-success" />
         </div>
         <h1 className="text-2xl font-bold">All done!</h1>
         <p className="mt-1 text-muted-foreground text-sm line-clamp-1 max-w-xs">

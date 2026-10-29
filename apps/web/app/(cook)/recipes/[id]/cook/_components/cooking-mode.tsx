@@ -153,18 +153,18 @@ function IngredientChip({ name, label, amount, isOpen, onToggle, onMouseEnter, o
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggle(); }}
-        className="cursor-pointer font-semibold text-orange-600 dark:text-orange-400 underline decoration-dotted underline-offset-2 hover:text-orange-700 dark:hover:text-orange-300 transition-colors"
+        className="cursor-pointer font-semibold text-primary underline decoration-dotted underline-offset-2 hover:text-primary transition-colors"
         aria-label={`${name}: ${amount || label}`}
       >
         {label}
       </span>
       {isOpen && amount && (
         <span
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 whitespace-nowrap rounded-lg bg-gray-900 dark:bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-white dark:text-gray-900 shadow-lg pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 whitespace-nowrap rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground shadow-lg pointer-events-none"
           role="tooltip"
         >
           {amount}
-          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-100" />
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-input" />
         </span>
       )}
     </span>
@@ -337,14 +337,14 @@ function StepTimer({ timer, onToggle, onReset }: StepTimerProps) {
       <div className="mb-4 flex items-center justify-between">
         <span
           className={`font-mono text-4xl font-bold tabular-nums tracking-tight ${
-            done ? "text-green-500 animate-pulse" : remaining <= 30 && running ? "text-orange-500" : ""
+            done ? "text-success animate-pulse" : remaining <= 30 && running ? "text-primary" : ""
           }`}
         >
           {done ? "Done!" : formatTimer(remaining)}
         </span>
         <div className="h-1.5 w-32 overflow-hidden rounded-full bg-border">
           <div
-            className={`h-full rounded-full transition-all duration-1000 ${done ? "bg-green-500" : "bg-primary"}`}
+            className={`h-full rounded-full transition-all duration-1000 ${done ? "bg-success" : "bg-primary"}`}
             style={{ width: `${Math.round(progress * 100)}%` }}
           />
         </div>
@@ -387,9 +387,9 @@ function ActiveTimersPanel({ timers, onToggle, onReset, onJumpToStep }: TimerPan
             key={idx}
             className={`rounded-lg border p-3 transition-colors ${
               timer.done
-                ? "border-green-500/30 bg-green-500/5"
+                ? "border-transparent bg-success-tint"
                 : timer.running
-                ? "border-orange-500/30 bg-orange-500/5"
+                ? "border-transparent bg-highlight"
                 : "border-border bg-muted/30"
             }`}
           >
@@ -425,7 +425,7 @@ function ActiveTimersPanel({ timers, onToggle, onReset, onJumpToStep }: TimerPan
             </p>
             <span
               className={`font-mono text-xl font-bold tabular-nums ${
-                timer.done ? "text-green-500 animate-pulse" : timer.running && timer.remaining <= 30 ? "text-orange-500" : ""
+                timer.done ? "text-success animate-pulse" : timer.running && timer.remaining <= 30 ? "text-primary" : ""
               }`}
             >
               {timer.done ? "Done!" : formatTimer(timer.remaining)}
@@ -433,7 +433,7 @@ function ActiveTimersPanel({ timers, onToggle, onReset, onJumpToStep }: TimerPan
             {!timer.done && (
               <div className="mt-1.5 h-1 rounded-full bg-border overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-1000 ${timer.running ? "bg-orange-500" : "bg-primary/40"}`}
+                  className={`h-full rounded-full transition-all duration-1000 ${timer.running ? "bg-primary" : "bg-primary/40"}`}
                   style={{ width: `${Math.round(((timer.totalSeconds - timer.remaining) / timer.totalSeconds) * 100)}%` }}
                 />
               </div>
@@ -459,9 +459,9 @@ function MobileTimerShelf({ timers, onToggle, onReset, onJumpToStep }: TimerPane
             key={idx}
             className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 ${
               timer.done
-                ? "border-green-500/40 bg-green-500/10"
+                ? "border-transparent bg-success-tint"
                 : timer.running
-                ? "border-orange-500/40 bg-orange-500/10"
+                ? "border-transparent bg-highlight"
                 : "border-border bg-muted/40"
             }`}
           >
@@ -474,8 +474,8 @@ function MobileTimerShelf({ timers, onToggle, onReset, onJumpToStep }: TimerPane
                 Step {timer.stepNumber} · {timer.label ?? timer.preview}
               </span>
               <span className="flex items-center gap-1.5">
-                <Timer className={`h-3.5 w-3.5 ${timer.running ? "text-orange-500" : "text-muted-foreground"}`} />
-                <span className={`font-mono text-sm font-bold tabular-nums ${timer.done ? "text-green-500 animate-pulse" : ""}`}>
+                <Timer className={`h-3.5 w-3.5 ${timer.running ? "text-primary" : "text-muted-foreground"}`} />
+                <span className={`font-mono text-sm font-bold tabular-nums ${timer.done ? "text-success animate-pulse" : ""}`}>
                   {timer.done ? "Done!" : formatTimer(timer.remaining)}
                 </span>
               </span>
@@ -714,7 +714,7 @@ function CookAssist({ recipeTitle, stepNumber, stepInstruction, stepIngredients,
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
               <div className="flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-orange-500" />
+                <HelpCircle className="h-4 w-4 text-primary" />
                 <span className="font-semibold text-sm">Ask about Step {stepNumber}</span>
               </div>
               <button
@@ -1276,7 +1276,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
             if (latestThreadRef.current.length >= 2) saveStepThread(stepIndex, latestThreadRef.current);
             mealCtx.finishMeal();
           }}
-          className="flex-1 bg-gradient-to-r from-orange-500 to-rose-500 text-white hover:from-orange-600 hover:to-rose-600"
+          className="flex-1 bg-primary text-primary-foreground"
         >
           <CheckCircle2 className="mr-1.5 h-5 w-5" />
           Finish meal
@@ -1452,12 +1452,12 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
               {cueIsStep && currentStep && (
                 <div className="mb-6">
                   {currentStep.groupLabel?.trim() && (
-                    <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-orange-500 lg:text-base">
+                    <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-primary lg:text-base">
                       {currentStep.groupLabel}
                     </p>
                   )}
                   <div className="flex gap-4 lg:gap-6">
-                    <span className="flex h-10 w-10 lg:h-14 lg:w-14 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white font-bold text-base lg:text-xl">
+                    <span className="flex h-10 w-10 lg:h-14 lg:w-14 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-base lg:text-xl">
                       {stepIndex + 1}
                     </span>
                     <div className="flex-1 min-w-0 pt-1 lg:pt-2">
@@ -1517,7 +1517,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
 
               {/* The whole meal's schedule — mobile only; the sidebar has it on desktop */}
               {seq && mealGroupId && (
-                <details className="mt-4 rounded-xl border bg-gradient-to-br from-orange-50/70 to-transparent dark:from-orange-950/20 lg:hidden">
+                <details className="mt-4 rounded-xl border bg-highlight lg:hidden">
                   <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none">
                     Whole schedule ({seq.cues.length} steps)
                   </summary>
@@ -1527,14 +1527,14 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
 
               {/* Active ingredients — mobile only */}
               {cueIsStep && stepIngredients.length > 0 && (
-                <div className="mt-6 rounded-xl border bg-orange-500/5 border-orange-500/20 p-4 lg:hidden">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">
+                <div className="mt-6 rounded-xl border bg-highlight border-transparent p-4 lg:hidden">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">
                     Used in this step
                   </p>
                   <ul className="space-y-1.5">
                     {stepIngredients.map((ing) => (
                       <li key={ing.id} className="flex items-baseline gap-2 text-sm">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500 mt-[5px]" />
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-[5px]" />
                         <span>
                           {ing.amount && (
                             <span className="font-semibold">
@@ -1576,7 +1576,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                             <p
                               className={`mb-1.5 text-xs font-semibold uppercase tracking-wide ${
                                 group.label === currentSection
-                                  ? "text-orange-600 dark:text-orange-400"
+                                  ? "text-primary"
                                   : "text-muted-foreground"
                               }`}
                             >
@@ -1600,7 +1600,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                                 >
                                   <span
                                     className={`h-1.5 w-1.5 shrink-0 rounded-full mt-[5px] ${
-                                      isActive ? "bg-orange-500" : "bg-muted-foreground/40"
+                                      isActive ? "bg-primary" : "bg-muted-foreground/40"
                                     }`}
                                   />
                                   <span>
@@ -1690,7 +1690,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                   <p
                     className={`mb-2 text-xs font-semibold uppercase tracking-wide ${
                       group.label === currentSection
-                        ? "text-orange-600 dark:text-orange-400"
+                        ? "text-primary"
                         : "text-muted-foreground"
                     }`}
                   >
@@ -1708,22 +1708,22 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                   <li
                     key={ing.id}
                     className={`flex items-start gap-3 rounded-lg px-2 py-1.5 -mx-2 transition-colors ${
-                      isActive && !isChecked ? "bg-orange-500/10" : ""
+                      isActive && !isChecked ? "bg-highlight" : ""
                     }`}
                   >
                     <button
                       onClick={() => toggleSessionIngredient(ing.id)}
                       className={`mt-0.5 shrink-0 transition-colors ${
                         isChecked
-                          ? "text-green-500"
+                          ? "text-success"
                           : isActive
-                          ? "text-orange-500"
+                          ? "text-primary"
                           : "text-muted-foreground/40 hover:text-muted-foreground"
                       }`}
                       aria-label={isChecked ? `Uncheck ${ing.ingredientName}` : `Check ${ing.ingredientName}`}
                     >
                       <CheckCircle2
-                        className={`h-5 w-5 ${isChecked ? "fill-green-500/20" : isActive ? "fill-orange-500/10" : ""}`}
+                        className={`h-5 w-5 ${isChecked ? "fill-success" : isActive ? "fill-primary" : ""}`}
                       />
                     </button>
                     <span
@@ -1745,7 +1745,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                       {ing.isOptional && <span className="ml-1 text-xs">(optional)</span>}
                     </span>
                     {isActive && !isChecked && (
-                      <span className="ml-auto shrink-0 mt-0.5 h-1.5 w-1.5 rounded-full bg-orange-500" />
+                      <span className="ml-auto shrink-0 mt-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
                     )}
                     {/* Ran out mid-cook? One tap puts it on the shopping list.
                         `ml-auto` only when the active dot isn't already holding
@@ -1771,9 +1771,9 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                           }
                           className={`${isActive && !isChecked ? "ml-2" : "ml-auto"} shrink-0 mt-0.5 rounded-md p-1.5 transition-colors ${
                             justAdded
-                              ? "text-green-500"
+                              ? "text-success"
                               : onList
-                              ? "text-blue-500/70 hover:bg-muted hover:text-blue-500"
+                              ? "text-foreground hover:bg-muted hover:text-foreground"
                               : "text-muted-foreground/40 hover:bg-muted hover:text-foreground active:bg-muted"
                           }`}
                           aria-label={
@@ -1787,10 +1787,10 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                           {addingToList === ing.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : justAdded ? (
-                            <CheckCircle2 className="h-4 w-4 fill-green-500/20" />
+                            <CheckCircle2 className="h-4 w-4 fill-success" />
                           ) : (
                             <ShoppingCart
-                              className={`h-4 w-4 ${onList ? "fill-blue-500/15" : ""}`}
+                              className={`h-4 w-4 ${onList ? "fill-foreground" : ""}`}
                             />
                           )}
                         </button>
@@ -1841,10 +1841,10 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
             return (
               <div
                 key={idx}
-                className="pointer-events-auto w-full max-w-md rounded-2xl border border-green-500/40 bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-950 dark:to-emerald-900 p-4 shadow-2xl"
+                className="pointer-events-auto w-full max-w-md rounded-2xl border border-transparent bg-success-tint p-4 shadow-2xl"
               >
                 <div className="flex items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-500 text-white animate-pulse">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success text-card animate-pulse">
                     <Timer className="h-5 w-5" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -1858,7 +1858,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                   </div>
                   <button
                     onClick={() => dismissAlert(idx)}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full hover:bg-black/5 transition-colors"
                     aria-label="Dismiss timer alert"
                   >
                     <X className="h-4 w-4" />
@@ -1867,7 +1867,7 @@ export function CookingMode({ recipe, ingredients, steps, householdMembers = [],
                 <div className="mt-3 flex gap-2">
                   <Button
                     size="sm"
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex-1 bg-success hover:bg-success text-card"
                     onClick={() => {
                       jumpToStep(idx);
                       dismissAlert(idx);

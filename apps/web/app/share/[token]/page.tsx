@@ -88,7 +88,7 @@ function AddToDishesButton({ token, className = "" }: { token: string; className
   return (
     <Link
       href={`/import/${token}`}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary/80 px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition hover:brightness-110 active:scale-[0.98] ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition hover:brightness-110 active:scale-[0.98] ${className}`}
     >
       <Plus className="h-4 w-4" />
       Add to my Dishes
@@ -138,7 +138,7 @@ export default async function SharedRecipePage({ params }: Props) {
   ].filter(Boolean) as { label: string; value: string; icon: React.ElementType }[];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary/[0.06] via-background to-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Top brand band */}
       <header className="mx-auto flex max-w-6xl items-center gap-2 px-4 pt-6 sm:px-6">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md shadow-primary/25">
@@ -168,7 +168,7 @@ export default async function SharedRecipePage({ params }: Props) {
                 </div>
               </>
             ) : (
-              <div className="flex aspect-[4/3] items-center justify-center rounded-3xl bg-gradient-to-br from-primary/15 via-primary/5 to-transparent ring-1 ring-primary/10 lg:aspect-[4/5] lg:max-h-[34rem]">
+              <div className="flex aspect-[4/3] items-center justify-center rounded-3xl bg-plate lg:aspect-[4/5] lg:max-h-[34rem]">
                 <UtensilsCrossed className="h-16 w-16 text-primary/30" />
               </div>
             )}
@@ -238,7 +238,7 @@ export default async function SharedRecipePage({ params }: Props) {
       <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-16 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-12">
         {/* Ingredients */}
         <section className="lg:sticky lg:top-8 lg:self-start">
-          <div className="rounded-2xl border bg-gradient-to-br from-primary/[0.07] via-card to-card p-5 shadow-sm sm:p-6">
+          <div className="rounded-2xl border bg-primary/[0.07] p-5 shadow-sm sm:p-6">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
                 <ListChecks className="h-5 w-5" />
@@ -306,13 +306,13 @@ export default async function SharedRecipePage({ params }: Props) {
                           key={step.id}
                           className="flex gap-4 rounded-2xl border bg-card/60 p-4 shadow-sm sm:p-5"
                         >
-                          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/75 text-sm font-bold text-primary-foreground shadow-md shadow-primary/25">
+                          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shadow-md shadow-primary/25">
                             {counter}
                           </span>
                           <div className="flex-1 pt-1">
                             <p className="leading-relaxed">{step.instruction}</p>
                             {step.durationMinutes && (
-                              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-warning-tint px-2.5 py-1 text-xs font-medium text-warning">
                                 <Timer className="h-3.5 w-3.5" />
                                 {step.timerLabel ?? `${step.durationMinutes} min`}
                               </p>
@@ -330,7 +330,7 @@ export default async function SharedRecipePage({ params }: Props) {
       </div>
 
       {/* Branded footer */}
-      <footer className="border-t bg-gradient-to-b from-transparent to-primary/[0.05]">
+      <footer className="border-t bg-transparent">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 py-10 text-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
             <UtensilsCrossed className="h-5 w-5" />

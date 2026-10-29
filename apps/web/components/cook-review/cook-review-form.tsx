@@ -149,7 +149,7 @@ const chip = (active: boolean) =>
     "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
     active
       ? "border-primary bg-primary text-primary-foreground shadow-sm"
-      : "border-orange-200 bg-orange-50 text-orange-800 hover:border-orange-300 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300"
+      : "border-transparent bg-highlight text-primary hover:border-input"
   );
 
 export function CookReviewFields({
@@ -260,8 +260,8 @@ export function CookReviewFields({
             ))}
           </div>
           {othersEating.length > 0 && (
-            <div className="space-y-2 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 p-3 shadow-sm dark:from-amber-950/30 dark:to-orange-950/30">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+            <div className="space-y-2 rounded-xl bg-warning-tint p-3 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-warning">
                 What did everyone think?
               </p>
               {othersEating.map((name) => (
@@ -351,7 +351,7 @@ export function CookReviewFields({
               </div>
             </div>
           ) : (
-            <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-orange-300 bg-orange-50/60 px-4 py-6 text-sm font-medium text-orange-800 transition-colors hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-300">
+            <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-transparent bg-highlight px-4 py-6 text-sm font-medium text-primary transition-colors hover:bg-highlight">
               <Camera className="h-5 w-5" />
               Take or upload a photo of your dish
               <input type="file" accept="image/*" className="sr-only" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />

@@ -203,9 +203,9 @@ export function cueLabel(ctx: MealCookValue, cue: CookCue): string {
 }
 
 const TONE = {
-  ahead: "bg-white/80 text-orange-800 dark:bg-black/30 dark:text-orange-200",
-  now: "bg-gradient-to-r from-orange-500 to-rose-500 text-white",
-  late: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+  ahead: "bg-card/80 text-primary dark:bg-black/30",
+  now: "bg-primary text-primary-foreground",
+  late: "bg-highlight text-primary",
 } as const;
 
 /**
@@ -224,12 +224,12 @@ export function SequenceDue() {
   return (
     <div className="mb-5 space-y-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-100 to-amber-100 px-3 py-1 text-sm font-semibold text-orange-900 shadow-sm dark:from-orange-950/60 dark:to-amber-950/40 dark:text-orange-100">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-highlight px-3 py-1 text-sm font-semibold text-primary shadow-sm">
           <AlarmClock className="h-4 w-4" />
           <span className="font-mono tabular-nums">{clockOf(cue.at)}</span>
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${TONE[due.tone]}`}>{due.text}</span>
         </span>
-        <span className="text-sm font-semibold text-orange-700 dark:text-orange-300">{cueLabel(ctx, cue)}</span>
+        <span className="text-sm font-semibold text-primary">{cueLabel(ctx, cue)}</span>
       </div>
       {others.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -239,7 +239,7 @@ export function SequenceDue() {
               key={o.id}
               type="button"
               onClick={() => ctx.goTo(i)}
-              className="rounded-full border border-orange-300 bg-white px-2.5 py-0.5 text-xs font-medium shadow-sm hover:border-orange-500 dark:border-orange-800 dark:bg-black/30"
+              className="rounded-full border border-input bg-card px-2.5 py-0.5 text-xs font-medium shadow-sm hover:border-input dark:bg-black/30"
             >
               {cueLabel(ctx, o)}
             </button>
@@ -280,9 +280,9 @@ export function CueCard() {
   const serve = cue.id === "serve";
 
   return (
-    <div className="mb-6 rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 p-5 shadow-sm dark:border-orange-900/60 dark:from-orange-950/40 dark:via-amber-950/20 dark:to-rose-950/20 lg:p-8">
+    <div className="mb-6 rounded-2xl border border-transparent bg-highlight p-5 shadow-sm lg:p-8">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
           {serve ? <Soup className="h-5 w-5" /> : cue.covers?.length ? <ListOrdered className="h-5 w-5" /> : <UtensilsCrossed className="h-5 w-5" />}
         </span>
         <p className="pt-1 text-xl font-medium leading-relaxed lg:text-3xl">
@@ -294,11 +294,11 @@ export function CueCard() {
           {cue.covers.map((c) => {
             const d = ctx.dishes.find((x) => x.id === c.recipeId);
             return (
-              <li key={`${c.recipeId}:${c.stepIndex}`} className="rounded-xl bg-white/80 p-3 shadow-sm dark:bg-black/30">
+              <li key={`${c.recipeId}:${c.stepIndex}`} className="rounded-xl bg-card/80 p-3 shadow-sm dark:bg-black/30">
                 <button
                   type="button"
                   onClick={() => ctx.showDish(c.recipeId, c.stepIndex)}
-                  className="mb-1 text-xs font-semibold uppercase tracking-wide text-orange-700 hover:underline dark:text-orange-300"
+                  className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary hover:underline"
                 >
                   {d?.title ?? "Dish"} · step {c.stepIndex + 1}
                 </button>
@@ -312,7 +312,7 @@ export function CueCard() {
         <Button
           size="lg"
           onClick={ctx.finishMeal}
-          className="mt-5 w-full bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md hover:from-orange-600 hover:to-rose-600"
+          className="mt-5 w-full bg-primary text-primary-foreground shadow-md"
         >
           Finish and review the meal
         </Button>
@@ -326,8 +326,8 @@ export function SequenceBar({ onChangeStart }: { onChangeStart: () => void }) {
   const ctx = useMealCook();
   if (!ctx?.sequence) return null;
   return (
-    <div className="flex items-center gap-2 border-t bg-gradient-to-r from-orange-50 via-amber-50/70 to-rose-50 px-3 py-2 dark:from-orange-950/30 dark:via-amber-950/10 dark:to-rose-950/20">
-      <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-orange-800 dark:text-orange-200">
+    <div className="flex items-center gap-2 border-t bg-highlight px-3 py-2">
+      <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-primary">
         <UtensilsCrossed className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{ctx.title}</span>
       </span>
@@ -336,7 +336,7 @@ export function SequenceBar({ onChangeStart }: { onChangeStart: () => void }) {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1 rounded-lg border border-orange-300 bg-white/90 px-2 py-1 text-[11px] font-semibold text-orange-800 shadow-sm hover:border-orange-500 dark:border-orange-800 dark:bg-black/30 dark:text-orange-200"
+              className="flex items-center gap-1 rounded-lg border border-input bg-card/90 px-2 py-1 text-[11px] font-semibold text-primary shadow-sm hover:border-input dark:bg-black/30"
             >
               <BookOpen className="h-3 w-3" />
               View a dish
@@ -358,7 +358,7 @@ export function SequenceBar({ onChangeStart }: { onChangeStart: () => void }) {
         <button
           type="button"
           onClick={onChangeStart}
-          className="flex items-center gap-1 rounded-lg border border-orange-300 bg-white/90 px-2 py-1 text-[11px] font-semibold text-orange-800 shadow-sm hover:border-orange-500 dark:border-orange-800 dark:bg-black/30 dark:text-orange-200"
+          className="flex items-center gap-1 rounded-lg border border-input bg-card/90 px-2 py-1 text-[11px] font-semibold text-primary shadow-sm hover:border-input dark:bg-black/30"
         >
           <Clock className="h-3 w-3" />
           <span className="hidden sm:inline">Started at a different time…</span>
@@ -378,7 +378,7 @@ export function BackToMealBar({ children }: { children?: ReactNode }) {
       <button
         type="button"
         onClick={ctx.backToMeal}
-        className="flex w-full items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-rose-500 px-3 py-2 text-sm font-semibold text-white shadow"
+        className="flex w-full items-center justify-center gap-2 bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow"
       >
         <ListOrdered className="h-4 w-4" />
         Back to the meal — your place is kept

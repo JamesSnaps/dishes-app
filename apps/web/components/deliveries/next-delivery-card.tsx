@@ -27,9 +27,9 @@ function Row({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-2 text-sm">
       {ok ? (
-        <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-success" />
       ) : (
-        <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+        <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-warning" />
       )}
       <span className={ok ? "text-muted-foreground" : "font-medium"}>{children}</span>
     </li>
@@ -76,16 +76,16 @@ export function NextDeliveryCard({
     <div
       className={`rounded-xl border p-4 shadow-sm ${
         ordered
-          ? "bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-emerald-500/5 border-emerald-300/60 dark:border-emerald-900/60"
-          : "bg-gradient-to-br from-teal-500/15 via-emerald-500/10 to-amber-500/10 border-teal-300/60 dark:border-teal-900/60"
+          ? "bg-success-tint border-transparent"
+          : "bg-success-tint border-transparent"
       }`}
     >
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 flex-shrink-0 rounded-full bg-gradient-to-br from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md">
+        <div className="h-10 w-10 flex-shrink-0 rounded-full bg-success text-card flex items-center justify-center shadow-md">
           <Truck className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+          <p className="text-xs font-semibold uppercase tracking-wider text-success">
             {next.day}&apos;s delivery · {next.label}
           </p>
           <p className="font-bold leading-snug">
@@ -156,7 +156,7 @@ export function NextDeliveryCard({
                 size="sm"
                 disabled={pending}
                 onClick={() => setEditing(true)}
-                className="gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white border-0 shadow-md"
+                className="gap-1.5 bg-success text-card border-0 shadow-md"
               >
                 <PencilLine className="h-4 w-4" />
                 {next.slot || next.total ? "Edit order" : "Add slot & total"}
@@ -177,7 +177,7 @@ export function NextDeliveryCard({
                 size="sm"
                 disabled={pending}
                 onClick={() => change("ordered", "Marked as ordered")}
-                className="gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white border-0 shadow-md"
+                className="gap-1.5 bg-success text-card border-0 shadow-md"
               >
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 Mark as ordered
@@ -188,7 +188,7 @@ export function NextDeliveryCard({
                 onClick={() =>
                   change(next.regular ? "skipped" : "default", `${next.day}'s delivery skipped`)
                 }
-                className="gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-800 shadow-sm"
+                className="gap-1.5 bg-warning-tint hover:bg-warning-tint text-warning border border-transparent shadow-sm"
               >
                 <SkipForward className="h-4 w-4" />
                 Skip this one

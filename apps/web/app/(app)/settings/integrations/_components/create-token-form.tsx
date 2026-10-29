@@ -51,22 +51,22 @@ export function CreateTokenForm({ members }: { members: { id: string; displayNam
   }
 
   return (
-    <div className="rounded-xl border border-orange-200/70 bg-gradient-to-br from-card to-orange-50/60 p-4 shadow-sm dark:border-orange-900/40 dark:to-orange-950/20">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-4 font-semibold">Create new token</h3>
 
       {newToken && (
-        <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950">
-          <p className="mb-1 text-sm font-medium text-green-800 dark:text-green-200">
+        <div className="mb-4 rounded-md border border-transparent bg-success-tint p-3">
+          <p className="mb-1 text-sm font-medium text-success">
             Token created — copy it now. It won&apos;t be shown again. It&apos;s also been filled into
             the Try it console.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-white px-2 py-1 text-xs dark:bg-black">
+            <code className="flex-1 break-all rounded bg-card px-2 py-1 text-xs dark:bg-black">
               {newToken}
             </code>
             <button
               onClick={copyToken}
-              className="shrink-0 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+              className="shrink-0 rounded-md bg-success px-2.5 py-1 text-xs font-semibold text-card shadow-sm hover:bg-success"
             >
               {copied ? "Copied!" : "Copy"}
             </button>
@@ -145,7 +145,7 @@ export function CreateTokenForm({ members }: { members: { id: string; displayNam
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-lg bg-gradient-to-r from-orange-500 to-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-md transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Creating…" : "Create token"}
         </button>

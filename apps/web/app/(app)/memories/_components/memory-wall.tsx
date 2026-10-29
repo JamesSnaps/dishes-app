@@ -236,16 +236,16 @@ export function MemoryWall({ photos }: Props) {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between mb-6 gap-3">
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold font-[family-name:var(--font-caveat)] text-zinc-800 dark:text-zinc-100">
+          <h1 className="text-3xl font-bold font-[family-name:var(--font-caveat)] text-foreground">
             Memories
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-sm text-muted-foreground mt-0.5">
             {items.length} photo{items.length !== 1 ? "s" : ""} — tap to relive
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* View toggle */}
-          <div className="flex items-center rounded-full bg-white/70 dark:bg-zinc-800 p-1 shadow-sm ring-1 ring-black/5 dark:ring-white/10">
+          <div className="flex items-center rounded-full bg-card/70 p-1 shadow-sm ring-1 ring-black/5 dark:ring-white/10">
             {/* The stored keys predate the labels: "wall" is the polaroid
                 scatter, "grid" is now the borderless wall. Renaming the keys
                 would reset everyone's saved preference, so they stay. */}
@@ -261,8 +261,8 @@ export function MemoryWall({ photos }: Props) {
                 aria-label={`${smLabel} view`}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                   view === key
-                    ? "bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow"
-                    : "text-zinc-600 dark:text-zinc-300"
+                    ? "bg-secondary text-secondary-foreground shadow"
+                    : "text-muted-foreground"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -276,7 +276,7 @@ export function MemoryWall({ photos }: Props) {
             onClick={doShuffle}
             disabled={fading}
             aria-label="Shuffle photos"
-            className="flex shrink-0 items-center gap-2 rounded-full bg-zinc-800 dark:bg-zinc-100 px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 shadow-md active:scale-95 transition-transform disabled:opacity-60"
+            className="flex shrink-0 items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground shadow-md active:scale-95 transition-transform disabled:opacity-60"
           >
             <Shuffle className="h-4 w-4" />
             <span className="hidden sm:inline">Shuffle</span>
@@ -303,7 +303,7 @@ export function MemoryWall({ photos }: Props) {
                 key={photo.id}
                 type="button"
                 onClick={() => setActive(photo)}
-                className="group relative block w-full min-w-0 overflow-hidden rounded-2xl bg-zinc-200 dark:bg-zinc-800 text-left shadow-lg ring-1 ring-black/5 active:scale-[0.98] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="group relative block w-full min-w-0 overflow-hidden rounded-2xl bg-muted text-left shadow-lg ring-1 ring-black/5 active:scale-[0.98] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -312,14 +312,14 @@ export function MemoryWall({ photos }: Props) {
                   className="w-full aspect-[4/5] object-cover"
                   loading="lazy"
                 />
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-4 pb-4 pt-14">
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/55 px-4 pb-4 pt-6">
                   <div className="font-[family-name:var(--font-caveat)] text-[24px] font-semibold leading-tight text-white">
                     {photo.recipeName}
                   </div>
                   <div className="flex items-center gap-2 font-[family-name:var(--font-caveat)] text-[17px] leading-tight text-white/80">
                     <span>{relDate(photo.cookedAt)}</span>
                     {photo.rating != null && (
-                      <span className="text-amber-300">{stars(photo.rating)}</span>
+                      <span className="text-warning">{stars(photo.rating)}</span>
                     )}
                   </div>
                 </div>
@@ -341,7 +341,7 @@ export function MemoryWall({ photos }: Props) {
                       }}
                     >
                       <div
-                        className="min-w-0 bg-white dark:bg-zinc-100 rounded-sm hover:scale-[1.03] transition-transform duration-150"
+                        className="min-w-0 bg-card rounded-sm hover:scale-[1.03] transition-transform duration-150"
                         style={{ boxShadow: "0 3px 10px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.04)" }}
                       >
                         {/* Photo */}
@@ -358,11 +358,11 @@ export function MemoryWall({ photos }: Props) {
                           </div>
                         </div>
                         {/* Caption */}
-                        <div className="min-w-0 px-2 pt-1.5 pb-3 font-[family-name:var(--font-caveat)] text-zinc-800">
+                        <div className="min-w-0 px-2 pt-1.5 pb-3 font-[family-name:var(--font-caveat)] text-foreground">
                           <div className="text-[14px] font-semibold leading-tight truncate">{photo.recipeName}</div>
-                          <div className="text-[12px] text-zinc-500 leading-tight truncate">{relDate(photo.cookedAt)}</div>
+                          <div className="text-[12px] text-muted-foreground leading-tight truncate">{relDate(photo.cookedAt)}</div>
                           {photo.rating != null && (
-                            <div className="text-[11px] text-amber-500 leading-tight">{stars(photo.rating)}</div>
+                            <div className="text-[11px] text-warning leading-tight">{stars(photo.rating)}</div>
                           )}
                         </div>
                       </div>
@@ -389,7 +389,7 @@ export function MemoryWall({ photos }: Props) {
                     type="button"
                     onClick={() => setActive(photo)}
                     aria-label={`${photo.recipeName}, ${relDate(photo.cookedAt)}`}
-                    className="group relative block min-w-0 shrink-0 overflow-hidden bg-zinc-200 text-left dark:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                    className="group relative block min-w-0 shrink-0 overflow-hidden bg-muted text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     style={{
                       height: row.height,
                       width: (ratios[photo.id] ?? 0.8) * row.height,
@@ -404,12 +404,12 @@ export function MemoryWall({ photos }: Props) {
                     />
                     {/* Details on hover only. Touch devices never fire hover, but
                         a tap opens the lightbox, which shows all of this and more. */}
-                    <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-black/45 p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
                       <div className="truncate font-[family-name:var(--font-caveat)] text-[19px] font-semibold leading-tight text-white">
                         {photo.recipeName}
                       </div>
                       {photo.rating != null && (
-                        <div className="font-[family-name:var(--font-caveat)] text-[16px] leading-tight text-amber-300">
+                        <div className="font-[family-name:var(--font-caveat)] text-[16px] leading-tight text-warning">
                           {stars(photo.rating)}
                         </div>
                       )}
@@ -430,7 +430,7 @@ export function MemoryWall({ photos }: Props) {
           onClick={() => setActive(null)}
         >
           <div
-            className={`${caveat.variable} relative bg-white dark:bg-zinc-100 rounded-sm w-full max-w-sm mx-auto max-h-[88vh] overflow-y-auto`}
+            className={`${caveat.variable} relative bg-card rounded-sm w-full max-w-sm mx-auto max-h-[88vh] overflow-y-auto`}
             style={{
               boxShadow: "0 25px 60px rgba(0,0,0,0.5)",
               transform: `rotate(${getTilt(active.id, 99)}deg)`,
@@ -442,7 +442,7 @@ export function MemoryWall({ photos }: Props) {
               type="button"
               onClick={() => setActive(null)}
               aria-label="Close"
-              className="absolute top-1.5 right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-lg text-zinc-600 hover:text-zinc-900 transition-colors"
+              className="absolute top-1.5 right-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-card/90 backdrop-blur shadow-lg text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -460,7 +460,7 @@ export function MemoryWall({ photos }: Props) {
             </div>
 
             {/* Caption */}
-            <div className="px-4 pt-3 pb-5 font-[family-name:var(--font-caveat)] text-zinc-800 space-y-0.5">
+            <div className="px-4 pt-3 pb-5 font-[family-name:var(--font-caveat)] text-foreground space-y-0.5">
               <div className="flex items-start justify-between gap-2">
                 <Link
                   href={`/recipes/${active.recipeId}`}
@@ -468,21 +468,21 @@ export function MemoryWall({ photos }: Props) {
                   className="text-[20px] font-semibold leading-tight hover:underline flex items-center gap-1"
                 >
                   {active.recipeName}
-                  <ExternalLink className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 </Link>
                 {active.rating != null && (
-                  <span className="text-amber-500 text-[18px] shrink-0">{stars(active.rating)}</span>
+                  <span className="text-warning text-[18px] shrink-0">{stars(active.rating)}</span>
                 )}
               </div>
-              <div className="text-[15px] text-zinc-500">{fullDate(active.cookedAt)}</div>
+              <div className="text-[15px] text-muted-foreground">{fullDate(active.cookedAt)}</div>
               {active.occasion && (
-                <div className="text-[15px] text-zinc-600">{active.occasion}</div>
+                <div className="text-[15px] text-muted-foreground">{active.occasion}</div>
               )}
               {active.cookedFor && active.cookedFor.length > 0 && (
-                <div className="text-[14px] text-zinc-500">with {active.cookedFor.join(", ")}</div>
+                <div className="text-[14px] text-muted-foreground">with {active.cookedFor.join(", ")}</div>
               )}
               {active.notes && (
-                <p className="text-[14px] text-zinc-600 italic pt-1 leading-snug">
+                <p className="text-[14px] text-muted-foreground italic pt-1 leading-snug">
                   &ldquo;{active.notes}&rdquo;
                 </p>
               )}

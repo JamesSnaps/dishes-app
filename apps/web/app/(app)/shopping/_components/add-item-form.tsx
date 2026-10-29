@@ -188,7 +188,7 @@ export function AddItemForm({ onAdd, items, mostOrdered }: Props) {
           // back so a tap doesn't blur the field (closing the list before the
           // click lands) and the keyboard stays up for the next item.
           onMouseDown={(e) => e.preventDefault()}
-          className="flex flex-col gap-1 rounded-xl border border-orange-200 bg-gradient-to-b from-orange-50 to-rose-50 p-1.5 shadow-lg shadow-orange-900/10 dark:border-orange-900/60 dark:from-orange-950 dark:to-rose-950 dark:shadow-black/40"
+          className="flex flex-col gap-1 rounded-xl border border-transparent bg-highlight p-1.5 shadow-lg dark:shadow-black/40"
         >
           {suggestions.map((s, i) => (
             <li
@@ -200,17 +200,17 @@ export function AddItemForm({ onAdd, items, mostOrdered }: Props) {
               onClick={() => pick(s)}
               className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
                 i === active
-                  ? "bg-orange-500 text-white shadow-sm"
-                  : "bg-white/80 text-foreground shadow-sm shadow-orange-900/5 dark:bg-white/10"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-card/80 text-foreground shadow-sm"
               }`}
             >
               <span
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
                   i === active
-                    ? "bg-white/20 text-white"
+                    ? "bg-background/20 text-background"
                     : s.source === "history"
-                      ? "bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-300"
-                      : "bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-300"
+                      ? "bg-highlight text-primary"
+                      : "bg-highlight text-primary"
                 }`}
                 aria-hidden
               >
@@ -224,7 +224,7 @@ export function AddItemForm({ onAdd, items, mostOrdered }: Props) {
                 <Highlighted text={s.name} query={name} />
               </span>
               <span
-                className={`shrink-0 text-xs ${i === active ? "text-white/85" : "text-muted-foreground"}`}
+                className={`shrink-0 text-xs ${i === active ? "text-background/85" : "text-muted-foreground"}`}
               >
                 {s.source === "history"
                   ? [s.category, s.count > 1 ? `×${s.count}` : null].filter(Boolean).join(" · ")
@@ -233,7 +233,7 @@ export function AddItemForm({ onAdd, items, mostOrdered }: Props) {
                     : "in a recipe"}
               </span>
               <Plus
-                className={`h-4 w-4 shrink-0 ${i === active ? "text-white" : "text-orange-500"}`}
+                className={`h-4 w-4 shrink-0 ${i === active ? "text-background" : "text-primary"}`}
                 aria-hidden
               />
             </li>

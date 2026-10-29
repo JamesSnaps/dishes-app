@@ -32,7 +32,7 @@ export function BackfillSaturatedFatButton() {
           Use AI to add saturated fat to recipes that don&rsquo;t have it yet, so the
           heart-healthy filter can judge them. One AI call per recipe.
           {result && (
-            <span className="ml-1 text-green-600 dark:text-green-400">
+            <span className="ml-1 text-success">
               Done — {result.updated} of {result.total} updated.
             </span>
           )}
@@ -49,7 +49,7 @@ export function BackfillSaturatedFatButton() {
         {state === "running" ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
         ) : state === "done" ? (
-          <CheckCircle2 className="mr-1.5 h-4 w-4 text-green-600" />
+          <CheckCircle2 className="mr-1.5 h-4 w-4 text-success" />
         ) : state === "error" ? (
           <AlertCircle className="mr-1.5 h-4 w-4 text-destructive" />
         ) : (

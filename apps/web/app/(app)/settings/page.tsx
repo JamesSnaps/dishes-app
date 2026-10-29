@@ -24,14 +24,14 @@ export const metadata = { title: "Settings" };
 // A phone has no side nav, and no Home page any more, so these are its way in
 // to the side nav's other pages — the iOS Settings tab's Kitchen and Insights.
 const KITCHEN_LINKS = [
-  { href: "/pantry", label: "Pantry", icon: Package, tint: "from-emerald-500/15 to-teal-500/10 text-emerald-600 dark:text-emerald-400" },
-  { href: "/meals", label: "Saved meals", icon: UtensilsCrossed, tint: "from-orange-500/15 to-rose-500/10 text-orange-600 dark:text-orange-400" },
-  { href: "/collections", label: "Collections", icon: FolderOpen, tint: "from-amber-500/15 to-orange-500/10 text-amber-600 dark:text-amber-400" },
-  { href: "/memories", label: "Memories", icon: Images, tint: "from-pink-500/15 to-rose-500/10 text-pink-600 dark:text-pink-400" },
-  { href: "/notes", label: "Notes", icon: FileText, tint: "from-sky-500/15 to-blue-500/10 text-sky-600 dark:text-sky-400" },
-  { href: "/shared", label: "Shared with me", icon: Library, tint: "from-indigo-500/15 to-violet-500/10 text-indigo-600 dark:text-indigo-400" },
-  { href: "/stats", label: "Stats", icon: BarChart3, tint: "from-orange-500/15 to-amber-500/10 text-orange-600 dark:text-orange-400" },
-  { href: "/wrapped", label: "Wrapped", icon: Gift, tint: "from-fuchsia-500/15 to-rose-500/10 text-fuchsia-600 dark:text-fuchsia-400" },
+  { href: "/pantry", label: "Pantry", icon: Package, tint: "" },
+  { href: "/meals", label: "Saved meals", icon: UtensilsCrossed, tint: "" },
+  { href: "/collections", label: "Collections", icon: FolderOpen, tint: "" },
+  { href: "/memories", label: "Memories", icon: Images, tint: "" },
+  { href: "/notes", label: "Notes", icon: FileText, tint: "" },
+  { href: "/shared", label: "Shared with me", icon: Library, tint: "" },
+  { href: "/stats", label: "Stats", icon: BarChart3, tint: "" },
+  { href: "/wrapped", label: "Wrapped", icon: Gift, tint: "" },
 ];
 
 export default async function SettingsPage() {
@@ -58,7 +58,7 @@ export default async function SettingsPage() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-2.5 rounded-xl border bg-gradient-to-br px-3 py-3 text-sm font-medium shadow-sm transition-shadow hover:shadow-md ${tint}`}
+              className={`flex items-center gap-2.5 rounded-xl border px-3 py-3 text-sm font-medium shadow-sm transition-shadow hover:shadow-md ${tint}`}
             >
               <Icon className="h-4 w-4 shrink-0" />
               <span className="text-foreground">{label}</span>
@@ -79,7 +79,7 @@ export default async function SettingsPage() {
         </div>
         <Link
           href="/settings/notifications"
-          className="mt-2 flex items-center justify-between rounded-lg border border-orange-300/60 dark:border-orange-900/60 bg-gradient-to-r from-orange-500/10 to-amber-500/10 px-4 py-3 hover:from-orange-500/20 hover:to-amber-500/20 transition-colors"
+          className="mt-2 flex items-center justify-between rounded-lg border border-transparent bg-highlight px-4 py-3 transition-colors"
         >
           <div>
             <p className="font-medium">Choose notifications</p>
@@ -89,7 +89,7 @@ export default async function SettingsPage() {
         </Link>
         <Link
           href="/settings/dinner-reminders"
-          className="mt-2 flex items-center justify-between rounded-lg border border-orange-300/60 dark:border-orange-900/60 bg-gradient-to-r from-orange-500/10 to-rose-500/10 px-4 py-3 hover:from-orange-500/20 hover:to-rose-500/20 transition-colors"
+          className="mt-2 flex items-center justify-between rounded-lg border border-transparent bg-highlight px-4 py-3 transition-colors"
         >
           <div>
             <p className="font-medium">Dinner reminders</p>
@@ -99,7 +99,7 @@ export default async function SettingsPage() {
         </Link>
         <Link
           href="/settings/deliveries"
-          className="mt-2 flex items-center justify-between rounded-lg border border-emerald-300/60 dark:border-emerald-900/60 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 px-4 py-3 hover:from-emerald-500/20 hover:to-teal-500/20 transition-colors"
+          className="mt-2 flex items-center justify-between rounded-lg border border-transparent bg-success-tint px-4 py-3 transition-colors"
         >
           <div>
             <p className="font-medium">Grocery deliveries</p>

@@ -21,7 +21,7 @@ export default async function NotificationsPage() {
           Settings
         </Link>
         <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-orange-500" />
+          <Bell className="h-5 w-5 text-primary" />
           <h1 className="text-2xl font-bold">Notifications</h1>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -30,7 +30,7 @@ export default async function NotificationsPage() {
         </p>
       </div>
 
-      <div className="mb-6 rounded-xl border border-orange-300/50 dark:border-orange-900/60 bg-gradient-to-br from-orange-500/10 via-amber-500/5 to-rose-500/10 p-4 shadow-sm">
+      <div className="mb-6 rounded-xl border border-transparent bg-highlight p-4 shadow-sm">
         <PushNotificationManager vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null} />
       </div>
 
@@ -38,11 +38,11 @@ export default async function NotificationsPage() {
 
       <p className="mt-6 text-sm text-muted-foreground">
         Dinner times and grocery order deadlines are set up in{" "}
-        <Link href="/settings/dinner-reminders" className="font-medium text-orange-600 dark:text-orange-400 underline-offset-2 hover:underline">
+        <Link href="/settings/dinner-reminders" className="font-medium text-primary underline-offset-2 hover:underline">
           Dinner reminders
         </Link>{" "}
         and{" "}
-        <Link href="/settings/deliveries" className="font-medium text-orange-600 dark:text-orange-400 underline-offset-2 hover:underline">
+        <Link href="/settings/deliveries" className="font-medium text-primary underline-offset-2 hover:underline">
           Grocery deliveries
         </Link>
         .

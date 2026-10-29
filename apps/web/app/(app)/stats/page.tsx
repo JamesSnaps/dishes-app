@@ -99,7 +99,7 @@ export default async function StatsPage({
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 key === range
-                  ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -123,8 +123,8 @@ export default async function StatsPage({
                   className={cn(
                     "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                     active
-                      ? "border-blue-400 bg-blue-500 text-white"
-                      : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400"
+                      ? "border-transparent bg-ink text-ink-foreground"
+                      : "border-transparent bg-muted text-foreground hover:border-input"
                   )}
                 >
                   {m.name}
@@ -138,7 +138,7 @@ export default async function StatsPage({
         <div className="flex items-center gap-2">
           <Link
             href="/wrapped"
-            className="rounded-full bg-gradient-to-r from-fuchsia-600 via-rose-500 to-orange-400 px-4 py-1.5 text-sm font-bold text-white shadow-md transition-transform hover:scale-105"
+            className="rounded-full bg-ink px-4 py-1.5 text-sm font-bold text-ink-foreground shadow-md transition-transform hover:scale-105"
           >
             Your {new Date().getFullYear()} Wrapped ✨
           </Link>
@@ -184,14 +184,14 @@ export default async function StatsPage({
           {/* Heart health */}
           <Section
             title="Heart health"
-            icon={<HeartPulse className="h-4 w-4 text-rose-500" />}
+            icon={<HeartPulse className="h-4 w-4 text-primary" />}
             description={
               <>
                 Heart-healthy means at most {HEART_HEALTHY_MAX_SATURATED_FAT_G}g saturated fat and at least{" "}
                 {HEART_HEALTHY_MIN_FIBER_G}g fibre per serving.
               </>
             }
-            className={report.heartFocus ? "border-rose-200/70 dark:border-rose-900/50" : undefined}
+            className={report.heartFocus ? "border-border" : undefined}
           >
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatTile
@@ -240,8 +240,8 @@ export default async function StatsPage({
                     return (
                       <li key={kind} className="flex items-center justify-between gap-3 text-sm">
                         <span className="flex items-center gap-1.5">
-                          {ok === true && <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-label="On target" />}
-                          {ok === false && <AlertTriangle className="h-4 w-4 text-amber-600" aria-label="Off target" />}
+                          {ok === true && <CheckCircle2 className="h-4 w-4 text-success" aria-label="On target" />}
+                          {ok === false && <AlertTriangle className="h-4 w-4 text-warning" aria-label="Off target" />}
                           {ok === undefined && <span className="inline-block w-4" />}
                           {PROTEIN_LABELS[kind]}
                         </span>
@@ -272,9 +272,9 @@ export default async function StatsPage({
 
           {/* What we eat */}
           <div className="grid gap-5 lg:grid-cols-2">
-            <Section title="Most eaten" icon={<Trophy className="h-4 w-4 text-amber-500" />}>
+            <Section title="Most eaten" icon={<Trophy className="h-4 w-4 text-warning" />}>
               <BarList
-                barClassName="bg-gradient-to-r from-orange-400 to-amber-400"
+                barClassName="bg-chart-1"
                 rows={report.topRecipes.map((r) => ({
                   key: r.id,
                   label: (
@@ -289,9 +289,9 @@ export default async function StatsPage({
               />
             </Section>
 
-            <Section title="Cuisines" icon={<Globe className="h-4 w-4 text-violet-500" />}>
+            <Section title="Cuisines" icon={<Globe className="h-4 w-4 text-foreground" />}>
               <BarList
-                barClassName="bg-gradient-to-r from-violet-500 to-fuchsia-400"
+                barClassName="bg-chart-5"
                 rows={report.cuisines.map((c) => ({
                   key: c.name,
                   label: c.name,
@@ -305,7 +305,7 @@ export default async function StatsPage({
           {/* By person */}
           {report.people.length > 0 && (
             <Section
-              icon={<Users className="h-4 w-4 text-blue-500" />}
+              icon={<Users className="h-4 w-4 text-foreground" />}
               title={report.person ? report.person.name : "By person"}
               description="A meal counts for everyone unless a logged cook says who was eating."
             >
@@ -320,7 +320,7 @@ export default async function StatsPage({
           {/* Worth a look — app nudges, left out of the PDF */}
           <Section
             title="Worth a look"
-            icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
+            icon={<Lightbulb className="h-4 w-4 text-warning" />}
             className="print:hidden"
           >
             <div className="grid gap-5 lg:grid-cols-2">
@@ -336,7 +336,7 @@ export default async function StatsPage({
                         <span className="shrink-0 text-xs text-muted-foreground">
                           {r.rating !== null && (
                             <span className="mr-2 inline-flex items-center gap-0.5">
-                              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                              <Star className="h-3 w-3 fill-primary text-primary" />
                               {r.rating}
                             </span>
                           )}
@@ -359,7 +359,7 @@ export default async function StatsPage({
                         <Link
                           key={r.id}
                           href={`/recipes/${r.id}`}
-                          className="rounded-full bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-500/20 dark:text-rose-300"
+                          className="rounded-full bg-highlight px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-highlight"
                         >
                           {r.title}
                         </Link>
@@ -391,7 +391,7 @@ function SpendSection({ spend }: { spend: GrocerySpend }) {
     <div className="mt-5">
       <Section
         title="Grocery spend"
-        icon={<Truck className="h-4 w-4 text-emerald-600" />}
+        icon={<Truck className="h-4 w-4 text-success" />}
         description="Delivery orders with a total, from your retailer's emails or the integrations API."
       >
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -408,7 +408,7 @@ function SpendSection({ spend }: { spend: GrocerySpend }) {
           />
         </div>
         <BarList
-          barClassName="bg-gradient-to-r from-emerald-500 to-teal-400"
+          barClassName="bg-chart-2"
           valuePrefix="£"
           rows={spend.periods.map((p) => ({
             key: p.key,
@@ -430,16 +430,14 @@ function PersonCard({ person }: { person: Awaited<ReturnType<typeof getStatsRepo
   return (
     <div
       className={cn(
-        "rounded-xl bg-gradient-to-br p-4 shadow-sm",
-        person.cholesterolDiet
-          ? "from-rose-50 to-pink-50 ring-1 ring-rose-200/70 dark:from-rose-950/30 dark:to-pink-950/10 dark:ring-rose-900/50"
-          : "from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-950/10"
+        "rounded-2xl p-4",
+        person.cholesterolDiet ? "bg-highlight" : "bg-muted"
       )}
     >
       <div className="flex items-center justify-between gap-2">
         <p className="font-semibold">{person.name}</p>
         {person.cholesterolDiet && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-medium text-white">
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
             <HeartPulse className="h-3 w-3" />
             Cholesterol-lowering
           </span>
@@ -464,9 +462,9 @@ function PersonCard({ person }: { person: Awaited<ReturnType<typeof getStatsRepo
               <li key={kind} className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1">
                   {ok ? (
-                    <CheckCircle2 className="h-3 w-3 text-emerald-600" aria-label="On target" />
+                    <CheckCircle2 className="h-3 w-3 text-success" aria-label="On target" />
                   ) : (
-                    <AlertTriangle className="h-3 w-3 text-amber-600" aria-label="Off target" />
+                    <AlertTriangle className="h-3 w-3 text-warning" aria-label="Off target" />
                   )}
                   {PROTEIN_LABELS[kind]}
                 </span>
@@ -500,7 +498,7 @@ function PersonCard({ person }: { person: Awaited<ReturnType<typeof getStatsRepo
 
 function Mini({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-lg bg-white/70 px-1 py-1.5 shadow-sm dark:bg-white/5">
+    <div className="rounded-lg bg-card/70 px-1 py-1.5 shadow-sm">
       <div className="text-sm font-semibold tabular-nums">{value}</div>
       <div className="text-[10px] text-muted-foreground">{label}</div>
     </div>
@@ -540,7 +538,7 @@ function Tips({ report }: { report: Awaited<ReturnType<typeof getStatsReport>> }
       <ul className="space-y-1.5 text-sm">
         {tips.map((t) => (
           <li key={t} className="flex gap-2">
-            <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
             <span>{t}</span>
           </li>
         ))}

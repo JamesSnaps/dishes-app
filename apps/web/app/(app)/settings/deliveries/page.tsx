@@ -24,7 +24,7 @@ export default async function DeliveriesPage() {
           Settings
         </Link>
         <div className="flex items-center gap-2">
-          <Truck className="h-5 w-5 text-emerald-600" />
+          <Truck className="h-5 w-5 text-success" />
           <h1 className="text-2xl font-bold">Grocery deliveries</h1>
         </div>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
@@ -62,9 +62,9 @@ export default async function DeliveriesPage() {
             today={overview.today}
           />
 
-          <section className="rounded-xl border bg-gradient-to-br from-card to-sky-50/60 dark:to-sky-950/10 p-5 shadow-sm">
+          <section className="rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-sky-600" />
+              <Mail className="h-4 w-4 text-foreground" />
               <h2 className="font-semibold">Read your order emails</h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -96,7 +96,7 @@ export default async function DeliveriesPage() {
             </ol>
             <Link
               href="/settings/integrations"
-              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-sky-700 hover:to-teal-600"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-ink-foreground shadow-md"
             >
               Integrations &amp; API reference ›
             </Link>

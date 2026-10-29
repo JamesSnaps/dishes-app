@@ -34,7 +34,7 @@ export function BackfillThumbnailsButton() {
         <p className="text-xs text-muted-foreground mt-0.5">
           Generate 400px thumbnails for recipes that don&apos;t have one yet.
           {result && (
-            <span className="ml-1 text-green-600 dark:text-green-400">
+            <span className="ml-1 text-success">
               Done — {result.succeeded} updated
               {result.failed > 0 ? `, ${result.failed} failed` : ""}.
             </span>
@@ -54,7 +54,7 @@ export function BackfillThumbnailsButton() {
         {state === "running" ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
         ) : state === "done" ? (
-          <CheckCircle2 className="mr-1.5 h-4 w-4 text-green-600" />
+          <CheckCircle2 className="mr-1.5 h-4 w-4 text-success" />
         ) : state === "error" ? (
           <AlertCircle className="mr-1.5 h-4 w-4 text-destructive" />
         ) : (

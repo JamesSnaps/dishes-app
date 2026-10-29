@@ -157,7 +157,7 @@ export function MealStartDialog({
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <AlarmClock className="h-5 w-5 text-orange-500" />
+                <AlarmClock className="h-5 w-5 text-primary" />
                 {atStart ? "Starting the meal" : "When did you start?"}
               </DialogTitle>
               <DialogDescription>
@@ -166,7 +166,7 @@ export function MealStartDialog({
                 <span className="font-semibold text-foreground tabular-nums">{clockOf(serveAt)}</span>.
               </DialogDescription>
             </DialogHeader>
-            <div className="rounded-xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-4 dark:border-orange-900/60 dark:from-orange-950/30 dark:to-amber-950/20">
+            <div className="rounded-xl border border-transparent bg-highlight p-4">
               <Label htmlFor="meal-started-at" className="text-sm font-semibold">
                 I started at…
               </Label>
@@ -175,14 +175,14 @@ export function MealStartDialog({
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="mt-2 h-12 bg-white text-lg font-semibold tabular-nums dark:bg-black/30"
+                className="mt-2 h-12 bg-card text-lg font-semibold tabular-nums dark:bg-black/30"
               />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row-reverse">
               {atStart && (
                 <Button
                   size="lg"
-                  className="flex-1 bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md hover:from-orange-600 hover:to-rose-600"
+                  className="flex-1 bg-primary text-primary-foreground shadow-md"
                   onClick={() => choose(toMinute(Date.now()))}
                 >
                   <Play className="mr-1.5 h-4 w-4" />
@@ -194,8 +194,8 @@ export function MealStartDialog({
                 variant={atStart ? "outline" : "default"}
                 className={`flex-1 ${
                   atStart
-                    ? "border-2 border-orange-300 dark:border-orange-800"
-                    : "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md hover:from-orange-600 hover:to-rose-600"
+                    ? "border-2 border-input"
+                    : "bg-primary text-primary-foreground shadow-md"
                 }`}
                 disabled={!pickedValid}
                 onClick={() => picked !== null && choose(picked)}
@@ -209,7 +209,7 @@ export function MealStartDialog({
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <MoveRight className="h-5 w-5 text-orange-500" />
+                <MoveRight className="h-5 w-5 text-primary" />
                 {minutesLabel(delta)} {early ? "early" : "late"} — move dinner?
               </DialogTitle>
               <DialogDescription>
@@ -222,7 +222,7 @@ export function MealStartDialog({
             <div className="flex flex-col gap-2 sm:flex-row-reverse">
               <Button
                 size="lg"
-                className="flex-1 bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md hover:from-orange-600 hover:to-rose-600"
+                className="flex-1 bg-primary text-primary-foreground shadow-md"
                 disabled={moving}
                 onClick={move}
               >
@@ -232,7 +232,7 @@ export function MealStartDialog({
               <Button
                 size="lg"
                 variant="outline"
-                className="flex-1 border-2 border-orange-300 dark:border-orange-800"
+                className="flex-1 border-2 border-input"
                 disabled={moving}
                 onClick={keep}
               >

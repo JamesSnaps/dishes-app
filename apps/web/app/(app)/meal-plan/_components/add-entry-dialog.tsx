@@ -117,7 +117,7 @@ function StarRow({ rating, size = "sm" }: { rating: number; size?: "sm" | "xs" }
           key={i}
           className={`${px} ${
             i <= Math.round(rating)
-              ? "fill-primary text-warning"
+              ? "fill-primary text-primary"
               : "fill-transparent text-muted-foreground/30"
           }`}
         />

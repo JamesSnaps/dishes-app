@@ -283,10 +283,10 @@ function StaplesCard({
   }
 
   return (
-    <section className="rounded-xl border bg-gradient-to-br from-amber-500/5 via-card to-card p-4 sm:p-5 shadow-sm">
+    <section className="rounded-xl border bg-warning-tint p-4 sm:p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning-tint text-warning">
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
@@ -413,10 +413,10 @@ function StockCard({
   }
 
   return (
-    <section className="rounded-xl border bg-gradient-to-br from-emerald-500/5 via-card to-card p-4 sm:p-5 shadow-sm">
+    <section className="rounded-xl border bg-success-tint p-4 sm:p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success-tint text-success">
             <Package className="h-5 w-5" />
           </div>
           <div>

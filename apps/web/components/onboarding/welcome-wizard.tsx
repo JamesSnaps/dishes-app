@@ -182,7 +182,7 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && finish()}>
-      <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto rounded-2xl border-primary/20 bg-gradient-to-b from-primary/[0.08] via-background to-background p-0">
+      <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto rounded-2xl border-border bg-background p-0">
         {/* Progress */}
         <div className="flex gap-1.5 px-6 pt-6">
           {steps.map((s, i) => (
@@ -198,7 +198,7 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
         <div className="px-6 pb-6 pt-5">
           {current === "welcome" && (
             <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/75 text-primary-foreground shadow-lg shadow-primary/30">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/30">
                 <UtensilsCrossed className="h-8 w-8" />
               </div>
               <DialogTitle className="mt-5 text-2xl font-bold tracking-tight">
@@ -227,7 +227,7 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
                 {FEATURES.map((f) => (
                   <div
                     key={f.title}
-                    className="flex gap-3 rounded-xl border bg-gradient-to-br from-card to-primary/[0.04] p-3 shadow-sm"
+                    className="flex gap-3 rounded-xl border bg-card p-3 shadow-sm"
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
                       <f.icon className="h-4 w-4" />
@@ -246,7 +246,7 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
 
           {current === "ai" && (
             <div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 text-white shadow-lg shadow-violet-500/25">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-ink text-ink-foreground shadow-lg">
                 <KeyRound className="h-6 w-6" />
               </div>
               <DialogTitle className="mt-4 text-xl font-bold tracking-tight">
@@ -284,7 +284,7 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
                   <p className="mt-2 text-xs text-destructive">{keyError}</p>
                 )}
                 {keySaved && (
-                  <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                  <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-success">
                     <Check className="h-3.5 w-3.5" /> Key saved
                   </p>
                 )}
@@ -298,7 +298,7 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
 
           {current === "install" && (
             <div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/25">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-ink text-ink-foreground shadow-lg">
                 <Smartphone className="h-6 w-6" />
               </div>
               <DialogTitle className="mt-4 text-xl font-bold tracking-tight">
@@ -311,7 +311,7 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
 
               <div className="mt-4">
                 {installed ? (
-                  <p className="flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                  <p className="flex items-center gap-2 rounded-xl border border-transparent bg-success-tint p-3 text-sm font-medium text-success">
                     <Check className="h-4 w-4" /> Installed — open it from your home
                     screen next time.
                   </p>
@@ -348,7 +348,7 @@ export function WelcomeWizard({ displayName, isAdmin, hasAiKey }: Props) {
 
           {current === "done" && (
             <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success text-card shadow-lg">
                 <Check className="h-8 w-8" />
               </div>
               <DialogTitle className="mt-5 text-2xl font-bold tracking-tight">

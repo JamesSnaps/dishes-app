@@ -211,7 +211,7 @@ function ScopeEditor({
       )}
 
       {emptySelector && (
-        <p className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
+        <p className="flex items-start gap-2 rounded-lg border border-transparent bg-warning-tint p-2.5 text-xs text-warning">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           Nothing selected, so this share would expose no recipes at all.
         </p>
@@ -241,7 +241,7 @@ function CopyableLink({ url }: { url: string }) {
           }
         }}
       >
-        {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+        {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
       </Button>
     </div>
   );
@@ -327,7 +327,7 @@ export function ShareLibraryPanel({ shares, collections, tags }: Props) {
       )}
 
       {newUrl && (
-        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
+        <div className="rounded-2xl border border-transparent bg-success-tint p-4">
           <p className="text-sm font-semibold">Invitation ready</p>
           <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
             Send this link to whoever you&apos;re sharing with. It works once, and expires
@@ -395,7 +395,7 @@ export function ShareLibraryPanel({ shares, collections, tags }: Props) {
                       ` · ${share.copiedCount} copied so far`}
                   </p>
                   {share.recipeCount === 0 && (
-                    <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                    <p className="mt-2 flex items-start gap-1.5 text-xs text-warning">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       This share currently exposes nothing.
                     </p>
