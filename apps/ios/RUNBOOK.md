@@ -1640,3 +1640,7 @@ the new image.
 Checked in the iPhone 18 Pro simulator: the button shows on today's sheet and the chooser screen
 renders. Not checked: a real set of picks. The dev database was down (Docker stuck), and there's no
 AI key locally.
+
+Uploaded to TestFlight as 1.70.0 (build 202610290758) from main, after PR #75 merged. Server
+deployed the day before (migration 0049 applied by hand first); James has the ChatGPT custom GPT
+reading the brief and logging meals out against it. Help me choose is still to try on a device.
