@@ -1216,7 +1216,10 @@ struct FlowLayout: Layout {
         var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, widest: CGFloat = 0
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if x > 0 && x + size.width > width {
+            // A little slack: offered exactly the width it measured, rounding can leave the
+            // bounds a fraction narrower, which would wrap the last chip onto a row nobody
+            // made room for (it then overlaps whatever is below).
+            if x > 0 && x + size.width > width + 0.5 {
                 x = 0
                 y += rowHeight + spacing
                 rowHeight = 0

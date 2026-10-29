@@ -1756,3 +1756,17 @@ tap's position, which looks like a menu "forgetting" a tick — it isn't.
 Uploaded to TestFlight as 1.73.1 (build 202610291833) from main after PRs #83 and #84 merged —
 carries Help me choose (courses, mood, streamed progress, swaps, the whole menu) and the tidied
 Create with AI page. The server was not redeployed with it.
+
+### 2026-10-29 — Help me choose fixes (v1.73.2, branch `fix/chooser-diner-tabs`)
+
+- `FlowLayout` (CookingView.swift, used for every chip row): half a point of slack before wrapping.
+  Offered exactly the width it measured, rounding could wrap the last chip onto a row with no room
+  made for it — Help me choose's diner tabs ("Alice", "James Collard") overlapped "STARTER".
+- `MenuChooserView`: the stream runs inside a background task (`withBackgroundTime`, with an
+  expiration handler), so a quick trip to another app doesn't cut it off. If it's cut off anyway
+  while away, it starts again on return ("Picking up where it left off") instead of failing — once.
+  Swaps get the background time too.
+- Seen on TestFlight 1.73.1: "Help me choose" failing on a PDF — the server was still 1.72.0, which
+  doesn't stream. The app needs a server at 1.73.0 or later.
+
+Not checked in the simulator: the dev household has one member (no tabs) and no AI key.
