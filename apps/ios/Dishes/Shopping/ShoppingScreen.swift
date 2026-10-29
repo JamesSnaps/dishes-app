@@ -77,7 +77,7 @@ struct ShoppingScreen: View {
                         } else if open > 0 {
                             // Going shopping: what's left on the Lock Screen, kept current as the family adds things.
                             Button { toggleTrip() } label: { Label("Shopping trip", systemImage: "lock.iphone") }
-                                .buttonStyle(.primary)
+                                .buttonStyle(.wide(.primary))
                                 .fixedSize()
                         }
                     }

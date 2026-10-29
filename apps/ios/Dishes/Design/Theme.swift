@@ -223,9 +223,11 @@ struct PillButtonStyle: ButtonStyle {
     enum Kind { case primary, secondary, ink }
     var kind: Kind
     var height: CGFloat = 44
+    /// Fill the width it's offered: a sheet's or card's main action.
+    var wide = false
 
     func makeBody(configuration: Configuration) -> some View {
-        Pill(configuration: configuration, kind: kind, height: height)
+        Pill(configuration: configuration, kind: kind, height: height, wide: wide)
     }
 
     private struct Pill: View {
@@ -233,6 +235,7 @@ struct PillButtonStyle: ButtonStyle {
         let configuration: Configuration
         let kind: Kind
         let height: CGFloat
+        let wide: Bool
 
         var body: some View {
             let (fill, text): (Color, Color) = switch kind {
@@ -244,7 +247,7 @@ struct PillButtonStyle: ButtonStyle {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(text)
                 .padding(.horizontal, 20)
-                .frame(minHeight: height)
+                .frame(maxWidth: wide ? .infinity : nil, minHeight: height)
                 .background(fill, in: Capsule())
                 .opacity(!enabled ? 0.45 : configuration.isPressed ? 0.85 : 1)
         }
@@ -255,6 +258,10 @@ extension ButtonStyle where Self == PillButtonStyle {
     static var primary: PillButtonStyle { PillButtonStyle(kind: .primary) }
     static var secondary: PillButtonStyle { PillButtonStyle(kind: .secondary) }
     static var ink: PillButtonStyle { PillButtonStyle(kind: .ink) }
+    /// A full-width pill, 46pt tall unless said.
+    static func wide(_ kind: PillButtonStyle.Kind, height: CGFloat = 46) -> PillButtonStyle {
+        PillButtonStyle(kind: kind, height: height, wide: true)
+    }
 }
 
 /// The round terracotta "+" in page headers.

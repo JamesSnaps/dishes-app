@@ -419,7 +419,11 @@ struct PlanScreen: View {
                 if #available(iOS 27, *) {
                     ForEach(meals) { mealCard($0, day: selectedDay, labelled: firsts.contains($0.id)) }.reorderable()
                 } else {
-                    ForEach(meals) { mealCard($0, day: selectedDay, labelled: firsts.contains($0.id)) }
+                    // Drag a meal onto another day's row (or the week grid's column) to move it.
+                    ForEach(meals) { meal in
+                        mealCard(meal, day: selectedDay, labelled: firsts.contains(meal.id))
+                            .draggable((meal.title == nil ? "entry:" : "group:") + meal.id)
+                    }
                 }
             }
             .modifier(ReorderDay { sources, before in reorder(sources, before: before, in: meals) })
@@ -1038,7 +1042,7 @@ struct MealDetailView: View {
                             Label(meal.serveAt.map { "Show schedule on Lock Screen · ready \($0)" } ?? "Show schedule on Lock Screen",
                                   systemImage: "lock.iphone")
                         }
-                        .buttonStyle(.primary)
+                        .buttonStyle(.wide(.primary))
                         .disabled(starting)
                     }
                 }
@@ -1275,7 +1279,7 @@ struct SavedMealChooser: View {
             Button { add(Array(chosen)) } label: {
                 Label("Add \(meal.title)", systemImage: "plus")
             }
-            .buttonStyle(.primary)
+            .buttonStyle(.wide(.primary))
             .disabled(chosen.isEmpty)
             .padding(16)
             .background(.bar)

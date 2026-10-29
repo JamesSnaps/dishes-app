@@ -88,7 +88,7 @@ struct NotificationsScreen: View {
                 } label: {
                     Label("Allow notifications", systemImage: "bell")
                 }
-                .buttonStyle(.primary)
+                .buttonStyle(.wide(.primary))
             case .denied:
                 Button {
                     if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }

@@ -65,7 +65,7 @@ struct MealScheduleSection: View {
                                 Button { Task { await act("timeline.planWithAi", "Planning…") } } label: {
                                     Label(working == "Planning…" ? "Planning…" : s.timeline.source == "ai" && s.aiStale != true ? "Replan with AI" : "Plan with AI", systemImage: "sparkles")
                                 }
-                                .buttonStyle(.ink)
+                                .buttonStyle(.wide(.ink))
                             }
                             if s.timeline.source == "ai" {
                                 Button("Back to simple") { Task { await act("timeline.clear", "Clearing…") } }.buttonStyle(.secondary)

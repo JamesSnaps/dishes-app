@@ -91,7 +91,7 @@ struct DeliveriesScreen: View {
                     Text("Pick the days your shopping arrives and when orders close.")
                         .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
                     if o.isAdmin {
-                        Button("Set up deliveries") { editingSettings = true }.buttonStyle(.primary)
+                        Button("Set up deliveries") { editingSettings = true }.buttonStyle(.wide(.primary))
                     }
                 }
                 .padding(16).frame(maxWidth: .infinity, alignment: .leading)
@@ -474,7 +474,7 @@ struct NextDeliveryCard: View {
                 Button {
                     Task { if await WebAction.run("deliveries.set", [.string(n.date), .string("ordered")], done: "Marked as ordered.") { await changed() } }
                 } label: { Label("Mark as ordered", systemImage: "checkmark.circle") }
-                .buttonStyle(.primary)
+                .buttonStyle(.wide(.primary))
             }
         }
         .padding(16)

@@ -408,7 +408,7 @@ private struct CookCard: View {
                     Button("End, keep timers") { withAnimation { nav.end(session) } }
                         .buttonStyle(.secondary)
                     Button("End and cancel timers", role: .destructive) { withAnimation { nav.end(session, cancelTimers: true) } }
-                        .buttonStyle(PillButtonStyle(kind: .primary, height: 38))
+                        .buttonStyle(PillButtonStyle(kind: .primary, height: 38, wide: true))
                 }
                 .font(.system(size: 13, weight: .semibold))
                 .lineLimit(1)

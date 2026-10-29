@@ -475,7 +475,7 @@ struct CookingView: View {
                     Label("Back to the meal — your place is kept", systemImage: "list.number")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillButtonStyle(kind: .primary, height: 44))
+                .buttonStyle(PillButtonStyle(kind: .primary, height: 44, wide: true))
             }
             progress
             if session.inSequence { SequenceDueView(session: session) }
@@ -665,7 +665,7 @@ struct CookingView: View {
                     .labelStyle(TrailingIconLabelStyle())
                     .font(.system(size: 19, weight: .bold))
             }
-            .buttonStyle(PillButtonStyle(kind: .primary, height: 60))
+            .buttonStyle(PillButtonStyle(kind: .primary, height: 60, wide: true))
         }
     }
 
@@ -763,12 +763,11 @@ private struct TimerButtonStyle: ButtonStyle {
                 .foregroundStyle(Theme.brand)
                 .frame(maxWidth: .infinity, minHeight: 46)
                 .padding(.horizontal, 14)
-                .background(Theme.highlight,
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.brand, lineWidth: 2))
+                .background(Theme.highlight, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.brand, lineWidth: 2))
                 .opacity(configuration.isPressed ? 0.8 : 1)
         } else {
-            PillButtonStyle(kind: .primary).makeBody(configuration: configuration)
+            PillButtonStyle(kind: .primary, height: 46, wide: true).makeBody(configuration: configuration)
         }
     }
 }

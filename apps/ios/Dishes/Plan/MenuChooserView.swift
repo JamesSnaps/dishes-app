@@ -198,7 +198,7 @@ struct MenuChooserView: View {
             Button { Task { await suggest() } } label: {
                 Label(stage ?? "Suggest dishes", systemImage: stage == nil ? "sparkles" : "hourglass")
             }
-            .buttonStyle(.primary)
+            .buttonStyle(.wide(.primary))
             .disabled(!hasMenu || diners.isEmpty || stage != nil)
         }
     }
@@ -252,7 +252,7 @@ struct MenuChooserView: View {
                 } label: {
                     Text(chosen.count > 1 ? "Use these \(chosen.count)" : "Use this")
                 }
-                .buttonStyle(.primary)
+                .buttonStyle(.wide(.primary))
                 .disabled(chosen.isEmpty)
             }
         }
@@ -270,7 +270,7 @@ struct MenuChooserView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(on ? Theme.success : Theme.success)
+                    .foregroundStyle(on ? Theme.success : Theme.input)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(p.dish).font(.system(size: 15, weight: .semibold))

@@ -70,10 +70,10 @@ struct SequenceDueView: View {
                             Text(due.text)
                                 .font(.system(size: 12, weight: .semibold))
                                 .padding(.horizontal, 7).padding(.vertical, 2)
-                                .foregroundStyle(due.tone == .now ? .white : due.tone == .late ? Theme.brand : Theme.brand)
+                                .foregroundStyle(due.tone == .now ? Theme.brandForeground : due.tone == .late ? Theme.destructive : Theme.brand)
                                 .background {
                                     if due.tone == .now { Capsule().fill(Theme.brand) }
-                                    else { Capsule().fill(due.tone == .late ? Theme.highlight : Color.white.opacity(0.8)) }
+                                    else { Capsule().fill(due.tone == .late ? Theme.destructive.opacity(0.12) : Theme.card) }
                                 }
                         }
                         .foregroundStyle(Theme.brand)
@@ -175,7 +175,7 @@ struct CueCardView: View {
                 }
                 if serve {
                     Button(action: finish) { Label("Finish and review the meal", systemImage: "checkmark.circle") }
-                        .buttonStyle(.primary)
+                        .buttonStyle(.wide(.primary))
                 }
             }
             .padding(16)

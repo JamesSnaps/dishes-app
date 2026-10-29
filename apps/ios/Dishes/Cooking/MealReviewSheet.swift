@@ -117,7 +117,7 @@ struct MealReviewSheet: View {
                     Button { Task { await save(later: false) } } label: {
                         Label(saving ? "Saving…" : "Save the meal", systemImage: "checkmark")
                     }
-                    .buttonStyle(.primary)
+                    .buttonStyle(.wide(.primary))
                     .disabled(saving)
                 }
                 .padding(20)

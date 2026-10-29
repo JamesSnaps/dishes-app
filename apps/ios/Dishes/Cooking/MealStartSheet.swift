@@ -88,7 +88,7 @@ struct MealStartSheet: View {
                 Button { choose(MealStart.toMinute(.now)) } label: {
                     Label("Start now", systemImage: "play.fill").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillButtonStyle(kind: .primary, height: 54))
+                .buttonStyle(PillButtonStyle(kind: .primary, height: 54, wide: true))
                 Button { choose(MealStart.toMinute(time)) } label: {
                     Label("I started earlier at \(Self.hhmm(time))", systemImage: "clock").frame(maxWidth: .infinity)
                 }
@@ -97,7 +97,7 @@ struct MealStartSheet: View {
                 Button { choose(MealStart.toMinute(time)) } label: {
                     Label("I started at \(Self.hhmm(time))", systemImage: "clock").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillButtonStyle(kind: .primary, height: 54))
+                .buttonStyle(PillButtonStyle(kind: .primary, height: 54, wide: true))
             }
         }
     }
@@ -119,7 +119,7 @@ struct MealStartSheet: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(PillButtonStyle(kind: .primary, height: 54))
+            .buttonStyle(PillButtonStyle(kind: .primary, height: 54, wide: true))
             Button { keep() } label: { Text("Keep \(Self.hhmm(serve))").frame(maxWidth: .infinity) }
                 .buttonStyle(.secondary)
         }

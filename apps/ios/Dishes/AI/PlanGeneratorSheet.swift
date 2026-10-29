@@ -107,7 +107,7 @@ struct PlanGeneratorSheet: View {
             Button { Task { await makeDraft() } } label: {
                 Label("Draft \(days.count) \(days.count == 1 ? mealType : Self.plural(mealType))", systemImage: "sparkles")
             }
-            .buttonStyle(.ink)
+            .buttonStyle(.wide(.ink))
             .disabled(days.isEmpty)
         }
     }
@@ -148,7 +148,7 @@ struct PlanGeneratorSheet: View {
             Button { Task { await add() } } label: {
                 Label("Add \(draft.count) to the plan", systemImage: "calendar.badge.plus")
             }
-            .buttonStyle(.ink)
+            .buttonStyle(.wide(.ink))
             .disabled(draft.isEmpty)
             if fresh > 0 {
                 Text("\(fresh) new \(fresh == 1 ? "idea is" : "ideas are") written out as full recipes when added.")

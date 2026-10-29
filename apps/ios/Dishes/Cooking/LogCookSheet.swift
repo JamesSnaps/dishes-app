@@ -208,7 +208,7 @@ struct CookReviewSheet: View {
                 Label(saving ? "Saving…" : afterCooking ? "Save & finish" : existing == nil ? "Save" : "Save changes",
                       systemImage: "checkmark")
             }
-            .buttonStyle(.primary)
+            .buttonStyle(.wide(.primary))
             .disabled(saving)
         }
         .padding(20)
@@ -346,7 +346,7 @@ struct CookReviewSheet: View {
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.muted))
             }
             Text("Your cook has been saved.").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
-            Button("Done") { close() }.buttonStyle(.primary)
+            Button("Done") { close() }.buttonStyle(.wide(.primary))
         }
         .padding(20)
         .frame(maxWidth: 560)

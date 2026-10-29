@@ -243,7 +243,7 @@ struct OutsideMealSheet: View {
                 default: Label(meal != nil ? "Save" : isPlan ? "Keep this slot free" : "Log it", systemImage: "checkmark")
                 }
             }
-            .buttonStyle(.primary)
+            .buttonStyle(.wide(.primary))
             .disabled(saving != nil || readingMenu)
 
             if meal != nil {
@@ -492,7 +492,7 @@ struct OutsideMealSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Theme.warningTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            Button("Done") { dismiss() }.buttonStyle(.primary)
+            Button("Done") { dismiss() }.buttonStyle(.wide(.primary))
         }
         .padding(20)
         .frame(maxWidth: 560)

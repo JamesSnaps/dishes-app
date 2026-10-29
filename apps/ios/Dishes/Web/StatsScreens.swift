@@ -299,7 +299,7 @@ struct WrappedScreen: View {
                             }
                         }
                     }
-                    .buttonStyle(.ink)
+                    .buttonStyle(.wide(.ink))
                     .disabled(writing)
                 }
             }

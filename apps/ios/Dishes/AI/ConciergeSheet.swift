@@ -240,7 +240,7 @@ struct ConciergeSheet: View {
             } label: {
                 Label(mode == .inspire ? "Get 5 ideas" : "Write the recipe", systemImage: mode == .inspire ? "sparkles" : "wand.and.stars")
             }
-            .buttonStyle(.ink)
+            .buttonStyle(.wide(.ink))
             .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             photoSection
@@ -308,7 +308,7 @@ struct ConciergeSheet: View {
             Button { Task { await writeAll(picks) } } label: {
                 Label(picks.count > 1 ? "Write \(picks.count) recipes" : "Write it out", systemImage: "wand.and.stars")
             }
-            .buttonStyle(.ink)
+            .buttonStyle(.wide(.ink))
             .disabled(picks.isEmpty)
             HStack(spacing: 10) {
                 Button { Task { await askForIdeas() } } label: { Label("Five more", systemImage: "arrow.clockwise") }
