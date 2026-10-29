@@ -599,7 +599,8 @@ struct MenuChooserView: View {
         } catch where leftMidway && !again {
             // iOS suspends the app soon after it's left, which drops the connection.
             // Rather than a failure to come back to, carry on once it's back.
-            if scenePhase == .active {
+            // Asked of the app, not `scenePhase`: this task holds the view as it was when it started.
+            if UIApplication.shared.applicationState == .active {
                 await suggest(again: true)
             } else {
                 stage = "Paused while you’re away — it carries on when you’re back"
