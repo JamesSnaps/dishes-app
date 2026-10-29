@@ -6,7 +6,7 @@
 // web editor, have no links — this is what highlights them.
 //
 //   let match = StepMatch(instruction, candidates: ingredients)
-//   Text(match.highlighted(color: Theme.brandDeep)); match.ids
+//   Text(match.highlighted(color: Theme.brand)); match.ids
 
 import DishesCore
 import Foundation

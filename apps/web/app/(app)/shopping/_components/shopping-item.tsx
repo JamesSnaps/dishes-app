@@ -131,7 +131,7 @@ export function ShoppingItem({ item, onToggle, onUpdate, onDelete }: Props) {
         type="checkbox"
         checked={item.isChecked}
         onChange={(e) => onToggle(e.target.checked)}
-        className="h-5 w-5 flex-shrink-0 rounded border-gray-300 accent-primary cursor-pointer"
+        className="h-5 w-5 flex-shrink-0 rounded border-input accent-primary cursor-pointer"
         aria-label={`Mark ${item.ingredientName} as ${item.isChecked ? "unchecked" : "checked"}`}
       />
       <span
@@ -148,7 +148,7 @@ export function ShoppingItem({ item, onToggle, onUpdate, onDelete }: Props) {
         {swap && (
           <span
             title={swap.why}
-            className="mt-1 flex w-fit items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-700 dark:text-rose-300"
+            className="mt-1 flex w-fit items-center gap-1 rounded-full bg-highlight px-2 py-0.5 text-xs font-medium text-primary"
           >
             <HeartPulse className="h-3 w-3 shrink-0" />
             Swap? {swap.swap}
@@ -239,7 +239,7 @@ export function ShoppingItem({ item, onToggle, onUpdate, onDelete }: Props) {
           href={`https://www.sainsburys.co.uk/gol-ui/SearchResults/${encodeURIComponent(item.ingredientName)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-shrink-0 p-1 text-muted-foreground hover:text-orange-500 transition-colors"
+          className="flex-shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors"
           aria-label={`Search for ${item.ingredientName} on Sainsbury's`}
         >
           <ShoppingCart className="h-4 w-4" />

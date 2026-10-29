@@ -99,7 +99,7 @@ export function OrderDetailsDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ReceiptText className="h-5 w-5 text-emerald-600" />
+            <ReceiptText className="h-5 w-5 text-success" />
             {label} order
           </DialogTitle>
           <DialogDescription>
@@ -166,7 +166,7 @@ export function OrderDetailsDialog({
             <Button
               type="submit"
               disabled={saving}
-              className="gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white border-0 shadow-md"
+              className="gap-1.5 bg-success text-card border-0 shadow-md"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               Save order

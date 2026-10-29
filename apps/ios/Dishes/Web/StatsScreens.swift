@@ -63,9 +63,9 @@ struct StatsScreen: View {
         WebPage(title: "Stats", subtitle: "What the household has been eating.", data: data, trailing: {
             NavigationLink { WrappedScreen() } label: {
                 Label("Wrapped", systemImage: "gift")
-                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                    .padding(.horizontal, 14).frame(height: 38)
-                    .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.inkForeground)
+                    .padding(.horizontal, 14).frame(height: 40)
+                    .background(Theme.ink, in: Capsule())
             }
         }) { d in
             let r = d.report
@@ -83,27 +83,27 @@ struct StatsScreen: View {
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
                 StatTile(value: "\(r.totals.meals)", label: "Meals planned")
-                StatTile(value: "\(r.totals.cooksLogged)", label: "Cooks logged", tint: Theme.emerald100.opacity(0.6))
-                StatTile(value: "\(r.totals.distinctRecipes)", label: "Different recipes", tint: Theme.violet50)
-                StatTile(value: "\(r.totals.newRecipes)", label: "New to you", tint: Theme.rose50)
+                StatTile(value: "\(r.totals.cooksLogged)", label: "Cooks logged", tint: Theme.successTint.opacity(0.6))
+                StatTile(value: "\(r.totals.distinctRecipes)", label: "Different recipes", tint: Theme.muted)
+                StatTile(value: "\(r.totals.newRecipes)", label: "New to you", tint: Theme.highlight)
                 if let rating = r.totals.avgRating {
-                    StatTile(value: String(format: "%.1f★", rating / 2), label: "Average rating", tint: Theme.amber50)
+                    StatTile(value: String(format: "%.1f★", rating / 2), label: "Average rating", tint: Theme.warningTint)
                 }
                 if let mins = r.totals.avgCookMinutes, let t = Format.minutes(mins) {
-                    StatTile(value: t, label: "Average cook", tint: Theme.indigo50)
+                    StatTile(value: t, label: "Average cook", tint: Theme.muted)
                 }
                 if d.spend.orders > 0 {
-                    StatTile(value: String(format: "£%.0f", d.spend.total), label: "\(d.spend.orders) grocery orders", tint: Theme.emerald100.opacity(0.6))
+                    StatTile(value: String(format: "£%.0f", d.spend.total), label: "\(d.spend.orders) grocery orders", tint: Theme.successTint.opacity(0.6))
                 }
             }
             if !r.buckets.isEmpty {
                 WebSection(title: "Meals over time") {
                     Chart(r.buckets) { b in
                         BarMark(x: .value("Period", b.label), y: .value("Meals", b.meals))
-                            .foregroundStyle(Theme.brandGradient)
+                            .foregroundStyle(Theme.chart1)
                         if r.heartFocus {
                             BarMark(x: .value("Period", b.label), y: .value("Heart-healthy", b.heartHealthy))
-                                .foregroundStyle(Color(hex: 0xF43F5E).opacity(0.6))
+                                .foregroundStyle(Theme.chart2)
                         }
                     }
                     .frame(height: 180)
@@ -133,12 +133,12 @@ struct StatsScreen: View {
             WebSection(title: "Protein per week") {
                 let p = r.proteinsPerWeek
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
-                    StatTile(value: Self.one(p.oilyFish), label: "Oily fish", tint: Theme.indigo50)
-                    StatTile(value: Self.one(p.otherFish), label: "Other fish", tint: Theme.indigo50)
-                    StatTile(value: Self.one(p.poultry), label: "Poultry", tint: Theme.amber50)
-                    StatTile(value: Self.one(p.pulses), label: "Pulses", tint: Theme.emerald100.opacity(0.6))
-                    StatTile(value: Self.one(p.redMeat), label: "Red meat", tint: Theme.rose50)
-                    StatTile(value: Self.one(p.processedMeat), label: "Processed", tint: Theme.rose50)
+                    StatTile(value: Self.one(p.oilyFish), label: "Oily fish", tint: Theme.muted)
+                    StatTile(value: Self.one(p.otherFish), label: "Other fish", tint: Theme.muted)
+                    StatTile(value: Self.one(p.poultry), label: "Poultry", tint: Theme.warningTint)
+                    StatTile(value: Self.one(p.pulses), label: "Pulses", tint: Theme.successTint.opacity(0.6))
+                    StatTile(value: Self.one(p.redMeat), label: "Red meat", tint: Theme.highlight)
+                    StatTile(value: Self.one(p.processedMeat), label: "Processed", tint: Theme.highlight)
                 }
             }
             if !r.forgottenFavourites.isEmpty {
@@ -176,9 +176,8 @@ struct StatsScreen: View {
         Button(action: action) {
             Text(title).font(.system(size: 14, weight: .medium))
                 .padding(.horizontal, 12).frame(height: 32)
-                .foregroundStyle(on ? .white : Theme.foreground)
-                .background(on ? Theme.brand : Theme.background, in: Capsule())
-                .overlay(Capsule().strokeBorder(on ? .clear : Theme.border))
+                .foregroundStyle(on ? Theme.inkForeground : Theme.secondaryForeground)
+                .background(on ? Theme.ink : Theme.secondary, in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -240,7 +239,9 @@ struct WrappedScreen: View {
             .foregroundStyle(.white)
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            // Wrapped may be showy (DESIGN.md → Exceptions): terracotta into plum.
+            .background(LinearGradient(colors: [Theme.chart1, Theme.chart5], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             if w.years.count > 1 {
                 Picker("Year", selection: Binding(get: { w.year }, set: { y in data.args = [.number(Double(y))]; recap = nil; Task { await data.load() } })) {
@@ -251,19 +252,19 @@ struct WrappedScreen: View {
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
                 StatTile(value: "\(w.totals.meals)", label: "Meals")
-                StatTile(value: "\(w.totals.distinctRecipes)", label: "Different dishes", tint: Theme.violet50)
-                StatTile(value: "\(w.totals.daysCooked)", label: "Days cooked", tint: Theme.emerald100.opacity(0.6))
-                StatTile(value: "\(w.totals.cuisines)", label: "Cuisines", tint: Theme.rose50)
-                StatTile(value: Format.minutes(w.totals.minutesCooking) ?? "0", label: "Time cooking", tint: Theme.amber50)
-                StatTile(value: "\(w.longestStreak)", label: "Longest streak (days)", tint: Theme.indigo50)
-                StatTile(value: "\(w.totals.recipesAdded)", label: "Recipes added", tint: Theme.orange50)
-                StatTile(value: "\(w.totals.photos)", label: "Photos", tint: Theme.pink50)
+                StatTile(value: "\(w.totals.distinctRecipes)", label: "Different dishes", tint: Theme.muted)
+                StatTile(value: "\(w.totals.daysCooked)", label: "Days cooked", tint: Theme.successTint.opacity(0.6))
+                StatTile(value: "\(w.totals.cuisines)", label: "Cuisines", tint: Theme.highlight)
+                StatTile(value: Format.minutes(w.totals.minutesCooking) ?? "0", label: "Time cooking", tint: Theme.warningTint)
+                StatTile(value: "\(w.longestStreak)", label: "Longest streak (days)", tint: Theme.muted)
+                StatTile(value: "\(w.totals.recipesAdded)", label: "Recipes added", tint: Theme.highlight)
+                StatTile(value: "\(w.totals.photos)", label: "Photos", tint: Theme.muted)
             }
 
             WebSection(title: "By month") {
                 Chart(Array(w.months.enumerated()), id: \.offset) { item in
                     BarMark(x: .value("Month", Self.monthNames[item.offset % 12]), y: .value("Meals", item.element))
-                        .foregroundStyle(Theme.brandGradient)
+                        .foregroundStyle(Theme.brand)
                 }
                 .frame(height: 160).padding(14).card()
             }
@@ -284,7 +285,7 @@ struct WrappedScreen: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 Label("Your year, in words", systemImage: "sparkles").font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color(hex: 0x6D28D9))
+                    .foregroundStyle(Theme.ink)
                 if let recap {
                     Text(recap).font(.system(size: 15))
                 } else {
@@ -298,12 +299,12 @@ struct WrappedScreen: View {
                             }
                         }
                     }
-                    .buttonStyle(.gradient(.violetOrange))
+                    .buttonStyle(.wide(.ink))
                     .disabled(writing)
                 }
             }
             .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.violet50, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Theme.muted, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 
@@ -377,9 +378,9 @@ struct TasteScreen: View {
             if let p = t.profile {
                 Text("From \(p.ratedCookCount) rated cook\(p.ratedCookCount == 1 ? "" : "s").")
                     .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
-                weights("Cuisines", p.cuisines, tint: Theme.rose50)
-                weights("Ingredients", p.ingredients, tint: Theme.emerald100.opacity(0.6))
-                weights("Tags", p.tags, tint: Theme.violet50)
+                weights("Cuisines", p.cuisines, tint: Theme.highlight)
+                weights("Ingredients", p.ingredients, tint: Theme.successTint.opacity(0.6))
+                weights("Tags", p.tags, tint: Theme.muted)
             } else {
                 EmptyBox(emoji: "😋", message: "Rate a few cooks and your tastes appear here")
             }

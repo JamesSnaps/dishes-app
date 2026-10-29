@@ -345,7 +345,7 @@ struct SharedLibraryScreen: View {
                 } label: {
                     Label(importing ? "Copying…" : "Copy \(picked.count) into our recipes", systemImage: "square.and.arrow.down")
                 }
-                .buttonStyle(.brand).disabled(importing)
+                .buttonStyle(.wide(.primary)).disabled(importing)
                 .padding(16).frame(maxWidth: 560)
             }
         }

@@ -94,7 +94,7 @@ export function CombineMealDialog({
       <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500 to-rose-500 text-white flex items-center justify-center shadow-sm">
+            <span className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
               <UtensilsCrossed className="h-4 w-4" />
             </span>
             Make into a meal
@@ -134,7 +134,7 @@ export function CombineMealDialog({
                     key={d.id}
                     className={`rounded-xl border p-2.5 transition-colors ${
                       on
-                        ? "border-orange-300 bg-gradient-to-br from-orange-50 to-rose-50 dark:border-orange-800 dark:from-orange-950/30 dark:to-rose-950/20 shadow-sm"
+                        ? "border-transparent bg-highlight shadow-sm"
                         : "bg-muted/40"
                     }`}
                   >
@@ -146,7 +146,7 @@ export function CombineMealDialog({
                     >
                       <span
                         className={`h-5 w-5 shrink-0 rounded-md border-2 flex items-center justify-center ${
-                          on ? "border-orange-500 bg-orange-500 text-white" : "border-muted-foreground/40"
+                          on ? "border-transparent bg-primary text-primary-foreground" : "border-muted-foreground/40"
                         }`}
                       >
                         {on && <Check className="h-3.5 w-3.5" />}
@@ -162,8 +162,8 @@ export function CombineMealDialog({
                             onClick={() => setRoles((prev) => ({ ...prev, [d.id]: r }))}
                             className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all ${
                               roleOf(d.id) === r
-                                ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm"
-                                : "bg-white dark:bg-black/30 border text-muted-foreground hover:text-foreground"
+                                ? "bg-primary text-primary-foreground shadow-sm"
+                                : "bg-card dark:bg-black/30 border text-muted-foreground hover:text-foreground"
                             }`}
                           >
                             {MEAL_ROLE_LABELS[r]}
@@ -193,7 +193,7 @@ export function CombineMealDialog({
           <Button
             onClick={submit}
             disabled={!title.trim()}
-            className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-md"
+            className="bg-primary text-primary-foreground border-0 shadow-md"
           >
             Make meal ({selected.size + extras.length} dish{selected.size + extras.length === 1 ? "" : "es"})
           </Button>

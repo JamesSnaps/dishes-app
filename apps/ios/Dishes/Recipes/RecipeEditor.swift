@@ -135,7 +135,7 @@ struct RecipeEditor: View {
                                 Toggle("Optional", isOn: $ingredient.optional).toggleStyle(.button).font(.system(size: 12))
                             }
                             TextField("Section (e.g. Sauce)", text: $ingredient.group)
-                                .font(.system(size: 13)).foregroundStyle(Theme.brandDeep)
+                                .font(.system(size: 13)).foregroundStyle(Theme.brand)
                         }
                         .padding(.vertical, 4)
                     }
@@ -180,7 +180,7 @@ struct RecipeEditor: View {
                             .font(.system(size: 14))
                             HStack {
                                 TextField("Section (optional)", text: $step.group)
-                                    .font(.system(size: 13)).foregroundStyle(Theme.brandDeep)
+                                    .font(.system(size: 13)).foregroundStyle(Theme.brand)
                                 Spacer()
                                 // Which ingredients this step uses — cooking mode's chips.
                                 Menu {

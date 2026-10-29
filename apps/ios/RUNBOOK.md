@@ -1693,3 +1693,24 @@ worth comparing on a device before phase 3. Not checked: iPad, dark mode, the co
 
 Checked in the iPhone 18 Pro simulator (light): Recipes browse and the Bolognese detail. Not
 checked: iPad, dark mode, the AI sheets and editor on iOS.
+
+### 2026-10-29 — Cookbook phases 4–9: planner by width, the rest, clean-up (v1.72.0, branch `design/cookbook-phase-5`)
+
+- Planner (`PlanScreen`): the layout comes from the measured width, not the device — `foldView`
+  under 700pt (the chosen day open in a `highlight` panel, the others folded to a row with date,
+  dinner, "+2 more · 3 meals" and plates), `splitView` at 700–1100pt (rows and "Week at a glance"
+  in 290pt, the open day beside them) and the week grid at 1100pt and up (was 1000). The day strip
+  is gone. Folded rows accept a dragged meal. The open day names each slot over its first meal;
+  `EntryCard` no longer shows the meal-type pill (`showsType` defaults to false) and takes a `fill`.
+  `MealTypePill` is neutral. Meals out show a plate tile and an italic place name.
+- App-wide sweep: `Theme.Gradient`, `brandGradient`, the Tailwind 50s, `emerald100/700`,
+  `brandDeep`, `placeholderIcon`, `mealColor/mealBackground`, `callout`, `GradientButtonStyle`
+  and `OutlineButtonStyle` are deleted; screens use tokens, `.panel()` and the pill styles. White
+  text on a token fill became that fill's foreground (`brandForeground`, `inkForeground`).
+  `Theme.chart1…5` added for Stats; Wrapped keeps a terracotta-to-plum gradient (an exception).
+- Widgets, watch and share extension copy Cookbook values (they can't see `Theme`): terracotta for
+  Tonight, herb once cooked, ink for week and shopping; the watch uses the dark-mode values.
+
+Checked in the simulator: iPhone 18 Pro fold-up planner (light); iPad Pro 11-inch split (portrait,
+and landscape with the sidebar open) and week grid (landscape, sidebar hidden); Recipes on iPad in
+dark mode. The watch app builds; not run. Widgets not looked at on a Home Screen.

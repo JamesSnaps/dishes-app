@@ -38,19 +38,18 @@ struct DishesWatchApp: App {
 
 /// The app's colours: the phone's orange, warm tints behind rows.
 enum WatchTheme {
-    static let brand = Color(red: 0xF9 / 255, green: 0x73 / 255, blue: 0x16 / 255)
-    static let rose = Color(red: 0xF4 / 255, green: 0x3F / 255, blue: 0x5E / 255)
-    static let amber = Color(red: 0xF5 / 255, green: 0x9E / 255, blue: 0x0B / 255)
-    static let emerald = Color(red: 0x10 / 255, green: 0xB9 / 255, blue: 0x81 / 255)
-    static let violet = Color(red: 0x8B / 255, green: 0x5C / 255, blue: 0xF6 / 255)
-
-    static let brandGradient = LinearGradient(colors: [brand, rose], startPoint: .topLeading, endPoint: .bottomTrailing)
+    // DESIGN.md: the watch keeps the system look (black) with Cookbook's
+    // terracotta as the accent; these are the tokens' dark-mode values.
+    static let brand = Color(red: 0xE0 / 255, green: 0x7A / 255, blue: 0x5F / 255)
+    static let rose = brand
+    static let amber = Color(red: 0xE0 / 255, green: 0xB4 / 255, blue: 0x5C / 255)
+    static let emerald = Color(red: 0x8F / 255, green: 0xBF / 255, blue: 0x9F / 255)
+    static let violet = Color(red: 0xF3 / 255, green: 0xED / 255, blue: 0xE4 / 255)
 
     /// A row's platter: a tint of `color` rather than the plain grey.
     static func platter(_ color: Color) -> some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(LinearGradient(colors: [color.opacity(0.42), color.opacity(0.18)],
-                                 startPoint: .topLeading, endPoint: .bottomTrailing))
+            .fill(color.opacity(0.28))
     }
 }
 
@@ -68,7 +67,7 @@ struct HomeView: View {
                 } else {
                     ForEach(model.snapshot.cooking) { cook in
                         NavigationLink(value: WatchModel.Route.cooking(cook.id)) { CookingRow(cook: cook) }
-                            .listRowBackground(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(WatchTheme.brandGradient))
+                            .listRowBackground(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(WatchTheme.brand))
                     }
                     NavigationLink(value: WatchModel.Route.shopping) {
                         HomeRow(icon: "cart.fill", tint: WatchTheme.emerald, title: "Shopping",

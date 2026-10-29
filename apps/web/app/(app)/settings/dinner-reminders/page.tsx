@@ -21,7 +21,7 @@ export default async function DinnerRemindersPage() {
           Settings
         </Link>
         <div className="flex items-center gap-2">
-          <AlarmClock className="h-5 w-5 text-orange-500" />
+          <AlarmClock className="h-5 w-5 text-primary" />
           <h1 className="text-2xl font-bold">Dinner reminders</h1>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -31,8 +31,8 @@ export default async function DinnerRemindersPage() {
       </div>
 
       {/* Tonight preview */}
-      <div className="mb-6 rounded-xl bg-gradient-to-br from-orange-500/15 via-amber-500/10 to-rose-500/10 border border-orange-300/50 dark:border-orange-900/60 p-4 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wider text-orange-700 dark:text-orange-300">
+      <div className="mb-6 rounded-xl bg-highlight border border-transparent p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wider text-primary">
           Tonight
         </p>
         {!tonight.lead ? (
@@ -44,7 +44,7 @@ export default async function DinnerRemindersPage() {
             <p className="mt-1 text-lg font-bold leading-snug">
               {tonight.lead.title} · dinner at {tonight.dinnerTime}
               {tonight.overridden && (
-                <span className="ml-2 align-middle text-xs font-semibold rounded-full bg-orange-500 text-white px-2 py-0.5">
+                <span className="ml-2 align-middle text-xs font-semibold rounded-full bg-primary text-primary-foreground px-2 py-0.5">
                   changed today
                 </span>
               )}
@@ -71,7 +71,7 @@ export default async function DinnerRemindersPage() {
 
       <p className="mt-6 text-sm text-muted-foreground">
         Need a different time for just one day? Tap the clock next to the day on the{" "}
-        <Link href="/meal-plan" className="font-medium text-orange-600 dark:text-orange-400 underline-offset-2 hover:underline">
+        <Link href="/meal-plan" className="font-medium text-primary underline-offset-2 hover:underline">
           meal planner
         </Link>
         . That changes only that date and leaves these defaults alone.

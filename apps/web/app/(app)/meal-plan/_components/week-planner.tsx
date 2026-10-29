@@ -41,6 +41,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Badge,
+  Plate,
+  SectionLabel,
 } from "@dishes/ui";
 import {
   generateShoppingFromWeek,
@@ -69,22 +72,25 @@ import { usePlanWriter } from "./plan-writer";
 import { WeekNutritionPanel } from "./week-nutrition-card";
 import { summariseMeals, meetsTarget, WEEKLY_PROTEIN_TARGETS, type ProteinKind } from "@/lib/meal-stats";
 import { suggestSwaps, type SwapSuggestion } from "@/lib/meal-swaps";
-import { countsAsMeal, outsideMealFacts, type OutsideMealView } from "@/lib/outside-meals";
+import { countsAsMeal, outsideMealFacts, outsideMealLabel, type OutsideMealView } from "@/lib/outside-meals";
+import { OUTSIDE_MEAL_KIND_LABELS } from "@dishes/shared";
 import { OutsideMealSheet, localToday } from "@/components/outside-meals/outside-meal-sheet";
 import type { ReviewMember } from "@/components/cook-review/cook-review-form";
 import { OutsideMealCard } from "./outside-meal-card";
+import {
+  DayRow,
+  SLOT_LABEL,
+  WeekGlance,
+  WeekGrid,
+  usePlannerLayout,
+  type DaySummary,
+  type MealSlot,
+  type SlotItem,
+} from "./planner-layouts";
 
 
 type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "snack";
 const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "dessert", "snack"];
-
-const MEAL_TYPE_COLOR: Record<MealType, string> = {
-  breakfast: "#f59e0b",
-  lunch: "#8b5cf6",
-  dinner: "#6366f1",
-  dessert: "#ec4899",
-  snack: "#94a3b8",
-};
 
 const OVERLAY_MEAL_LABEL: Record<MealType, string> = {
   breakfast: "Breakfast",
@@ -446,7 +452,7 @@ function WeekCalendarPicker({
                     key={di}
                     className={`text-center py-1.5 text-sm rounded-md ${
                       isToday
-                        ? "text-orange-500 font-bold"
+                        ? "text-primary font-bold"
                         : isSelected
                           ? "font-semibold text-primary"
                           : inMonth
@@ -470,7 +476,7 @@ function WeekCalendarPicker({
             onSelect(toDateStr(monday));
             onClose();
           }}
-          className="w-full text-center text-xs font-medium text-orange-500 hover:text-orange-600 py-1 rounded hover:bg-orange-50 dark:hover:bg-orange-950/20 transition-colors"
+          className="w-full text-center text-xs font-medium text-primary hover:text-primary py-1 rounded hover:bg-highlight transition-colors"
         >
           Jump to this week
         </button>
@@ -480,129 +486,6 @@ function WeekCalendarPicker({
 }
 
 // ─── Droppable day chip ───────────────────────────────────────────────────────
-
-function DroppableDayChip({
-  dayIndex,
-  weekStart,
-  isCurrentWeek,
-  todayDayIndex,
-  isSelected,
-  mealCount,
-  isDragActive,
-  hasSuggestion,
-  delivery,
-  away,
-  notCooking = false,
-  onClick,
-}: {
-  dayIndex: number;
-  weekStart: string;
-  isCurrentWeek: boolean;
-  todayDayIndex: number;
-  isSelected: boolean;
-  mealCount: number;
-  isDragActive: boolean;
-  hasSuggestion: boolean;
-  /** A delivery that's coming this day (skipped ones aren't marked). */
-  delivery: "scheduled" | "ordered" | null;
-  /** The household is away on holiday this day. */
-  away: boolean;
-  /** A meal that day isn't cooked from the plan (eating out, takeaway…). */
-  notCooking?: boolean;
-  onClick: () => void;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIndex}` });
-  const { short, date } = formatDayChip(weekStart, dayIndex);
-  const isTodayChip = isCurrentWeek && todayDayIndex === dayIndex;
-
-  return (
-    <button
-      ref={setNodeRef}
-      onClick={onClick}
-      className={`relative flex flex-col items-center rounded-xl py-2.5 border-2 transition-all duration-150 ${
-        isOver
-          ? "border-orange-400 bg-orange-100 dark:bg-orange-950/50 scale-[1.06] shadow-lg"
-          : isDragActive
-            ? "border-dashed border-muted-foreground/30 bg-muted/50 hover:border-muted-foreground/50 hover:bg-muted/70"
-            : isSelected
-              ? isTodayChip
-                ? "border-orange-400 bg-orange-50 dark:bg-orange-950/30 shadow-sm"
-                : "border-primary bg-primary/5 shadow-sm"
-              : isTodayChip
-                ? "border-orange-300/60 bg-orange-50/50 dark:bg-orange-950/10"
-                : away
-                  ? "border-sky-200/80 bg-gradient-to-b from-sky-100 to-sky-50 hover:from-sky-200/80 dark:border-sky-900/60 dark:from-sky-950/50 dark:to-sky-950/20"
-                  : "border-transparent bg-muted/40 hover:bg-muted"
-      }`}
-    >
-      <span
-        className={`text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide leading-none ${
-          isOver
-            ? "text-orange-500"
-            : isSelected
-              ? isTodayChip ? "text-orange-500" : "text-primary"
-              : "text-muted-foreground"
-        }`}
-      >
-        {short}
-      </span>
-      <span
-        className={`text-lg sm:text-xl font-bold leading-none mt-1 ${
-          isOver
-            ? "text-orange-500"
-            : isSelected
-              ? isTodayChip ? "text-orange-500" : "text-primary"
-              : isTodayChip ? "text-orange-400" : ""
-        }`}
-      >
-        {date}
-      </span>
-      {hasSuggestion && (
-        <span
-          className="absolute right-1 top-1 h-2 w-2 rounded-full bg-gradient-to-br from-violet-500 to-orange-500 ring-2 ring-background"
-          aria-label="Swap suggested"
-        />
-      )}
-      {delivery && (
-        <Truck
-          className={`absolute left-1 bottom-1 h-3 w-3 ${
-            delivery === "ordered" ? "text-emerald-600 dark:text-emerald-400" : "text-teal-500/80"
-          }`}
-          aria-label={delivery === "ordered" ? "Delivery (ordered)" : "Delivery"}
-        />
-      )}
-      {away && (
-        <Plane
-          className="absolute right-1 bottom-1 h-3 w-3 text-sky-500 dark:text-sky-400"
-          aria-label="Away"
-        />
-      )}
-      {notCooking && (
-        <UtensilsCrossed
-          className="absolute left-1 top-1 h-3 w-3 text-amber-600 dark:text-amber-400"
-          aria-label="Not cooking"
-        />
-      )}
-      {mealCount > 0 ? (
-        <span
-          className={`mt-1.5 text-[9px] font-bold tabular-nums leading-none h-3.5 min-w-[14px] rounded-full flex items-center justify-center px-1 ${
-            isOver
-              ? "bg-orange-400 text-white"
-              : isTodayChip
-                ? "bg-orange-400 text-white"
-                : isSelected
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-primary/20 text-primary"
-          }`}
-        >
-          {mealCount}
-        </span>
-      ) : (
-        <span className="mt-1.5 h-3.5" />
-      )}
-    </button>
-  );
-}
 
 // ─── Droppable week arrow ─────────────────────────────────────────────────────
 
@@ -632,9 +515,9 @@ function DroppableWeekArrow({
       onClick={onClick}
       className={`flex-shrink-0 flex items-center gap-0.5 rounded-lg transition-all duration-150 ${
         isOver
-          ? "p-1.5 border-2 border-orange-400 bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 scale-[1.06] shadow-lg"
+          ? "p-1.5 border-2 border-transparent bg-highlight text-primary scale-[1.06] shadow-lg"
           : isDragActive
-            ? "p-1.5 border-2 border-dashed border-orange-300/70 bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400"
+            ? "p-1.5 border-2 border-dashed border-transparent bg-highlight text-primary"
             : "p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground"
       }`}
       aria-label={direction === "prev" ? "Previous week" : "Next week"}
@@ -703,9 +586,9 @@ function DraggableMealEntry({
       <button
         type="button"
         onClick={onShowSuggestion}
-        className="flex w-full items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-50 to-orange-50 px-3 py-1.5 text-left text-xs text-violet-900 transition-colors hover:from-violet-100 hover:to-orange-100 dark:from-violet-950/30 dark:to-orange-950/20 dark:text-violet-200"
+        className="flex w-full items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-left text-xs text-foreground transition-colors"
       >
-        <Lightbulb className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+        <Lightbulb className="h-3.5 w-3.5 shrink-0 text-primary" />
         <span className="min-w-0 flex-1 truncate">
           {suggestion.toRecipe ? (
             <>
@@ -715,7 +598,7 @@ function DraggableMealEntry({
             <>Swap suggested — {suggestion.reason}</>
           )}
         </span>
-        <span className="shrink-0 font-semibold text-orange-600 dark:text-orange-400">See →</span>
+        <span className="shrink-0 font-semibold text-primary">See →</span>
       </button>
       </li>
     </>
@@ -821,6 +704,10 @@ export function WeekPlanner({
   const touchStartY = useRef(0);
   const lastWheelMs = useRef(0);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const layout = usePlannerLayout(rootRef);
+  // The slot the add dialog opens on, from the week grid's "+".
+  const [addSlot, setAddSlot] = useState<MealType | undefined>(undefined);
   const [shoppingPending, startShoppingTransition] = useTransition();
   const sync = useSync();
 
@@ -1336,283 +1223,64 @@ export function WeekPlanner({
       })()
     : [];
 
-  return (
-    <div
-      className="p-4 lg:p-8 overflow-hidden"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onWheel={handleWheel}
-    >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={pointerWithin}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div ref={contentRef}>
-          {/* ── Header row ── */}
-          <div className="flex items-center gap-1 mb-1">
-            <DroppableWeekArrow
-              direction="prev"
-              targetLabel={formatDayChip(prevWeek, 6).short + " " + formatDayChip(prevWeek, 6).date}
-              isDragActive={activeDragEntry !== null}
-              onClick={() => navigate(prevWeek, "prev")}
-            />
+  // What each day holds, for the folded rows and the week grid.
+  const daySummaries: DaySummary[] = Array.from({ length: 7 }, (_, i) => {
+    const slots = MEAL_TYPE_ORDER.map((slot) => {
+      const items: SlotItem[] = [
+        ...(outsideByDay.get(i) ?? [])
+          .filter((m) => m.mealType === slot)
+          .map((m) => ({
+            key: `out:${m.id}`,
+            title: outsideMealLabel(m, OUTSIDE_MEAL_KIND_LABELS[m.kind]),
+            thumb: null,
+            italic: true,
+            outside: true,
+          })),
+        ...dayItems
+          .filter((item) => itemDay(item) === i && item.mealType === slot)
+          .sort((a, b) => itemPosition(a) - itemPosition(b))
+          .map((item) =>
+            item.kind === "group"
+              ? {
+                  key: item.group.id,
+                  title: item.group.title,
+                  thumb: (() => {
+                    const main = item.entries.find((e) => e.mealRole === "main") ?? item.entries[0];
+                    return main ? main.recipe.thumbnailUrl ?? main.recipe.imageUrl : null;
+                  })(),
+                  italic: true,
+                }
+              : {
+                  key: item.entry.id,
+                  title: item.entry.recipe.title,
+                  thumb: item.entry.recipe.thumbnailUrl ?? item.entry.recipe.imageUrl,
+                }
+          ),
+      ];
+      return { slot: slot as MealSlot, items };
+    }).filter((s) => s.items.length > 0);
+    const chip = formatDayChip(weekStartDate, i);
+    const delivery = deliveryByDate.get(addDays(weekStartDate, i));
+    return {
+      dayIndex: i,
+      short: chip.short,
+      date: chip.date,
+      isToday: isCurrentWeek && todayDayIndex === i,
+      slots,
+      hasSuggestion: suggestions.some((sg) => sg.dayOfWeek === i),
+      delivery: delivery && delivery.status !== "skipped" ? delivery.status : null,
+      away: !!awayOn(addDays(weekStartDate, i)),
+      notCooking: (outsideByDay.get(i) ?? []).some((m) => m.mealType === "dinner"),
+    };
+  });
+  const dragging = activeDragEntry !== null || activeDragGroup !== null;
 
-            <div className="relative flex-1 min-w-0">
-              <button
-                onClick={() => setCalendarOpen((v) => !v)}
-                className="flex items-center gap-1 rounded-lg px-1 py-0.5 hover:bg-muted transition-colors group"
-              >
-                <h1 className="text-xl font-bold leading-tight truncate">{weekTitle}</h1>
-                <ChevronDown
-                  className={`h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${
-                    calendarOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-
-              {calendarOpen && (
-                <WeekCalendarPicker
-                  weekStartDate={weekStartDate}
-                  onSelect={(ws) => navigate(ws, ws > weekStartDate ? "next" : "prev")}
-                  onClose={() => setCalendarOpen(false)}
-                />
-              )}
-            </div>
-
-            <DroppableWeekArrow
-              direction="next"
-              targetLabel={formatDayChip(nextWeek, 0).short + " " + formatDayChip(nextWeek, 0).date}
-              isDragActive={activeDragEntry !== null}
-              onClick={() => navigate(nextWeek, "next")}
-            />
-
-            {/* The orange +: add a meal, generate a plan, or send the week to the list */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="flex-shrink-0 h-9 w-9 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md transition-colors ml-1"
-                  aria-label="Add or plan"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem disabled={recipes.length === 0} onSelect={() => setAdding(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add meal
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => router.push("/ai-concierge?tab=plan")}>
-                  <Sparkles className="mr-2 h-4 w-4 text-violet-500" />
-                  Generate plan…
-                </DropdownMenuItem>
-                {people && (
-                  <DropdownMenuItem onSelect={() => openOutside(null)}>
-                    <UtensilsCrossed className="mr-2 h-4 w-4 text-amber-600" />
-                    Not cooking — eating out…
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                {totalMeals > 0 && planId && pendingShoppingCount > 0 ? (
-                  <DropdownMenuItem disabled={shoppingPending} onSelect={handleGenerateShopping}>
-                    <ShoppingCart className="mr-2 h-4 w-4 text-sky-600" />
-                    {shoppingPending
-                      ? "Adding…"
-                      : `Add ${pendingShoppingCount} meal${pendingShoppingCount === 1 ? "" : "s"} to shopping list`}
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onSelect={() => router.push("/shopping")}>
-                    {totalMeals > 0 ? (
-                      <Check className="mr-2 h-4 w-4 text-emerald-600" />
-                    ) : (
-                      <ShoppingCart className="mr-2 h-4 w-4 text-sky-600" />
-                    )}
-                    {totalMeals > 0 ? "All on the list — " : ""}
-                    {shoppingItemCount > 0 ? `${shoppingItemCount} to buy` : "Shopping list"}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {recipes.length > 0 && (
-              <AddEntryDialog
-                weekStartDate={weekStartDate}
-                dayOfWeek={selectedDay}
-                dayLabel={selectedDayLabel}
-                recipes={recipes}
-                onAdd={mutations?.addEntry}
-                savedMeals={savedMeals}
-                onAddSavedMeal={handleAddSavedMeal}
-                open={adding}
-                onOpenChange={setAdding}
-              />
-            )}
-          </div>
-
-          {/* Next order and the week's nutrition, as small pills — the order
-              only while it has something to do */}
-          {(() => {
-            const next = deliveryPanel?.next;
-            const toDo = next ? deliveryToDo(next) : 0;
-            const showDelivery = !!next && (next.status !== "ordered" || toDo > 0);
-            const showNutrition = nutritionSummary.meals > 0;
-            if (!showDelivery && !showNutrition && !weekAway.length) return <div className="mb-4" />;
-            const offTargets = heartFocus
-              ? (Object.keys(WEEKLY_PROTEIN_TARGETS) as ProteinKind[]).filter(
-                  (k) => meetsTarget(k, nutritionSummary.proteins[k]) === false
-                ).length
-              : 0;
-            return (
-              <div className="mb-4 flex flex-wrap items-center gap-2 pl-9">
-                {weekAway.map((p) => {
-                  // Jump to the holiday's first day in this week.
-                  const first = p.from > weekStartDate ? p.from : weekStartDate;
-                  const day = Math.round(
-                    (Date.parse(first + "T00:00:00Z") - Date.parse(weekStartDate + "T00:00:00Z")) / 86_400_000
-                  );
-                  return (
-                    <button
-                      key={p.from + p.to}
-                      type="button"
-                      onClick={() => setSelectedDay(day)}
-                      className="inline-flex h-7 items-center gap-1.5 rounded-full border border-sky-300/70 bg-gradient-to-r from-sky-100 to-sky-50 px-2.5 text-xs font-semibold text-sky-900 shadow-sm transition-colors hover:from-sky-200 dark:border-sky-800/60 dark:from-sky-950/60 dark:to-sky-950/30 dark:text-sky-100"
-                    >
-                      <Plane className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-                      Away {formatAwayRange(p.from, p.to)}
-                      {p.label && <span className="font-normal text-sky-800/80 dark:text-sky-200/80">· {p.label}</span>}
-                    </button>
-                  );
-                })}
-                {showDelivery && next && (
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryOpen(true)}
-                    className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-300/70 bg-emerald-50 px-2.5 text-xs font-semibold shadow-sm transition-colors hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70"
-                  >
-                    <Truck className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
-                    {next.status === "ordered" ? `Ordered for ${next.day}` : `Order for ${next.day}`}
-                    {toDo > 0 && (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
-                          <AlertTriangle className="h-3 w-3" />
-                          {toDo} to do
-                        </span>
-                      </>
-                    )}
-                  </button>
-                )}
-                {showNutrition && (
-                  <button
-                    type="button"
-                    onClick={() => changeNutritionOpen(!nutritionOpen)}
-                    aria-expanded={nutritionOpen}
-                    aria-label={`${
-                      nutritionSummary.withNutrition
-                        ? `${nutritionSummary.heartHealthy} of ${nutritionSummary.withNutrition} meals heart-healthy`
-                        : "This week’s nutrition"
-                    }${suggestions.length ? `, ${suggestions.length} swaps suggested` : ""}`}
-                    className={`inline-flex h-7 items-center gap-1.5 rounded-full border bg-rose-50 px-2.5 text-xs font-semibold shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/70 ${
-                      offTargets > 0
-                        ? "border-amber-300 dark:border-amber-700/70"
-                        : "border-rose-200 dark:border-rose-900/60"
-                    } ${nutritionOpen ? "ring-2 ring-rose-300/60" : ""}`}
-                  >
-                    <Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" />
-                    {nutritionSummary.withNutrition
-                      ? `${nutritionSummary.heartHealthy}/${nutritionSummary.withNutrition}`
-                      : "Nutrition"}
-                    {suggestions.length > 0 ? (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <span className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400">
-                          <Lightbulb className="h-3 w-3" />
-                          {suggestions.length} swap{suggestions.length === 1 ? "" : "s"}
-                        </span>
-                      </>
-                    ) : offTargets > 0 ? (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
-                          <AlertTriangle className="h-3 w-3" />
-                          {offTargets} off
-                        </span>
-                      </>
-                    ) : null}
-                  </button>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* ── Day strip — droppable chips ── */}
-          <div className="grid grid-cols-7 gap-1.5 mb-5">
-            {Array.from({ length: 7 }, (_, i) => {
-              const mealCount =
-                dayItems.filter((item) => itemDay(item) === i).length + (outsideByDay.get(i)?.length ?? 0);
-              return (
-                <DroppableDayChip
-                  key={`${weekStartDate}-${i}`}
-                  dayIndex={i}
-                  weekStart={weekStartDate}
-                  isCurrentWeek={isCurrentWeek}
-                  todayDayIndex={todayDayIndex}
-                  isSelected={selectedDay === i}
-                  mealCount={mealCount}
-                  isDragActive={activeDragEntry !== null || activeDragGroup !== null}
-                  hasSuggestion={suggestions.some((sg) => sg.dayOfWeek === i)}
-                  delivery={(() => {
-                    const d = deliveryByDate.get(addDays(weekStartDate, i));
-                    return d && d.status !== "skipped" ? d.status : null;
-                  })()}
-                  away={!!awayOn(addDays(weekStartDate, i))}
-                  notCooking={(outsideByDay.get(i) ?? []).some((m) => m.mealType === "dinner")}
-                  onClick={() => setSelectedDay(i)}
-                />
-              );
-            })}
-          </div>
-
-          {nutritionOpen && (
-            <WeekNutritionPanel
-              summary={nutritionSummary}
-              heartFocus={heartFocus}
-              suggestions={suggestions}
-              topIngredients={topIngredients}
-              open
-              onOpenChange={changeNutritionOpen}
-              weekStartDate={weekStartDate}
-              mutations={mutations}
-              onSelectDay={setSelectedDay}
-            />
-          )}
-
-          {deliveryPanel?.next && (
-            <Dialog open={deliveryOpen} onOpenChange={setDeliveryOpen}>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Next order</DialogTitle>
-                </DialogHeader>
-                <NextDeliveryCard
-                  next={deliveryPanel.next}
-                  canEdit={deliveryPanel.canEdit}
-                  onChanged={reloadDeliveries}
-                />
-              </DialogContent>
-            </Dialog>
-          )}
-
-          {/* ── Selected day ── */}
+  // The open day: its slots in order, each named (DESIGN.md → Planner).
+  const dayMenu = (
           <div>
-            <div className="flex items-center gap-3 mb-4">
-              <h2 className={`text-lg font-bold ${isToday ? "text-orange-500" : ""}`}>
-                {selectedDayLabel}
-              </h2>
-              {isToday && (
-                <span className="text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 px-2 py-0.5 rounded-full">
-                  Today
-                </span>
-              )}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <h2 className="font-serif text-2xl font-semibold">{selectedDayLabel}</h2>
+              {isToday && <Badge variant="brand">Today</Badge>}
               {selectedDinnerDay && dinnerSchedule && !notCookingDinner && (
                 <DinnerTimeChip
                   date={addDays(weekStartDate, selectedDay)}
@@ -1632,7 +1300,7 @@ export function WeekPlanner({
                 />
               )}
               {selectedAway && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm">
+                <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-0.5 text-xs font-semibold text-ink-foreground shadow-sm">
                   <Plane className="h-3 w-3" />
                   {selectedAway.label ? `Away · ${selectedAway.label}` : "Away"}
                 </span>
@@ -1648,7 +1316,7 @@ export function WeekPlanner({
                 <button
                   type="button"
                   onClick={() => openOutside(null)}
-                  className="inline-flex items-center gap-1 rounded-full border border-amber-300/70 bg-gradient-to-r from-amber-50 to-orange-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 shadow-sm transition-colors hover:from-amber-100 hover:to-orange-100 dark:border-amber-800/60 dark:from-amber-950/50 dark:to-orange-950/30 dark:text-amber-200"
+                  className="inline-flex items-center gap-1 rounded-full border border-transparent bg-warning-tint px-2.5 py-0.5 text-xs font-semibold text-warning shadow-sm transition-colors"
                 >
                   <UtensilsCrossed className="h-3 w-3" />
                   {selectedDate <= localToday() ? "Ate out?" : "Not cooking?"}
@@ -1666,8 +1334,13 @@ export function WeekPlanner({
                     onOpen={() => openOutside(m)}
                   />
                 ))}
-                {selectedDayItems.map((item) => (
+                {selectedDayItems.map((item, i) => (
                   <Fragment key={item.kind === "group" ? item.group.id : item.entry.id}>
+                  {(i === 0 || selectedDayItems[i - 1].mealType !== item.mealType) && (
+                    <li className="list-none pt-1">
+                      <SectionLabel>{SLOT_LABEL[item.mealType]}</SectionLabel>
+                    </li>
+                  )}
                   {item.kind === "group" ? (
                     <DraggableMealGroup
                       group={item.group}
@@ -1698,7 +1371,7 @@ export function WeekPlanner({
                   {/* Still planned in a slot taken by a meal out: it won't be
                       cooked, so it isn't counted — say so, or it looks like it is. */}
                   {takenSlot(selectedDay, item.mealType) && (
-                    <li className="-mt-1.5 flex items-center gap-1.5 px-1 text-xs text-amber-800 dark:text-amber-300">
+                    <li className="-mt-1.5 flex items-center gap-1.5 px-1 text-xs text-warning">
                       <UtensilsCrossed className="h-3 w-3 flex-shrink-0" />
                       Not cooking this {item.mealType} — it isn&rsquo;t counted. Move it to another day to keep it.
                     </li>
@@ -1707,9 +1380,10 @@ export function WeekPlanner({
                 ))}
               </ul>
             ) : (
-              <div className="rounded-xl border border-dashed bg-muted/20 py-10 flex flex-col items-center gap-2 mb-4 text-muted-foreground">
-                <span className="text-3xl">🍽</span>
-                <p className="text-sm">No meals planned for this day</p>
+              <div className="py-6 flex flex-col items-center gap-1 mb-2 text-center text-muted-foreground">
+                <p className="font-serif text-lg italic">
+                  {selectedAway ? "You're away, so nothing to cook." : "Nothing planned for this day yet."}
+                </p>
                 {recipes.length === 0 && (
                   <p className="text-xs mt-1">Add some recipes first to start planning meals.</p>
                 )}
@@ -1728,6 +1402,301 @@ export function WeekPlanner({
               />
             )}
           </div>
+  );
+
+  return (
+    <div
+      ref={rootRef}
+      className="p-4 lg:p-8 overflow-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
+    >
+      <DndContext
+        id="week-planner"
+        sensors={sensors}
+        collisionDetection={pointerWithin}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div ref={contentRef}>
+          {/* ── Header row ── */}
+          <div className="flex items-center gap-1 mb-1">
+            <DroppableWeekArrow
+              direction="prev"
+              targetLabel={formatDayChip(prevWeek, 6).short + " " + formatDayChip(prevWeek, 6).date}
+              isDragActive={activeDragEntry !== null}
+              onClick={() => navigate(prevWeek, "prev")}
+            />
+
+            <div className="relative flex-1 min-w-0">
+              <button
+                onClick={() => setCalendarOpen((v) => !v)}
+                className="flex min-w-0 max-w-full items-center gap-1 rounded-xl px-1.5 py-0.5 hover:bg-muted transition-colors group"
+              >
+                <h1 className="min-w-0 truncate font-serif text-2xl font-semibold leading-tight sm:text-3xl lg:text-4xl">{weekTitle}</h1>
+                <ChevronDown
+                  className={`h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${
+                    calendarOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {calendarOpen && (
+                <WeekCalendarPicker
+                  weekStartDate={weekStartDate}
+                  onSelect={(ws) => navigate(ws, ws > weekStartDate ? "next" : "prev")}
+                  onClose={() => setCalendarOpen(false)}
+                />
+              )}
+            </div>
+
+            <DroppableWeekArrow
+              direction="next"
+              targetLabel={formatDayChip(nextWeek, 0).short + " " + formatDayChip(nextWeek, 0).date}
+              isDragActive={activeDragEntry !== null}
+              onClick={() => navigate(nextWeek, "next")}
+            />
+
+            {/* The orange +: add a meal, generate a plan, or send the week to the list */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex-shrink-0 h-11 w-11 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center transition-colors ml-1"
+                  aria-label="Add or plan"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem disabled={recipes.length === 0} onSelect={() => setAdding(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add meal
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => router.push("/ai-concierge?tab=plan")}>
+                  <Sparkles className="mr-2 h-4 w-4 text-foreground" />
+                  Generate plan…
+                </DropdownMenuItem>
+                {people && (
+                  <DropdownMenuItem onSelect={() => openOutside(null)}>
+                    <UtensilsCrossed className="mr-2 h-4 w-4 text-warning" />
+                    Not cooking — eating out…
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                {totalMeals > 0 && planId && pendingShoppingCount > 0 ? (
+                  <DropdownMenuItem disabled={shoppingPending} onSelect={handleGenerateShopping}>
+                    <ShoppingCart className="mr-2 h-4 w-4 text-foreground" />
+                    {shoppingPending
+                      ? "Adding…"
+                      : `Add ${pendingShoppingCount} meal${pendingShoppingCount === 1 ? "" : "s"} to shopping list`}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={() => router.push("/shopping")}>
+                    {totalMeals > 0 ? (
+                      <Check className="mr-2 h-4 w-4 text-success" />
+                    ) : (
+                      <ShoppingCart className="mr-2 h-4 w-4 text-foreground" />
+                    )}
+                    {totalMeals > 0 ? "All on the list — " : ""}
+                    {shoppingItemCount > 0 ? `${shoppingItemCount} to buy` : "Shopping list"}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {recipes.length > 0 && (
+              <AddEntryDialog
+                weekStartDate={weekStartDate}
+                dayOfWeek={selectedDay}
+                dayLabel={selectedDayLabel}
+                recipes={recipes}
+                onAdd={mutations?.addEntry}
+                savedMeals={savedMeals}
+                onAddSavedMeal={handleAddSavedMeal}
+                open={adding}
+                onOpenChange={(o) => {
+                  setAdding(o);
+                  if (!o) setAddSlot(undefined);
+                }}
+                defaultMealType={addSlot}
+              />
+            )}
+          </div>
+
+          {/* Next order and the week's nutrition, as small pills — the order
+              only while it has something to do */}
+          {(() => {
+            const next = deliveryPanel?.next;
+            const toDo = next ? deliveryToDo(next) : 0;
+            const showDelivery = !!next && (next.status !== "ordered" || toDo > 0);
+            const showNutrition = nutritionSummary.meals > 0;
+            if (!showDelivery && !showNutrition && !weekAway.length) return <div className="mb-4" />;
+            const offTargets = heartFocus
+              ? (Object.keys(WEEKLY_PROTEIN_TARGETS) as ProteinKind[]).filter(
+                  (k) => meetsTarget(k, nutritionSummary.proteins[k]) === false
+                ).length
+              : 0;
+            return (
+              <div className="mb-4 flex flex-wrap items-center gap-2 pl-9">
+                {weekAway.map((p) => {
+                  // Jump to the holiday's first day in this week.
+                  const first = p.from > weekStartDate ? p.from : weekStartDate;
+                  const day = Math.round(
+                    (Date.parse(first + "T00:00:00Z") - Date.parse(weekStartDate + "T00:00:00Z")) / 86_400_000
+                  );
+                  return (
+                    <button
+                      key={p.from + p.to}
+                      type="button"
+                      onClick={() => setSelectedDay(day)}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-full border border-transparent bg-muted px-2.5 text-xs font-semibold text-foreground shadow-sm transition-colors"
+                    >
+                      <Plane className="h-3.5 w-3.5 text-foreground" />
+                      Away {formatAwayRange(p.from, p.to)}
+                      {p.label && <span className="font-normal text-foreground">· {p.label}</span>}
+                    </button>
+                  );
+                })}
+                {showDelivery && next && (
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryOpen(true)}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-full border border-transparent bg-success-tint px-2.5 text-xs font-semibold shadow-sm transition-colors hover:bg-success-tint"
+                  >
+                    <Truck className="h-3.5 w-3.5 text-success" />
+                    {next.status === "ordered" ? `Ordered for ${next.day}` : `Order for ${next.day}`}
+                    {toDo > 0 && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="inline-flex items-center gap-1 text-warning">
+                          <AlertTriangle className="h-3 w-3" />
+                          {toDo} to do
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )}
+                {showNutrition && (
+                  <button
+                    type="button"
+                    onClick={() => changeNutritionOpen(!nutritionOpen)}
+                    aria-expanded={nutritionOpen}
+                    aria-label={`${
+                      nutritionSummary.withNutrition
+                        ? `${nutritionSummary.heartHealthy} of ${nutritionSummary.withNutrition} meals heart-healthy`
+                        : "This week’s nutrition"
+                    }${suggestions.length ? `, ${suggestions.length} swaps suggested` : ""}`}
+                    className={`inline-flex h-7 items-center gap-1.5 rounded-full border bg-highlight px-2.5 text-xs font-semibold shadow-sm transition-colors hover:bg-highlight ${
+                      offTargets > 0
+                        ? "border-input"
+                        : "border-border"
+                    } ${nutritionOpen ? "ring-2 ring-primary" : ""}`}
+                  >
+                    <Heart className="h-3.5 w-3.5 fill-primary text-primary" />
+                    {nutritionSummary.withNutrition
+                      ? `${nutritionSummary.heartHealthy}/${nutritionSummary.withNutrition}`
+                      : "Nutrition"}
+                    {suggestions.length > 0 ? (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="inline-flex items-center gap-1 text-foreground">
+                          <Lightbulb className="h-3 w-3" />
+                          {suggestions.length} swap{suggestions.length === 1 ? "" : "s"}
+                        </span>
+                      </>
+                    ) : offTargets > 0 ? (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="inline-flex items-center gap-1 text-warning">
+                          <AlertTriangle className="h-3 w-3" />
+                          {offTargets} off
+                        </span>
+                      </>
+                    ) : null}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {nutritionOpen && (
+            <WeekNutritionPanel
+              summary={nutritionSummary}
+              heartFocus={heartFocus}
+              suggestions={suggestions}
+              topIngredients={topIngredients}
+              open
+              onOpenChange={changeNutritionOpen}
+              weekStartDate={weekStartDate}
+              mutations={mutations}
+              onSelectDay={setSelectedDay}
+            />
+          )}
+
+          {deliveryPanel?.next && (
+            <Dialog open={deliveryOpen} onOpenChange={setDeliveryOpen}>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Next order</DialogTitle>
+                </DialogHeader>
+                <NextDeliveryCard
+                  next={deliveryPanel.next}
+                  canEdit={deliveryPanel.canEdit}
+                  onChanged={reloadDeliveries}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {layout === "grid" ? (
+            <>
+              <WeekGrid
+                days={daySummaries}
+                selectedDay={selectedDay}
+                isDragActive={dragging}
+                onSelect={setSelectedDay}
+                onAdd={(day, slot) => {
+                  setSelectedDay(day);
+                  setAddSlot(slot);
+                  setAdding(true);
+                }}
+              />
+              <div className="mt-6 max-w-3xl rounded-2xl bg-highlight p-5">{dayMenu}</div>
+            </>
+          ) : layout === "split" ? (
+            <div className="grid grid-cols-[290px_minmax(0,1fr)] items-start gap-6">
+              <div className="space-y-1.5">
+                {daySummaries.map((d) => (
+                  <DayRow
+                    key={`${weekStartDate}-${d.dayIndex}`}
+                    day={d}
+                    selected={selectedDay === d.dayIndex}
+                    isDragActive={dragging}
+                    onSelect={() => setSelectedDay(d.dayIndex)}
+                  />
+                ))}
+                <div className="pt-3">
+                  <WeekGlance days={daySummaries} />
+                </div>
+              </div>
+              <div className="rounded-2xl bg-highlight p-5">{dayMenu}</div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {daySummaries.map((d) => (
+                <DayRow
+                  key={`${weekStartDate}-${d.dayIndex}`}
+                  day={d}
+                  selected={selectedDay === d.dayIndex}
+                  open={selectedDay === d.dayIndex}
+                  isDragActive={dragging}
+                  onSelect={() => setSelectedDay(d.dayIndex)}
+                >
+                  {dayMenu}
+                </DayRow>
+              ))}
+            </div>
+          )}
         </div>
 
         {people && (
@@ -1770,31 +1739,26 @@ export function WeekPlanner({
         {/* Drag overlay — floating card shown while dragging */}
         <DragOverlay dropAnimation={null}>
           {activeDragGroup ? (
-            <div className="rounded-xl border-2 border-orange-400 bg-gradient-to-br from-orange-50 to-rose-50 dark:from-orange-950/60 dark:to-rose-950/40 shadow-2xl px-4 py-3 flex items-center gap-3 w-72 cursor-grabbing rotate-1">
-              <span
-                className="flex-shrink-0 h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: MEAL_TYPE_COLOR[activeDragGroup.group.mealType] }}
-              />
+            <div className="rounded-2xl bg-card ring-2 ring-primary shadow-2xl px-4 py-3 flex items-center gap-3 w-72 cursor-grabbing rotate-1">
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-muted-foreground">
+                <SectionLabel>
                   {OVERLAY_MEAL_LABEL[activeDragGroup.group.mealType]} · {activeDragGroup.count} dishes
-                </p>
-                <p className="font-bold text-sm leading-snug line-clamp-1">
+                </SectionLabel>
+                <p className="font-serif font-semibold italic leading-snug line-clamp-1">
                   {activeDragGroup.group.title}
                 </p>
               </div>
             </div>
           ) : activeDragEntry ? (
-            <div className="rounded-xl border-2 border-orange-400 bg-card shadow-2xl px-4 py-3 flex items-center gap-3 w-72 cursor-grabbing rotate-1">
-              <span
-                className="flex-shrink-0 h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: MEAL_TYPE_COLOR[activeDragEntry.mealType] }}
+            <div className="rounded-2xl bg-card ring-2 ring-primary shadow-2xl px-3 py-2.5 flex items-center gap-3 w-72 cursor-grabbing rotate-1">
+              <Plate
+                src={activeDragEntry.recipe.thumbnailUrl ?? activeDragEntry.recipe.imageUrl}
+                alt=""
+                className="h-10 w-10 shrink-0 rounded-lg"
               />
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-muted-foreground">
-                  {OVERLAY_MEAL_LABEL[activeDragEntry.mealType]}
-                </p>
-                <p className="font-bold text-sm leading-snug line-clamp-1">
+                <SectionLabel>{OVERLAY_MEAL_LABEL[activeDragEntry.mealType]}</SectionLabel>
+                <p className="font-serif font-semibold leading-snug line-clamp-1">
                   {activeDragEntry.recipe.title}
                 </p>
               </div>

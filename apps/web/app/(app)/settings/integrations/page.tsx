@@ -22,7 +22,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 function CopyRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-orange-700 dark:text-orange-300">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-primary">{label}</p>
       <div className="mt-1 flex items-center gap-2 rounded-lg bg-background/80 px-3 py-2 shadow-sm">
         <code className="min-w-0 flex-1 break-all text-xs">{value}</code>
         <CopyButton text={value} />
@@ -71,7 +71,7 @@ export default async function IntegrationsPage() {
           Settings
         </Link>
         <div className="flex items-center gap-2">
-          <Plug className="h-5 w-5 text-orange-500" />
+          <Plug className="h-5 w-5 text-primary" />
           <h1 className="text-2xl font-bold">Integrations</h1>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -81,7 +81,7 @@ export default async function IntegrationsPage() {
       </div>
 
       {/* Connection details */}
-      <div className="mb-8 space-y-3 rounded-xl border border-orange-300/50 bg-gradient-to-br from-orange-500/15 via-amber-500/10 to-rose-500/10 p-4 shadow-sm dark:border-orange-900/60">
+      <div className="mb-8 space-y-3 rounded-xl border border-transparent bg-highlight p-4 shadow-sm">
         <CopyRow label="Base URL" value={`${origin}/api/integrations`} />
         <CopyRow label="OpenAPI spec" value={specUrl} />
         <p className="text-xs text-muted-foreground">
@@ -110,9 +110,9 @@ export default async function IntegrationsPage() {
       {/* AI assistants */}
       <section className="mb-8">
         <SectionHeading>Connect an AI assistant</SectionHeading>
-        <div className="rounded-xl border border-violet-300/50 bg-gradient-to-br from-violet-500/15 via-fuchsia-500/10 to-sky-500/10 p-4 text-sm shadow-sm dark:border-violet-900/60">
+        <div className="rounded-xl border border-transparent bg-muted p-4 text-sm shadow-sm">
           <div className="mb-2 flex items-center gap-2 font-semibold">
-            <Bot className="h-4 w-4 text-violet-500" />
+            <Bot className="h-4 w-4 text-foreground" />
             Grok, ChatGPT, Claude and other assistants
           </div>
           <ol className="list-decimal space-y-1.5 pl-5">
@@ -140,9 +140,9 @@ export default async function IntegrationsPage() {
           </p>
         </div>
 
-        <div className="mt-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-sky-500/10 p-4 text-sm shadow-sm dark:border-emerald-900/60">
+        <div className="mt-3 rounded-xl border border-transparent bg-success-tint p-4 text-sm shadow-sm">
           <div className="mb-1 flex items-center gap-2 font-semibold">
-            <UtensilsCrossed className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <UtensilsCrossed className="h-4 w-4 text-success" />
             ChatGPT: help choosing when eating out
           </div>
           <p className="mb-3 text-muted-foreground">
@@ -171,7 +171,7 @@ export default async function IntegrationsPage() {
               Paste these into <strong>Instructions</strong>:
               <div className="mt-1.5 rounded-lg bg-background/80 shadow-sm">
                 <div className="flex items-center justify-between gap-2 border-b px-3 py-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-success">
                     Instructions
                   </span>
                   <CopyButton text={MENU_ASSISTANT_INSTRUCTIONS} />
@@ -188,9 +188,9 @@ export default async function IntegrationsPage() {
           </ol>
         </div>
 
-        <div className="mt-3 rounded-xl border border-amber-300/50 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-rose-500/10 p-4 text-sm shadow-sm dark:border-amber-900/60">
+        <div className="mt-3 rounded-xl border border-transparent bg-warning-tint p-4 text-sm shadow-sm">
           <div className="mb-1 flex items-center gap-2 font-semibold">
-            <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <Sparkles className="h-4 w-4 text-warning" />
             Claude: the same, as an MCP server
           </div>
           <p className="mb-3 text-muted-foreground">
@@ -201,7 +201,7 @@ export default async function IntegrationsPage() {
             <CopyRow label="MCP server URL" value={mcpUrl} />
             <CopyRow label="Claude Code" value={claudeCodeCommand} />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-orange-700 dark:text-orange-300">
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                 Claude Desktop — claude_desktop_config.json
               </p>
               <div className="mt-1 rounded-lg bg-background/80 shadow-sm">

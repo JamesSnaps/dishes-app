@@ -156,8 +156,8 @@ export function DinnerTimeChip({
   const chipClass = !day.reminderEnabled
     ? "bg-muted text-muted-foreground border border-dashed"
     : day.overridden
-      ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md"
-      : "bg-orange-100/80 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300 border border-orange-200 dark:border-orange-900";
+      ? "bg-primary text-primary-foreground shadow-md"
+      : "bg-highlight text-primary border border-transparent";
 
   return (
     <>
@@ -189,7 +189,7 @@ export function DinnerTimeChip({
           </DialogHeader>
 
           {start ? (
-            <div className="rounded-lg bg-gradient-to-br from-orange-500/15 to-rose-500/10 border border-orange-300/50 dark:border-orange-900/60 p-3 text-sm">
+            <div className="rounded-lg bg-highlight border border-transparent p-3 text-sm">
               <p>
                 Start <strong>{start.dish}</strong> by <strong>{start.time}</strong>
               </p>
@@ -224,7 +224,7 @@ export function DinnerTimeChip({
               <Button
                 type="submit"
                 disabled={pending || !time || time === day.time}
-                className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-md"
+                className="bg-primary text-primary-foreground border-0 shadow-md"
               >
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save for this day"}
               </Button>
@@ -253,12 +253,12 @@ export function DinnerTimeChip({
             onClick={() => run(() => setDayDinnerReminder(date, !day.reminderEnabled))}
             className={`flex w-full items-center gap-3 rounded-lg p-3 text-left text-sm transition-colors ${
               day.reminderEnabled
-                ? "bg-emerald-500/10 border border-emerald-300/60 dark:border-emerald-900/60"
+                ? "bg-success-tint border border-transparent"
                 : "bg-muted border border-dashed"
             }`}
           >
             {day.reminderEnabled ? (
-              <BellRing className="h-4 w-4 text-emerald-600" />
+              <BellRing className="h-4 w-4 text-success" />
             ) : (
               <BellOff className="h-4 w-4 text-muted-foreground" />
             )}

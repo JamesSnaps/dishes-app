@@ -82,22 +82,22 @@ struct MealStartSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .padding(16)
-            .callout(Theme.amber50, Theme.orange50, border: Color(hex: 0xFDE68A).opacity(0.7))
+            .panel()
 
             if prompt == .start {
                 Button { choose(MealStart.toMinute(.now)) } label: {
                     Label("Start now", systemImage: "play.fill").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(GradientButtonStyle(gradient: .brand, height: 54))
+                .buttonStyle(PillButtonStyle(kind: .primary, height: 54, wide: true))
                 Button { choose(MealStart.toMinute(time)) } label: {
                     Label("I started earlier at \(Self.hhmm(time))", systemImage: "clock").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
             } else {
                 Button { choose(MealStart.toMinute(time)) } label: {
                     Label("I started at \(Self.hhmm(time))", systemImage: "clock").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(GradientButtonStyle(gradient: .brand, height: 54))
+                .buttonStyle(PillButtonStyle(kind: .primary, height: 54, wide: true))
             }
         }
     }
@@ -119,9 +119,9 @@ struct MealStartSheet: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(GradientButtonStyle(gradient: .brand, height: 54))
+            .buttonStyle(PillButtonStyle(kind: .primary, height: 54, wide: true))
             Button { keep() } label: { Text("Keep \(Self.hhmm(serve))").frame(maxWidth: .infinity) }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
         }
         .disabled(moving)
     }

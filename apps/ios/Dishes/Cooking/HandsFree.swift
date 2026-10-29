@@ -197,10 +197,10 @@ struct HandsFreeBanner: View {
         case .off:
             EmptyView()
         case .starting:
-            pill(icon: "mic", title: "Starting hands-free…", detail: nil, fill: AnyShapeStyle(Theme.brandGradient))
+            pill(icon: "mic", title: "Starting hands-free…", detail: nil, fill: AnyShapeStyle(Theme.brand))
         case .listening:
             pill(icon: "waveform", title: "Listening — “next”, “back”, “read it”, “start the timer”, “how much…?”",
-                 detail: handsFree.heard.map { "Heard: “\($0)”" }, fill: AnyShapeStyle(Theme.brandGradient))
+                 detail: handsFree.heard.map { "Heard: “\($0)”" }, fill: AnyShapeStyle(Theme.brand))
         case .failed(let message):
             pill(icon: "mic.slash", title: message, detail: nil, fill: AnyShapeStyle(Theme.destructive))
         }

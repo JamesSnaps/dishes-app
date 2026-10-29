@@ -208,7 +208,7 @@ struct CookReviewSheet: View {
                 Label(saving ? "Saving…" : afterCooking ? "Save & finish" : existing == nil ? "Save" : "Save changes",
                       systemImage: "checkmark")
             }
-            .buttonStyle(.brand)
+            .buttonStyle(.wide(.primary))
             .disabled(saving)
         }
         .padding(20)
@@ -222,7 +222,7 @@ struct CookReviewSheet: View {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 44))
-                        .foregroundStyle(Color(hex: 0x22C55E))
+                        .foregroundStyle(Theme.success)
                     Text("All done!").font(.system(size: 26, weight: .bold))
                     Text(recipe.title).font(.system(size: 15)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
                 }
@@ -281,12 +281,12 @@ struct CookReviewSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     Button { usingCamera = true } label: { Label("Take a photo", systemImage: "camera") }
-                        .buttonStyle(.outline)
+                        .buttonStyle(.secondary)
                 }
                 PhotosPicker(selection: $picked, matching: .images) {
                     Label(current == nil && stored == nil ? "Choose a photo" : "Choose another", systemImage: "photo")
                 }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
                 if current == nil && stored == nil {
                     Text("Add one and the AI will tell you how it looks.")
                         .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
@@ -318,7 +318,7 @@ struct CookReviewSheet: View {
             } label: {
                 Label(usingPantry ? "Updating pantry…" : "Mark ingredients as used from pantry", systemImage: "shippingbox")
             }
-            .buttonStyle(.outline)
+            .buttonStyle(.secondary)
             .disabled(usingPantry)
         }
     }
@@ -337,16 +337,16 @@ struct CookReviewSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("AI feedback", systemImage: "sparkles")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x6D28D9))
+                        .foregroundStyle(Theme.ink)
                     Text(feedback).font(.system(size: 15)).foregroundStyle(Theme.foreground.opacity(0.85))
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.violet50, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color(hex: 0xDDD6FE)))
+                .background(Theme.muted, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.muted))
             }
             Text("Your cook has been saved.").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
-            Button("Done") { close() }.buttonStyle(.brand)
+            Button("Done") { close() }.buttonStyle(.wide(.primary))
         }
         .padding(20)
         .frame(maxWidth: 560)

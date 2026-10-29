@@ -140,28 +140,28 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
         aria-checked={enabled}
         className={`w-full flex items-center gap-3 rounded-xl p-4 text-left shadow-sm transition-all ${
           enabled
-            ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white"
-            : "bg-gradient-to-br from-muted to-muted/40 border hover:from-muted/80"
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted border hover:from-muted/80"
         }`}
       >
         <BellRing className="h-5 w-5 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="font-semibold">Remind me to start dinner</p>
-          <p className={`text-sm ${enabled ? "text-white/85" : "text-muted-foreground"}`}>
+          <p className={`text-sm ${enabled ? "text-background/85" : "text-muted-foreground"}`}>
             Sent to every device where you&apos;ve enabled notifications. Other household
             members choose for themselves.
           </p>
         </div>
         <span
           className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
-            enabled ? "bg-white/40" : "bg-zinc-300 dark:bg-zinc-700"
+            enabled ? "bg-card/40" : "bg-secondary"
           }`}
         >
           {toggling ? (
             <Loader2 className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 animate-spin" />
           ) : (
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-card shadow transition-all ${
                 enabled ? "left-[22px]" : "left-0.5"
               }`}
             />
@@ -172,7 +172,7 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
       {/* Household timing */}
       <form
         onSubmit={save}
-        className="rounded-xl border bg-gradient-to-br from-card to-orange-50/40 dark:to-orange-950/10 p-5 shadow-sm space-y-5"
+        className="rounded-xl border bg-card p-5 shadow-sm space-y-5"
       >
         <div>
           <h2 className="font-semibold">Household dinner times</h2>
@@ -256,7 +256,7 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
                           return next;
                         })
                       }
-                      className="text-xs font-medium text-orange-600 dark:text-orange-400 hover:underline"
+                      className="text-xs font-medium text-primary hover:underline"
                     >
                       Clear
                     </button>
@@ -296,7 +296,7 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
             <button
               type="button"
               onClick={() => setTimezone(deviceZone)}
-              className="flex items-center gap-1.5 text-xs font-medium text-orange-600 dark:text-orange-400 hover:underline"
+              className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
             >
               <LocateFixed className="h-3.5 w-3.5" />
               Use this device&apos;s timezone ({zoneLabel(deviceZone)})
@@ -308,7 +308,7 @@ export function DinnerReminderForm({ settings, optedIn, isAdmin }: Props) {
           <Button
             type="submit"
             disabled={saving}
-            className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-md"
+            className="bg-primary text-primary-foreground border-0 shadow-md"
           >
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save dinner times

@@ -119,7 +119,7 @@ export function MembersList({
           {(member.dietaryFlags?.length || member.dislikes?.length || member.preferences?.length || member.customNotes) ? (
             <div className="mt-2 ml-12 flex flex-wrap gap-1.5">
               {member.dietaryFlags?.map((flag) => (
-                <span key={flag} className="rounded-full bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 text-xs text-orange-700 dark:text-orange-400">
+                <span key={flag} className="rounded-full bg-highlight border border-transparent px-2 py-0.5 text-xs text-primary">
                   {flag}
                 </span>
               ))}
@@ -129,7 +129,7 @@ export function MembersList({
                 </span>
               ))}
               {member.preferences?.map((p) => (
-                <span key={p} className="rounded-full bg-green-500/10 border border-green-500/20 px-2 py-0.5 text-xs text-green-700 dark:text-green-400">
+                <span key={p} className="rounded-full bg-success-tint border border-transparent px-2 py-0.5 text-xs text-success">
                   ♥ {p}
                 </span>
               ))}

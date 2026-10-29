@@ -25,7 +25,7 @@ struct NotesScreen: View {
         WebPage(title: "Notes", subtitle: "Reminders, tips and tweaks for the household.", data: data, trailing: {
             Button { editing = NoteEdit(note: nil, recipeId: nil) } label: {
                 Label("New note", systemImage: "plus")
-                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.brandForeground)
                     .padding(.horizontal, 14).frame(height: 38)
                     .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             }
@@ -48,7 +48,7 @@ struct NotesScreen: View {
                             HStack {
                                 if let title = note.recipeTitle {
                                     Label(title, systemImage: "book").labelStyle(TightLabel())
-                                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.brandDeep).lineLimit(1)
+                                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.brand).lineLimit(1)
                                 }
                                 Spacer()
                                 if let date = note.updatedAt.isoDate {
@@ -59,7 +59,7 @@ struct NotesScreen: View {
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .callout(Theme.amber50, Theme.orange50, border: Color(hex: 0xFDE68A).opacity(0.7))
+                        .panel()
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Theme.foreground)
@@ -92,7 +92,7 @@ struct NoteSheet: View {
         NavigationStack {
             Form {
                 if let about = edit.note?.recipeTitle ?? edit.recipeTitle {
-                    Section { Label(about, systemImage: "book").foregroundStyle(Theme.brandDeep) }
+                    Section { Label(about, systemImage: "book").foregroundStyle(Theme.brand) }
                 }
                 TextField("Title", text: $title)
                 TextField("Write your note…", text: $text, axis: .vertical).lineLimit(6...20)

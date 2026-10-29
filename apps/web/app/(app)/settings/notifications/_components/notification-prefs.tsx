@@ -32,9 +32,9 @@ const ICONS: Record<NotificationType, LucideIcon> = {
 };
 
 const GROUP_TINT: Record<string, string> = {
-  Household: "from-orange-500 to-rose-500",
-  Cooking: "from-amber-500 to-orange-500",
-  Deliveries: "from-emerald-500 to-teal-500",
+  Household: "bg-primary",
+  Cooking: "bg-primary",
+  Deliveries: "bg-primary",
 };
 
 export function NotificationPrefs({ settings }: { settings: NotificationSettings }) {
@@ -82,7 +82,7 @@ export function NotificationPrefs({ settings }: { settings: NotificationSettings
       {groups.map((group) => (
         <section key={group}>
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">{group}</h2>
-          <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/40 shadow-sm divide-y">
+          <div className="overflow-hidden rounded-xl border bg-card shadow-sm divide-y">
             {settings.types
               .filter((t) => t.group === group)
               .map((t) => {
@@ -99,8 +99,8 @@ export function NotificationPrefs({ settings }: { settings: NotificationSettings
                     className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/60"
                   >
                     <span
-                      className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white shadow-sm bg-gradient-to-br ${
-                        on ? GROUP_TINT[group] : "from-zinc-400 to-zinc-500 dark:from-zinc-600 dark:to-zinc-700"
+                      className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-background shadow-sm ${
+                        on ? GROUP_TINT[group] : "bg-secondary"
                       }`}
                     >
                       <Icon className="h-[18px] w-[18px]" />
@@ -111,14 +111,14 @@ export function NotificationPrefs({ settings }: { settings: NotificationSettings
                     </span>
                     <span
                       className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
-                        on ? "bg-gradient-to-r from-orange-500 to-rose-500" : "bg-zinc-300 dark:bg-zinc-700"
+                        on ? "bg-primary" : "bg-secondary"
                       }`}
                     >
                       {pending === t.id ? (
-                        <Loader2 className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 animate-spin text-white" />
+                        <Loader2 className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 animate-spin text-background" />
                       ) : (
                         <span
-                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-card shadow transition-all ${
                             on ? "left-[22px]" : "left-0.5"
                           }`}
                         />
@@ -134,11 +134,11 @@ export function NotificationPrefs({ settings }: { settings: NotificationSettings
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Your devices</h2>
         {settings.devices.length === 0 ? (
-          <p className="rounded-xl border bg-gradient-to-br from-card to-muted/40 px-4 py-3 text-sm text-muted-foreground shadow-sm">
+          <p className="rounded-xl border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
             None yet. Enable notifications above, or allow them in the iPhone and iPad app.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/40 shadow-sm divide-y">
+          <div className="overflow-hidden rounded-xl border bg-card shadow-sm divide-y">
             {settings.devices.map((d) => {
               const Icon = d.kind === "ios" ? Smartphone : Globe;
               return (

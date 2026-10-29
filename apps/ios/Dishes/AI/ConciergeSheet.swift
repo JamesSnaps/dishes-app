@@ -149,9 +149,9 @@ struct ConciergeSheet: View {
         HStack(spacing: 12) {
             Image(systemName: "sparkles")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.inkForeground)
                 .frame(width: 44, height: 44)
-                .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text("Create with AI").font(.system(size: 22, weight: .bold))
                 Text("Describe a dish, or snap a recipe from a book.")
@@ -195,7 +195,7 @@ struct ConciergeSheet: View {
                             .padding(.horizontal, 10)
                             .frame(height: 30)
                             .foregroundStyle(Theme.foreground)
-                            .background(Theme.violet50, in: Capsule())
+                            .background(Theme.muted, in: Capsule())
                             .buttonStyle(.plain)
                     }
                 }
@@ -240,7 +240,7 @@ struct ConciergeSheet: View {
             } label: {
                 Label(mode == .inspire ? "Get 5 ideas" : "Write the recipe", systemImage: mode == .inspire ? "sparkles" : "wand.and.stars")
             }
-            .buttonStyle(.gradient(.violetOrange))
+            .buttonStyle(.wide(.ink))
             .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             photoSection
@@ -255,12 +255,12 @@ struct ConciergeSheet: View {
                 HStack(spacing: 10) {
                     if UIImagePickerController.isSourceTypeAvailable(.camera) {
                         Button { usingCamera = true } label: { Label("Photograph a recipe", systemImage: "camera") }
-                            .buttonStyle(.outline)
+                            .buttonStyle(.secondary)
                     }
                     PhotosPicker(selection: $picked, matching: .images) {
                         Label("Choose a photo", systemImage: "photo")
                     }
-                    .buttonStyle(.outline)
+                    .buttonStyle(.secondary)
                 }
                 Text(DeviceAI.isAvailable
                      ? "A cookbook page, a handwritten card or a screenshot. It’s read on this device and you check it before it’s saved."
@@ -308,13 +308,13 @@ struct ConciergeSheet: View {
             Button { Task { await writeAll(picks) } } label: {
                 Label(picks.count > 1 ? "Write \(picks.count) recipes" : "Write it out", systemImage: "wand.and.stars")
             }
-            .buttonStyle(.gradient(.violetOrange))
+            .buttonStyle(.wide(.ink))
             .disabled(picks.isEmpty)
             HStack(spacing: 10) {
                 Button { Task { await askForIdeas() } } label: { Label("Five more", systemImage: "arrow.clockwise") }
-                    .buttonStyle(.outline)
+                    .buttonStyle(.secondary)
                 Button { stage = .asking } label: { Label("Change the ask", systemImage: "pencil") }
-                    .buttonStyle(.outline)
+                    .buttonStyle(.secondary)
             }
         }
     }
@@ -330,7 +330,7 @@ struct ConciergeSheet: View {
                     switch item.status {
                     case .waiting: Image(systemName: "clock").foregroundStyle(Theme.mutedForeground)
                     case .writing: ProgressView().tint(Theme.brand)
-                    case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(Color(hex: 0x059669))
+                    case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
                     case .failed: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.destructive)
                     }
                     VStack(alignment: .leading, spacing: 2) {
@@ -343,14 +343,14 @@ struct ConciergeSheet: View {
                     }
                     Spacer()
                     if case .done(let made) = item.status {
-                        Button("Open") { finish(opening: made) }.buttonStyle(.outline).fixedSize()
+                        Button("Open") { finish(opening: made) }.buttonStyle(.secondary).fixedSize()
                     }
                 }
                 .padding(14)
                 .card()
             }
             if finished {
-                Button("Create more") { chosen = []; stage = .asking }.buttonStyle(.outline)
+                Button("Create more") { chosen = []; stage = .asking }.buttonStyle(.secondary)
             }
         }
     }
@@ -371,7 +371,7 @@ struct ConciergeSheet: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Theme.destructive)
             Text(message).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
-            Button("Try again") { stage = .asking }.buttonStyle(.outline)
+            Button("Try again") { stage = .asking }.buttonStyle(.secondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

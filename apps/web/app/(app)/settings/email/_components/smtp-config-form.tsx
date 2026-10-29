@@ -149,7 +149,7 @@ export function SmtpConfigForm({ existing, isAdmin }: Props) {
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {saved && <p className="text-sm text-green-600">Settings saved.</p>}
+      {saved && <p className="text-sm text-success">Settings saved.</p>}
 
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={isPending}>

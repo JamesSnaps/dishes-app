@@ -583,7 +583,7 @@ struct RecipeDetailView: View {
                                       systemImage: "timer")
                                     .labelStyle(TightLabel())
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(Theme.brandDeep)
+                                    .foregroundStyle(Theme.brand)
                             }
                         }
                     }

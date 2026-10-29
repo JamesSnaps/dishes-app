@@ -42,8 +42,8 @@ export function ErrorList({ errors, serverVersion }: Props) {
 
   if (errors.length === 0) {
     return (
-      <div className="rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 p-8 text-center dark:border-emerald-900/50 dark:from-emerald-950/40 dark:to-teal-950/30">
-        <ShieldCheck className="mx-auto h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+      <div className="rounded-xl border border-transparent bg-success-tint p-8 text-center">
+        <ShieldCheck className="mx-auto h-8 w-8 text-success" />
         <p className="mt-3 font-semibold">No crashes recorded</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Reports land here automatically the moment a device hits a client-side
@@ -68,8 +68,8 @@ export function ErrorList({ errors, serverVersion }: Props) {
             className={cn(
               "overflow-hidden rounded-xl border shadow-sm transition-colors",
               stale
-                ? "border-amber-200/70 bg-gradient-to-br from-amber-50 to-orange-50 dark:border-amber-900/50 dark:from-amber-950/40 dark:to-orange-950/20"
-                : "border-rose-200/70 bg-gradient-to-br from-rose-50 to-red-50 dark:border-rose-900/50 dark:from-rose-950/40 dark:to-red-950/20"
+                ? "border-transparent bg-warning-tint"
+                : "border-transparent bg-highlight"
             )}
           >
             <button
@@ -80,8 +80,8 @@ export function ErrorList({ errors, serverVersion }: Props) {
                 className={cn(
                   "mt-0.5 h-4 w-4 shrink-0",
                   stale
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-rose-600 dark:text-rose-400"
+                    ? "text-warning"
+                    : "text-primary"
                 )}
               />
               <div className="min-w-0 flex-1">
@@ -104,7 +104,7 @@ export function ErrorList({ errors, serverVersion }: Props) {
                   <span className="text-muted-foreground">{timeAgo(e.createdAt)}</span>
                 </div>
                 {stale && (
-                  <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
+                  <p className="mt-2 text-xs text-warning">
                     Crashed on an old bundle — the app was open across a deploy.
                     Usually fixed by closing and reopening it, not by a code change.
                   </p>

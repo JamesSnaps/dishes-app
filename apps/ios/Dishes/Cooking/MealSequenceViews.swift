@@ -70,18 +70,18 @@ struct SequenceDueView: View {
                             Text(due.text)
                                 .font(.system(size: 12, weight: .semibold))
                                 .padding(.horizontal, 7).padding(.vertical, 2)
-                                .foregroundStyle(due.tone == .now ? .white : due.tone == .late ? Color(hex: 0xBE123C) : Color(hex: 0x9A3412))
+                                .foregroundStyle(due.tone == .now ? Theme.brandForeground : due.tone == .late ? Theme.destructive : Theme.brand)
                                 .background {
-                                    if due.tone == .now { Capsule().fill(Theme.brandGradient) }
-                                    else { Capsule().fill(due.tone == .late ? Color(hex: 0xFFE4E6) : Color.white.opacity(0.8)) }
+                                    if due.tone == .now { Capsule().fill(Theme.brand) }
+                                    else { Capsule().fill(due.tone == .late ? Theme.destructive.opacity(0.12) : Theme.card) }
                                 }
                         }
-                        .foregroundStyle(Color(hex: 0x7C2D12))
+                        .foregroundStyle(Theme.brand)
                         .padding(.horizontal, 10).padding(.vertical, 5)
-                        .callout(Theme.orange50, Theme.amber50, border: Color(hex: 0xFED7AA).opacity(0.8))
+                        .panel()
                         Text(session.label(of: cue))
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Theme.brandDeep)
+                            .foregroundStyle(Theme.brand)
                             .lineLimit(1)
                     }
                     let others = MealSequence.alsoNow(cues, at: index)
@@ -95,7 +95,7 @@ struct SequenceDueView: View {
                                             .font(.system(size: 12, weight: .medium))
                                             .padding(.horizontal, 10).frame(height: 26)
                                             .background(Theme.background, in: Capsule())
-                                            .overlay(Capsule().strokeBorder(Color(hex: 0xFDBA74)))
+                                            .overlay(Capsule().strokeBorder(Theme.brand))
                                     }
                                     .buttonStyle(.plain)
                                     .foregroundStyle(Theme.foreground)
@@ -143,9 +143,9 @@ struct CueCardView: View {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: serve ? "fork.knife" : cue.covers?.isEmpty == false ? "list.number" : "exclamationmark.bubble")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.brandForeground)
                         .frame(width: 40, height: 40)
-                        .background(Theme.brandGradient, in: Circle())
+                        .background(Theme.brand, in: Circle())
                     Text(serve ? "Everything should be ready — time to serve." : cue.text)
                         .font(.system(size: size * 0.85, weight: .medium, design: .rounded))
                 }
@@ -162,7 +162,7 @@ struct CueCardView: View {
                             } label: {
                                 Text("\(recipe?.title ?? "Dish") · step \(step.stepIndex + 1)".uppercased())
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(Theme.brandDeep)
+                                    .foregroundStyle(Theme.brand)
                             }
                             .buttonStyle(.plain)
                             Text(recipe.flatMap { $0.steps.indices.contains(step.stepIndex) ? $0.steps[step.stepIndex].instruction : nil } ?? "")
@@ -175,11 +175,11 @@ struct CueCardView: View {
                 }
                 if serve {
                     Button(action: finish) { Label("Finish and review the meal", systemImage: "checkmark.circle") }
-                        .buttonStyle(.brand)
+                        .buttonStyle(.wide(.primary))
                 }
             }
             .padding(16)
-            .callout(Theme.orange50, Theme.rose50, border: Color(hex: 0xFED7AA).opacity(0.7))
+            .panel()
         }
     }
 }
@@ -202,7 +202,7 @@ struct MealScheduleList: View {
                             HStack(alignment: .firstTextBaseline, spacing: 12) {
                                 Text(MealStartSheet.hhmm(Date(timeIntervalSince1970: cue.at / 1000)))
                                     .font(.system(size: 15, weight: .bold).monospacedDigit())
-                                    .foregroundStyle(current ? .white : Theme.brandDeep)
+                                    .foregroundStyle(current ? .white : Theme.brand)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(session.label(of: cue))
                                         .font(.system(size: 12, weight: .semibold))
@@ -214,7 +214,7 @@ struct MealScheduleList: View {
                             }
                             .opacity(i < session.seqIndex && session.inSequence ? 0.45 : 1)
                         }
-                        .listRowBackground(current ? AnyView(Theme.brandGradient) : AnyView(Color.clear))
+                        .listRowBackground(current ? AnyView(Theme.brand) : AnyView(Color.clear))
                         .id(cue.id)
                     }
                 }

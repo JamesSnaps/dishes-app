@@ -73,11 +73,11 @@ struct ShoppingScreen: View {
                                subtitle: "\(data.value.list?.name ?? "No list yet") · \(open + checked) items, \(checked) checked") {
                         if onTrip {
                             Button { toggleTrip() } label: { Label("End trip", systemImage: "lock.slash") }
-                                .buttonStyle(.outline)
+                                .buttonStyle(.secondary)
                         } else if open > 0 {
                             // Going shopping: what's left on the Lock Screen, kept current as the family adds things.
                             Button { toggleTrip() } label: { Label("Shopping trip", systemImage: "lock.iphone") }
-                                .buttonStyle(.gradient(.orangeRose))
+                                .buttonStyle(.wide(.primary))
                                 .fixedSize()
                         }
                     }
@@ -99,7 +99,7 @@ struct ShoppingScreen: View {
                                     Task { await WebAction.run("pantry.addCheckedFromList", [.string(list.id)], done: "Ticked items added to the pantry.") }
                                 }
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(Color(hex: 0x047857))
+                                .foregroundStyle(Theme.success)
                                 Button("Clear checked") { clearChecked(list) }
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundStyle(Theme.destructive)
@@ -325,7 +325,7 @@ struct AddItemCard: View {
                 Button { add() } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.brandForeground)
                         .frame(width: 44, height: 44)
                         .background(Theme.brand, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
@@ -361,7 +361,7 @@ struct AddItemCard: View {
                     ForEach(shown, id: \.self) { suggestionRow($0) }
                 }
                 .padding(6)
-                .callout(Theme.orange50, Theme.rose50, border: Theme.brand.opacity(0.25))
+                .panel()
             }
         }
         .padding(14)
@@ -399,7 +399,7 @@ struct AddItemCard: View {
             HStack(spacing: 10) {
                 Image(systemName: history ? "clock.arrow.circlepath" : "fork.knife")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(history ? Theme.brandDeep : Theme.heart)
+                    .foregroundStyle(history ? Theme.brand : Theme.heart)
                     .frame(width: 28, height: 28)
                     .background((history ? Theme.brand : Theme.heart).opacity(0.14), in: Circle())
                 Text(highlighted(s.name))

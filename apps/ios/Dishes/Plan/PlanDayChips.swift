@@ -144,16 +144,16 @@ struct DinnerTimeChip: View {
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .padding(.horizontal, compact ? 8 : 10).frame(height: 28)
-            .foregroundStyle(day.overridden ? .white : day.reminderEnabled ? Color(light: 0x9A3412, dark: 0xFDBA74) : Theme.mutedForeground)
+            .foregroundStyle(day.overridden ? Theme.brandForeground : day.reminderEnabled ? Theme.brand : Theme.mutedForeground)
             .background {
                 if day.overridden {
-                    Capsule().fill(LinearGradient(colors: [Color(hex: 0xF97316), Color(hex: 0xF43F5E)], startPoint: .leading, endPoint: .trailing))
+                    Capsule().fill(Theme.brand)
                 } else {
-                    Capsule().fill(day.reminderEnabled ? Theme.orange50 : Theme.muted)
+                    Capsule().fill(day.reminderEnabled ? Theme.highlight : Theme.muted)
                 }
             }
-            .overlay(Capsule().strokeBorder(day.overridden ? .clear : day.reminderEnabled ? Color(light: 0xFED7AA, dark: 0x7C2D12) : Theme.border,
-                                            style: StrokeStyle(lineWidth: 1, dash: day.reminderEnabled ? [] : [3, 2])))
+            .overlay(Capsule().strokeBorder(day.overridden || day.reminderEnabled ? .clear : Theme.input,
+                                            style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Dinner time \(day.time)" + (day.overridden ? ", changed for this day" : ""))
@@ -270,9 +270,8 @@ struct AwayDayChip: View {
         .font(.system(size: 12, weight: .semibold))
         .lineLimit(1)
         .padding(.horizontal, 10).frame(height: 28)
-        .foregroundStyle(.white)
-        .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0x0EA5E9), Color(hex: 0x06B6D4)],
-                                                  startPoint: .leading, endPoint: .trailing)))
+        .foregroundStyle(Theme.secondaryForeground)
+        .background(Capsule().fill(Theme.secondary))
         .accessibilityLabel(away.label.map { "Away: \($0)" } ?? "Away")
     }
 }
@@ -295,10 +294,8 @@ struct NotCookingChip: View {
             .font(.system(size: 12, weight: .semibold))
             .lineLimit(1)
             .padding(.horizontal, 10).frame(height: 28)
-            .foregroundStyle(Color(light: 0x78350F, dark: 0xFDE68A))
-            .background(Capsule().fill(LinearGradient(colors: [Theme.amber50, Theme.orange50],
-                                                      startPoint: .leading, endPoint: .trailing)))
-            .overlay(Capsule().strokeBorder(Color(hex: 0xFCD34D).opacity(0.7)))
+            .foregroundStyle(Theme.secondaryForeground)
+            .background(Capsule().fill(Theme.secondary))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(past ? "Log a meal eaten out" : "Not cooking this day")
@@ -358,15 +355,15 @@ struct DeliveryDayChip: View {
             .font(.system(size: 12, weight: .semibold))
             .lineLimit(1)
             .padding(.horizontal, 10).frame(height: 28)
-            .foregroundStyle(day.status == "ordered" ? .white : day.status == "skipped" ? Theme.mutedForeground : Color(hex: 0x115E59))
+            .foregroundStyle(day.status == "ordered" ? Theme.card : day.status == "skipped" ? Theme.mutedForeground : Theme.success)
             .background {
                 if day.status == "ordered" {
-                    Capsule().fill(LinearGradient(colors: [Color(hex: 0x059669), Color(hex: 0x14B8A6)], startPoint: .leading, endPoint: .trailing))
+                    Capsule().fill(Theme.success)
                 } else {
-                    Capsule().fill(day.status == "skipped" ? Theme.muted : Color(hex: 0xCCFBF1))
+                    Capsule().fill(day.status == "skipped" ? Theme.muted : Theme.successTint)
                 }
             }
-            .overlay(Capsule().strokeBorder(day.status == "scheduled" ? Color(hex: 0x5EEAD4).opacity(0.7) : .clear))
+
         }
         .accessibilityLabel("Delivery: \(label)")
         .sheet(isPresented: $editing) { OrderSheet(day: day) { await changed() } }
@@ -418,7 +415,7 @@ struct PlanWeekStrips: View {
                                 NavigationLink { DeliveriesScreen() } label: {
                                     Label("All deliveries", systemImage: "truck.box")
                                 }
-                                .buttonStyle(.outline)
+                                .buttonStyle(.secondary)
                             case .nutrition:
                                 if let nutrition { NutritionDetail(nutrition: nutrition) { await swapped() } }
                             }
@@ -444,8 +441,8 @@ struct PlanWeekStrips: View {
             let day = Calendar.current.weekdaySymbols.contains(next.day) ? String(next.day.prefix(3)) : next.day
             pill(icon: "truck.box", text: next.status == "ordered" ? "Ordered \(day)" : "Order \(day)",
                  note: toDo > 0 ? "\(toDo) to do" : nil, noteIcon: "exclamationmark.triangle.fill", noteTint: Self.warn,
-                 tint: Color(light: 0x047857, dark: 0x34D399), fill: Theme.emerald100.opacity(0.7),
-                 border: Color(light: 0xA7F3D0, dark: 0x065F46)) { showing = .delivery }
+                 tint: Theme.success, fill: Theme.successTint,
+                 border: .clear) { showing = .delivery }
             .accessibilityLabel("Next order, \(next.day)" + (toDo > 0 ? ", \(toDo) to do" : ""))
         }
         if let nutrition {
@@ -455,16 +452,16 @@ struct PlanWeekStrips: View {
             pill(icon: "heart.fill", text: s.withNutrition > 0 ? "\(s.heartHealthy)/\(s.withNutrition)" : "Nutrition",
                  note: swaps > 0 ? "\(swaps) swap\(swaps == 1 ? "" : "s")" : off > 0 ? "\(off) off" : nil,
                  noteIcon: swaps > 0 ? "lightbulb.fill" : "exclamationmark.triangle.fill",
-                 noteTint: swaps > 0 ? Color(light: 0x7C3AED, dark: 0xA78BFA) : Self.warn,
-                 tint: Color(hex: 0xE11D48), fill: Theme.rose50,
-                 border: off > 0 ? Color(light: 0xFCD34D, dark: 0x92400E) : Color(light: 0xFECDD3, dark: 0x881337)) { showing = .nutrition }
+                 noteTint: swaps > 0 ? Theme.ink : Self.warn,
+                 tint: Theme.brand, fill: Theme.highlight,
+                 border: .clear) { showing = .nutrition }
             .accessibilityLabel("\(s.heartHealthy) of \(s.withNutrition) meals heart-healthy"
                                 + (off > 0 ? ", \(off) target\(off == 1 ? "" : "s") off" : "")
                                 + (swaps > 0 ? ", \(swaps) swap\(swaps == 1 ? "" : "s") suggested" : ""))
         }
     }
 
-    private static let warn = Color(light: 0xB45309, dark: 0xFBBF24)
+    private static let warn = Theme.warning
 
     private func pill(icon: String, text: String, note: String?, noteIcon: String, noteTint: Color,
                       tint: Color, fill: Color, border: Color, tap: @escaping () -> Void) -> some View {
@@ -510,7 +507,7 @@ private struct NutritionDetail: View {
                     ForEach(nutrition.targets) { t in
                         HStack {
                             Label(t.label, systemImage: t.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .foregroundStyle(t.ok ? Color(hex: 0x047857) : Color(hex: 0xB45309))
+                                .foregroundStyle(t.ok ? Theme.success : Theme.brand)
                             Spacer()
                             Text("\(t.count) · \(t.target)").foregroundStyle(Theme.mutedForeground)
                         }
@@ -534,7 +531,7 @@ private struct NutritionDetail: View {
                                         .font(.system(size: 14, weight: .medium))
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .buttonStyle(.outline)
+                                .buttonStyle(.secondary)
                                 .disabled(working != nil)
                             }
                             if sg.toRecipe == nil && sg.alternatives.isEmpty {

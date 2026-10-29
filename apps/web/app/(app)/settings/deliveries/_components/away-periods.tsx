@@ -107,9 +107,9 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
   }
 
   return (
-    <section className="rounded-xl border bg-gradient-to-br from-card to-amber-50/60 dark:to-amber-950/10 p-5 shadow-sm">
+    <section className="rounded-xl border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-2">
-        <Palmtree className="h-4 w-4 text-amber-600" />
+        <Palmtree className="h-4 w-4 text-warning" />
         <h2 className="font-semibold">Holidays &amp; time away</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-3">
@@ -118,7 +118,7 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
       </p>
 
       {awayPeriods.length === 0 ? (
-        <p className="mb-4 rounded-lg border border-dashed border-amber-300/70 dark:border-amber-900/60 px-3 py-2.5 text-sm text-muted-foreground">
+        <p className="mb-4 rounded-lg border border-dashed border-input px-3 py-2.5 text-sm text-muted-foreground">
           No holidays booked.{canEdit && " Add one below."}
         </p>
       ) : (
@@ -132,7 +132,7 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
               return (
                 <li
                   key={key}
-                  className="rounded-lg bg-amber-500/10 border border-amber-400/70 dark:border-amber-800 p-3"
+                  className="rounded-lg bg-warning-tint border border-transparent p-3"
                 >
                   <form
                     onSubmit={(e) => {
@@ -169,7 +169,7 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
                         type="submit"
                         size="sm"
                         disabled={busy || !editing.value.from || !editing.value.to}
-                        className="gap-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0 shadow-md"
+                        className="gap-1 bg-warning text-card border-0 shadow-md"
                       >
                         {busy ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -187,13 +187,13 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
             return (
               <li
                 key={key}
-                className="flex items-center gap-3 rounded-lg bg-amber-500/10 border border-amber-300/60 dark:border-amber-900/60 px-3 py-2"
+                className="flex items-center gap-3 rounded-lg bg-warning-tint border border-transparent px-3 py-2"
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm truncate">
                     {p.label || "Away"}
                     {current && (
-                      <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-wide rounded-full bg-amber-500/25 text-amber-800 dark:text-amber-200 px-1.5 py-0.5">
+                      <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-wide rounded-full bg-warning-tint text-warning px-1.5 py-0.5">
                         Now
                       </span>
                     )}
@@ -205,14 +205,14 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
                 </div>
                 {canEdit &&
                   (busy ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                    <Loader2 className="h-4 w-4 animate-spin text-warning" />
                   ) : (
                     <div className="flex gap-1.5">
                       <Button
                         size="sm"
                         onClick={() => setEditing({ key, value: { ...p, label: p.label ?? "" } })}
                         aria-label={`Edit ${p.label || "holiday"}`}
-                        className="h-8 px-2.5 text-xs font-semibold gap-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-100 dark:border-amber-800 shadow-sm"
+                        className="h-8 px-2.5 text-xs font-semibold gap-1 bg-warning-tint hover:bg-warning-tint text-warning border border-transparent shadow-sm"
                       >
                         <PencilLine className="h-3.5 w-3.5" /> Edit
                       </Button>
@@ -222,7 +222,7 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
                           run(key, () => removeAwayPeriod(p.from, p.to), "Holiday removed")
                         }
                         aria-label={`Remove ${p.label || "holiday"}`}
-                        className="h-8 px-2 bg-background/70 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/60 shadow-sm"
+                        className="h-8 px-2 bg-background/70 hover:bg-destructive/10 text-destructive border border-destructive/40 shadow-sm"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -247,7 +247,7 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
               "Holiday added — deliveries skipped",
             );
           }}
-          className="space-y-2 rounded-lg bg-background/50 border border-amber-200/70 dark:border-amber-900/50 p-3"
+          className="space-y-2 rounded-lg bg-background/50 border border-border p-3"
         >
           <p className="text-sm font-semibold">Add a holiday</p>
           <PeriodFields value={draft} onChange={setDraft} today={today} />
@@ -255,7 +255,7 @@ export function AwayPeriods({ awayPeriods, canEdit, today }: Props) {
             <Button
               type="submit"
               disabled={!draft.from || !draft.to || pending}
-              className="gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0 shadow-md"
+              className="gap-1.5 bg-warning text-card border-0 shadow-md"
             >
               {pending && busyKey === "away" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

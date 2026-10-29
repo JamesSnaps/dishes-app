@@ -402,7 +402,7 @@ struct RecipePhotoSheet: View {
                         ForEach(Self.styles, id: \.value) { Text($0.label).tag($0.value) }
                     }
                     .pickerStyle(.menu)
-                    .tint(Theme.brandDeep)
+                    .tint(Theme.brand)
                 } footer: { Text(Self.styles.first { $0.value == style }?.about ?? "") }
                 Section {
                     TextField("e.g. a single slice on a plate with a fork, not the whole cake", text: $instructions, axis: .vertical)

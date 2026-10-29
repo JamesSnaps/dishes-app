@@ -1,8 +1,8 @@
 # Dishes — Design System ("Cookbook")
 
-Status: **adopted 29 Oct 2026. Phases 0–3 done (v1.71.1): the guardrail,
-tokens, Fraunces, the kit below, the app shell and Recipes. Phases 4–8 move
-the remaining screens.** The checklist lives in
+Status: **adopted 29 Oct 2026; migration complete (v1.72.0). Every screen,
+web and iOS, is on the tokens, the planner picks its layout by width, and the
+colour check's baseline is zero.** The checklist lives in
 `TODO.md` → *Design refresh (Cookbook)*. Mockups (phone, iPad landscape, iPad
 portrait, planner by width): <https://claude.ai/artifact/1P1nVaCQ4yLGWuxSmkGBzy>,
 row B.
@@ -238,16 +238,19 @@ so existing uses don't change shape. In new code, always name the variant.
   the placeholder plate rather than a grey box with an icon.
 - `AiButton`: `Button variant="ink"` with the sparkle icon. The only way AI
   features are marked.
-- `DayRow` / `DayMenu`: the planner's folded day and opened day (below).
-  Built in phase 5.
+- The planner's pieces live with it, in
+  `app/(app)/meal-plan/_components/planner-layouts.tsx`: `DayRow` (a folded
+  day, also the open day's drop target), `WeekGrid`, `WeekGlance` and
+  `usePlannerLayout`, which measures the planner and picks the layout.
 
 **iOS** (`apps/ios/Dishes/Design/Theme.swift`) mirrors all of this:
 `Theme.brand`, `.ink`, `.success`, `.highlight`, `.plate`…; `Theme.serif(size,
 weight:, italic:)`; `.buttonStyle(.primary / .secondary / .ink)`;
 `.card()` (raised) and `.panel()`; `BadgeView` styles; `SectionLabel`;
-`PlateView`. The old `GradientButtonStyle`, `Theme.Gradient`, `callout` and
-meal-type colours stay until the screens using them move over (phase 9 removes
-them).
+`PlateView`; `Theme.chart1`…`chart5` for Stats. The planner's layouts are in
+`PlanScreen` (`foldView`, `splitView`, `weekGrid`, picked from the measured
+width). The widgets, watch app and share extension can't see `Theme`, so they
+copy the values they use (terracotta, herb, ink; dark-mode values on the watch).
 
 ---
 
@@ -301,13 +304,13 @@ so it's a good night for it").
 counts, per file, raw palette classes (including `dark:` and `hover:` forms),
 `bg-white`, arbitrary hex colours (`bg-[#…]`) and `bg-gradient-*`, outside the
 exceptions, and compares them with `apps/web/colour-baseline.json` (2,610
-across 103 files when it was created). A file may not go above its baseline,
-and a file the baseline doesn't list may have none, so new screens start
-clean. The `Checks` workflow runs it on every PR and push to `main`.
+across 103 files when it was created; zero since v1.72.0). A file may not go
+above its baseline, and a file the baseline doesn't list may have none, so
+with the baseline at zero any raw colour fails the check. The `Checks`
+workflow runs it on every PR and push to `main`.
 
-After moving a screen onto the tokens, run it with `--update` to lower the
-baseline and commit the new file. `--update` refuses to raise any count. When
-the total reaches zero, the migration is done.
+Photo overlays may use `bg-black/…` with white text (a scrim over a picture
+isn't a theme colour); everything else uses tokens.
 
 ---
 
@@ -323,12 +326,12 @@ mode and at phone, iPad portrait and iPad landscape widths.
 | 1 | **Foundations**: tokens (light + dark), Tailwind config, Fraunces, `Button`/`Card`/`Badge` variants, `SectionLabel`/`Plate`/`AiButton`; iOS `Theme.swift` tokens + bundled Fraunces | medium | Every token-based screen turns cream and terracotta at once; raw-class screens lag until their phase. Ship with phase 2 straight after so the frame changes together. Minor version bump. |
 | 2 | **App shell**: bottom nav, side nav, page headers, AI concierge button, cooking mini-bar, offline/sync indicators | small (~60) | Done. Every page title in the app shell is Fraunces via `[&_h1]:font-serif` on `<main>`; screens refine their headers in their own phase. |
 | 3 | **Recipes**: list, card, filters, detail, form, imports | 363 | Done. Also the shared libraries, which use the same card. Star ratings are terracotta (web and iOS); recipes without a photo show the `Plate` everywhere `RecipeImage` is used on iOS. The concierge (phase 6) and cooking mode (phase 4) are untouched. |
-| 4 | **Cooking mode** (`app/(cook)/recipes`) | 238 | Keeps large sans type; colours only |
-| 5 | **Planner**: new layouts by width, `DayRow`/`DayMenu`, meal-type colours removed | 532 | The biggest one and the only one that changes behaviour. iOS gets the same three layouts. |
-| 6 | **AI concierge**: violet → ink | 447 | Mostly mechanical |
-| 7 | **Settings** | 423 | Mechanical |
-| 8 | **The rest**: meals eaten out (139), meals (88), stats (79, chart tokens), memories (41), deliveries (44), shopping (34), cook review (30), onboarding (20), shared, pantry | ~500 | Can be split across several PRs |
-| 9 | **Clean-up**: remove the legacy colours and gradients from `Theme.swift`, set the colour check to zero, watch app and widgets | small | |
+| 4 | **Cooking mode** (`app/(cook)/recipes`) | 238 | Done (v1.72.0). Keeps large sans type; colours only |
+| 5 | **Planner**: new layouts by width, `DayRow`/`WeekGrid`, meal-type colours removed | 532 | Done. The open day names each slot with a `SectionLabel`; combined meals are italic with the main dish large; meals out are a plate tile and an italic place. The week grid's "+ Add dinner" opens the add dialog on that slot. iOS has the same three layouts. |
+| 6 | **AI concierge**: violet → ink | 447 | Done (v1.72.0). Mostly mechanical |
+| 7 | **Settings** | 423 | Done (v1.72.0). Mechanical |
+| 8 | **The rest**: meals eaten out (139), meals (88), stats (79, chart tokens), memories (41), deliveries (44), shopping (34), cook review (30), onboarding (20), shared, pantry | ~500 | Done (v1.72.0). Can be split across several PRs |
+| 9 | **Clean-up**: remove the legacy colours and gradients from `Theme.swift`, set the colour check to zero, watch app and widgets | small | Done (v1.72.0). |
 
 Phases 3–8 don't depend on each other once 1 and 2 have landed, so they can run
 in parallel.

@@ -44,7 +44,7 @@ struct SignInView: View {
                 } label: {
                     Text(busy ? "Signing in…" : "Sign in").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.brand)
+                .buttonStyle(.wide(.primary))
                 .disabled(busy)
                 Text("Use the same account as the Dishes website.")
                     .font(.footnote)

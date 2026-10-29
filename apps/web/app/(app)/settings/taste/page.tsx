@@ -12,7 +12,7 @@ type ScoreRowProps = { label: string; score: number; max?: number };
 function ScoreRow({ label, score, max = 5 }: ScoreRowProps) {
   const pct = Math.round((score / max) * 100);
   const color =
-    score >= 4 ? "bg-green-500" : score >= 3 ? "bg-blue-500" : score >= 2 ? "bg-amber-500" : "bg-red-400";
+    score >= 4 ? "bg-success" : score >= 3 ? "bg-ink" : score >= 2 ? "bg-warning" : "bg-destructive";
   return (
     <div className="flex items-center gap-3">
       <span className="w-36 shrink-0 truncate text-sm capitalize">{label}</span>

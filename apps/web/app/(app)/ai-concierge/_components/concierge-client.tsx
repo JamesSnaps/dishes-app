@@ -66,12 +66,12 @@ const HEART_STATUS_BADGES = {
   yes: {
     label: "Heart-healthy",
     title: "Meets the heart-healthy targets",
-    className: "border-rose-400 bg-rose-500 text-white",
+    className: "border-transparent bg-primary text-primary-foreground",
   },
   new: {
     label: "Will be heart-healthy",
     title: "A new recipe — written and checked against the heart-healthy targets",
-    className: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400",
+    className: "border-transparent bg-highlight text-primary",
   },
   unknown: {
     label: "Heart status unknown",
@@ -81,7 +81,7 @@ const HEART_STATUS_BADGES = {
   no: {
     label: "Over heart targets",
     title: "Higher in saturated fat or lower in fibre than the heart-healthy targets",
-    className: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    className: "border-transparent bg-warning-tint text-warning",
   },
 } as const;
 
@@ -108,34 +108,34 @@ const PREFERENCES = [
   {
     label: "Vegetarian",
     icon: Leaf,
-    activeClass: "border-emerald-400 bg-emerald-500 text-white",
-    inactiveClass: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400 dark:hover:border-emerald-700",
+    activeClass: "border-transparent bg-success text-card",
+    inactiveClass: "border-transparent bg-success-tint text-success hover:border-input",
   },
   {
     label: "Quick",
     icon: Zap,
-    activeClass: "border-orange-400 bg-orange-500 text-white",
-    inactiveClass: "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700",
+    activeClass: "border-transparent bg-primary text-primary-foreground",
+    inactiveClass: "border-transparent bg-highlight text-primary hover:border-input",
   },
   {
     label: "Family Friendly",
     icon: Users,
-    activeClass: "border-blue-400 bg-blue-500 text-white",
-    inactiveClass: "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700",
+    activeClass: "border-transparent bg-ink text-ink-foreground",
+    inactiveClass: "border-transparent bg-muted text-foreground hover:border-input",
   },
   {
     label: "Budget",
     icon: PiggyBank,
-    activeClass: "border-violet-400 bg-violet-500 text-white",
-    inactiveClass: "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400 dark:hover:border-violet-700",
+    activeClass: "border-transparent bg-ink text-ink-foreground",
+    inactiveClass: "border-transparent bg-muted text-foreground hover:border-input",
   },
   {
     // Not just prompt text: selecting this also switches on the nutrition
     // check-and-revise pass (see HEART_HEALTHY_PREF below).
     label: "Heart-healthy",
     icon: HeartPulse,
-    activeClass: "border-rose-400 bg-rose-500 text-white",
-    inactiveClass: "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700",
+    activeClass: "border-transparent bg-primary text-primary-foreground",
+    inactiveClass: "border-transparent bg-highlight text-primary hover:border-input",
   },
 ] as const;
 
@@ -147,35 +147,35 @@ const QUICK_PROMPTS = [
     description: "Under 30 minutes",
     prompt: "Quick weeknight dinner in under 30 minutes",
     icon: Clock,
-    iconBg: "bg-orange-100 text-orange-600 dark:bg-orange-950/60 dark:text-orange-400",
+    iconBg: "bg-highlight text-primary",
   },
   {
     label: "Healthy meal",
     description: "High protein",
     prompt: "Healthy high-protein meal",
     icon: Heart,
-    iconBg: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400",
+    iconBg: "bg-success-tint text-success",
   },
   {
     label: "Comfort food",
     description: "For cosy nights",
     prompt: "Comfort food for a cosy night in",
     icon: Coffee,
-    iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400",
+    iconBg: "bg-warning-tint text-warning",
   },
   {
     label: "Use what I have",
     description: "Pantry staples",
     prompt: "Something easy using common pantry staples",
     icon: Package,
-    iconBg: "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400",
+    iconBg: "bg-muted text-foreground",
   },
   {
     label: "Side dish",
     description: "Goes with a main",
     prompt: "A side dish to serve alongside dinner",
     icon: Salad,
-    iconBg: "bg-lime-100 text-lime-700 dark:bg-lime-950/60 dark:text-lime-400",
+    iconBg: "bg-success-tint text-success",
     mealRole: "side",
   },
 ] as const;
@@ -259,8 +259,8 @@ function DishRolePicker({
             className={cn(
               "rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
               value === role
-                ? "border-emerald-500 bg-emerald-600 text-white shadow-sm"
-                : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                ? "border-transparent bg-success text-card shadow-sm"
+                : "border-transparent bg-success-tint text-success hover:border-input"
             )}
           >
             {MEAL_ROLE_LABELS[role]}
@@ -292,9 +292,9 @@ function cuisineEmoji(cuisine: string): string {
 }
 
 function difficultyClass(d: string) {
-  if (d === "easy") return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800";
-  if (d === "hard") return "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800";
-  return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-800";
+  if (d === "easy") return "bg-success-tint text-success border-transparent";
+  if (d === "hard") return "bg-destructive/10 text-destructive border-transparent";
+  return "bg-warning-tint text-warning border-transparent";
 }
 
 function getMondayOf(offset = 0): string {
@@ -376,7 +376,7 @@ function ConceptCardItem({
 
         <div className="flex flex-wrap gap-1">
           {concept.cuisine && (
-            <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
+            <span className="inline-flex items-center rounded-full border border-transparent bg-muted px-2 py-0.5 text-xs text-foreground">
               {concept.cuisine}
             </span>
           )}
@@ -525,16 +525,16 @@ function SlotBadges({ slot }: { slot: MealPlanSlot }) {
       <span className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] capitalize", difficultyClass(slot.difficulty))}>
         {slot.difficulty}
       </span>
-      <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] capitalize text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400">
+      <span className="inline-flex items-center rounded-full border border-transparent bg-highlight px-1.5 py-0.5 text-[10px] capitalize text-primary">
         {slot.mealType}
       </span>
       {slot.recipeId ? (
-        <span className="inline-flex items-center gap-0.5 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400">
+        <span className="inline-flex items-center gap-0.5 rounded-full border border-transparent bg-muted px-1.5 py-0.5 text-[10px] text-foreground">
           <BookOpen className="h-2.5 w-2.5" />
           From your library
         </span>
       ) : (
-        <span className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-700 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400">
+        <span className="inline-flex items-center gap-0.5 rounded-full border border-transparent bg-muted px-1.5 py-0.5 text-[10px] text-foreground">
           <Sparkles className="h-2.5 w-2.5" />
           New recipe
         </span>
@@ -543,7 +543,7 @@ function SlotBadges({ slot }: { slot: MealPlanSlot }) {
       {slot.recipeId && slot.avgRating != null && (
         <span
           title="Your household's average rating"
-          className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+          className="inline-flex items-center gap-1 rounded-full border border-transparent bg-warning-tint px-1.5 py-0.5 text-[10px] font-medium text-warning"
         >
           <StarRating value={slot.avgRating} readonly size="sm" />
           {slot.avgRating / 2}/5
@@ -618,7 +618,7 @@ function PlanSlotPreviewDialog({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={preview.imageUrl} alt={slot.title} className="h-44 w-full object-cover" />
             ) : (
-              <div className="h-28 w-full bg-gradient-to-br from-violet-100 via-orange-50 to-amber-100 flex items-center justify-center text-5xl dark:from-violet-950/70 dark:via-orange-950/40 dark:to-amber-950/40">
+              <div className="h-28 w-full bg-muted flex items-center justify-center text-5xl">
                 {cuisineEmoji(slot.cuisine)}
               </div>
             )}
@@ -646,25 +646,25 @@ function PlanSlotPreviewDialog({
                     {(totalMins > 0 || preview.servings || preview.calories) && (
                       <div className="flex flex-wrap gap-2 text-xs">
                         {totalMins > 0 && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-1 font-medium text-orange-800 dark:bg-orange-950/60 dark:text-orange-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-highlight px-2.5 py-1 font-medium text-primary">
                             <Clock className="h-3 w-3" />{formatMinutes(totalMins)}
                           </span>
                         )}
                         {preview.servings && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 font-medium text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground">
                             <Users className="h-3 w-3" />Serves {Number(preview.servings)}
                           </span>
                         )}
                         {preview.calories != null && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 font-medium text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-highlight px-2.5 py-1 font-medium text-primary">
                             <Flame className="h-3 w-3" />{preview.calories} kcal
                           </span>
                         )}
                       </div>
                     )}
                     {preview.ingredients.length > 0 && (
-                      <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-lime-50 p-3 dark:from-emerald-950/40 dark:to-lime-950/20">
-                        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                      <div className="rounded-xl bg-success-tint p-3">
+                        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-success">
                           <UtensilsCrossed className="h-3.5 w-3.5" />
                           {preview.ingredients.length} ingredient{preview.ingredients.length === 1 ? "" : "s"}
                           {preview.stepCount > 0 && ` · ${preview.stepCount} step${preview.stepCount === 1 ? "" : "s"}`}
@@ -693,7 +693,7 @@ function PlanSlotPreviewDialog({
                   </div>
                 )
               ) : (
-                <div className="rounded-xl bg-gradient-to-br from-violet-50 to-fuchsia-50 p-3 text-xs text-violet-800 dark:from-violet-950/40 dark:to-fuchsia-950/20 dark:text-violet-300">
+                <div className="rounded-xl bg-muted p-3 text-xs text-foreground">
                   <Sparkles className="mr-1 inline h-3.5 w-3.5" />
                   A brand-new dish — the full recipe is written when you add the plan.
                 </div>
@@ -707,7 +707,7 @@ function PlanSlotPreviewDialog({
                   disabled={disabled || redoing}
                   className={cn(
                     "flex-1 gap-1.5",
-                    !rejected && "border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-900 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                    !rejected && "border-border text-primary hover:bg-highlight hover:text-primary"
                   )}
                 >
                   {rejected ? <><Undo2 className="h-4 w-4" />Keep in plan</> : <><Trash2 className="h-4 w-4" />Remove from plan</>}
@@ -716,7 +716,7 @@ function PlanSlotPreviewDialog({
                   type="button"
                   onClick={onSwap}
                   disabled={disabled || redoing}
-                  className="flex-1 gap-1.5 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                  className="flex-1 gap-1.5 bg-ink border-0 text-ink-foreground"
                 >
                   <RefreshCw className={cn("h-4 w-4", redoing && "animate-spin")} />
                   {redoing ? "Finding another…" : "Swap for something else"}
@@ -763,8 +763,8 @@ const FREQUENCY_MODES: {
     icon: Star,
     hint: null,
     description: "Only recipes we have starred as favourites",
-    activeClass: "border-amber-400 bg-amber-500 text-white",
-    inactiveClass: "border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-400 dark:hover:border-amber-700",
+    activeClass: "border-transparent bg-warning text-card",
+    inactiveClass: "border-transparent bg-warning-tint text-warning hover:border-input",
   },
   {
     mode: "regulars",
@@ -772,8 +772,8 @@ const FREQUENCY_MODES: {
     icon: Repeat,
     hint: null,
     description: "Only dishes we have cooked or planned three or more times",
-    activeClass: "border-rose-400 bg-rose-500 text-white",
-    inactiveClass: "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700",
+    activeClass: "border-transparent bg-primary text-primary-foreground",
+    inactiveClass: "border-transparent bg-highlight text-primary hover:border-input",
   },
   {
     mode: "new",
@@ -783,8 +783,8 @@ const FREQUENCY_MODES: {
     // for inventing brand-new dishes needs saying in words.
     hint: "Lean towards suggesting brand-new recipes we have never cooked, rather than reusing the library, wherever a slot allows it",
     description: "Only library recipes we have never tried, plus fresh ideas",
-    activeClass: "border-violet-400 bg-violet-500 text-white",
-    inactiveClass: "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-400 dark:hover:border-violet-700",
+    activeClass: "border-transparent bg-ink text-ink-foreground",
+    inactiveClass: "border-transparent bg-muted text-foreground hover:border-input",
   },
   {
     mode: "mix",
@@ -792,8 +792,8 @@ const FREQUENCY_MODES: {
     icon: Shuffle,
     hint: "Balance reused library recipes with a couple of brand-new suggestions",
     description: "Anything in the library — every recipe gets an equal chance",
-    activeClass: "border-emerald-400 bg-emerald-500 text-white",
-    inactiveClass: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400 dark:hover:border-emerald-700",
+    activeClass: "border-transparent bg-success text-card",
+    inactiveClass: "border-transparent bg-success-tint text-success hover:border-input",
   },
 ];
 
@@ -902,10 +902,10 @@ function SlotGrid({
                       <td key={mt} className="p-0.5">
                         <div
                           title={covered}
-                          className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 h-12 sm:h-14 flex flex-col items-center justify-center gap-0.5 px-1 select-none"
+                          className="rounded-lg border border-transparent bg-success-tint h-12 sm:h-14 flex flex-col items-center justify-center gap-0.5 px-1 select-none"
                         >
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                          <span className="hidden sm:block text-[9px] text-emerald-700 dark:text-emerald-400 text-center leading-tight line-clamp-2 font-medium w-full px-0.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+                          <span className="hidden sm:block text-[9px] text-success text-center leading-tight line-clamp-2 font-medium w-full px-0.5">
                             {covered.length > 15 ? covered.slice(0, 14) + "…" : covered}
                           </span>
                         </div>
@@ -920,10 +920,10 @@ function SlotGrid({
                           type="button"
                           onClick={() => toggle(key)}
                           disabled={disabled}
-                          className="w-full rounded-lg border-2 border-violet-400 bg-violet-50 dark:bg-violet-950/40 h-12 sm:h-14 flex flex-col items-center justify-center gap-0.5 px-1 hover:bg-violet-100 dark:hover:bg-violet-950/60 transition-colors disabled:pointer-events-none disabled:opacity-50"
+                          className="w-full rounded-lg border-2 border-transparent bg-muted h-12 sm:h-14 flex flex-col items-center justify-center gap-0.5 px-1 hover:bg-muted transition-colors disabled:pointer-events-none disabled:opacity-50"
                         >
-                          <Sparkles className="h-3 w-3 text-violet-500" />
-                          <span className="hidden sm:block text-[9px] text-violet-600 dark:text-violet-400 font-semibold leading-none">generate</span>
+                          <Sparkles className="h-3 w-3 text-foreground" />
+                          <span className="hidden sm:block text-[9px] text-foreground font-semibold leading-none">generate</span>
                         </button>
                       </td>
                     );
@@ -935,7 +935,7 @@ function SlotGrid({
                         type="button"
                         onClick={() => toggle(key)}
                         disabled={disabled}
-                        className="w-full rounded-lg border border-dashed border-muted-foreground/20 bg-transparent h-12 sm:h-14 flex items-center justify-center text-muted-foreground/30 hover:border-violet-300/60 hover:bg-violet-50/50 dark:hover:bg-violet-950/20 hover:text-violet-400 transition-colors disabled:pointer-events-none text-xl leading-none"
+                        className="w-full rounded-lg border border-dashed border-muted-foreground/20 bg-transparent h-12 sm:h-14 flex items-center justify-center text-muted-foreground/30 hover:border-transparent hover:bg-muted hover:text-foreground transition-colors disabled:pointer-events-none text-xl leading-none"
                       >
                         +
                       </button>
@@ -952,7 +952,7 @@ function SlotGrid({
       <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
         <div className="flex items-center gap-3">
           {selectedCount > 0 ? (
-            <span className="font-semibold text-violet-600 dark:text-violet-400">
+            <span className="font-semibold text-foreground">
               {selectedCount} slot{selectedCount !== 1 ? "s" : ""} to generate
             </span>
           ) : (
@@ -960,7 +960,7 @@ function SlotGrid({
           )}
           {coveredCount > 0 && (
             <span className="flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+              <CheckCircle2 className="h-3 w-3 text-success" />
               {coveredCount} already planned
             </span>
           )}
@@ -1333,8 +1333,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                 className={cn(
                   "rounded-lg border px-3 py-1.5 text-sm transition-all",
                   weekOffset === offset
-                    ? "border-blue-400 bg-blue-500 text-white"
-                    : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                    ? "border-transparent bg-ink text-ink-foreground"
+                    : "border-transparent bg-muted text-foreground hover:border-input"
                 )}
               >
                 {offset === 0 ? "This week" : offset === 1 ? "Next week" : "Week after"}
@@ -1378,7 +1378,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                 <span
                   className={cn(
                     "rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none",
-                    frequencyMode === mode ? "bg-white/25" : "bg-black/5 dark:bg-white/10"
+                    frequencyMode === mode ? "bg-card/25" : "bg-black/5"
                   )}
                 >
                   {available}
@@ -1424,7 +1424,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
             </div>
           )}
           {activeStyle && styleCount === 0 && (
-            <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+            <p className="mt-2 rounded-lg border border-transparent bg-warning-tint p-2.5 text-xs text-warning">
               No recipes match this style yet, so the planner will invent every meal
               from scratch. {frequencyMode === "favourites"
                 ? "Star a few recipes to build this list up."
@@ -1464,8 +1464,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
               className={cn(
                 "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
                 ratedOnly
-                  ? "border-amber-400 bg-amber-500 text-white"
-                  : "border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-400 dark:hover:border-amber-700"
+                  ? "border-transparent bg-warning text-card"
+                  : "border-transparent bg-warning-tint text-warning hover:border-input"
               )}
             >
               <Star className="h-3.5 w-3.5" />
@@ -1478,8 +1478,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
               className={cn(
                 "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
                 heartHealthy
-                  ? "border-rose-400 bg-rose-500 text-white"
-                  : "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700"
+                  ? "border-transparent bg-primary text-primary-foreground"
+                  : "border-transparent bg-highlight text-primary hover:border-input"
               )}
             >
               <HeartPulse className="h-3.5 w-3.5" />
@@ -1487,7 +1487,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
             </button>
           </div>
           {heartHealthy && (
-            <p className="mt-2 rounded-lg border border-rose-200/60 bg-gradient-to-br from-rose-50 to-pink-50 p-2.5 text-xs text-rose-900 dark:border-rose-900/40 dark:from-rose-950/30 dark:to-pink-950/20 dark:text-rose-200">
+            <p className="mt-2 rounded-lg border border-transparent bg-highlight p-2.5 text-xs text-primary">
               Oily fish twice, pulses three times, red meat once at most (scaled to the slots you pick).
               Library recipes known to be high in saturated fat are left out, and new recipes are
               written and checked against the heart-healthy targets.
@@ -1536,8 +1536,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                   className={cn(
                     "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
                     selectedMemberIds.has(m.id)
-                      ? "border-blue-400 bg-blue-500 text-white"
-                      : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                      ? "border-transparent bg-ink text-ink-foreground"
+                      : "border-transparent bg-muted text-foreground hover:border-input"
                   )}
                 >
                   <Users className="h-3.5 w-3.5" />
@@ -1572,7 +1572,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
         <Button
           onClick={handleGenerate}
           disabled={!canGenerate || isGenerating || isAdding}
-          className="w-full gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+          className="w-full gap-2 bg-ink border-0 text-ink-foreground"
           size="lg"
         >
           {isGenerating ? (
@@ -1597,7 +1597,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
             onToggleRejected={() => { if (previewIdx !== null) toggleRejection(previewIdx); }}
             onSwap={() => { if (previewIdx !== null) handleRedoSlots([previewIdx]); }}
           />
-          <div className="bg-gradient-to-r from-violet-50 to-orange-50 border-b px-5 py-3 flex items-center justify-between dark:from-violet-950/60 dark:to-orange-950/40">
+          <div className="bg-muted border-b px-5 py-3 flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-sm">Your meal plan for {weekLabel}</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -1612,7 +1612,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                   size="sm"
                   onClick={() => handleRedoSlots(Array.from(rejectedSlots).sort((a, b) => a - b))}
                   disabled={isGenerating || isAdding}
-                  className="gap-1.5 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                  className="gap-1.5 bg-ink border-0 text-ink-foreground"
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", redoingSlots.size > 0 && "animate-spin")} />
                   Redo {rejectedSlots.size} unticked
@@ -1660,10 +1660,10 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                                 "h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all",
                                 rejected
                                   ? "border-muted-foreground/30 bg-transparent"
-                                  : "border-emerald-400 bg-emerald-500"
+                                  : "border-transparent bg-success"
                               )}
                             >
-                              {!rejected && <Check className="h-3 w-3 text-white" />}
+                              {!rejected && <Check className="h-3 w-3 text-background" />}
                             </span>
                           </button>
 
@@ -1693,7 +1693,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                             disabled={isGenerating || isAdding}
                             aria-label={`Swap ${slot.title} for something else`}
                             title="Swap for something else"
-                            className="mt-0.5 shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-violet-100 text-violet-700 shadow-sm hover:bg-violet-200 disabled:opacity-50 dark:bg-violet-950/60 dark:text-violet-300 dark:hover:bg-violet-900"
+                            className="mt-0.5 shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-muted text-foreground shadow-sm hover:bg-muted disabled:opacity-50"
                           >
                             <RefreshCw className={cn("h-3.5 w-3.5", redoing && "animate-spin")} />
                           </button>
@@ -1708,7 +1708,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
 
           <div className="px-5 py-4 border-t bg-muted/30 space-y-3">
             {added ? (
-              <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium">
+              <div className="flex items-center gap-2 text-success text-sm font-medium">
                 <BadgeCheck className="h-4 w-4" />
                 Added! Redirecting to meal planner…
               </div>
@@ -2096,8 +2096,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                       className={cn(
                         "capitalize rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
                         mealType === type
-                          ? "border-orange-400 bg-orange-500 text-white"
-                          : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
+                          ? "border-transparent bg-primary text-primary-foreground"
+                          : "border-transparent bg-highlight text-primary hover:border-input"
                       )}
                     >
                     {type}
@@ -2122,8 +2122,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                         className={cn(
                           "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
                           selectedMemberIds.has(m.id)
-                            ? "border-blue-400 bg-blue-500 text-white"
-                            : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                            ? "border-transparent bg-ink text-ink-foreground"
+                            : "border-transparent bg-muted text-foreground hover:border-input"
                         )}
                       >
                         <Users className="h-3.5 w-3.5" />
@@ -2169,7 +2169,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
               <Button
                 onClick={() => runGenerate()}
                 disabled={isPending || !canGenerate}
-                className="gap-2 w-full bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                className="gap-2 w-full bg-ink border-0 text-ink-foreground"
                 size="lg"
               >
                 {isConceptLoading ? (
@@ -2219,8 +2219,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                         className={cn(
                           "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
                           selectedMemberIds.has(m.id)
-                            ? "border-blue-400 bg-blue-500 text-white"
-                            : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:border-blue-700"
+                            ? "border-transparent bg-ink text-ink-foreground"
+                            : "border-transparent bg-muted text-foreground hover:border-input"
                         )}
                       >
                         <Users className="h-3.5 w-3.5" />
@@ -2249,8 +2249,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                       className={cn(
                         "capitalize rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
                         mealType === type
-                          ? "border-orange-400 bg-orange-500 text-white"
-                          : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
+                          ? "border-transparent bg-primary text-primary-foreground"
+                          : "border-transparent bg-highlight text-primary hover:border-input"
                       )}
                     >
                       {type}
@@ -2270,8 +2270,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                   className={cn(
                     "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:pointer-events-none",
                     heartHealthy
-                      ? "border-rose-400 bg-rose-500 text-white"
-                      : "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700"
+                      ? "border-transparent bg-primary text-primary-foreground"
+                      : "border-transparent bg-highlight text-primary hover:border-input"
                   )}
                 >
                   <HeartPulse className="h-3.5 w-3.5" />
@@ -2287,7 +2287,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
               <Button
                 onClick={handleDirectGenerate}
                 disabled={isPending || !promptText.trim()}
-                className="gap-2 w-full bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                className="gap-2 w-full bg-ink border-0 text-ink-foreground"
                 size="lg"
               >
                 {isPending ? (
@@ -2302,8 +2302,8 @@ function FindRecipeTab({ members }: { members: Member[] }) {
 
         {/* Recipe generation overlay banner (inspire mode) */}
         {mode === "inspire" && isRecipeLoading && (
-          <div className="flex items-center gap-3 rounded-xl border bg-violet-50 border-violet-200 px-4 py-3 dark:bg-violet-950/40 dark:border-violet-800">
-            <Loader2 className="h-5 w-5 animate-spin text-violet-600 shrink-0" />
+          <div className="flex items-center gap-3 rounded-xl border bg-muted border-transparent px-4 py-3">
+            <Loader2 className="h-5 w-5 animate-spin text-foreground shrink-0" />
             <div>
               <p className="text-sm font-medium">Writing your recipe…</p>
               <p className="text-xs text-muted-foreground">
@@ -2371,7 +2371,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                 <Button
                   onClick={handleGenerate}
                   disabled={isPending || isBatchRunning || selectedIndices.size === 0}
-                  className="gap-2 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                  className="gap-2 bg-ink border-0 text-ink-foreground"
                 >
                   {isPending ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />Generating…</>
@@ -2407,7 +2407,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                   <div
                     className={cn(
                       "h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-xs font-medium",
-                      item.status === "done" && "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
+                      item.status === "done" && "bg-success-tint text-success",
                       item.status === "generating" && "bg-primary/10 text-primary",
                       item.status === "error" && "bg-destructive/10 text-destructive",
                       item.status === "pending" && "bg-muted text-muted-foreground"
@@ -2441,7 +2441,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                 <Button
                   size="sm"
                   onClick={() => router.push("/recipes")}
-                  className="bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+                  className="bg-ink border-0 text-ink-foreground"
                 >
                   View recipes
                 </Button>
@@ -2500,11 +2500,11 @@ export function ConciergeClient({ availableCuisines, availableTags, members, sty
   return (
     <div className="p-4 lg:p-8 max-w-screen-xl mx-auto">
       {/* Hero banner */}
-      <div className="relative mb-6 rounded-2xl overflow-hidden bg-gradient-to-br from-violet-100 via-orange-50 to-amber-100 border border-violet-200/60 p-6 lg:p-8 dark:from-violet-950/80 dark:via-orange-950/40 dark:to-amber-950/60 dark:border-violet-800/40">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-orange-500/5 pointer-events-none" />
+      <div className="relative mb-6 rounded-2xl overflow-hidden bg-muted border border-transparent p-6 lg:p-8">
+        <div className="absolute inset-0 bg-muted pointer-events-none" />
         <div className="relative flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-orange-400 shadow-md">
-            <Sparkles className="h-6 w-6 text-white" />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ink shadow-md">
+            <Sparkles className="h-6 w-6 text-background" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">What shall we cook?</h1>
@@ -2513,16 +2513,16 @@ export function ConciergeClient({ availableCuisines, availableTags, members, sty
             </p>
             {/* Sample preference tags for visual appeal */}
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1 rounded-full border border-transparent bg-success-tint px-2.5 py-1 text-xs font-medium text-success">
                 <Leaf className="h-3 w-3" />Vegetarian
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-700 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-400">
+              <span className="inline-flex items-center gap-1 rounded-full border border-transparent bg-highlight px-2.5 py-1 text-xs font-medium text-primary">
                 <Zap className="h-3 w-3" />Quick meals
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-400">
+              <span className="inline-flex items-center gap-1 rounded-full border border-transparent bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
                 <Users className="h-3 w-3" />Family friendly
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
+              <span className="inline-flex items-center gap-1 rounded-full border border-transparent bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
                 <PiggyBank className="h-3 w-3" />Budget friendly
               </span>
             </div>

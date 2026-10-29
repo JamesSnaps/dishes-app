@@ -11,7 +11,7 @@ export const TOKEN_CREATED_EVENT = "dishes:integration-token-created";
 type Result = { status: number; ms: number; body: string; json: unknown };
 
 const inputClass =
-  "w-full rounded-lg border border-orange-200 bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400 dark:border-orange-900/60";
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary";
 
 function defaultParams(ep: EndpointDoc): Record<string, string> {
   return Object.fromEntries((ep.params ?? []).map((p) => [p.name, p.example ?? ""]));
@@ -129,7 +129,7 @@ export function TryIt() {
   const statusOk = result && result.status < 300;
 
   return (
-    <div className="rounded-xl border border-orange-200/70 bg-gradient-to-br from-orange-50 via-card to-rose-50/50 p-4 shadow-sm dark:border-orange-900/40 dark:from-orange-950/30 dark:to-rose-950/20">
+    <div className="rounded-xl border border-transparent bg-highlight p-4 shadow-sm">
       <div className="space-y-3">
         <div>
           <label className="mb-1 block text-sm font-medium">Token</label>
@@ -147,7 +147,7 @@ export function TryIt() {
               type="button"
               onClick={() => setShowToken((s) => !s)}
               aria-label={showToken ? "Hide token" : "Show token"}
-              className="shrink-0 rounded-lg border border-orange-200 bg-background px-3 text-muted-foreground shadow-sm hover:text-foreground dark:border-orange-900/60"
+              className="shrink-0 rounded-lg border border-border bg-background px-3 text-muted-foreground shadow-sm hover:text-foreground"
             >
               {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -202,7 +202,7 @@ export function TryIt() {
         )}
 
         {ep.method === "POST" && (
-          <p className="flex items-start gap-2 rounded-lg bg-amber-500/15 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+          <p className="flex items-start gap-2 rounded-lg bg-warning-tint px-3 py-2 text-xs text-warning">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {ep.costly
               ? "This runs for real: it generates recipes with your AI key (uses credit, can take a minute or more) and writes them into the meal plan."
@@ -216,7 +216,7 @@ export function TryIt() {
           type="button"
           onClick={send}
           disabled={loading}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-orange-500 to-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-md transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           {loading ? "Sending…" : "Send request"}
@@ -227,13 +227,13 @@ export function TryIt() {
         <div className="mt-4">
           <div className="mb-1.5 flex items-center gap-2 text-xs">
             <span
-              className={`rounded-full px-2 py-0.5 font-mono font-bold text-white ${statusOk ? "bg-emerald-500" : "bg-rose-500"}`}
+              className={`rounded-full px-2 py-0.5 font-mono font-bold text-background ${statusOk ? "bg-success" : "bg-primary"}`}
             >
               {result.status}
             </span>
             <span className="text-muted-foreground">{result.ms} ms</span>
           </div>
-          <pre className="max-h-96 overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-100 shadow-inner">
+          <pre className="max-h-96 overflow-auto rounded-lg bg-secondary p-3 font-mono text-xs leading-relaxed text-muted-foreground shadow-inner">
             {result.body || "(empty response)"}
           </pre>
           {recipes.length > 0 && (
@@ -248,7 +248,7 @@ export function TryIt() {
                       selectEndpoint("getRecipe", { id });
                       setResult(null);
                     }}
-                    className="rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-medium text-sky-800 transition-colors hover:bg-sky-500/25 dark:text-sky-200"
+                    className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                   >
                     {title} →
                   </button>

@@ -88,8 +88,8 @@ export function CookReviewSheet({
 
         {feedback ? (
           <div className="space-y-4">
-            <div className="space-y-2 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50 p-4 shadow-sm dark:border-violet-800 dark:from-violet-950/40 dark:to-fuchsia-950/30">
-              <div className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
+            <div className="space-y-2 rounded-xl border border-transparent bg-muted p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-foreground">
                 <Sparkles className="h-4 w-4 shrink-0" />
                 <span className="text-sm font-semibold">AI feedback</span>
               </div>

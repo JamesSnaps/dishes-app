@@ -33,9 +33,9 @@ struct PlanGeneratorSheet: View {
                     HStack(spacing: 12) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.inkForeground)
                             .frame(width: 44, height: 44)
-                            .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Plan the week").font(.system(size: 22, weight: .bold))
                             Text("Week of \(week.monday.formatted(.dateTime.day().month(.wide)))")
@@ -107,7 +107,7 @@ struct PlanGeneratorSheet: View {
             Button { Task { await makeDraft() } } label: {
                 Label("Draft \(days.count) \(days.count == 1 ? mealType : Self.plural(mealType))", systemImage: "sparkles")
             }
-            .buttonStyle(.gradient(.violetOrange))
+            .buttonStyle(.wide(.ink))
             .disabled(days.isEmpty)
         }
     }
@@ -120,7 +120,7 @@ struct PlanGeneratorSheet: View {
                 HStack(alignment: .top, spacing: 12) {
                     Text(Self.dayNames[slot.dayOfWeek])
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.brandDeep)
+                        .foregroundStyle(Theme.brand)
                         .frame(width: 40, alignment: .leading)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(slot.title).font(.system(size: 16, weight: .semibold))
@@ -148,14 +148,14 @@ struct PlanGeneratorSheet: View {
             Button { Task { await add() } } label: {
                 Label("Add \(draft.count) to the plan", systemImage: "calendar.badge.plus")
             }
-            .buttonStyle(.gradient(.violetIndigo))
+            .buttonStyle(.wide(.ink))
             .disabled(draft.isEmpty)
             if fresh > 0 {
                 Text("\(fresh) new \(fresh == 1 ? "idea is" : "ideas are") written out as full recipes when added.")
                     .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
             }
             Button { stage = .asking } label: { Label("Start again", systemImage: "arrow.uturn.left") }
-                .buttonStyle(.outline)
+                .buttonStyle(.secondary)
         }
     }
 
@@ -174,7 +174,7 @@ struct PlanGeneratorSheet: View {
             Label("That didn’t work", systemImage: "exclamationmark.triangle")
                 .font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.destructive)
             Text(message).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
-            Button("Try again") { stage = draft.isEmpty ? .asking : .draft }.buttonStyle(.outline)
+            Button("Try again") { stage = draft.isEmpty ? .asking : .draft }.buttonStyle(.secondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -42,13 +42,13 @@ struct MealScheduleSection: View {
                         }
                         Spacer()
                         Button(s.serveAt == nil ? "Set time" : "Change") { prefill(s.serveAt); settingTime = true }
-                            .buttonStyle(.outline).fixedSize()
+                            .buttonStyle(.secondary).fixedSize()
                     }
                     if s.serveAt != nil {
                         ForEach(s.timeline.cues) { cue in
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Text(clock(s.serveAt, cue.offsetMinutes)).font(.system(size: 14, weight: .bold).monospacedDigit())
-                                    .foregroundStyle(Theme.brandDeep).frame(width: 48, alignment: .leading)
+                                    .foregroundStyle(Theme.brand).frame(width: 48, alignment: .leading)
                                 VStack(alignment: .leading, spacing: 1) {
                                     if let id = cue.recipeId, let dish = s.dishes.first(where: { $0.recipeId == id }) {
                                         Text(dish.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.mutedForeground)
@@ -58,17 +58,17 @@ struct MealScheduleSection: View {
                             }
                         }
                         ForEach(s.timeline.warnings, id: \.self) { w in
-                            Label(w, systemImage: "exclamationmark.triangle").font(.system(size: 13)).foregroundStyle(Color(hex: 0xB45309))
+                            Label(w, systemImage: "exclamationmark.triangle").font(.system(size: 13)).foregroundStyle(Theme.brand)
                         }
                         HStack(spacing: 10) {
                             if s.aiConfigured {
                                 Button { Task { await act("timeline.planWithAi", "Planning…") } } label: {
                                     Label(working == "Planning…" ? "Planning…" : s.timeline.source == "ai" && s.aiStale != true ? "Replan with AI" : "Plan with AI", systemImage: "sparkles")
                                 }
-                                .buttonStyle(.gradient(.violetOrange))
+                                .buttonStyle(.wide(.ink))
                             }
                             if s.timeline.source == "ai" {
-                                Button("Back to simple") { Task { await act("timeline.clear", "Clearing…") } }.buttonStyle(.outline)
+                                Button("Back to simple") { Task { await act("timeline.clear", "Clearing…") } }.buttonStyle(.secondary)
                             }
                         }
                         .disabled(working != nil)
@@ -82,7 +82,7 @@ struct MealScheduleSection: View {
                 }
             }
             .padding(16)
-            .callout(Theme.amber50, Theme.orange50, border: Color(hex: 0xFDE68A).opacity(0.7))
+            .panel()
         }
         .task { await load() }
         .sheet(isPresented: $settingTime) {
@@ -149,7 +149,7 @@ struct SaveAsMealButton: View {
 
     var body: some View {
         Button { naming = true } label: { Label("Save as a saved meal", systemImage: "rectangle.stack.badge.plus") }
-            .buttonStyle(.outline)
+            .buttonStyle(.secondary)
             .sheet(isPresented: $naming) {
                 TextPromptSheet(title: "Save meal as", placeholder: "Meal name", text: title) { name in
                     let ok = await WebAction.run("meals.saveFromGroup", [.string(groupId), .string(name)], done: "Saved \(name) — plan it again from Add meal.")

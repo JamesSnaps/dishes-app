@@ -387,8 +387,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                         className={cn(
                           "capitalize rounded-full border px-3 py-1 text-xs font-medium transition-all disabled:pointer-events-none",
                           mealType === value
-                            ? "border-orange-400 bg-orange-500 text-white"
-                            : "border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:border-orange-700"
+                            ? "border-transparent bg-primary text-primary-foreground"
+                            : "border-transparent bg-highlight text-primary hover:border-input"
                         )}
                       >
                         {label}
@@ -409,8 +409,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                         className={cn(
                           "rounded-full border px-3 py-1 text-xs font-medium transition-all disabled:pointer-events-none",
                           mealRole === role
-                            ? "border-emerald-500 bg-emerald-600 text-white shadow-sm"
-                            : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                            ? "border-transparent bg-success text-card shadow-sm"
+                            : "border-transparent bg-success-tint text-success hover:border-input"
                         )}
                       >
                         {MEAL_ROLE_LABELS[role]}
@@ -452,8 +452,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                   className={cn(
                     "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all disabled:pointer-events-none",
                     heartHealthy
-                      ? "border-rose-400 bg-rose-500 text-white"
-                      : "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-400 dark:hover:border-rose-700"
+                      ? "border-transparent bg-primary text-primary-foreground"
+                      : "border-transparent bg-highlight text-primary hover:border-input"
                   )}
                 >
                   <HeartPulse className="h-3.5 w-3.5" />
@@ -635,7 +635,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                       className={cn(
                         "h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-xs font-medium",
                         item.status === "done" &&
-                          "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
+                          "bg-success-tint text-success",
                         item.status === "generating" && "bg-primary/10 text-primary",
                         item.status === "error" && "bg-destructive/10 text-destructive",
                         item.status === "pending" && "bg-muted text-muted-foreground"

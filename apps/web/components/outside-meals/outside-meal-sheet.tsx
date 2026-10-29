@@ -183,7 +183,7 @@ const chip = (active: boolean) =>
     "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
     active
       ? "border-primary bg-primary text-primary-foreground shadow-sm"
-      : "border-orange-200 bg-orange-50 text-orange-800 hover:border-orange-300 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300"
+      : "border-transparent bg-highlight text-primary hover:border-input"
   );
 
 const fieldClass =
@@ -514,7 +514,7 @@ export function OutsideMealSheet({
                     className={cn(
                       "flex flex-col items-center gap-1 rounded-xl border-2 px-1 py-2.5 text-xs font-semibold transition-all",
                       active
-                        ? "border-orange-400 bg-gradient-to-br from-orange-100 to-rose-100 text-orange-900 shadow-md dark:from-orange-950/60 dark:to-rose-950/40 dark:text-orange-100"
+                        ? "border-transparent bg-highlight text-primary shadow-md"
                         : "border-transparent bg-muted/60 text-muted-foreground hover:bg-muted"
                     )}
                     aria-pressed={active}
@@ -543,7 +543,7 @@ export function OutsideMealSheet({
                 ))}
               </div>
               {plannedInSlot.length > 0 && (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                <p className="rounded-lg bg-warning-tint px-3 py-2 text-xs text-warning">
                   {plannedInSlot.join(", ")} {plannedInSlot.length === 1 ? "is" : "are"} still planned here. It won&rsquo;t count
                   towards the week&rsquo;s nutrition — move it to another day if you still want to make it.
                 </p>
@@ -554,12 +554,12 @@ export function OutsideMealSheet({
               <button
                 type="button"
                 onClick={() => setChoosing(true)}
-                className="flex w-full items-center gap-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 text-left text-white shadow-md transition-opacity hover:opacity-95"
+                className="flex w-full items-center gap-3 rounded-xl bg-success px-4 py-3 text-left text-card shadow-md transition-opacity hover:opacity-95"
               >
                 <Wand2 className="h-5 w-5 shrink-0" />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold">Help me choose</span>
-                  <span className="block text-xs text-white/85">Snap the menu for suggestions that suit each of you</span>
+                  <span className="block text-xs text-background/85">Snap the menu for suggestions that suit each of you</span>
                 </span>
               </button>
             )}
@@ -623,8 +623,8 @@ export function OutsideMealSheet({
                 {!isPlan && (
                   <>
                     {/* The menu: the best clue to what's in it */}
-                    <div className="space-y-2 rounded-xl bg-gradient-to-br from-sky-50 to-indigo-50 p-3 shadow-sm dark:from-sky-950/30 dark:to-indigo-950/30">
-                      <label className="flex items-center gap-1.5 text-sm font-semibold text-sky-900 dark:text-sky-200">
+                    <div className="space-y-2 rounded-xl bg-muted p-3 shadow-sm">
+                      <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                         <FileText className="h-4 w-4" />
                         From the menu
                       </label>
@@ -750,7 +750,7 @@ export function OutsideMealSheet({
 
             {error && <p className="text-center text-sm text-destructive">{error}</p>}
 
-            <Button className="w-full bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-md hover:from-orange-600 hover:to-rose-600" onClick={handleSave} disabled={!!saving}>
+            <Button className="w-full bg-primary text-primary-foreground shadow-md" onClick={handleSave} disabled={!!saving}>
               {saving === "saving" ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -789,11 +789,11 @@ export function OutsideMealSheet({
 }
 
 const COURSE_STYLE: Record<OutsideMealCourseType, string> = {
-  starter: "from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30",
-  main: "from-orange-50 to-rose-50 dark:from-orange-950/30 dark:to-rose-950/30",
-  side: "from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/20",
-  dessert: "from-pink-50 to-fuchsia-50 dark:from-pink-950/30 dark:to-fuchsia-950/30",
-  drink: "from-sky-50 to-indigo-50 dark:from-sky-950/30 dark:to-indigo-950/30",
+  starter: "bg-muted",
+  main: "bg-muted",
+  side: "bg-muted",
+  dessert: "bg-muted",
+  drink: "bg-muted",
 };
 
 /** A card per course, and buttons to add one of each kind. */
@@ -821,7 +821,7 @@ function CoursesField({
         </p>
       )}
       {courses.map((c) => (
-        <div key={c.id} className={cn("space-y-2 rounded-xl bg-gradient-to-br p-3 shadow-sm", COURSE_STYLE[c.course])}>
+        <div key={c.id} className={cn("space-y-2 rounded-xl p-3 shadow-sm", COURSE_STYLE[c.course])}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold">{OUTSIDE_MEAL_COURSE_LABELS[c.course]}</span>
             <button
@@ -872,7 +872,7 @@ function CoursesField({
               key={course}
               type="button"
               onClick={() => onAdd(course)}
-              className="flex items-center gap-1 rounded-full border border-orange-300 bg-gradient-to-br from-orange-50 to-rose-50 px-3 py-1 text-xs font-semibold text-orange-800 shadow-sm hover:border-orange-400 dark:border-orange-900 dark:from-orange-950/40 dark:to-rose-950/30 dark:text-orange-300"
+              className="flex items-center gap-1 rounded-full border border-transparent bg-highlight px-3 py-1 text-xs font-semibold text-primary shadow-sm hover:border-input"
             >
               <Plus className="h-3.5 w-3.5" />
               {OUTSIDE_MEAL_COURSE_LABELS[course]}
@@ -921,7 +921,7 @@ function PhotoField({
   return (
     <label
       className={cn(
-        "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-orange-300 bg-orange-50/60 px-4 text-sm font-medium text-orange-800 transition-colors hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-300",
+        "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-transparent bg-highlight px-4 text-sm font-medium text-primary transition-colors hover:bg-highlight",
         compact ? "py-3" : "py-6"
       )}
     >
@@ -950,7 +950,7 @@ export function OutsideMealNutrition({ meal }: { meal: OutsideMealView }) {
         <div className="flex items-baseline gap-2">
           <span className="text-3xl font-bold tabular-nums">{meal.calories.toLocaleString()}</span>
           <span className="text-sm text-muted-foreground">kcal</span>
-          <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+          <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground">
             {meal.nutritionSource === "manual"
               ? "Entered"
               : usesMenuKcal(meal)
@@ -1013,8 +1013,8 @@ function EstimateResult({
   return (
     <div className="space-y-4">
       {meal.calories != null ? (
-        <div className="space-y-2 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50 p-4 shadow-sm dark:border-violet-800 dark:from-violet-950/40 dark:to-fuchsia-950/30">
-          <div className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
+        <div className="space-y-2 rounded-xl border border-transparent bg-muted p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-foreground">
             <Sparkles className="h-4 w-4 shrink-0" />
             <span className="text-sm font-semibold">{meal.title ?? "Your meal"}</span>
           </div>
@@ -1024,7 +1024,7 @@ function EstimateResult({
             <p className="text-xs text-muted-foreground">{meal.components.join(" · ")}</p>
           ) : null}
           {error && (
-            <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            <p className="rounded-lg bg-warning-tint px-2.5 py-1.5 text-xs text-warning">
               {error} These are the figures from before.
             </p>
           )}
@@ -1034,7 +1034,7 @@ function EstimateResult({
           </p>
         </div>
       ) : (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="rounded-xl border border-transparent bg-warning-tint p-4 text-sm text-warning shadow-sm">
           {error ?? "No estimate this time."} The meal is saved; its protein still counts from what you described.
         </div>
       )}

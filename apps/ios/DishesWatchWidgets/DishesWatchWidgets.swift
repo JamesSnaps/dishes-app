@@ -17,9 +17,10 @@ struct DishesWatchWidgets: WidgetBundle {
     }
 }
 
-private let brand = Color(red: 0xF9 / 255, green: 0x73 / 255, blue: 0x16 / 255)
-private let rose = Color(red: 0xF4 / 255, green: 0x3F / 255, blue: 0x5E / 255)
-private let emerald = Color(red: 0x10 / 255, green: 0xB9 / 255, blue: 0x81 / 255)
+// Cookbook terracotta and herb, their dark-mode values (DESIGN.md).
+private let brand = Color(red: 0xE0 / 255, green: 0x7A / 255, blue: 0x5F / 255)
+private let rose = brand
+private let emerald = Color(red: 0x8F / 255, green: 0xBF / 255, blue: 0x9F / 255)
 
 struct SnapshotEntry: TimelineEntry {
     let date: Date
@@ -98,7 +99,7 @@ struct TonightWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "tonight", provider: TonightProvider()) { entry in
             TonightWidgetView(entry: entry)
-                .containerBackground(LinearGradient(colors: [brand, rose], startPoint: .topLeading, endPoint: .bottomTrailing),
+                .containerBackground(brand,
                                      for: .widget)
                 .widgetURL(URL(string: "dishes-watch://tonight"))
         }

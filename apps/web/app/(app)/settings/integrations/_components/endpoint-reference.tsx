@@ -12,7 +12,7 @@ import { MethodBadge } from "./method-badge";
 function CodeBlock({ code, copy }: { code: string; copy?: boolean }) {
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 pr-20 font-mono text-xs leading-relaxed text-slate-100 shadow-inner">
+      <pre className="overflow-x-auto rounded-lg bg-secondary p-3 pr-20 font-mono text-xs leading-relaxed text-muted-foreground shadow-inner">
         {code}
       </pre>
       {copy && <CopyButton text={code} className="absolute right-2 top-2" />}
@@ -33,7 +33,7 @@ function FieldTable({ rows }: { rows: { name: string; type: string; required: bo
             <tr key={r.name} className="align-top">
               <td className="whitespace-nowrap px-3 py-2 font-mono font-semibold">
                 {r.name}
-                {r.required && <span className="ml-1 text-rose-500">*</span>}
+                {r.required && <span className="ml-1 text-primary">*</span>}
               </td>
               <td className="whitespace-nowrap px-3 py-2 font-mono text-muted-foreground">{r.type}</td>
               <td className="px-3 py-2 text-muted-foreground">{r.description}</td>
@@ -54,20 +54,20 @@ function EndpointCard({ ep, origin }: { ep: EndpointDoc; origin: string }) {
   }));
 
   return (
-    <details className="group rounded-xl border border-orange-200/70 bg-gradient-to-br from-card via-card to-orange-50/60 shadow-sm open:shadow-md dark:border-orange-900/40 dark:to-orange-950/20">
+    <details className="group rounded-xl border border-border bg-card shadow-sm open:shadow-md">
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <MethodBadge method={ep.method} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-mono text-sm font-semibold">{ep.path.replace("/api/integrations", "")}</p>
           <p className="truncate text-xs text-muted-foreground">{ep.summary}</p>
         </div>
-        <code className="hidden shrink-0 rounded-full bg-orange-500/10 px-2 py-0.5 text-[11px] font-medium text-orange-700 sm:inline dark:text-orange-300">
+        <code className="hidden shrink-0 rounded-full bg-highlight px-2 py-0.5 text-[11px] font-medium text-primary sm:inline">
           {ep.scope ?? "any token"}
         </code>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
 
-      <div className="border-t border-orange-200/60 px-4 pb-4 pt-3 dark:border-orange-900/40">
+      <div className="border-t border-border px-4 pb-4 pt-3">
         <p className="font-mono text-xs text-muted-foreground break-all">
           {ep.method} {ep.path}
         </p>

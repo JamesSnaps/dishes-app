@@ -95,7 +95,7 @@ export function MealScheduleDialog({
       <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-orange-500 to-rose-500 text-white flex items-center justify-center shadow-sm">
+            <span className="h-8 w-8 shrink-0 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
               <AlarmClock className="h-4 w-4" />
             </span>
             <span className="min-w-0 line-clamp-1">{schedule?.title ?? "Cooking schedule"}</span>
@@ -112,7 +112,7 @@ export function MealScheduleDialog({
         ) : (
           <div className="space-y-4 overflow-y-auto -mx-2 px-2 py-1">
             {/* Ready-by time */}
-            <div className="rounded-xl bg-gradient-to-br from-orange-50 to-rose-50 dark:from-orange-950/30 dark:to-rose-950/20 border border-orange-200/70 dark:border-orange-900/50 p-3">
+            <div className="rounded-xl bg-highlight border border-transparent p-3">
               <label htmlFor="serve-at" className="text-xs font-semibold text-muted-foreground">
                 Everything ready by
               </label>
@@ -122,13 +122,13 @@ export function MealScheduleDialog({
                   type="time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
-                  className="w-32 bg-white dark:bg-black/30 text-base font-semibold"
+                  className="w-32 bg-card dark:bg-black/30 text-base font-semibold"
                 />
                 <Button
                   size="sm"
                   onClick={() => saveTime(time || null)}
                   disabled={pending || !time || time === serveAt}
-                  className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0"
+                  className="bg-primary text-primary-foreground border-0"
                 >
                   Set
                 </Button>
@@ -152,7 +152,7 @@ export function MealScheduleDialog({
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                   schedule.timeline.source === "ai"
-                    ? "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
+                    ? "bg-muted text-foreground"
                     : "bg-muted text-muted-foreground"
                 }`}
               >
@@ -164,7 +164,7 @@ export function MealScheduleDialog({
                   size="sm"
                   onClick={planWithAi}
                   disabled={pending}
-                  className="ml-auto bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 text-white border-0 shadow-sm"
+                  className="ml-auto bg-ink text-ink-foreground border-0 shadow-sm"
                 >
                   {planning ? (
                     <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
@@ -195,9 +195,9 @@ export function MealScheduleDialog({
             )}
 
             {schedule.timeline.warnings.length > 0 && (
-              <ul className="space-y-1.5 rounded-xl border border-amber-300/70 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800/60 p-3">
+              <ul className="space-y-1.5 rounded-xl border border-transparent bg-warning-tint p-3">
                 {schedule.timeline.warnings.map((w, i) => (
-                  <li key={i} className="flex gap-2 text-xs text-amber-900 dark:text-amber-200">
+                  <li key={i} className="flex gap-2 text-xs text-warning">
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                     {w}
                   </li>
@@ -206,7 +206,7 @@ export function MealScheduleDialog({
             )}
 
             {/* The schedule */}
-            <ol className="relative space-y-1 before:absolute before:left-[3.6rem] before:top-2 before:bottom-2 before:w-px before:bg-orange-200 dark:before:bg-orange-900/60">
+            <ol className="relative space-y-1 before:absolute before:left-[3.6rem] before:top-2 before:bottom-2 before:w-px before:bg-highlight">
               {cues.map((cue) => {
                 const serve = cue.id === "serve";
                 return (
@@ -216,21 +216,21 @@ export function MealScheduleDialog({
                     </span>
                     <span
                       className={`relative z-10 mt-2 h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-background ${
-                        serve ? "bg-rose-500" : cue.stepIndex === null ? "bg-violet-500" : "bg-orange-500"
+                        serve ? "bg-primary" : cue.stepIndex === null ? "bg-ink" : "bg-primary"
                       }`}
                     />
                     <span
                       className={`min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-sm ${
                         serve
-                          ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white font-semibold shadow-sm flex items-center gap-1.5"
+                          ? "bg-primary text-primary-foreground font-semibold shadow-sm flex items-center gap-1.5"
                           : cue.stepIndex === null
-                          ? "bg-violet-50 dark:bg-violet-950/30 text-violet-900 dark:text-violet-200 italic"
+                          ? "bg-muted text-foreground italic"
                           : "bg-muted/50"
                       }`}
                     >
                       {serve && <UtensilsCrossed className="h-3.5 w-3.5" />}
                       {cue.recipeId && !serve && (
-                        <span className="block text-[11px] font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300 not-italic">
+                        <span className="block text-[11px] font-semibold uppercase tracking-wide text-primary not-italic">
                           {dishTitle.get(cue.recipeId) ?? "Dish"}
                           {cue.stepIndex !== null && ` · step ${cue.stepIndex + 1}`}
                         </span>

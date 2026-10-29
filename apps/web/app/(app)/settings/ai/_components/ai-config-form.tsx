@@ -162,7 +162,7 @@ export function AiConfigForm({ config, isAdmin }: Props) {
       </div>
 
       {/* Web grounding */}
-      <label className="flex items-start gap-3 rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-3 shadow-sm cursor-pointer">
+      <label className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 shadow-sm cursor-pointer">
         <input
           type="checkbox"
           name="webGrounding"
@@ -228,7 +228,7 @@ export function AiConfigForm({ config, isAdmin }: Props) {
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {saved && <p className="text-sm text-green-600">Settings saved.</p>}
+      {saved && <p className="text-sm text-success">Settings saved.</p>}
 
       <div>
         <Button type="submit" disabled={isPending}>
