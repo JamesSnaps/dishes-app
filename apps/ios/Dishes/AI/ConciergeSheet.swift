@@ -187,48 +187,21 @@ struct ConciergeSheet: View {
                     .lineLimit(3...6)
                     .padding(12)
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border))
+                // A few starters, tucked into one menu rather than a wall of chips.
                 if mode == .inspire {
-                FlowLayout(spacing: 8) {
-                    ForEach(Self.starters, id: \.self) { idea in
-                        Button(idea) { prompt = idea }
-                            .font(.system(size: 13))
-                            .padding(.horizontal, 10)
-                            .frame(height: 30)
-                            .foregroundStyle(Theme.foreground)
-                            .background(Theme.muted, in: Capsule())
-                            .buttonStyle(.plain)
-                    }
-                }
-                }
-            }
-
-            field("Meal") {
-                FlowLayout(spacing: 8) {
-                    ForEach(Self.mealTypes, id: \.self) { type in
-                        pill(type.capitalized, on: mealType == type) { mealType = type }
-                    }
-                }
-            }
-
-            if !app.members.isEmpty {
-                field("Who’s eating? (their diets and dislikes are respected)") {
-                    FlowLayout(spacing: 8) {
-                        ForEach(app.members) { member in
-                            pill(member.displayName, on: eating.contains(member.id)) {
-                                if eating.contains(member.id) { eating.remove(member.id) } else {
-                                    eating.insert(member.id)
-                                    // Someone on a cholesterol-lowering diet switches it on, as on the web.
-                                    if member.cholesterolDiet == true { heartHealthy = true }
-                                }
-                            }
+                    Menu {
+                        ForEach(Self.starters, id: \.self) { idea in
+                            Button(idea) { prompt = idea }
                         }
+                    } label: {
+                        Label("Need an idea?", systemImage: "lightbulb")
                     }
+                    .buttonStyle(PillButtonStyle(kind: .secondary, height: 34))
                 }
             }
 
-            Toggle("Heart-healthy (lower saturated fat)", isOn: $heartHealthy)
-                .font(.system(size: 15))
-                .tint(Theme.brand)
+            options
+
 
             Button {
                 Task {
@@ -247,6 +220,94 @@ struct ConciergeSheet: View {
         }
     }
 
+    /// Meal, who's eating and heart-healthy as three rows in one panel, each a
+    /// menu or a switch, so none of them spills onto a second line.
+    private var options: some View {
+        VStack(spacing: 0) {
+            optionRow("Meal") {
+                Menu {
+                    Picker("Meal", selection: $mealType) {
+                        ForEach(Self.mealTypes, id: \.self) { Text($0.capitalized).tag($0) }
+                    }
+                } label: {
+                    menuValue(mealType.capitalized)
+                }
+            }
+            if !app.members.isEmpty {
+                Divider()
+                optionRow("Who’s eating", detail: "Their diets and dislikes are respected") {
+                    Menu {
+                        // Always first, so the rows never move under a finger as people are ticked.
+                        Button("Anyone", systemImage: eating.isEmpty ? "checkmark" : "") { eating = [] }
+                        Divider()
+                        ForEach(app.members) { member in
+                            Button(member.displayName, systemImage: eating.contains(member.id) ? "checkmark" : "") {
+                                if eating.contains(member.id) { eating.remove(member.id) } else {
+                                    eating.insert(member.id)
+                                    // Someone on a cholesterol-lowering diet switches it on, as on the web.
+                                    if member.cholesterolDiet == true { heartHealthy = true }
+                                }
+                            }
+                        }
+                    } label: {
+                        menuValue(eatingSummary)
+                    }
+                    // Stays open while several people are ticked.
+                    .menuActionDismissBehavior(.disabled)
+                }
+            }
+            Divider()
+            Toggle(isOn: $heartHealthy) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Heart-healthy").font(.system(size: 15, weight: .medium))
+                    Text("Lower saturated fat").font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                }
+            }
+            .tint(Theme.brand)
+            .padding(.vertical, 10)
+        }
+        .padding(.horizontal, 16)
+        .panel()
+    }
+
+    /// "Anyone", "Louis", "Alice & Louis", "Alice +2".
+    private var eatingSummary: String {
+        let names = app.members.filter { eating.contains($0.id) }.map(\.displayName)
+        switch names.count {
+        case 0: return "Anyone"
+        case 1: return names[0]
+        case 2: return names.map { $0.split(separator: " ").first.map(String.init) ?? $0 }.joined(separator: " & ")
+        default: return "\(names[0].split(separator: " ").first.map(String.init) ?? names[0]) +\(names.count - 1)"
+        }
+    }
+
+    private func optionRow(_ title: String, detail: String? = nil, @ViewBuilder _ control: () -> some View) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 15, weight: .medium))
+                if let detail {
+                    Text(detail).font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                }
+            }
+            Spacer(minLength: 8)
+            control()
+        }
+        .padding(.vertical, 10)
+    }
+
+    /// A menu's current value, as a card-coloured pill with the up-down chevron.
+    private func menuValue(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            Text(text).lineLimit(1)
+            Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .semibold))
+        }
+        .font(.system(size: 15, weight: .semibold))
+        .foregroundStyle(Theme.foreground)
+        .padding(.horizontal, 14)
+        .frame(height: 36)
+        .background(Theme.card, in: Capsule())
+    }
+
     private var photoSection: some View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("OR FROM A PHOTO")
@@ -254,14 +315,16 @@ struct ConciergeSheet: View {
                     .foregroundStyle(Theme.mutedForeground)
                 HStack(spacing: 10) {
                     if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                        Button { usingCamera = true } label: { Label("Photograph a recipe", systemImage: "camera") }
-                            .buttonStyle(.secondary)
+                        Button { usingCamera = true } label: { Label("Take a photo", systemImage: "camera") }
+                            .buttonStyle(.wide(.secondary))
                     }
                     PhotosPicker(selection: $picked, matching: .images) {
                         Label("Choose a photo", systemImage: "photo")
                     }
-                    .buttonStyle(.secondary)
+                    .buttonStyle(.wide(.secondary))
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
                 Text(DeviceAI.isAvailable
                      ? "A cookbook page, a handwritten card or a screenshot. It’s read on this device and you check it before it’s saved."
                      : "A cookbook page, a handwritten card or a screenshot. It’s read and saved as a recipe.")
@@ -385,19 +448,6 @@ struct ConciergeSheet: View {
                 .foregroundStyle(Theme.mutedForeground)
             content()
         }
-    }
-
-    private func pill(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: .medium))
-                .padding(.horizontal, 12)
-                .frame(height: 34)
-                .foregroundStyle(on ? .white : Theme.foreground)
-                .background(on ? Theme.brand : Theme.background, in: Capsule())
-                .overlay(Capsule().strokeBorder(on ? .clear : Theme.border))
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: Server

@@ -1739,3 +1739,16 @@ Built for the iPhone 18 Pro simulator; not yet seen running in one. The iPhone 1
 in use by another app, and access to a second one wasn't granted in time. The web chooser was checked
 in the browser against a stubbed stream (ask, live progress, a swap, a dish from the whole menu, "Use
 these 3" into the log).
+
+### 2026-10-29 — Create with AI tidied (v1.73.1, branch `design/ai-page-tidy`)
+
+- `ConciergeSheet`: the six starter chips are now one "Need an idea?" menu under the prompt.
+  Meal, Who's eating and Heart-healthy are three rows in one `.panel()`; meal is a single-choice
+  menu and who's eating a multi-select menu that stays open while ticking (summary "Anyone",
+  "Louis", "Alice & Louis", "Alice +2"; ticking someone on a cholesterol diet still switches
+  heart-healthy on). The photo buttons are "Take a photo" / "Choose a photo", equal-width pills
+  on one line. The pattern is in DESIGN.md → Patterns → Form options.
+
+Checked in the simulator with the form forced on (the dev household has no AI key): iPhone 18 Pro
+and iPad Pro 11-inch landscape, light. Note: the simulator tool's taps can land at the previous
+tap's position, which looks like a menu "forgetting" a tick — it isn't.
