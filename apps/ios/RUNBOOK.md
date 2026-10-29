@@ -1714,3 +1714,7 @@ checked: iPad, dark mode, the AI sheets and editor on iOS.
 Checked in the simulator: iPhone 18 Pro fold-up planner (light); iPad Pro 11-inch split (portrait,
 and landscape with the sidebar open) and week grid (landscape, sidebar hidden); Recipes on iPad in
 dark mode. The watch app builds; not run. Widgets not looked at on a Home Screen.
+
+Uploaded to TestFlight as 1.72.0 (build 202610291452) from main, after PR #81 merged — carries
+Cookbook phases 1–9 (the first upload since 1.70.0): the new look everywhere, the planner's three
+layouts by width, widgets/watch/share in Cookbook colours. Server deployed the same day.
