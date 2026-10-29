@@ -1,7 +1,23 @@
 // Re-export all shared UI components
 export { Button, buttonVariants } from "./components/button";
 export { Badge, badgeVariants } from "./components/badge";
-export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./components/card";
+export {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  cardVariants,
+  type CardProps,
+} from "./components/card";
+export {
+  AiButton,
+  Plate,
+  SectionLabel,
+  type PlateProps,
+  type SectionLabelProps,
+} from "./components/cookbook";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Textarea } from "./components/textarea";

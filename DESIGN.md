@@ -1,6 +1,7 @@
 # Dishes — Design System ("Cookbook")
 
-Status: **adopted 29 Oct 2026; guardrail (phase 0) in place, phase 1 next.** The checklist lives in
+Status: **adopted 29 Oct 2026. Phases 0–1 done (v1.71.0): the guardrail,
+tokens, Fraunces and the kit below. Screens move over from phase 2.** The checklist lives in
 `TODO.md` → *Design refresh (Cookbook)*. Mockups (phone, iPad landscape, iPad
 portrait, planner by width): <https://claude.ai/artifact/1P1nVaCQ4yLGWuxSmkGBzy>,
 row B.
@@ -218,21 +219,34 @@ Sizes: `sm` h-9, `default` h-11, `lg` h-[52px], `icon` h-11 w-11.
 
 **Card**: three variants replace "white box with a border":
 
-- `plain`: no background, no border. The default for content in lists.
+- `plain`: no background, no border. Use it for content in lists.
 - `panel`: `bg-muted`, `rounded-2xl`, no border. Groups related things.
 - `raised`: `bg-card` with a shadow. Only for floating UI.
+
+`<Card>` with no variant is `raised`, which is closest to the old bordered card
+so existing uses don't change shape. In new code, always name the variant.
 
 **Badge**: `neutral` (secondary fill), `success` (tint + success text),
 `warning` (tint + warning text), `brand` (primary text on highlight).
 
-**New primitives:**
+**New primitives** (`packages/ui/src/components/cookbook.tsx`):
 
 - `SectionLabel`: the small-caps overline ("BREAKFAST", "TONIGHT · 6:30PM").
+  `tone="brand"` for terracotta.
 - `Plate`: image with the `plate` background; when there's no photo it draws
   the placeholder plate rather than a grey box with an icon.
 - `AiButton`: `Button variant="ink"` with the sparkle icon. The only way AI
   features are marked.
 - `DayRow` / `DayMenu`: the planner's folded day and opened day (below).
+  Built in phase 5.
+
+**iOS** (`apps/ios/Dishes/Design/Theme.swift`) mirrors all of this:
+`Theme.brand`, `.ink`, `.success`, `.highlight`, `.plate`…; `Theme.serif(size,
+weight:, italic:)`; `.buttonStyle(.primary / .secondary / .ink)`;
+`.card()` (raised) and `.panel()`; `BadgeView` styles; `SectionLabel`;
+`PlateView`. The old `GradientButtonStyle`, `Theme.Gradient`, `callout` and
+meal-type colours stay until the screens using them move over (phase 9 removes
+them).
 
 ---
 
@@ -272,6 +286,8 @@ so it's a good night for it").
 - **Wrapped** (`app/(cook)/wrapped`): the year-in-review story is meant to
   be showy and may use its own palette and gradients, drawn from the brand
   colours where it can.
+- **The iOS Book** (`apps/ios/Dishes/Book`): the aged-paper cookbook with
+  handwriting and stains has its own `Paper` palette on purpose.
 - **User content**: photos, and any colour a user picks themselves.
 - **Charts**: `--chart-*` only (see above).
 - **Third-party marks**: delivery service logos, etc.

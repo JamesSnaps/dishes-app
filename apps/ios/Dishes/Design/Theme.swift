@@ -1,13 +1,15 @@
 // The web app's design, in SwiftUI. Everything here mirrors a token or a
-// component in apps/web so the two apps look like one product:
+// component in apps/web so the two apps look like one product. The rules are
+// in DESIGN.md ("Cookbook"):
 //
-//   colours      apps/web/app/globals.css (shadcn slate + orange primary), light and dark
-//   Card         packages/ui card.tsx — rounded-xl, 1px border, Tailwind `shadow`
-//   BadgeView    packages/ui badge.tsx — secondary / outline pills
-//   gradients    the bg-gradient-to-r pairs the web uses for its big action buttons
-//   type         the web sets no font, so it renders in the system font: SF Pro
-//                on Apple devices, which is what SwiftUI uses — sizes follow
-//                Tailwind (text-xs 12, text-sm 14, text-base 16, text-2xl 24)
+//   colours      apps/web/app/globals.css, light and dark (DESIGN.md → Tokens)
+//   Card         packages/ui card.tsx — `raised`: rounded-2xl, soft shadow, no border
+//   BadgeView    packages/ui badge.tsx — neutral / brand / success / warning / outline
+//   buttons      packages/ui button.tsx — pills: .primary, .secondary, .ink (AI)
+//   type         Fraunces (bundled, SIL OFL) for headings and recipe titles via
+//                Theme.serif; the system font (SF Pro) for everything else
+//   gradients    legacy: the web's old bg-gradient-to-r buttons, still used by
+//                screens not yet moved to Cookbook. Don't use them in new code.
 //
 // Change a colour here only when it changes on the web.
 
@@ -32,28 +34,63 @@ extension UIColor {
 }
 
 enum Theme {
-    // MARK: Tokens (globals.css)
+    // MARK: Tokens (globals.css, DESIGN.md → Tokens)
 
-    /// --background: white / slate-950
-    static let background = Color(light: 0xFFFFFF, dark: 0x020817)
+    /// --background: cream page
+    static let background = Color(light: 0xFBF7F0, dark: 0x1A1714)
     /// --foreground
-    static let foreground = Color(light: 0x020817, dark: 0xF8FAFC)
-    /// --card
-    static let card = Color(light: 0xFFFFFF, dark: 0x020817)
-    /// --muted / --secondary / --accent: slate-100 / slate-800
-    static let muted = Color(light: 0xF1F5F9, dark: 0x1E293B)
-    /// --muted-foreground: slate-500 / slate-400
-    static let mutedForeground = Color(light: 0x64748B, dark: 0x94A3B8)
+    static let foreground = Color(light: 0x2A2420, dark: 0xF3EDE4)
+    /// --card: floating surfaces only (sheets, popovers)
+    static let card = Color(light: 0xFFFDF8, dark: 0x24201C)
+    /// --muted / --accent: tinted panels and fields
+    static let muted = Color(light: 0xF1EADF, dark: 0x2E2924)
+    /// --muted-foreground
+    static let mutedForeground = Color(light: 0x6E6259, dark: 0xB3A79A)
+    /// --secondary: secondary buttons and chips
+    static let secondary = Color(light: 0xEDE3D3, dark: 0x38312B)
     /// --secondary-foreground
-    static let secondaryForeground = Color(light: 0x0F172A, dark: 0xF8FAFC)
-    /// --border / --input: slate-200 / slate-800
-    static let border = Color(light: 0xE2E8F0, dark: 0x1E293B)
-    /// --primary: hsl(24 95% 53%) — orange-500
-    static let brand = Color(hex: 0xF97316)
-    static let brandDeep = Color(hex: 0xEA580C) // orange-600, for pressed states and text on tints
-    static let destructive = Color(light: 0xEF4444, dark: 0xF87171)
-    /// Favourite heart: fill-rose-500
-    static let heart = Color(hex: 0xF43F5E)
+    static let secondaryForeground = Color(light: 0x2A2420, dark: 0xF3EDE4)
+    /// --border
+    static let border = Color(light: 0xE8DFD1, dark: 0x3A332D)
+    /// --input: input borders, dashed "add" outlines
+    static let input = Color(light: 0xDCCFBC, dark: 0x4A4139)
+    /// --primary: terracotta — the main action, the brand, today, selected
+    static let brand = Color(light: 0xB5462B, dark: 0xE07A5F)
+    /// --primary-foreground: text on brand
+    static let brandForeground = Color(light: 0xFFFFFF, dark: 0x1A1714)
+    /// Pressed states
+    static let brandDeep = Color(light: 0x9A3B26, dark: 0xC9664C)
+    /// --ink: AI and strong neutral actions
+    static let ink = Color(light: 0x2A2420, dark: 0xF3EDE4)
+    static let inkForeground = Color(light: 0xFBF7F0, dark: 0x1A1714)
+    /// --success: herb green — healthy, done
+    static let success = Color(light: 0x3D6B4F, dark: 0x8FBF9F)
+    static let successTint = Color(light: 0xE3EDE4, dark: 0x22322A)
+    /// --warning: ochre — needs attention
+    static let warning = Color(light: 0x8A5A0B, dark: 0xE0B45C)
+    static let warningTint = Color(light: 0xF6E7C1, dark: 0x3A2E16)
+    static let destructive = Color(light: 0xB42318, dark: 0xF07A6A)
+    /// --highlight: today's row or column, the open day
+    static let highlight = Color(light: 0xF6EEE3, dark: 0x3A2C24)
+    /// --plate: behind food images
+    static let plate = Color(light: 0xE6D8C2, dark: 0x3A322A)
+    /// Favourite heart: brand, like everything else that means "yours"
+    static let heart = brand
+
+    // MARK: Type
+
+    /// Fraunces for headings, recipe titles and notes (DESIGN.md → Type).
+    /// Falls back to the system serif (New York) if the bundled font is missing.
+    static func serif(_ size: CGFloat, weight: Font.Weight = .semibold, italic: Bool = false) -> Font {
+        let font: Font = hasFraunces ? .custom("Fraunces", size: size) : .system(size: size, design: .serif)
+        let weighted = font.weight(weight)
+        return italic ? weighted.italic() : weighted
+    }
+
+    private static let hasFraunces = UIFont.familyNames.contains("Fraunces")
+
+    /// The small-caps overline: "BREAKFAST", "TONIGHT · 6:30PM".
+    static let overline = Font.system(size: 11, weight: .bold)
 
     // MARK: Tailwind colours the web uses directly
 
@@ -89,7 +126,8 @@ enum Theme {
             case .blueSky: [Color(hex: 0x2563EB), Color(hex: 0x0EA5E9)]
             case .violetIndigo: [Color(hex: 0x8B5CF6), Color(hex: 0x6366F1)]
             case .emeraldTeal: [Color(hex: 0x059669), Color(hex: 0x14B8A6)]
-            case .brand: [Color(hex: 0xF97316), Color(hex: 0xF97316)]
+            // Fixed terracotta: these buttons always carry white text.
+            case .brand: [Color(hex: 0xB5462B), Color(hex: 0xB5462B)]
             }
         }
 
@@ -136,24 +174,28 @@ enum Theme {
 
 // MARK: Card
 
-/// packages/ui Card: rounded-xl border bg-card shadow.
+/// packages/ui Card `raised`: rounded-2xl bg-card, a soft warm shadow, no border.
 struct CardBackground: ViewModifier {
-    var radius: CGFloat = 12
+    var radius: CGFloat = 16
     var fill: Color = Theme.card
 
     func body(content: Content) -> some View {
         content
             .background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Theme.border))
-            // Tailwind `shadow`: 0 1px 3px rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1)
-            .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+            .shadow(color: Color(hex: 0x2A2420).opacity(0.06), radius: 1, y: 1)
+            .shadow(color: Color(hex: 0x2A2420).opacity(0.06), radius: 8, y: 6)
     }
 }
 
 extension View {
-    func card(radius: CGFloat = 12, fill: Color = Theme.card) -> some View {
+    func card(radius: CGFloat = 16, fill: Color = Theme.card) -> some View {
         modifier(CardBackground(radius: radius, fill: fill))
+    }
+
+    /// packages/ui Card `panel`: a tinted group, no border or shadow.
+    func panel(radius: CGFloat = 16, fill: Color = Theme.muted) -> some View {
+        background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 
     /// The tinted callout boxes (nutrition, "What kind of dish is this?"): a soft
@@ -169,9 +211,20 @@ extension View {
 
 /// packages/ui Badge: rounded-full px-2.5 py-0.5 text-xs font-semibold.
 struct BadgeView: View {
-    enum Style { case secondary, outline }
+    /// `secondary` is the old name for `neutral`.
+    enum Style { case secondary, neutral, brand, success, warning, outline }
     let text: String
     var style: Style = .secondary
+
+    private var colors: (fill: Color, text: Color) {
+        switch style {
+        case .secondary, .neutral: (Theme.secondary, Theme.secondaryForeground)
+        case .brand: (Theme.highlight, Theme.brand)
+        case .success: (Theme.successTint, Theme.success)
+        case .warning: (Theme.warningTint, Theme.warning)
+        case .outline: (.clear, Theme.foreground)
+        }
+    }
 
     var body: some View {
         Text(text)
@@ -179,10 +232,56 @@ struct BadgeView: View {
             .lineLimit(1)
             .padding(.horizontal, 10)
             .padding(.vertical, 3)
-            .foregroundStyle(Theme.secondaryForeground)
-            .background(style == .secondary ? Theme.muted : .clear, in: Capsule())
+            .foregroundStyle(colors.text)
+            .background(colors.fill, in: Capsule())
             .overlay(Capsule().strokeBorder(style == .outline ? Theme.border : .clear))
     }
+}
+
+// MARK: Cookbook pieces
+
+/// packages/ui SectionLabel: "BREAKFAST", "TONIGHT · 6:30PM".
+struct SectionLabel: View {
+    let text: String
+    var brand = false
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(Theme.overline)
+            .tracking(1.1)
+            .foregroundStyle(brand ? Theme.brand : Theme.mutedForeground)
+    }
+}
+
+/// packages/ui Plate: a food photo on the `plate` colour, or an empty plate
+/// when there's no photo. Size and clip it where it's used.
+struct PlateView<Photo: View>: View {
+    var hasPhoto: Bool
+    @ViewBuilder var photo: Photo
+
+    var body: some View {
+        ZStack {
+            Theme.plate
+            if hasPhoto {
+                photo
+            } else {
+                GeometryReader { geo in
+                    let d = min(geo.size.width, geo.size.height) * 0.62
+                    Circle()
+                        .fill(Theme.card)
+                        .frame(width: d, height: d)
+                        .shadow(color: Color(hex: 0x462D14).opacity(0.18), radius: 7, y: 6)
+                        .overlay(Circle().fill(Theme.plate).frame(width: d * 0.64, height: d * 0.64))
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
+                .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
+extension PlateView where Photo == EmptyView {
+    init() { self.init(hasPhoto: false) { EmptyView() } }
 }
 
 // MARK: Buttons
@@ -229,6 +328,46 @@ struct OutlineButtonStyle: ButtonStyle {
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.border))
     }
+}
+
+/// packages/ui Button: a pill. `.primary` (terracotta, one per area),
+/// `.secondary` (everything else), `.ink` (AI — pair it with the sparkles icon).
+struct PillButtonStyle: ButtonStyle {
+    enum Kind { case primary, secondary, ink }
+    var kind: Kind
+    var height: CGFloat = 44
+
+    func makeBody(configuration: Configuration) -> some View {
+        Pill(configuration: configuration, kind: kind, height: height)
+    }
+
+    private struct Pill: View {
+        @Environment(\.isEnabled) private var enabled
+        let configuration: Configuration
+        let kind: Kind
+        let height: CGFloat
+
+        var body: some View {
+            let (fill, text): (Color, Color) = switch kind {
+            case .primary: (Theme.brand, Theme.brandForeground)
+            case .secondary: (Theme.secondary, Theme.secondaryForeground)
+            case .ink: (Theme.ink, Theme.inkForeground)
+            }
+            configuration.label
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(text)
+                .padding(.horizontal, 20)
+                .frame(minHeight: height)
+                .background(fill, in: Capsule())
+                .opacity(!enabled ? 0.45 : configuration.isPressed ? 0.85 : 1)
+        }
+    }
+}
+
+extension ButtonStyle where Self == PillButtonStyle {
+    static var primary: PillButtonStyle { PillButtonStyle(kind: .primary) }
+    static var secondary: PillButtonStyle { PillButtonStyle(kind: .secondary) }
+    static var ink: PillButtonStyle { PillButtonStyle(kind: .ink) }
 }
 
 extension ButtonStyle where Self == GradientButtonStyle {

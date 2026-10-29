@@ -51,6 +51,28 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Cookbook tokens (DESIGN.md)
+        ink: {
+          DEFAULT: "hsl(var(--ink))",
+          foreground: "hsl(var(--ink-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          tint: "hsl(var(--success-tint))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          tint: "hsl(var(--warning-tint))",
+        },
+        highlight: "hsl(var(--highlight))",
+        plate: "hsl(var(--plate))",
+        chart: {
+          1: "hsl(var(--chart-1))",
+          2: "hsl(var(--chart-2))",
+          3: "hsl(var(--chart-3))",
+          4: "hsl(var(--chart-4))",
+          5: "hsl(var(--chart-5))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -93,6 +115,8 @@ const config: Config = {
           "Roboto",
           "sans-serif",
         ],
+        // Fraunces, self-hosted by next/font in app/layout.tsx
+        serif: ["var(--font-serif)", "Georgia", "serif"],
       },
     },
   },

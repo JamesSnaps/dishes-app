@@ -436,7 +436,7 @@ themselves still to try on the real server.*
 Adopted 29 Oct 2026. Rules, tokens and the full plan: [DESIGN.md](DESIGN.md). Each phase is one PR covering web and the matching iOS screens, checked in light and dark mode at phone, iPad portrait and iPad landscape widths.
 - [x] Audit colour usage and choose a direction (mockups linked in DESIGN.md)
 - [x] Phase 0 — Guardrail: `check:colours` (per-file baseline in `apps/web/colour-baseline.json`, can only go down) run by the `Checks` workflow on every PR; CLAUDE.md rule
-- [ ] Phase 1 — Foundations: light/dark tokens, Tailwind config, Fraunces, `Button`/`Card`/`Badge` variants, `SectionLabel`/`Plate`/`AiButton`; iOS `Theme.swift` + bundled Fraunces
+- [x] Phase 1 — Foundations: light/dark tokens, Tailwind config, Fraunces, `Button`/`Card`/`Badge` variants, `SectionLabel`/`Plate`/`AiButton`; iOS `Theme.swift` + bundled Fraunces, accent and launch colours (v1.71.0)
 - [ ] Phase 2 — App shell: bottom nav, side nav, page headers, AI button, cooking mini-bar
 - [ ] Phase 3 — Recipes: list, card, filters, detail, form, imports
 - [ ] Phase 4 — Cooking mode (colours only; keeps large sans type)
