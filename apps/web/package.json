@@ -1,6 +1,6 @@
 {
   "name": "@dishes/web",
-  "version": "1.72.0",
+  "version": "1.73.0",
   "private": true,
   "scripts": {
     "check:share-scope": "tsx --env-file-if-exists=.env.local scripts/check-share-scope.ts",

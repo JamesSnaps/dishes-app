@@ -81,6 +81,11 @@ const config: Config = {
       },
       // Wrapped story slides
       keyframes: {
+        // Something arriving in a list as it streams in (Help me choose).
+        "rise-in": {
+          from: { opacity: "0", transform: "translateY(6px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
         "wrapped-rise": {
           from: { opacity: "0", transform: "translateY(24px) scale(0.97)" },
           to: { opacity: "1", transform: "translateY(0) scale(1)" },
@@ -101,6 +106,7 @@ const config: Config = {
         },
       },
       animation: {
+        "rise-in": "rise-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both",
         "wrapped-rise": "wrapped-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both",
         "wrapped-pop": "wrapped-pop 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both",
         "wrapped-blob": "wrapped-blob 12s ease-in-out infinite",

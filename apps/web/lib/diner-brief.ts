@@ -193,3 +193,35 @@ export function renderDinerBrief(brief: DinerBrief): string {
 
   return out.join("\n");
 }
+
+/**
+ * A few short facts from the brief, the kind the chooser weighs — shown on
+ * "Help me choose" while it works ("Red meat's at its limit this week"), so
+ * the wait shows what's being taken into account. Most telling first: dietary
+ * requirements (hard rules), then the week's targets, dislikes, tastes.
+ */
+export function briefFacts(brief: DinerBrief, max = 5): string[] {
+  const facts: string[] = [];
+  const many = brief.diners.length > 1;
+  const who = (d: DinerBriefMember) => (many ? d.name : "You");
+  const list = (xs: string[]) => (xs.length > 2 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : xs.join(" and "));
+
+  for (const d of brief.diners) {
+    if (d.dietaryRequirements.length) facts.push(`${who(d)}: ${list(d.dietaryRequirements).toLowerCase()}`);
+  }
+  for (const p of brief.week.proteins) {
+    if (p.status === "at_limit" && p.count > 0) facts.push(`${p.label}'s at its limit this week`);
+    else if (p.status === "over") facts.push(`Already over on ${p.label.toLowerCase()} this week`);
+    else if (p.status === "under") {
+      facts.push(p.count === 0 ? `No ${p.label.toLowerCase()} yet this week` : `${p.label}: ${p.count} so far, ${p.target}`);
+    }
+  }
+  for (const d of brief.diners) {
+    if (d.dislikes.length) facts.push(`${who(d)} ${many ? "doesn't" : "don't"} like ${list(d.dislikes.slice(0, 3))}`);
+  }
+  const top = brief.taste?.preferredCuisines[0];
+  if (top) facts.push(`You rate ${top.name} food highly`);
+  const last = brief.recentMeals.at(-1);
+  if (last) facts.push(`Last meal logged: ${last.title}`);
+  return facts.slice(0, max);
+}
