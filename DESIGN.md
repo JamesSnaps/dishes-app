@@ -289,6 +289,14 @@ places as they come, not all at the end. The best option in a group is chosen
 for you (terracotta tick on a `highlight` row), and the AI's own actions on
 the results ("Find another main") are `ink`.
 
+**Form options**: settings that sit beside a main input (meal, who's eating,
+heart-healthy) are rows in one `muted` panel, hairline-divided: label left
+(with a muted line of detail if needed), control right. A choice from a list
+is a menu whose current value is a `card` pill with an up-down chevron
+("Dinner ⌃⌄", "Alice & Louis ⌃⌄"), not a wrap of chips. Optional prompts such
+as starter ideas go behind one small `secondary` pill ("Need an idea?").
+(iOS `ConciergeSheet` first.)
+
 **Empty states**: one italic serif sentence plus a dashed-outline "add"
 button. Make it a suggestion where there's a reason ("No oily fish this week,
 so it's a good night for it").
