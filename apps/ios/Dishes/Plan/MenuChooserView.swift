@@ -61,6 +61,11 @@ struct MenuChooserView: View {
     @State private var avoid: [MenuPicks.Avoid] = []
     @State private var answerNote: String?
     @State private var error: String?
+    /// The app was left while the answer was coming in.
+    @State private var leftMidway = false
+    /// Cut off while away: start again on coming back.
+    @State private var resumeOnReturn = false
+    @Environment(\.scenePhase) private var scenePhase
 
     // Swaps and the whole menu.
     @State private var swapOpen: Slot?
@@ -100,6 +105,13 @@ struct MenuChooserView: View {
         .background(Theme.background)
         .navigationTitle("Help me choose")
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: scenePhase) { _, now in
+            if now != .active, phase == .working { leftMidway = true }
+            if now == .active, resumeOnReturn {
+                resumeOnReturn = false
+                Task { await suggest(again: true) }
+            }
+        }
         .fullScreenCover(isPresented: $camera) {
             CameraPicker { if photos.count < Self.maxPhotos { photos.append($0) } }.ignoresSafeArea()
         }
@@ -530,10 +542,13 @@ struct MenuChooserView: View {
         activeDiner = askedFor.first ?? ""
     }
 
-    private func suggest() async {
+    /// `again`: a second go after being cut off while the app was away — not retried twice.
+    private func suggest(again: Bool = false) async {
         error = nil
         reset()
         phase = .working
+        leftMidway = false
+        if again { stage = "Picking up where it left off" }
 
         // Vision first: its lines show as the dishes being read, and enough
         // text means the photos needn't go up at all.
@@ -559,26 +574,38 @@ struct MenuChooserView: View {
             courses: courses.sorted { $0.order < $1.order }.map(\.rawValue), moods: moods.map(\.rawValue), note: note)
         var readByServer = false
         do {
-            for try await event in app.api.menuPicksStream(request) {
-                switch event {
-                case .stage(let s): stage = s
-                case .fact(let f): withAnimation { facts.append(f) }
-                case .dish(let d):
-                    // The server's reading replaces the device's rough one.
-                    if !readByServer { readByServer = true; dishes = [] }
-                    withAnimation { dishes.append(d) }
-                case .menu(let m): menu = m
-                case .pick(let p): withAnimation { add(p) }
-                case .avoid(let a): avoid.append(a)
-                case .done(let n): answerNote = n; phase = .done
-                case .error(let message): error = message; phase = .asking
-                case .unknown: break
+            try await withBackgroundTime("menu-picks") {
+                for try await event in app.api.menuPicksStream(request) {
+                    switch event {
+                    case .stage(let s): stage = s
+                    case .fact(let f): withAnimation { facts.append(f) }
+                    case .dish(let d):
+                        // The server's reading replaces the device's rough one.
+                        if !readByServer { readByServer = true; dishes = [] }
+                        withAnimation { dishes.append(d) }
+                    case .menu(let m): menu = m
+                    case .pick(let p): withAnimation { add(p) }
+                    case .avoid(let a): avoid.append(a)
+                    case .done(let n): answerNote = n; phase = .done
+                    case .error(let message): error = message; phase = .asking
+                    case .unknown: break
+                    }
                 }
             }
             if phase == .working { phase = .done }
         } catch APIError.http(_, _, let message) {
             error = message
             phase = .asking
+        } catch where leftMidway && !again {
+            // iOS suspends the app soon after it's left, which drops the connection.
+            // Rather than a failure to come back to, carry on once it's back.
+            // Asked of the app, not `scenePhase`: this task holds the view as it was when it started.
+            if UIApplication.shared.applicationState == .active {
+                await suggest(again: true)
+            } else {
+                stage = "Paused while you’re away — it carries on when you’re back"
+                resumeOnReturn = true
+            }
         } catch {
             self.error = app.online ? "Couldn’t read the menu — please try again." : "You’re offline — choosing from a menu needs a connection."
             phase = .asking
@@ -605,15 +632,17 @@ struct MenuChooserView: View {
         defer { swapping = nil }
         var fresh: [MenuPicks.Pick] = []
         do {
-            for try await event in app.api.menuPicksStream(request) {
-                switch event {
-                case .pick(let p):
-                    fresh.append(p)
-                    // The new options replace the old as they arrive; the first is chosen.
-                    withAnimation { options[slot] = fresh }
-                    if fresh.count == 1 { chosen[slot] = p.item }
-                case .error(let message): error = message
-                default: break
+            try await withBackgroundTime("menu-swap") {
+                for try await event in app.api.menuPicksStream(request) {
+                    switch event {
+                    case .pick(let p):
+                        fresh.append(p)
+                        // The new options replace the old as they arrive; the first is chosen.
+                        withAnimation { options[slot] = fresh }
+                        if fresh.count == 1 { chosen[slot] = p.item }
+                    case .error(let message): error = message
+                    default: break
+                    }
                 }
             }
             if fresh.isEmpty && error == nil { error = "Nothing else on the menu suits — the options above are the best fit." }
@@ -676,4 +705,32 @@ struct MenuChooserView: View {
 private extension OutsideMeal.Course.Kind {
     /// Eating order.
     var order: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+}
+
+/// Keeps the app running for the time iOS allows once it's left (about half a
+/// minute), so a quick look at another app doesn't cut an answer off. Given
+/// back as soon as `work` finishes, or when the time runs out.
+@MainActor
+private func withBackgroundTime<T>(_ name: String, _ work: () async throws -> T) async rethrows -> T {
+    let time = BackgroundTime(name)
+    defer { time.end() }
+    return try await work()
+}
+
+@MainActor
+private final class BackgroundTime {
+    private var id = UIBackgroundTaskIdentifier.invalid
+
+    init(_ name: String) {
+        id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+            // Out of time: give it back, or iOS ends the app.
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
+    }
 }
