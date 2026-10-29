@@ -359,10 +359,10 @@ struct CookTonightPill: View {
         Button { nav.cooking = request } label: {
             HStack(spacing: 10) {
                 Image(systemName: "frying.pan.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.brandForeground)
                     .frame(width: 28, height: 28)
-                    .background(Theme.brandGradient, in: Circle())
-                Text("Cook tonight").font(.system(size: 14, weight: .bold)).foregroundStyle(Theme.brandDeep)
+                    .background(Theme.brand, in: Circle())
+                Text("Cook tonight").font(.system(size: 14, weight: .bold)).foregroundStyle(Theme.brand)
                 Text(request.title ?? request.dishes.first?.recipe.title ?? "")
                     .font(.system(size: 14))
                     .foregroundStyle(Theme.mutedForeground)
@@ -407,7 +407,7 @@ struct SyncLine: View {
     }
 }
 
-/// A member's profile photo, or their initials on brand orange (the web's
+/// A member's profile photo, or their initials on terracotta (the web's
 /// avatar fallback) when there's none or it hasn't loaded.
 struct Avatar: View {
     @Environment(AppModel.self) private var app
@@ -419,7 +419,7 @@ struct Avatar: View {
         let initials = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
         let fallback = Text(initials.isEmpty ? "?" : initials)
             .font(.system(size: size * 0.36, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.brandForeground)
             .frame(width: size, height: size)
             .background(Theme.brand, in: Circle())
         if let photo = app.imageURL(url) {

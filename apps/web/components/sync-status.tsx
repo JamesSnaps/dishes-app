@@ -41,7 +41,7 @@ export function SyncStatus({ className = "" }: { className?: string }) {
     ? {
         icon: <CloudOff className="h-3.5 w-3.5" />,
         label: pending ? `${pending} change${pending === 1 ? "" : "s"} waiting` : "Offline",
-        tone: "text-amber-600 dark:text-amber-400",
+        tone: "text-warning",
       }
     : status === "syncing"
       ? {

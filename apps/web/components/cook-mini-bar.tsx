@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChefHat, ChevronUp, Timer, X } from "lucide-react";
-import { Button } from "@dishes/ui";
+import { Button, SectionLabel } from "@dishes/ui";
 import {
   formatTimer,
   mostUrgentTimer,
@@ -58,19 +58,19 @@ export function CookMiniBar() {
           {visibleAlerts.map(({ recipeId, recipeTitle, stepIndex, timer }) => (
             <div
               key={`${recipeId}:${stepIndex}`}
-              className="pointer-events-auto w-full max-w-md rounded-2xl border border-green-500/40 bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-950 dark:to-emerald-900 p-4 shadow-2xl"
+              className="pointer-events-auto w-full max-w-md rounded-2xl bg-card p-4 shadow-2xl ring-1 ring-border"
             >
               <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-500 text-white animate-pulse">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success text-background animate-pulse">
                   <Timer className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   {/* Name the dish whenever more than one cook is live — "step 4"
                       alone is ambiguous with dinner and dessert both going. */}
                   {sessions.length > 1 && (
-                    <p className="truncate text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-400">
+                    <SectionLabel tone="brand" className="truncate">
                       {recipeTitle}
-                    </p>
+                    </SectionLabel>
                   )}
                   <p className="font-semibold text-sm">
                     Timer finished — Step {timer.stepNumber}
@@ -82,7 +82,7 @@ export function CookMiniBar() {
                 </div>
                 <button
                   onClick={() => dismissAlert(stepIndex, recipeId)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full hover:bg-muted transition-colors"
                   aria-label="Dismiss timer alert"
                 >
                   <X className="h-4 w-4" />
@@ -91,7 +91,7 @@ export function CookMiniBar() {
               <div className="mt-3 flex gap-2">
                 <Button
                   size="sm"
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  className="flex-1"
                   onClick={() => {
                     dismissAlert(stepIndex, recipeId);
                     resume(recipeId, stepIndex);
@@ -101,7 +101,7 @@ export function CookMiniBar() {
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                   className="flex-1"
                   onClick={() => dismissAlert(stepIndex, recipeId)}
                 >
@@ -117,9 +117,9 @@ export function CookMiniBar() {
       <>
       {/* ── Mini bar ──────────────────────────────────────────────────── */}
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] z-50 px-3 pb-2 print:hidden lg:inset-x-auto lg:right-6 lg:bottom-6 lg:w-[360px] lg:px-0 lg:pb-0">
-        {/* Solid background colour under the gradient — nothing behind this bar
-            should ever show through it, and it must sit above both navs. */}
-        <div className="flex items-center gap-2 rounded-2xl bg-orange-600 bg-gradient-to-br from-orange-500 to-amber-600 p-2 pl-3 text-white shadow-2xl shadow-black/30 ring-1 ring-black/10">
+        {/* Solid ink: nothing behind this bar should ever show through it, and
+            it must sit above both navs. */}
+        <div className="flex items-center gap-2 rounded-2xl bg-ink p-2 pl-3 text-ink-foreground shadow-2xl shadow-ink/30">
           <button
             onClick={() => resume(session!.recipeId)}
             className="flex min-w-0 flex-1 items-center gap-3 text-left"
@@ -130,10 +130,10 @@ export function CookMiniBar() {
               <img
                 src={session.recipeImageUrl}
                 alt=""
-                className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-white/30"
+                className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-ink-foreground/30"
               />
             ) : (
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink-foreground/15">
                 <ChefHat className="h-5 w-5" />
               </span>
             )}
@@ -141,7 +141,7 @@ export function CookMiniBar() {
               <span className="block truncate text-sm font-semibold leading-tight">
                 {session.recipeTitle}
               </span>
-              <span className="flex items-center gap-2 text-xs leading-tight text-white/95">
+              <span className="flex items-center gap-2 text-xs leading-tight text-ink-foreground/80">
                 <span>
                   Step {session.stepIndex + 1} of {session.stepCount}
                 </span>
@@ -152,7 +152,7 @@ export function CookMiniBar() {
                   </span>
                 )}
                 {otherCount > 0 && (
-                  <span className="rounded-full bg-white/25 px-1.5 py-px font-medium">
+                  <span className="rounded-full bg-ink-foreground/20 px-1.5 py-px font-medium">
                     +{otherCount} more
                   </span>
                 )}
@@ -172,7 +172,7 @@ export function CookMiniBar() {
               )
                 endCook(session!.recipeId);
             }}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/20"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-ink-foreground/15"
             aria-label="End cooking session"
           >
             <X className="h-4 w-4" />

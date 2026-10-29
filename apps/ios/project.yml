@@ -19,7 +19,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     # Keep in step with "version" in apps/web/package.json (one version for the product).
-    MARKETING_VERSION: "1.70.0"
+    MARKETING_VERSION: "1.71.0"
     CURRENT_PROJECT_VERSION: "1"
     # James Collard's individual membership, as Keepsake: a personal app, kept off
     # the Snapdragons company team.
@@ -66,6 +66,10 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # Fraunces, the Cookbook serif (DESIGN.md → Type). SIL OFL, licence beside it.
+        UIAppFonts:
+          - Fraunces.ttf
+          - Fraunces-Italic.ttf
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         "UISupportedInterfaceOrientations~ipad":

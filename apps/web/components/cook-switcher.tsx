@@ -49,9 +49,9 @@ export function CookSwitcher({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
-          className="shrink-0 border-orange-500/40 bg-orange-500/10 text-orange-700 hover:bg-orange-500/20 dark:text-orange-300"
+          className="shrink-0"
           title="Switch between cooks in progress"
         >
           <Layers className="h-4 w-4 sm:mr-1" />
@@ -100,7 +100,7 @@ export function CookSwitcher({
                   {urgent && (
                     <span
                       className={`flex items-center gap-1 font-mono tabular-nums ${
-                        urgent[1].done ? "font-semibold text-green-600 dark:text-green-400" : ""
+                        urgent[1].done ? "font-semibold text-success" : ""
                       }`}
                     >
                       <Timer className="h-3 w-3" />
@@ -110,11 +110,11 @@ export function CookSwitcher({
                 </span>
               </span>
               {alertCount > 0 && !urgent?.[1].done && (
-                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-green-600 px-1.5 text-[11px] font-semibold text-white">
+                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-success px-1.5 text-[11px] font-semibold text-background">
                   {alertCount}
                 </span>
               )}
-              {isCurrent && <Check className="h-4 w-4 shrink-0 text-orange-500" />}
+              {isCurrent && <Check className="h-4 w-4 shrink-0 text-primary" />}
             </DropdownMenuItem>
           );
         })}

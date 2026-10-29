@@ -3,49 +3,76 @@
 @tailwind utilities;
 
 @layer base {
+  /* Cookbook design tokens — see DESIGN.md. Every colour has one job. */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 24 95% 53%;        /* warm orange — food-adjacent */
+    --background: 38 58% 96%;        /* cream page */
+    --foreground: 24 14% 15%;
+    --card: 43 100% 99%;             /* floating surfaces only */
+    --card-foreground: 24 14% 15%;
+    --popover: 43 100% 99%;
+    --popover-foreground: 24 14% 15%;
+    --primary: 12 62% 44%;           /* terracotta: main action, today, selected */
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 24 95% 53%;
-    --radius: 0.75rem;
+    --secondary: 37 42% 88%;         /* secondary buttons, chips */
+    --secondary-foreground: 24 14% 15%;
+    --muted: 37 39% 91%;             /* tinted panels, fields */
+    --muted-foreground: 26 11% 39%;
+    --accent: 37 39% 91%;
+    --accent-foreground: 24 14% 15%;
+    --ink: 24 14% 15%;               /* AI and strong neutral actions */
+    --ink-foreground: 38 58% 96%;
+    --success: 143 27% 33%;          /* herb green: healthy, done */
+    --success-tint: 126 22% 91%;
+    --warning: 37 85% 29%;           /* ochre: needs attention */
+    --warning-tint: 43 75% 86%;
+    --destructive: 4 76% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --highlight: 35 51% 93%;         /* today's row/column, the open day */
+    --plate: 37 42% 83%;             /* behind food images */
+    --border: 37 33% 86%;
+    --input: 36 31% 80%;
+    --ring: 12 62% 44%;
+    --chart-1: 12 62% 44%;
+    --chart-2: 143 27% 33%;
+    --chart-3: 36 71% 42%;
+    --chart-4: 210 30% 42%;
+    --chart-5: 315 24% 38%;
+    --radius: 1rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 24 95% 53%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 24 95% 53%;
+    --background: 30 13% 9%;
+    --foreground: 36 38% 92%;
+    --card: 30 13% 13%;
+    --card-foreground: 36 38% 92%;
+    --popover: 30 13% 13%;
+    --popover-foreground: 36 38% 92%;
+    --primary: 13 68% 63%;
+    --primary-foreground: 30 13% 9%;
+    --secondary: 28 13% 19%;
+    --secondary-foreground: 36 38% 92%;
+    --muted: 30 12% 16%;
+    --muted-foreground: 31 14% 65%;
+    --accent: 30 12% 16%;
+    --accent-foreground: 36 38% 92%;
+    --ink: 36 38% 92%;
+    --ink-foreground: 30 13% 9%;
+    --success: 140 27% 65%;
+    --success-tint: 150 19% 16%;
+    --warning: 40 68% 62%;
+    --warning-tint: 40 45% 16%;
+    --destructive: 7 82% 68%;
+    --destructive-foreground: 30 13% 9%;
+    --highlight: 22 23% 18%;
+    --plate: 30 16% 20%;
+    --border: 28 13% 20%;
+    --input: 28 13% 26%;
+    --ring: 13 68% 63%;
+    --chart-1: 13 68% 63%;
+    --chart-2: 140 27% 65%;
+    --chart-3: 40 68% 62%;
+    --chart-4: 213 37% 68%;
+    --chart-5: 313 30% 65%;
   }
 }
 

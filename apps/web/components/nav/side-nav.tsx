@@ -34,6 +34,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  SectionLabel,
 } from "@dishes/ui";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { useUnsavedChanges } from "@/components/unsaved-changes-context";
@@ -91,7 +92,7 @@ function NavLink({
   if (item.disabled) {
     return (
       <span
-        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/40 cursor-not-allowed select-none"
+        className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground/40 cursor-not-allowed select-none"
       >
         <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
         {item.label}
@@ -103,9 +104,9 @@ function NavLink({
     <button
       onClick={() => onNavigate(item.href)}
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+        "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
         active
-          ? "bg-primary/10 text-primary font-medium"
+          ? "bg-highlight text-primary font-semibold"
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
       )}
     >
@@ -114,7 +115,7 @@ function NavLink({
       {badge != null && badge > 0 && (
         <span className={cn(
           "ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center leading-tight",
-          active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+          active ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
         )}>
           {badge}
         </span>
@@ -150,14 +151,14 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
   return (
     <nav
       className={cn(
-        "flex w-60 flex-col border-r bg-background h-screen sticky top-0",
+        "flex w-60 flex-col border-r border-border bg-muted/50 h-screen sticky top-0",
         className
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center gap-2 border-b px-4 shrink-0">
+      <div className="flex h-16 items-center gap-2 border-b border-border px-4 shrink-0">
         <UtensilsCrossed className="h-5 w-5 text-primary" />
-        <span className="text-lg font-semibold flex-1">Dishes</span>
+        <span className="flex-1 font-serif text-xl font-semibold">Dishes</span>
         <NotificationsBell />
       </div>
 
@@ -177,9 +178,7 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
 
         {/* Personal section */}
         <div className="px-3 pb-1 pt-3">
-          <p className="px-3 pb-1 text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
-            Personal
-          </p>
+          <SectionLabel className="px-3 pb-1.5">Personal</SectionLabel>
           <div className="flex flex-col gap-1">
             {PERSONAL_NAV.map((item) => (
               <NavLink key={item.href} item={item} pathname={pathname} onNavigate={requestNavigation} />
@@ -191,12 +190,12 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
         <div className="flex-1" />
 
         {/* Sync status — quiet unless something needs attention */}
-        <div className="border-t px-4 py-2">
+        <div className="border-t border-border px-4 py-2">
           <SyncStatus />
         </div>
 
         {/* Settings + Help */}
-        <div className="border-t p-3 flex flex-col gap-1">
+        <div className="border-t border-border p-3 flex flex-col gap-1">
           {/* Deliveries lives under /settings but has its own entry above; don't light both. */}
           <NavLink
             item={{ href: "/settings", label: "Settings", icon: Settings }}
@@ -208,11 +207,11 @@ export function SideNav({ className, displayName = "User", avatarUrl = null, sho
       </div>
 
       {/* Profile card */}
-      <div className="border-t px-3 py-3 shrink-0">
+      <div className="border-t border-border px-3 py-3 shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted text-left">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-xs overflow-hidden">
+            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted text-left">
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-highlight text-primary font-semibold text-xs overflow-hidden">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
