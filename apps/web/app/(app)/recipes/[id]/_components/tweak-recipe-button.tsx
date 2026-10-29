@@ -207,7 +207,7 @@ export function TweakRecipeButton({
             <SheetTitle className="flex items-center gap-2">
               {preset ? (
                 <>
-                  <HeartPulse className="h-4 w-4 text-rose-500" />
+                  <HeartPulse className="h-4 w-4 text-success" />
                   Make it heart-healthy
                 </>
               ) : (
@@ -237,7 +237,8 @@ export function TweakRecipeButton({
               )}
               <Button
                 onClick={() => void runPreset()}
-                className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white hover:opacity-90"
+                variant="ink"
+                className="w-full"
               >
                 <HeartPulse className="mr-2 h-4 w-4" />
                 Try again
@@ -436,12 +437,12 @@ function NutrientDelta({
   const improved =
     before != null && after != null && (goodWhen === "lower" ? after < before : after > before);
   return (
-    <div className="rounded-lg bg-white/70 px-3 py-2 shadow-sm dark:bg-white/5">
+    <div className="rounded-xl bg-card px-3 py-2">
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-sm">
         <span className="text-muted-foreground">{before != null ? `${before}g` : "—"}</span>
         <span className="mx-1.5 text-muted-foreground">→</span>
-        <span className={improved ? "font-semibold text-emerald-700 dark:text-emerald-400" : "font-semibold"}>
+        <span className={improved ? "font-semibold text-success" : "font-semibold"}>
           {after != null ? `${after}g` : "—"}
         </span>
       </div>
@@ -459,16 +460,16 @@ function HeartHealthyComparison({
 }) {
   const passes = isHeartHealthy(after.nutrition ?? {});
   return (
-    <div className="rounded-xl border border-rose-200/60 bg-gradient-to-br from-rose-50 to-pink-50 p-3 dark:border-rose-900/40 dark:from-rose-950/30 dark:to-pink-950/20">
+    <div className="rounded-2xl bg-success-tint p-3">
       <div className="flex items-center gap-2 text-sm font-medium">
         {passes ? (
           <>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <CheckCircle2 className="h-4 w-4 text-success" />
             Meets the heart-healthy targets
           </>
         ) : (
           <>
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTriangle className="h-4 w-4 text-warning" />
             Better, but still over target — try refining below
           </>
         )}

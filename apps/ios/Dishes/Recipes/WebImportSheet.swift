@@ -72,11 +72,11 @@ struct WebImportSheet: View {
         HStack(spacing: 12) {
             Image(systemName: "globe")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.brand)
                 .frame(width: 44, height: 44)
-                .background(Theme.Gradient.blueSky.linear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(Theme.highlight, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
-                Text("Import from a website").font(.system(size: 22, weight: .bold))
+                Text("Import from a website").font(Theme.serif(24))
                 Text("Ingredients, method, timings and the photo, read from the page.")
                     .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
             }
@@ -112,9 +112,8 @@ struct WebImportSheet: View {
             } label: {
                 Label("Import recipe", systemImage: "arrow.down.circle")
             }
-            .buttonStyle(.gradient(.blueSky))
+            .buttonStyle(.primary)
             .disabled(trimmed.isEmpty)
-            .opacity(trimmed.isEmpty ? 0.5 : 1)
             Text("Most recipe sites work without AI. With an AI key set up, Dishes also tidies the ingredients, adds timers and can read pages that don’t publish recipe data. You can edit everything once it’s saved.")
                 .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
         }
@@ -142,7 +141,7 @@ struct WebImportSheet: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Theme.destructive)
             Text(message).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
-            Button("Try again") { stage = .asking }.buttonStyle(.outline)
+            Button("Try again") { stage = .asking }.buttonStyle(.secondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

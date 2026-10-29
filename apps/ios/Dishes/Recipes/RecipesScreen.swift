@@ -111,20 +111,20 @@ struct RecipesScreen: View {
                                 // iPad: room for the labelled buttons.
                                 HStack(spacing: 8) {
                                     Button { openBook() } label: {
-                                        headerLabel("Cookbook", "book.closed")
-                                            .background(Color(hex: 0x8B5A2B), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                        headerLabel("Cookbook", "book.closed", Theme.secondaryForeground)
+                                            .background(Theme.secondary, in: Capsule())
                                     }
                                     .buttonStyle(.plain)
                                     .accessibilityLabel("Open as a cookbook")
                                     Button { askingAI = true } label: {
-                                        headerLabel("Create with AI", "sparkles")
-                                            .background(Theme.Gradient.violetOrange.linear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                        headerLabel("Create with AI", "sparkles", Theme.inkForeground)
+                                            .background(Theme.ink, in: Capsule())
                                     }
                                     .buttonStyle(.plain)
                                     .accessibilityLabel("Create with AI")
                                     Menu { newRecipeItems } label: {
-                                        headerLabel("New Recipe", "plus")
-                                            .background(Theme.brand, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                        headerLabel("New Recipe", "plus", Theme.brandForeground)
+                                            .background(Theme.brand, in: Capsule())
                                     }
                                     .accessibilityLabel("New Recipe")
                                 }
@@ -138,10 +138,9 @@ struct RecipesScreen: View {
                                 } label: {
                                     Image(systemName: "plus")
                                         .font(.system(size: 17, weight: .semibold))
-                                        .foregroundStyle(.white)
-                                        .frame(width: 38, height: 38)
+                                        .foregroundStyle(Theme.brandForeground)
+                                        .frame(width: 44, height: 44)
                                         .background(Theme.brand, in: Circle())
-                                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
                                 }
                                 .accessibilityLabel("Add a recipe, or open the cookbook")
                             }
@@ -155,9 +154,9 @@ struct RecipesScreen: View {
                         Button { filtering = true } label: {
                             Label(filters.activeCount == 0 ? "Filters" : "Filters · \(filters.activeCount)", systemImage: "line.3.horizontal.decrease")
                                 .font(.system(size: 14, weight: .semibold))
-                                .padding(.horizontal, 12).frame(height: 40)
-                                .foregroundStyle(filters.activeCount == 0 ? Theme.foreground : .white)
-                                .background(filters.activeCount == 0 ? Theme.muted : Theme.brand, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .padding(.horizontal, 14).frame(height: 40)
+                                .foregroundStyle(filters.activeCount == 0 ? Theme.foreground : Theme.inkForeground)
+                                .background(filters.activeCount == 0 ? Theme.muted : Theme.ink, in: Capsule())
                         }
                         .buttonStyle(.plain)
                     }
@@ -294,10 +293,10 @@ struct RecipesScreen: View {
                     Button(action: clear) {
                         Label("Clear", systemImage: "xmark")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.brandDeep)
+                            .foregroundStyle(Theme.brand)
                             .padding(.horizontal, 12)
                             .frame(height: 32)
-                            .background(Theme.orange50, in: Capsule())
+                            .background(Theme.highlight, in: Capsule())
                     }
                     .buttonStyle(.plain)
                 }
@@ -337,13 +336,12 @@ struct RecipesScreen: View {
             HStack(spacing: 6) {
                 if let icon { Image(systemName: selected ? "\(icon).fill" : icon).imageScale(.small) }
                 Text(title).font(.system(size: 13, weight: .medium))
-                Text("\(count)").font(.system(size: 12)).foregroundStyle(selected ? .white.opacity(0.8) : Theme.mutedForeground)
+                Text("\(count)").font(.system(size: 12)).foregroundStyle(selected ? Theme.inkForeground.opacity(0.75) : Theme.mutedForeground)
             }
-            .foregroundStyle(selected ? .white : Theme.foreground)
+            .foregroundStyle(selected ? Theme.inkForeground : Theme.secondaryForeground)
             .padding(.horizontal, 12)
             .frame(height: 32)
-            .background(selected ? Theme.brand : Theme.background, in: Capsule())
-            .overlay(Capsule().strokeBorder(selected ? .clear : Theme.border))
+            .background(selected ? Theme.ink : Theme.secondary, in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -413,7 +411,7 @@ extension RecipesScreen {
     func openBook() { nav.book = BookRequest(recipeIds: browsing ? nil : shown.map(\.id)) }
 
     /// A header button's label: words and icon on iPad, the icon alone on iPhone.
-    @ViewBuilder func headerLabel(_ title: String, _ icon: String) -> some View {
+    @ViewBuilder func headerLabel(_ title: String, _ icon: String, _ colour: Color) -> some View {
         Group {
             if width == .regular {
                 Label(title, systemImage: icon).padding(.horizontal, 14)
@@ -422,8 +420,8 @@ extension RecipesScreen {
             }
         }
         .font(.system(size: 14, weight: .semibold))
-        .foregroundStyle(.white)
-        .frame(height: 38)
+        .foregroundStyle(colour)
+        .frame(height: 40)
     }
 }
 
@@ -489,13 +487,13 @@ private struct RecipeFilterSheet: View {
                                     Button { if on { filters.tags.remove(tag) } else { filters.tags.insert(tag) } } label: {
                                         HStack(spacing: 5) {
                                             Text(tag)
-                                            Text("\(tagCounts[tag] ?? 0)").foregroundStyle(on ? .white.opacity(0.8) : Theme.mutedForeground)
+                                            Text("\(tagCounts[tag] ?? 0)").foregroundStyle(on ? Theme.inkForeground.opacity(0.75) : Theme.mutedForeground)
                                         }
                                     }
                                     .font(.system(size: 14, weight: .medium))
                                     .padding(.horizontal, 12).frame(height: 32)
-                                    .foregroundStyle(on ? .white : Theme.foreground)
-                                    .background(on ? Theme.brand : Theme.muted, in: Capsule())
+                                    .foregroundStyle(on ? Theme.inkForeground : Theme.foreground)
+                                    .background(on ? Theme.ink : Theme.muted, in: Capsule())
                                     .buttonStyle(.plain)
                                 }
                             }

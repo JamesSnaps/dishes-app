@@ -31,7 +31,7 @@ struct StarRating: View {
             ForEach(0..<5, id: \.self) { i in
                 Image(systemName: symbol(for: i))
                     .font(.system(size: size))
-                    .foregroundStyle((value ?? 0) > Double(i) * 2 ? Color(hex: 0xF59E0B) : Theme.border)
+                    .foregroundStyle((value ?? 0) > Double(i) * 2 ? Theme.brand : Theme.border)
             }
         }
         if let onChange {

@@ -28,11 +28,11 @@ export function StartCookingButton({ recipeId, servings, servingsUnit }: Props) 
   return (
     <div className="flex flex-wrap items-center gap-2">
       {defaultServings !== null && (
-        <div className="flex items-center gap-0.5 rounded-lg border bg-background h-11 px-1">
+        <div className="flex items-center gap-0.5 rounded-full bg-secondary h-11 px-1">
           <Users className="h-3.5 w-3.5 text-muted-foreground ml-2 mr-1 shrink-0" />
           <button
             onClick={() => setCurrent((v) => Math.max(0.5, v - step))}
-            className="flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-muted"
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-background/60"
             aria-label="Fewer servings"
           >
             <Minus className="h-3.5 w-3.5" />
@@ -46,7 +46,7 @@ export function StartCookingButton({ recipeId, servings, servingsUnit }: Props) 
           </span>
           <button
             onClick={() => setCurrent((v) => v + step)}
-            className="flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-muted"
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-background/60"
             aria-label="More servings"
           >
             <Plus className="h-3.5 w-3.5" />

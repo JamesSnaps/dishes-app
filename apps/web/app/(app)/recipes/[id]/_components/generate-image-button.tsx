@@ -9,6 +9,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Plate,
   Textarea,
 } from "@dishes/ui";
 import { addPendingImageJob, IMAGE_FAILED_EVENT, IMAGE_READY_EVENT, type ImageReadyDetail } from "@/components/providers/jobs-provider";
@@ -75,7 +76,7 @@ function GenerateImageForm({
           value={style}
           onChange={(e) => setStyle(e.target.value as ImageStyleValue)}
           disabled={starting}
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+          className="h-9 rounded-full border-[1.5px] border-input bg-background px-3 text-sm"
           aria-label="Image style"
         >
           {IMAGE_STYLES.map((s) => (
@@ -87,9 +88,9 @@ function GenerateImageForm({
 
         <Button
           size="sm"
+          variant="ink"
           onClick={() => void handleClick()}
           disabled={starting}
-          className="gap-2 bg-gradient-to-r from-violet-600 to-orange-500 text-white shadow-sm hover:from-violet-700 hover:to-orange-600"
         >
           {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           {starting ? "Starting…" : replacing ? "Generate new photo" : "Generate image with AI"}
@@ -143,7 +144,7 @@ function useImagePending(recipeId: string) {
 
 function GeneratingNotice() {
   return (
-    <div className="mb-6 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+    <div className="mb-6 flex items-center gap-2 rounded-2xl bg-highlight px-4 py-3 text-sm text-primary">
       <Loader2 className="h-4 w-4 animate-spin shrink-0" />
       <span>
         Generating image &mdash; you can navigate away and we&apos;ll notify you when
@@ -158,8 +159,12 @@ export function GenerateImageButton(props: Props) {
   const [pending, markPending] = useImagePending(props.recipeId);
   if (pending) return <GeneratingNotice />;
   return (
-    <div className="mb-6">
-      <GenerateImageForm {...props} onQueued={markPending} />
+    <div className="mb-6 flex items-center gap-4 rounded-2xl bg-muted p-4">
+      <Plate alt="No photo yet" className="hidden h-20 w-20 shrink-0 rounded-xl sm:flex" />
+      <div className="min-w-0 flex-1">
+        <p className="mb-2 font-serif italic text-muted-foreground">No photo yet.</p>
+        <GenerateImageForm {...props} onQueued={markPending} />
+      </div>
     </div>
   );
 }
@@ -176,7 +181,7 @@ export function GenerateImageDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ImagePlus className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+            <ImagePlus className="h-5 w-5 text-muted-foreground" />
             New photo with AI
           </DialogTitle>
           <DialogDescription>

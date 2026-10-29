@@ -124,12 +124,12 @@ export default async function SharedRecipePage({ params }: Props) {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <section>
-          <div className="rounded-2xl border bg-gradient-to-br from-primary/[0.07] via-card to-card p-5 shadow-sm">
+          <div className="rounded-2xl bg-muted p-5">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-highlight text-primary">
                 <ListChecks className="h-5 w-5" />
               </div>
-              <h2 className="text-lg font-semibold leading-tight">Ingredients</h2>
+              <h2 className="font-serif text-xl font-semibold leading-tight">Ingredients</h2>
             </div>
 
             {ingredientGroups.map((group, gi) => (
@@ -164,20 +164,20 @@ export default async function SharedRecipePage({ params }: Props) {
 
         {recipe.steps.length > 0 && (
           <section>
-            <h2 className="mb-4 text-xl font-bold tracking-tight">Method</h2>
-            <ol className="space-y-4">
+            <h2 className="mb-4 font-serif text-xl font-semibold">Method</h2>
+            <ol>
               {recipe.steps.map((step, i) => (
                 <li
                   key={step.id}
-                  className="flex gap-4 rounded-2xl border bg-card/60 p-4 shadow-sm"
+                  className="flex gap-4 border-b border-border py-4 last:border-0"
                 >
-                  <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/75 text-sm font-bold text-primary-foreground shadow-md shadow-primary/25">
+                  <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-highlight font-serif text-base font-semibold text-primary">
                     {i + 1}
                   </span>
                   <div className="flex-1 pt-1">
                     <p className="leading-relaxed">{step.instruction}</p>
                     {step.durationMinutes && (
-                      <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                      <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-warning-tint px-2.5 py-1 text-xs font-medium text-warning">
                         <Timer className="h-3.5 w-3.5" />
                         {step.timerLabel ?? `${step.durationMinutes} min`}
                       </p>

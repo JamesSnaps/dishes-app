@@ -123,13 +123,13 @@ export function PasteImportModal({ onImport }: PasteImportModalProps) {
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium">Ingredients</label>
             {hasIngredients && (
-              <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1 text-xs text-success">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {parsedIngredients.length} found
               </span>
             )}
             {ingredientText.trim() && !hasIngredients && (
-              <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1 text-xs text-warning">
                 <AlertCircle className="h-3.5 w-3.5" />
                 Nothing parsed
               </span>
@@ -154,13 +154,13 @@ pinch of salt`}
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium">Method / Steps</label>
             {hasSteps && (
-              <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1 text-xs text-success">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {parsedSteps.length} found
               </span>
             )}
             {stepText.trim() && !hasSteps && (
-              <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1 text-xs text-warning">
                 <AlertCircle className="h-3.5 w-3.5" />
                 Nothing parsed
               </span>

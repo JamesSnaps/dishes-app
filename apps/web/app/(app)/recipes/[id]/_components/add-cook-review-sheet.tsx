@@ -47,7 +47,7 @@ export function AddCookReviewSheet({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+        className="inline-flex h-11 items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         aria-label="Add a cook review"
       >
         <MessageSquarePlus className="h-4 w-4" />

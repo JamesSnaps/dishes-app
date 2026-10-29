@@ -306,7 +306,7 @@ export default async function RecipesPage({ searchParams }: Props) {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Recipes</h1>
+          <h1 className="text-3xl font-semibold lg:text-4xl">Recipes</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {totalRecipes === 0
               ? "Nothing in the collection yet"
@@ -320,11 +320,7 @@ export default async function RecipesPage({ searchParams }: Props) {
           <div className="lg:hidden">
             <NotificationsBell />
           </div>
-          <Button
-            asChild
-            size="sm"
-            className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white border-0 shadow-sm"
-          >
+          <Button asChild size="sm" variant="secondary">
             <Link href="/meals" aria-label="Saved meals">
               <UtensilsCrossed className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">Saved meals</span>
@@ -345,7 +341,7 @@ export default async function RecipesPage({ searchParams }: Props) {
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             <Link
               href="/collections"
-              className="flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border-[1.5px] border-input px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
             >
               <FolderOpen className="h-3.5 w-3.5" />
               Collections
@@ -355,7 +351,7 @@ export default async function RecipesPage({ searchParams }: Props) {
               <Link
                 key={col.id}
                 href={`/collections/${col.id}`}
-                className="flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-sm hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm text-secondary-foreground hover:bg-secondary/70 transition-colors"
               >
                 <span className="leading-none">{col.icon ?? "📁"}</span>
                 <span className="font-medium">{col.name}</span>
@@ -376,7 +372,7 @@ export default async function RecipesPage({ searchParams }: Props) {
       {/* Results */}
       {allRecipes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <p className="text-muted-foreground">
+          <p className="font-serif text-lg italic text-muted-foreground">
             {q || cuisine || favourites || heart || difficulty || maxTime || tags
               ? "No recipes match your filters."
               : "No recipes yet. Add your first one!"}

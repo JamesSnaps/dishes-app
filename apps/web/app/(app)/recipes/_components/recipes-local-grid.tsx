@@ -171,10 +171,10 @@ export function RecipesLocalGrid({
   if (useLocal && list.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
-        <p className="text-muted-foreground">No recipes match your filters.</p>
+        <p className="font-serif text-lg italic text-muted-foreground">No recipes match your filters.</p>
         <Link
           href="/recipes"
-          className="mt-4 rounded-lg bg-gradient-to-r from-orange-500 to-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:opacity-90"
+          className="mt-4 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
         >
           Clear filters
         </Link>

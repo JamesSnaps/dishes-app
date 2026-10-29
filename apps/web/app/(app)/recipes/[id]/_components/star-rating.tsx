@@ -36,7 +36,7 @@ function StarIcon({
       {fill === "half" && (
         <defs>
           <linearGradient id={gradientId}>
-            <stop offset="50%" stopColor="#f59e0b" />
+            <stop offset="50%" stopColor="hsl(var(--primary))" />
             <stop offset="50%" stopColor="transparent" />
           </linearGradient>
         </defs>
@@ -45,13 +45,13 @@ function StarIcon({
         points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
         fill={
           fill === "full"
-            ? "#f59e0b"
+            ? "hsl(var(--primary))"
             : fill === "half"
               ? `url(#${gradientId})`
               : "currentColor"
         }
         className={fill === "empty" ? "text-muted-foreground/25" : ""}
-        stroke={fill === "empty" ? "currentColor" : "#f59e0b"}
+        stroke={fill === "empty" ? "currentColor" : "hsl(var(--primary))"}
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"

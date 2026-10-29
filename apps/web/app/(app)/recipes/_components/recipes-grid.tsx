@@ -614,7 +614,7 @@ export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
       </div>
 
       {/* Recipe grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-x-4 xl:grid-cols-5">
         {recipes.map((recipe) => (
           <RecipeCard
             key={recipe.id}
@@ -629,15 +629,14 @@ export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
 
       {/* Floating bulk action bar */}
       {selectionMode && selectedCount > 0 && (
-        <div className="fixed bottom-16 lg:bottom-4 left-4 right-4 z-50 rounded-2xl bg-foreground text-background px-4 py-3 shadow-xl">
+        <div className="fixed bottom-16 lg:bottom-4 left-4 right-4 z-50 rounded-2xl bg-ink text-ink-foreground px-4 py-3 shadow-xl">
           <div className="flex flex-wrap items-center gap-2">
             <span className="w-full text-sm font-semibold sm:w-auto sm:mr-auto">
               {selectedCount} {selectedCount === 1 ? "recipe" : "recipes"}
             </span>
             <Button
               size="sm"
-              variant="secondary"
-              className="bg-white/15 text-background border-white/20 hover:bg-white/25"
+              className="bg-ink-foreground/15 text-ink-foreground hover:bg-ink-foreground/25"
               onClick={() => setDialogMode("remove")}
             >
               <Minus className="mr-1.5 h-4 w-4" />
@@ -645,17 +644,13 @@ export function RecipesGrid({ recipes, allTags }: RecipesGridProps) {
             </Button>
             <Button
               size="sm"
-              variant="secondary"
-              className="bg-white/15 text-background border-white/20 hover:bg-white/25"
+              className="bg-ink-foreground/15 text-ink-foreground hover:bg-ink-foreground/25"
               onClick={() => setDialogMode("add")}
             >
               <Tag className="mr-1.5 h-4 w-4" />
               Add tags
             </Button>
-            <Button
-              size="sm"
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => setCollectionDialogOpen(true)}
+            <Button size="sm" onClick={() => setCollectionDialogOpen(true)}
             >
               <FolderPlus className="mr-1.5 h-4 w-4" />
               Collection

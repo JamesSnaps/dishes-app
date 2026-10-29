@@ -1,7 +1,8 @@
-// One recipe, laid out as the web's /recipes/[id]: title and heart, badges for
-// cuisine, difficulty, time and servings, the servings stepper, Start Cooking,
-// nutrition when there is some, then Overview / Ingredients / Steps tabs with
-// the orange underline. When the page is wide enough (iPad landscape, or
+// One recipe, laid out as the web's /recipes/[id] (DESIGN.md → Recipe detail):
+// an overline of cuisine and difficulty, the serif title and heart, the dish
+// type, time and servings in a hairline-divided row, the servings stepper,
+// Start Cooking, nutrition when there is some, then Overview / Ingredients /
+// Steps tabs with the terracotta underline. When the page is wide enough (iPad landscape, or
 // portrait without the sidebar) the ingredients sit beside the method instead
 // of behind a tab — decided by the space, not the device.
 //
@@ -199,7 +200,7 @@ struct RecipeDetailView: View {
             Color.clear
                 .aspectRatio(twoColumn ? 1.4 : width == .regular ? 2.4 : 1.6, contentMode: .fit)
                 .overlay { RecipeImage(recipe: recipe, thumbnail: false) }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         header(recipe)
         ratingRow(recipe)
@@ -220,9 +221,28 @@ struct RecipeDetailView: View {
     private func header(_ recipe: Recipe) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                Text(recipe.title)
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Theme.foreground)
+                VStack(alignment: .leading, spacing: 6) {
+                    if recipe.cuisine != nil || recipe.difficulty != nil {
+                        HStack(spacing: 0) {
+                            if let cuisine = recipe.cuisine {
+                                Button(cuisine.uppercased()) { nav.recipeTag = .cuisine(cuisine) }
+                                    .accessibilityHint("Shows other \(cuisine) recipes")
+                            }
+                            if recipe.cuisine != nil && recipe.difficulty != nil { Text(" · ") }
+                            if let difficulty = recipe.difficulty {
+                                Button(difficulty.rawValue.uppercased()) { nav.recipeTag = .difficulty(difficulty) }
+                                    .accessibilityHint("Shows other \(difficulty.rawValue) recipes")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .font(Theme.overline)
+                        .tracking(1.1)
+                        .foregroundStyle(Theme.brand)
+                    }
+                    Text(recipe.title)
+                        .font(Theme.serif(width == .regular ? 34 : 30))
+                        .foregroundStyle(Theme.foreground)
+                }
                 Spacer(minLength: 4)
                 Button {
                     Task { await app.toggleFavourite(recipe) }
@@ -230,37 +250,50 @@ struct RecipeDetailView: View {
                     Image(systemName: recipe.isFavourite ? "heart.fill" : "heart")
                         .font(.system(size: 22))
                         .foregroundStyle(recipe.isFavourite ? Theme.heart : Theme.mutedForeground)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(recipe.isFavourite ? "Remove from favourites" : "Add to favourites")
             }
-            FlowLayout(spacing: 10) {
-                RecipeRoleBadge(role: recipe.mealRole) { choosingRole = true }
-                if let cuisine = recipe.cuisine {
-                    Button { nav.recipeTag = .cuisine(cuisine) } label: { BadgeView(text: cuisine) }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Shows other \(cuisine) recipes")
+            RecipeRoleBadge(role: recipe.mealRole) { choosingRole = true }
+            stats(recipe)
+        }
+    }
+
+    /// Time and servings, divided by hairlines.
+    @ViewBuilder
+    private func stats(_ recipe: Recipe) -> some View {
+        let time = Format.shortMinutes(recipe.totalMinutes)
+        if time != nil || recipe.servings != nil {
+            HStack(spacing: 0) {
+                if let time {
+                    stat("Time", time, icon: "clock")
                 }
-                if let difficulty = recipe.difficulty {
-                    Button { nav.recipeTag = .difficulty(difficulty) } label: {
-                        BadgeView(text: difficulty.rawValue.capitalized, style: .outline)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Shows other \(difficulty.rawValue) recipes")
-                }
-                if let time = Format.shortMinutes(recipe.totalMinutes) {
-                    Label(time, systemImage: "clock").labelStyle(TightLabel())
+                if time != nil && recipe.servings != nil {
+                    Rectangle().fill(Theme.border).frame(width: 1).padding(.vertical, 2).padding(.trailing, 14)
                 }
                 if let base = recipe.servings {
-                    Label(Self.servingsText(servings ?? base, unit: recipe.servingsUnit), systemImage: "person.2")
-                        .labelStyle(TightLabel())
+                    stat("Serves", Self.servingsText(servings ?? base, unit: recipe.servingsUnit), icon: "person.2")
                         .accessibilityLabel("\(Format.amount(String(servings ?? base)) ?? "") \(recipe.servingsUnit ?? "servings")")
                 }
             }
-            .font(.system(size: 14))
-            .foregroundStyle(Theme.mutedForeground)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.vertical, 12)
+            .overlay(alignment: .top) { Rectangle().fill(Theme.border).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
         }
+    }
+
+    private func stat(_ label: String, _ value: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            SectionLabel(text: label)
+            Label(value, systemImage: icon)
+                .labelStyle(TightLabel())
+                .font(Theme.serif(18))
+                .foregroundStyle(Theme.foreground)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private func controls(_ recipe: Recipe) -> some View {
@@ -283,14 +316,15 @@ struct RecipeDetailView: View {
                 .foregroundStyle(Theme.foreground)
                 .padding(.horizontal, 16)
                 .frame(height: 44)
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border))
+                .background(Theme.secondary, in: Capsule())
             }
             Button {
                 nav.cooking = CookRequest(dishes: [CookDish(recipe: recipe, scale: scale(recipe))])
             } label: {
                 Label("Start Cooking", systemImage: "frying.pan")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.brand)
+            .buttonStyle(PillButtonStyle(kind: .primary, height: 52))
             .disabled(recipe.steps.isEmpty)
             .frame(maxWidth: width == .regular ? 360 : .infinity)
         }
@@ -381,7 +415,7 @@ struct RecipeDetailView: View {
         } label: {
             Label("Add to shopping list", systemImage: "cart.badge.plus")
         }
-        .buttonStyle(.outline)
+        .buttonStyle(.secondary)
     }
 
     /// Every logged cook, newest first, as the web's cook-history entries.
@@ -463,7 +497,7 @@ struct RecipeDetailView: View {
         let on = (selected ?? tab) == value
         return Button { withAnimation(.snappy) { tab = value } } label: {
             Text(title)
-                .font(.system(size: 15, weight: .medium))
+                .font(Theme.serif(16))
                 .foregroundStyle(on ? Theme.brand : Theme.mutedForeground)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity)
@@ -477,7 +511,7 @@ struct RecipeDetailView: View {
     private func overview(_ recipe: Recipe) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if let description = recipe.description, !description.isEmpty {
-                Text(description).font(.system(size: 16)).foregroundStyle(Theme.foreground.opacity(0.75))
+                Text(description).font(Theme.serif(17, weight: .regular, italic: true)).foregroundStyle(Theme.foreground.opacity(0.8))
             }
             HStack(spacing: 28) {
                 timeColumn("Prep", recipe.prepTimeMinutes)
@@ -509,7 +543,7 @@ struct RecipeDetailView: View {
         return VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(grouped(recipe.ingredients, label: \.groupLabel).enumerated()), id: \.offset) { _, group in
                 if let label = group.label {
-                    Text(label).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.brand).padding(.top, 6)
+                    SectionLabel(text: label, brand: true).padding(.top, 6)
                 }
                 ForEach(group.items) { ingredient in
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -533,16 +567,15 @@ struct RecipeDetailView: View {
         return VStack(alignment: .leading, spacing: 16) {
             ForEach(Array(grouped(numbered, label: \.step.groupLabel).enumerated()), id: \.offset) { _, group in
                 if let label = group.label {
-                    Text(label).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.brand)
+                    SectionLabel(text: label, brand: true)
                 }
                 ForEach(group.items) { item in
                     HStack(alignment: .top, spacing: 14) {
                         Text("\(item.number)")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Theme.brandDeep)
-                            .frame(width: 28, height: 28)
-                            .background(Theme.orange50, in: Circle())
-                            .overlay(Circle().strokeBorder(Color(hex: 0xFED7AA)))
+                            .font(Theme.serif(16))
+                            .foregroundStyle(Theme.brand)
+                            .frame(width: 30, height: 30)
+                            .background(Theme.highlight, in: Circle())
                         VStack(alignment: .leading, spacing: 6) {
                             Text(item.step.instruction).font(.system(size: 16)).foregroundStyle(Theme.foreground)
                             if let minutes = Format.minutes(item.step.durationMinutes) {
@@ -656,7 +689,7 @@ struct CookEntryCard: View {
                     Spacer(minLength: 4)
                     if let rating = entry.rating {
                         HStack(spacing: 3) {
-                            Image(systemName: "star.fill").font(.system(size: 11)).foregroundStyle(Self.amber)
+                            Image(systemName: "star.fill").font(.system(size: 11)).foregroundStyle(Self.star)
                             Text(Format.amount(String(rating / 2)) ?? "").font(.system(size: 13, weight: .semibold))
                         }
                         .accessibilityElement(children: .combine)
@@ -703,7 +736,7 @@ struct CookEntryCard: View {
         }
     }
 
-    private static let amber = Color(hex: 0xF59E0B)
+    private static let star = Theme.brand
 
     /// "20 min · Family dinner": plain text, so it wraps rather than truncating.
     private var meta: String {
@@ -711,7 +744,7 @@ struct CookEntryCard: View {
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
-    /// Who ate it, by first name, with their own rating in amber where they gave one.
+    /// Who ate it, by first name, with their own rating in terracotta where they gave one.
     private var people: Text {
         let byName = Dictionary(entry.memberRatings.map { ($0.name, $0.rating) }, uniquingKeysWith: { a, _ in a })
         let first = entry.cookedFor.map { $0.split(separator: " ").first.map(String.init) ?? $0 }
@@ -721,7 +754,7 @@ struct CookEntryCard: View {
         for (i, full) in entry.cookedFor.enumerated() {
             text = Text("\(text)\(i == 0 ? " " : ", ")\(names[i])")
             if let r = byName[full] {
-                text = Text("\(text) \(Text("★\(Format.amount(String(r / 2)) ?? "")").foregroundStyle(Self.amber))")
+                text = Text("\(text) \(Text("★\(Format.amount(String(r / 2)) ?? "")").foregroundStyle(Self.star))")
             }
         }
         return text

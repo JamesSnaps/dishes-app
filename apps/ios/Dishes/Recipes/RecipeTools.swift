@@ -58,12 +58,12 @@ struct RecipeTweakSheet: View {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 12) {
                         Image(systemName: kind == .improve ? "wand.and.stars" : "heart.fill")
-                            .font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(kind == .improve ? Theme.Gradient.violetOrange.linear : Theme.brandGradient,
-                                        in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(kind == .improve ? Theme.inkForeground : Theme.success)
+                            .frame(width: 44, height: 44)
+                            .background(kind == .improve ? Theme.ink : Theme.successTint, in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(kind == .improve ? "Improve with AI" : "Make it heart-healthy").font(.system(size: 20, weight: .bold))
+                            Text(kind == .improve ? "Improve with AI" : "Make it heart-healthy").font(Theme.serif(22))
                             Text(recipe.title).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
                         }
                     }
@@ -77,7 +77,7 @@ struct RecipeTweakSheet: View {
                                     ForEach(Self.starters, id: \.self) { s in
                                         Button(s) { instruction = s }.font(.system(size: 13))
                                             .padding(.horizontal, 10).frame(height: 30)
-                                            .background(Theme.violet50, in: Capsule()).buttonStyle(.plain)
+                                            .background(Theme.secondary, in: Capsule()).buttonStyle(.plain)
                                             .foregroundStyle(Theme.foreground)
                                     }
                                 }
@@ -85,7 +85,7 @@ struct RecipeTweakSheet: View {
                             Button { Task { await ask() } } label: {
                                 Label(working ? "Thinking…" : draft == nil ? "Suggest changes" : "Refine", systemImage: "sparkles")
                             }
-                            .buttonStyle(.gradient(.violetOrange))
+                            .buttonStyle(.ink)
                             .disabled(working || instruction.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                     }
@@ -107,16 +107,16 @@ struct RecipeTweakSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             if let summary {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(summary, systemImage: "sparkles").font(.system(size: 14)).foregroundStyle(Color(hex: 0x6D28D9))
+                    Label(summary, systemImage: "sparkles").font(.system(size: 14)).foregroundStyle(Theme.foreground)
                     if engine == .device {
                         Label("Changed on this \(UIDevice.current.model)", systemImage: "apple.intelligence")
                             .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
                     }
                 }
                 .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.violet50, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .panel(radius: 12)
             }
-            Text(d.title).font(.system(size: 20, weight: .bold))
+            Text(d.title).font(Theme.serif(22))
             let before = Set(recipe.ingredients.map { $0.name.lowercased() })
             WebSection(title: "Ingredients") {
                 VStack(alignment: .leading, spacing: 6) {
@@ -146,9 +146,9 @@ struct RecipeTweakSheet: View {
             }
             HStack(spacing: 10) {
                 Button { Task { await apply(copy: false) } } label: { Label("Update this recipe", systemImage: "checkmark") }
-                    .buttonStyle(.brand)
+                    .buttonStyle(.primary)
                 Button { Task { await apply(copy: true) } } label: { Label("Save as a copy", systemImage: "plus.square.on.square") }
-                    .buttonStyle(.outline)
+                    .buttonStyle(.secondary)
             }
             .disabled(working)
         }
@@ -247,13 +247,13 @@ struct RecipeIdeasSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(kind == .similar ? "More like \(recipe.title)" : "Sides for \(recipe.title)").font(.system(size: 20, weight: .bold))
+                    Text(kind == .similar ? "More like \(recipe.title)" : "Sides for \(recipe.title)").font(Theme.serif(22))
                     TextField(kind == .similar ? "Any twist? (optional — e.g. but vegetarian)" : "Anything in particular? (optional)", text: $note)
                         .padding(12).overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border))
                     Button { Task { await suggest() } } label: {
                         Label(working == "ideas" ? "Thinking…" : ideas == nil ? "Get ideas" : "Five more", systemImage: "sparkles")
                     }
-                    .buttonStyle(.gradient(.violetOrange)).disabled(working != nil)
+                    .buttonStyle(.ink).disabled(working != nil)
                     if let ideas {
                         ForEach(ideas) { concept in
                             Button { Task { await write(concept) } } label: {

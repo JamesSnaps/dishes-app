@@ -99,7 +99,8 @@ export function CookHistoryEntryCard({
             <Button
               type="button"
               size="sm"
-              className="h-8 gap-1.5 bg-gradient-to-r from-orange-500 to-rose-500 px-3 text-xs text-white shadow-sm hover:opacity-95"
+              variant="secondary"
+              className="h-8 gap-1.5 px-3 text-xs"
               onClick={() => setEditing(true)}
               title="Edit this entry"
             >
@@ -137,7 +138,7 @@ export function CookHistoryEntryCard({
                   return (
                     <span
                       key={name}
-                      className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200"
+                      className="rounded-full bg-highlight px-2.5 py-0.5 text-xs font-medium text-primary"
                     >
                       {name}
                       {r != null && <span className="ml-1 font-semibold">★ {r / 2}</span>}

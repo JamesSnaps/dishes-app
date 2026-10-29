@@ -52,7 +52,7 @@ export function AddToShoppingButton({
   if (done) {
     return (
       <div className="flex items-center gap-2">
-        <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+        <span className="flex items-center gap-1.5 text-sm text-success">
           <Check className="h-4 w-4" />
           Added to list
         </span>

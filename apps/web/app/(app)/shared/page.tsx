@@ -20,11 +20,11 @@ export default async function SharedLibrariesPage() {
       </div>
 
       {libraries.length === 0 ? (
-        <div className="rounded-2xl border bg-gradient-to-br from-primary/[0.06] to-card p-8 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div className="rounded-2xl border-[1.5px] border-dashed border-input p-8 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-highlight text-primary">
             <Library className="h-6 w-6" />
           </div>
-          <p className="mt-4 font-semibold">Nothing shared with you yet</p>
+          <p className="mt-4 font-serif text-lg font-semibold italic">Nothing shared with you yet</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
             When someone on this server shares their library, they&apos;ll send you an
             invitation link. Open it and the library appears here for good.
@@ -36,13 +36,13 @@ export default async function SharedLibrariesPage() {
             <Link
               key={lib.id}
               href={`/shared/${lib.id}`}
-              className="group flex items-start gap-4 rounded-2xl border bg-gradient-to-br from-card to-primary/[0.05] p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+              className="group flex items-start gap-4 rounded-2xl bg-muted p-4 transition-colors hover:bg-secondary"
             >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/75 text-primary-foreground shadow-md shadow-primary/25">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-highlight text-primary">
                 <BookOpen className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <p className="truncate font-semibold leading-tight group-hover:text-primary">
+                <p className="truncate font-serif text-lg font-semibold leading-tight group-hover:text-primary">
                   {lib.ownerHouseholdName}
                 </p>
                 {lib.label && (

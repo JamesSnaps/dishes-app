@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
-import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea } from "@dishes/ui";
+import { AiButton, Button, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea } from "@dishes/ui";
 import { generateSimilarConcepts, startRecipeJob } from "@/app/actions/ai";
 import { useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
 import type { RecipeJobResult } from "@/lib/ai/job-types";
@@ -28,9 +28,9 @@ function cuisineEmoji(cuisine: string): string {
 }
 
 function difficultyClass(d: string) {
-  if (d === "easy") return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800";
-  if (d === "hard") return "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800";
-  return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-800";
+  if (d === "easy") return "bg-success-tint text-success";
+  if (d === "hard") return "bg-destructive/10 text-destructive";
+  return "bg-warning-tint text-warning";
 }
 
 // ── Concept card ──────────────────────────────────────────────────────────────
@@ -46,27 +46,28 @@ function SimilarConceptCard({
   const emoji = cuisineEmoji(concept.cuisine);
   return (
     <div
-      className={`flex flex-col rounded-xl border bg-card overflow-hidden transition-shadow hover:shadow-md ${disabled && !isGenerating ? "opacity-60 pointer-events-none" : ""}`}
+      className={`flex flex-col rounded-2xl bg-muted overflow-hidden transition-colors hover:bg-secondary/60 ${disabled && !isGenerating ? "opacity-60 pointer-events-none" : ""}`}
     >
-      <div className="flex h-20 items-center justify-center bg-gradient-to-br from-violet-50 via-orange-50 to-amber-50 dark:from-violet-950/60 dark:via-orange-950/40 dark:to-amber-950/50 text-4xl select-none">
+      <div className="flex h-20 items-center justify-center bg-plate text-4xl select-none">
         {emoji}
       </div>
       <div className="flex flex-col flex-1 gap-2 p-3">
-        <h3 className="font-semibold text-sm leading-snug">{concept.title}</h3>
+        <h3 className="font-serif font-semibold text-[15px] leading-snug">{concept.title}</h3>
         <p className="text-xs text-muted-foreground line-clamp-2 flex-1">{concept.description}</p>
         <div className="flex flex-wrap gap-1">
           {concept.cuisine && (
-            <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-400">
+            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
               {concept.cuisine}
             </span>
           )}
-          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs capitalize ${difficultyClass(concept.difficulty)}`}>
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${difficultyClass(concept.difficulty)}`}>
             {concept.difficulty}
           </span>
         </div>
         <Button
           size="sm"
-          className="w-full gap-1.5 mt-1 bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
+          variant="ink"
+          className="w-full gap-1.5 mt-1"
           onClick={onSelect}
           disabled={disabled}
         >
@@ -225,13 +226,9 @@ export function SimilarRecipesButton({
                   }}
                 />
               </div>
-              <Button
-                className="w-full bg-gradient-to-r from-violet-600 to-orange-500 hover:from-violet-700 hover:to-orange-600 border-0 text-white"
-                onClick={() => runGenerateConcepts(note)}
-              >
-                <Sparkles className="mr-2 h-4 w-4" />
+              <AiButton className="w-full" onClick={() => runGenerateConcepts(note)}>
                 Generate ideas
-              </Button>
+              </AiButton>
             </div>
           )}
 

@@ -10,10 +10,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Salad, Utensils } from "lucide-react";
+import { Pencil, Utensils } from "lucide-react";
 import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
 import {
-  Button,
+  AiButton,
   cn,
   Dialog,
   DialogContent,
@@ -62,8 +62,8 @@ export function RecipeRoleBadge({
         className={cn(
           "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors",
           role
-            ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm hover:from-orange-600 hover:to-rose-600"
-            : "border border-dashed border-orange-400/70 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-300 dark:hover:bg-orange-950/40"
+            ? "bg-highlight text-primary hover:bg-highlight/70"
+            : "border-[1.5px] border-dashed border-input text-muted-foreground hover:bg-muted"
         )}
       >
         <Utensils className="h-3 w-3" />
@@ -91,8 +91,8 @@ export function RecipeRoleBadge({
                   onClick={() => choose(option)}
                   className={
                     active
-                      ? "rounded-full bg-gradient-to-r from-orange-500 to-rose-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm"
-                      : "rounded-full border border-orange-300/80 bg-orange-50 px-4 py-1.5 text-sm font-medium text-orange-900 shadow-sm hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200 dark:hover:bg-orange-950/70"
+                      ? "rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                      : "rounded-full bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/70"
                   }
                 >
                   {MEAL_ROLE_LABELS[option]}
@@ -106,16 +106,15 @@ export function RecipeRoleBadge({
               : "Not marked yet, so the planner treats it as a main."}
           </p>
           {error && <p className="text-xs text-destructive">{error}</p>}
-          <Button
+          <AiButton
             onClick={() => {
               setOpen(false);
               setSideOpen(true);
             }}
-            className="w-fit gap-2 bg-gradient-to-r from-emerald-500 to-lime-600 text-white shadow-sm hover:from-emerald-600 hover:to-lime-700"
+            className="w-fit"
           >
-            <Salad className="h-4 w-4" />
             Generate a side dish
-          </Button>
+          </AiButton>
         </DialogContent>
       </Dialog>
 
