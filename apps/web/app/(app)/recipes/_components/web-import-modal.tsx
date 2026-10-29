@@ -122,7 +122,8 @@ export function WebImportModal({ onImport, initialUrl }: WebImportModalProps) {
         <Button
           type="button"
           size="sm"
-          className="gap-1.5 bg-gradient-to-r from-sky-500 to-cyan-600 text-white shadow-sm hover:from-sky-600 hover:to-cyan-700"
+          variant="secondary"
+          className="gap-1.5"
         >
           <Globe className="h-4 w-4" />
           Import from web
@@ -136,8 +137,8 @@ export function WebImportModal({ onImport, initialUrl }: WebImportModalProps) {
 
         {phase === "importing" ? (
           <div className="flex flex-col items-center justify-center gap-4 py-10">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-sky-500/20 to-cyan-600/20 flex items-center justify-center ring-4 ring-sky-500/10">
-              <Loader2 className="h-7 w-7 animate-spin text-sky-600" />
+            <div className="h-16 w-16 rounded-full bg-highlight flex items-center justify-center">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
             </div>
             <div className="text-center space-y-1">
               <p className="text-sm font-medium">{IMPORT_MESSAGES[msgIdx]}</p>

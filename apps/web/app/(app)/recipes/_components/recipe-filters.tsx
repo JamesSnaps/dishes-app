@@ -63,7 +63,7 @@ function Segmented({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-xl bg-muted p-1">
+    <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-full bg-muted p-1">
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -72,9 +72,9 @@ function Segmented({
             type="button"
             aria-pressed={on}
             onClick={() => onChange(o.value)}
-            className={`rounded-lg px-2 py-1.5 text-sm font-medium transition-all ${
+            className={`rounded-full px-2 py-1.5 text-sm font-medium transition-all ${
               on
-                ? "bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow-md"
+                ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
             }`}
           >
@@ -167,7 +167,7 @@ function FacetPicker({
               type="button"
               onClick={() => onToggle(v)}
               aria-label={`Remove ${v}`}
-              className="flex items-center gap-1 rounded-full bg-gradient-to-br from-orange-500 to-rose-500 py-1 pl-3 pr-2 text-sm font-medium text-white shadow-sm"
+              className="flex items-center gap-1 rounded-full bg-ink py-1 pl-3 pr-2 text-sm font-medium text-ink-foreground"
             >
               {v}
               <X className="h-3.5 w-3.5 opacity-80" />
@@ -370,15 +370,15 @@ export function RecipeFilters({ cuisines, tags }: Props) {
     (pendingSort !== "newest" ? 1 : 0);
 
   const chip =
-    "flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 py-1 pl-2.5 pr-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20";
+    "flex items-center gap-1 rounded-full bg-highlight py-1 pl-2.5 pr-2 text-xs font-semibold text-primary transition-colors hover:bg-highlight/70";
 
-  const toggleCard = (on: boolean, tone: "primary" | "rose") =>
-    `flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-all ${
+  const toggleCard = (on: boolean, tone: "primary" | "success") =>
+    `flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${
       on
-        ? tone === "rose"
-          ? "border-transparent bg-gradient-to-br from-rose-500 to-pink-500 text-white shadow-md"
-          : "border-transparent bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow-md"
-        : "border-border bg-muted/60 hover:bg-muted"
+        ? tone === "success"
+          ? "bg-success text-card"
+          : "bg-ink text-ink-foreground"
+        : "bg-muted hover:bg-secondary"
     }`;
 
   return (
@@ -390,7 +390,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
           ref={searchRef}
           defaultValue={q}
           placeholder="Search recipes or ingredients…"
-          className="h-11 border-0 bg-muted pl-9 pr-20 focus-visible:ring-1 sm:pr-28"
+          className="h-11 rounded-full border-0 bg-muted pl-9 pr-20 focus-visible:ring-1 sm:pr-28"
           onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -403,16 +403,16 @@ export function RecipeFilters({ cuisines, tags }: Props) {
           type="button"
           onClick={openSheet}
           aria-label={activeFilterCount ? `Filters (${activeFilterCount} on)` : "Filters"}
-          className={`absolute right-1.5 top-1/2 flex h-8 -translate-y-1/2 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold shadow-sm transition-all ${
+          className={`absolute right-1.5 top-1/2 flex h-8 -translate-y-1/2 items-center gap-1.5 rounded-full px-3 text-sm font-semibold shadow-sm transition-all ${
             activeFilterCount > 0
-              ? "bg-gradient-to-br from-orange-500 to-rose-500 text-white"
-              : "border border-border bg-background text-foreground hover:border-primary/50"
+              ? "bg-ink text-ink-foreground"
+              : "bg-card text-foreground hover:bg-secondary"
           }`}
         >
           <SlidersHorizontal className="h-4 w-4" />
           <span className="hidden sm:inline">Filters</span>
           {activeFilterCount > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/25 px-1 text-xs tabular-nums">
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-ink-foreground/25 px-1 text-xs tabular-nums">
               {activeFilterCount}
             </span>
           )}
@@ -454,7 +454,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
             <button
               type="button"
               onClick={() => push({ heart: "" })}
-              className="flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 py-1 pl-2.5 pr-2 text-xs font-medium text-rose-600 hover:bg-rose-500/20 dark:text-rose-400"
+              className="flex items-center gap-1 rounded-full bg-success-tint py-1 pl-2.5 pr-2 text-xs font-semibold text-success hover:bg-success-tint/70"
             >
               <HeartPulse className="h-3 w-3" />
               Heart-healthy
@@ -551,9 +551,9 @@ export function RecipeFilters({ cuisines, tags }: Props) {
                   type="button"
                   aria-pressed={pendingHeart}
                   onClick={() => setPendingHeart((v) => !v)}
-                  className={toggleCard(pendingHeart, "rose")}
+                  className={toggleCard(pendingHeart, "success")}
                 >
-                  <HeartPulse className={`h-4 w-4 ${pendingHeart ? "" : "text-rose-500"}`} />
+                  <HeartPulse className={`h-4 w-4 ${pendingHeart ? "" : "text-success"}`} />
                   Heart-healthy
                   {pendingHeart && <Check className="ml-auto h-4 w-4" />}
                 </button>
@@ -616,7 +616,7 @@ export function RecipeFilters({ cuisines, tags }: Props) {
             <button
               type="button"
               onClick={applyFilters}
-              className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 py-3 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
+              className="h-[52px] w-full rounded-full bg-primary text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Show recipes
               {pendingFilterCount > 0 && (

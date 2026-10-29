@@ -138,7 +138,7 @@ export function RecipeTabs({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${active} ${
+            className={`px-4 py-3 font-serif text-base font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap ${active} ${
               tab.id === "overview" ? "xl:hidden" : ""
             }`}
           >
@@ -180,7 +180,7 @@ export function RecipeTabs({
                 </div>
 
                 {canScale && (
-                  <div className="mb-4 flex items-center gap-3 rounded-xl border bg-gradient-to-br from-primary/5 to-transparent p-3">
+                  <div className="mb-4 flex items-center gap-3 rounded-2xl bg-muted p-3">
                     <span className="text-sm font-medium">Servings</span>
                     <div className="flex items-center gap-1">
                       <button
@@ -188,18 +188,18 @@ export function RecipeTabs({
                         aria-label="Decrease servings"
                         onClick={() => adjustServings(-0.5)}
                         disabled={(desiredServings ?? 0) <= 0.5}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-40"
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-card text-foreground shadow-sm transition-colors hover:bg-secondary disabled:opacity-40"
                       >
                         <Minus className="h-4 w-4" />
                       </button>
-                      <span className="min-w-[3.5rem] text-center text-base font-semibold tabular-nums">
+                      <span className="min-w-[3.5rem] text-center font-serif text-lg font-semibold tabular-nums">
                         {desiredServings}
                       </span>
                       <button
                         type="button"
                         aria-label="Increase servings"
                         onClick={() => adjustServings(0.5)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-card text-foreground shadow-sm transition-colors hover:bg-secondary"
                       >
                         <Plus className="h-4 w-4" />
                       </button>
@@ -222,14 +222,14 @@ export function RecipeTabs({
                 {groupBySection(ingredients).map((group, gi) => (
                   <div key={gi} className={gi > 0 ? "mt-5" : ""}>
                     {group.label && (
-                      <h3 className="mb-2 text-sm font-semibold text-primary">
+                      <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-primary">
                         {group.label}
                       </h3>
                     )}
                     <ul className="space-y-2">
                       {group.items.map((ing) => (
                         <li key={ing.id} className="flex items-baseline gap-2 text-sm">
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-1.5" />
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
                           <span>
                             {ing.amount && (
                               <span className="font-medium">
@@ -265,7 +265,7 @@ export function RecipeTabs({
                 return groupBySection(steps).map((group, gi) => (
                   <div key={gi} className={gi > 0 ? "mt-8" : ""}>
                     {group.label && (
-                      <h3 className="mb-4 text-sm font-semibold text-primary">
+                      <h3 className="mb-4 text-[11px] font-bold uppercase tracking-[0.1em] text-primary">
                         {group.label}
                       </h3>
                     )}
@@ -274,7 +274,7 @@ export function RecipeTabs({
                         counter += 1;
                         return (
                           <li key={step.id} className="flex gap-4">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-highlight font-serif text-base font-semibold text-primary">
                               {counter}
                             </span>
                             <div className="flex-1 pt-1">

@@ -48,7 +48,7 @@ export function AddThisRecipeButton({
           className="gap-2"
           onClick={() => router.push(`/recipes/${done.recipeId}`)}
         >
-          <Check className="h-4 w-4 text-emerald-600" />
+          <Check className="h-4 w-4 text-success" />
           {done.wasDuplicate ? "Already yours — open it" : "Added — open it"}
         </Button>
       </div>

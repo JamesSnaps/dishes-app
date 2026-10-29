@@ -202,7 +202,7 @@ export function PhotoImportModal({ onImport }: PhotoImportModalProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="gap-1.5">
+        <Button type="button" variant="secondary" size="sm" className="gap-1.5">
           <Camera className="h-4 w-4" />
           Scan recipe photo
         </Button>
@@ -263,8 +263,8 @@ export function PhotoImportModal({ onImport }: PhotoImportModalProps) {
         {/* ── Analyzing ── */}
         {phase === "analyzing" && (
           <div className="flex flex-col items-center justify-center gap-4 py-10">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-violet-500/20 to-purple-600/20 flex items-center justify-center ring-4 ring-violet-500/10">
-              <Loader2 className="h-7 w-7 animate-spin text-violet-500" />
+            <div className="h-16 w-16 rounded-full bg-highlight flex items-center justify-center">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
             </div>
             <div className="text-center space-y-1">
               <p className="text-sm font-medium">{SCAN_MESSAGES[msgIdx]}</p>

@@ -1673,3 +1673,23 @@ initials and `RoundAddButton` (now 44pt) are terracotta with `brandForeground` t
 timer/due times use `Theme.brand`. Checked in the iPhone 18 Pro simulator on Settings (serif title,
 terracotta avatar, borderless raised cards). The Fraunces title renders heavier than the web's;
 worth comparing on a device before phase 3. Not checked: iPad, dark mode, the cooking bar live.
+
+### 2026-10-29 — Cookbook phase 3: Recipes (v1.71.1, branch `design/cookbook-phase-3`)
+
+- `RecipeCard` follows DESIGN.md → Recipe card: square photo on a plate (16pt corners), the heart
+  on it, a Fraunces title and one line of meta, no card box. `RecipeGrid` and the browse shelves
+  size the photo square; rows sit 20–24pt apart for the titles.
+- `RecipeImage` shows `PlateView` instead of the grey utensils placeholder, so every screen using it
+  (planner thumbnails too) gets the empty plate.
+- Browse: Tonight is a `highlight` panel (`successTint` once cooked) with primary / secondary pills;
+  "Nothing planned" is a dashed outline; Wrapped is an ink panel. Chips are `secondary`, selected
+  ones `ink`; the Filters button and tag chips likewise.
+- Detail: overline of cuisine · difficulty (tappable), Fraunces title, time and servings in a
+  hairline-divided row, a `secondary` servings capsule, a 52pt primary Start Cooking, serif tabs,
+  italic serif description, step numbers on `highlight`.
+- Nutrition is a `.panel()` with an ink "Estimate with AI"; the role badge and sheet use
+  `highlight` / `secondary`; AI tool sheets use `.ink`; the editor and web import lose orange and
+  sky. Star ratings (`StarRating`) are terracotta, as on the web.
+
+Checked in the iPhone 18 Pro simulator (light): Recipes browse and the Bolognese detail. Not
+checked: iPad, dark mode, the AI sheets and editor on iOS.

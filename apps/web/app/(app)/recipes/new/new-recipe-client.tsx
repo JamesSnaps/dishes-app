@@ -71,10 +71,10 @@ export function NewRecipeClient({ hasAi, defaultImageStyle, allTags = [], import
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border bg-gradient-to-r from-sky-500/10 via-violet-500/5 to-purple-500/10 px-4 py-3 shadow-sm">
+      <div className="rounded-2xl bg-muted px-4 py-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
-            <p className="text-sm font-medium">Start from somewhere</p>
+            <p className="font-serif text-lg font-semibold">Start from somewhere</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {hasAi
                 ? "Import a recipe from a website, scan a photo, or let AI generate ideas."
@@ -94,15 +94,15 @@ export function NewRecipeClient({ hasAi, defaultImageStyle, allTags = [], import
       </div>
 
       {webImport && (
-        <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-sky-500/15 to-cyan-500/10 px-4 py-3 text-sm shadow-sm">
-          <Globe className="h-4 w-4 mt-0.5 shrink-0 text-sky-600" />
+        <div className="flex items-start gap-3 rounded-2xl bg-success-tint px-4 py-3 text-sm">
+          <Globe className="h-4 w-4 mt-0.5 shrink-0 text-success" />
           <div className="space-y-0.5">
             <p className="font-medium">
               Imported{webImport.host ? ` from ${webImport.host}` : ""} — check it over, then save.
             </p>
             {webImport.via && <p className="text-xs text-muted-foreground">{VIA_LABEL[webImport.via]}</p>}
             {webImport.notice && (
-              <p className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+              <p className="flex items-center gap-1 text-xs text-warning">
                 <Info className="h-3.5 w-3.5 shrink-0" />
                 {webImport.notice}
               </p>

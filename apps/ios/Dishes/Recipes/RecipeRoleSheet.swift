@@ -21,13 +21,12 @@ struct RecipeRoleBadge: View {
             .font(.system(size: 12, weight: .semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 3)
-            .foregroundStyle(role == nil ? Color(light: 0xC2410C, dark: 0xFDBA74) : .white)
+            .foregroundStyle(role == nil ? Theme.mutedForeground : Theme.brand)
             .background {
                 if role != nil {
-                    Capsule().fill(LinearGradient(colors: [Color(hex: 0xF97316), Color(hex: 0xF43F5E)],
-                                                  startPoint: .leading, endPoint: .trailing))
+                    Capsule().fill(Theme.highlight)
                 } else {
-                    Capsule().strokeBorder(Color(hex: 0xFB923C).opacity(0.7), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                    Capsule().strokeBorder(Theme.input, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2]))
                 }
             }
         }
@@ -66,16 +65,8 @@ struct RecipeRoleSheet: View {
                             .font(.system(size: 15, weight: active ? .semibold : .medium))
                             .padding(.horizontal, 16)
                             .frame(height: 36)
-                            .foregroundStyle(active ? .white : Color(light: 0x7C2D12, dark: 0xFED7AA))
-                            .background {
-                                if active {
-                                    Capsule().fill(LinearGradient(colors: [Color(hex: 0xF97316), Color(hex: 0xF43F5E)],
-                                                                  startPoint: .leading, endPoint: .trailing))
-                                } else {
-                                    Capsule().fill(Theme.orange50)
-                                    Capsule().strokeBorder(Color(hex: 0xFDBA74).opacity(0.8))
-                                }
-                            }
+                            .foregroundStyle(active ? Theme.brandForeground : Theme.secondaryForeground)
+                            .background(active ? Theme.brand : Theme.secondary, in: Capsule())
                     }
                     .buttonStyle(.plain)
                     .disabled(saving)
@@ -90,9 +81,9 @@ struct RecipeRoleSheet: View {
                 dismiss()
                 generateSide()
             } label: {
-                Label("Generate a side dish", systemImage: "leaf")
+                Label("Generate a side dish", systemImage: "sparkles")
             }
-            .buttonStyle(GradientButtonStyle(gradient: .emeraldTeal))
+            .buttonStyle(.ink)
             .frame(maxWidth: 280)
         }
         .padding(20)

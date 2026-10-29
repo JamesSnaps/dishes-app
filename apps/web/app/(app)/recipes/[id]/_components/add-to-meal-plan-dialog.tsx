@@ -137,7 +137,7 @@ export function AddToMealPlanDialog({
 
         {done ? (
           <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <CheckCircle2 className="h-10 w-10 text-green-500" />
+            <CheckCircle2 className="h-10 w-10 text-success" />
             <p className="text-sm font-medium">Added to your meal plan</p>
             <p className="text-xs text-muted-foreground">
               {new Date(date + "T00:00:00").toLocaleDateString("en-GB", {

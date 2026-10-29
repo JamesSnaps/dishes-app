@@ -519,19 +519,14 @@ extension Recipe {
     @MainActor var photoURL: URL? { AppModel.shared.imageURL(imageUrl) }
 }
 
-/// A recipe photo, or the web's placeholder: bg-muted with a faint utensils icon.
+/// A recipe photo, or the empty plate (packages/ui Plate) while there's none.
 struct RecipeImage: View {
     @Environment(AppModel.self) private var app
     let recipe: Recipe
     var thumbnail = true
 
     var body: some View {
-        let placeholder = ZStack {
-            Theme.muted
-            Image(systemName: "fork.knife")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(Theme.placeholderIcon)
-        }
+        let placeholder = PlateView()
         // Color.clear takes exactly the size it's offered; the photo fills it and is
         // cropped. Without this a wide photo reports its natural width, and a card
         // grows into its neighbours (the burger on James's iPad, 17 Oct 2026).

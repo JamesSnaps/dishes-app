@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Caveat } from "next/font/google";
 import { Wand2 } from "lucide-react";
+import { Plate } from "@dishes/ui";
 
 const caveat = Caveat({ subsets: ["latin"], variable: "--font-caveat", display: "swap" });
 
@@ -47,7 +48,7 @@ export function MemoryCard({ entry, index }: MemoryCardProps) {
     >
       {/* Polaroid frame */}
       <div
-        className="bg-white dark:bg-zinc-100 rounded-sm select-none"
+        className="bg-card rounded-sm select-none"
         style={{
           boxShadow: "0 4px 6px -1px rgba(0,0,0,0.18), 0 2px 4px -2px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04)",
         }}
@@ -55,7 +56,7 @@ export function MemoryCard({ entry, index }: MemoryCardProps) {
         {/* Photo area */}
         <div className="p-2.5 pb-0">
           {entry.photoUrl ? (
-            <div className="relative aspect-square overflow-hidden bg-zinc-200">
+            <div className="relative aspect-square overflow-hidden bg-plate">
               <a href={entry.photoUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -76,7 +77,7 @@ export function MemoryCard({ entry, index }: MemoryCardProps) {
                 title={filterOn ? "Remove vintage filter" : "Apply vintage filter"}
                 className={`absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full transition-all ${
                   filterOn
-                    ? "bg-amber-400/80 text-amber-900 shadow"
+                    ? "bg-warning-tint/90 text-warning shadow"
                     : "bg-black/30 text-white/70"
                 }`}
               >
@@ -84,41 +85,39 @@ export function MemoryCard({ entry, index }: MemoryCardProps) {
               </button>
             </div>
           ) : (
-            <div className="aspect-square bg-zinc-100 flex items-center justify-center">
-              <span className="text-5xl opacity-40">🍽️</span>
-            </div>
+            <Plate alt="No photo" className="aspect-square" />
           )}
         </div>
 
         {/* Caption strip */}
-        <div className="px-3 pt-2.5 pb-4 font-[family-name:var(--font-caveat)] text-zinc-800 space-y-0.5">
+        <div className="px-3 pt-2.5 pb-4 font-[family-name:var(--font-caveat)] text-foreground space-y-0.5">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[17px] leading-tight font-semibold" title={entry.fullDate}>
               {entry.relDate}
             </span>
             {entry.rating != null && (
-              <span className="text-[13px] tracking-tight text-amber-500">
+              <span className="text-[13px] tracking-tight text-primary">
                 {starString(entry.rating)}
               </span>
             )}
           </div>
 
           {entry.occasion && (
-            <div className="text-[15px] text-zinc-600 leading-tight">{entry.occasion}</div>
+            <div className="text-[15px] text-muted-foreground leading-tight">{entry.occasion}</div>
           )}
 
           {entry.cookedFor && entry.cookedFor.length > 0 && (
-            <div className="text-[14px] text-zinc-500 leading-tight">
+            <div className="text-[14px] text-muted-foreground leading-tight">
               with {entry.cookedFor.join(", ")}
             </div>
           )}
 
           {entry.actualDuration && (
-            <div className="text-[13px] text-zinc-400 leading-tight">{entry.actualDuration} min</div>
+            <div className="text-[13px] text-muted-foreground/80 leading-tight">{entry.actualDuration} min</div>
           )}
 
           {entry.notes && (
-            <p className="text-[14px] text-zinc-600 leading-snug italic pt-1">
+            <p className="text-[14px] text-muted-foreground leading-snug italic pt-1">
               &ldquo;{entry.notes}&rdquo;
             </p>
           )}

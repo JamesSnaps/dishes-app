@@ -105,8 +105,8 @@ export function SharedLibraryGrid({
     <div>
       {/* Result banner */}
       {outcome && (
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 p-3.5 shadow-sm">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+        <div className="mb-4 flex items-start gap-3 rounded-2xl bg-success-tint p-3.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success text-card">
             <Check className="h-4 w-4" />
           </div>
           <div className="flex-1 text-sm leading-snug">
@@ -202,13 +202,13 @@ export function SharedLibraryGrid({
       )}
 
       {visible.length === 0 ? (
-        <p className="py-16 text-center text-sm text-muted-foreground">
+        <p className="py-16 text-center font-serif text-lg italic text-muted-foreground">
           {recipes.length === 0
             ? `${ownerName} isn't sharing any recipes right now.`
             : "No recipes match that search."}
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-x-4 xl:grid-cols-5">
           {visible.map((recipe) => {
             const copyId = alreadyImported[recipe.id];
             return (
@@ -223,7 +223,7 @@ export function SharedLibraryGrid({
                   onToggle={toggle}
                 />
                 {copyId && !selectionMode && (
-                  <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-emerald-600/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+                  <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-success px-2 py-0.5 text-[10px] font-semibold text-card shadow">
                     In your library
                   </span>
                 )}
@@ -235,7 +235,7 @@ export function SharedLibraryGrid({
 
       {/* Bulk action bar */}
       {selectionMode && selectedCount > 0 && (
-        <div className="fixed bottom-16 left-4 right-4 z-50 flex items-center gap-3 rounded-2xl bg-foreground px-4 py-3 text-background shadow-xl lg:bottom-4">
+        <div className="fixed bottom-16 left-4 right-4 z-50 flex items-center gap-3 rounded-2xl bg-ink px-4 py-3 text-ink-foreground shadow-xl lg:bottom-4">
           <span className="text-sm font-medium">
             {selectedCount} selected
           </span>

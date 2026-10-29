@@ -108,9 +108,9 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
 
   if (!hasData) {
     return (
-      <div className="rounded-xl border border-orange-200/60 bg-gradient-to-br from-orange-50 to-amber-50 px-4 py-3 dark:border-orange-900/40 dark:from-orange-950/30 dark:to-amber-950/20">
+      <div className="rounded-2xl bg-muted px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-orange-900 dark:text-orange-200">
+          <div className="flex items-center gap-2 text-sm font-medium">
             <Flame className="h-4 w-4" />
             Nutrition
             <span className="text-xs font-normal text-muted-foreground">not worked out yet</span>
@@ -119,31 +119,31 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
             type="button"
             onClick={handleEstimate}
             disabled={pending}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-3.5 text-xs font-semibold text-ink-foreground transition-colors hover:bg-ink/90 disabled:opacity-60"
           >
             {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             {pending ? "Estimating…" : "Estimate"}
           </button>
         </div>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-orange-200/60 bg-gradient-to-br from-orange-50 to-amber-50 dark:border-orange-900/40 dark:from-orange-950/30 dark:to-amber-950/20">
+    <div className="rounded-2xl bg-muted">
       <button
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-left transition-colors hover:bg-orange-100/50 dark:hover:bg-orange-950/40"
+        className="flex w-full items-center justify-between gap-2 rounded-2xl px-4 py-3 text-left transition-colors hover:bg-secondary/60"
       >
-        <span className="flex items-center gap-2 text-orange-900 dark:text-orange-200">
-          <Flame className="h-4 w-4 shrink-0" />
+        <span className="flex items-center gap-2">
+          <Flame className="h-4 w-4 shrink-0 text-primary" />
           <span className="flex flex-wrap items-baseline gap-x-1.5">
             {calories != null ? (
               <>
-                <span className="text-lg font-bold text-orange-900 dark:text-orange-100">{calories}</span>
+                <span className="font-serif text-xl font-semibold">{calories}</span>
                 <span className="text-sm text-muted-foreground">kcal</span>
               </>
             ) : (
@@ -154,9 +154,9 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
             </span>
           </span>
         </span>
-        <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-orange-800 dark:text-orange-300">
+        <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           {data.source === "ai" && open && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground">
               <Sparkles className="h-3 w-3" />
               AI estimate
             </span>
@@ -166,7 +166,7 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
             <span
               title="Heart-healthy: low saturated fat, good fibre"
               aria-label="Heart-healthy"
-              className="inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-1.5 text-[11px] font-semibold text-white shadow-sm sm:px-2.5"
+              className="inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full bg-success-tint px-1.5 text-[11px] font-semibold text-success sm:px-2.5"
             >
               <Heart className="h-3 w-3 fill-current" />
               <span className="hidden whitespace-nowrap sm:inline">Heart-healthy</span>
@@ -185,9 +185,9 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
               .map((m) => (
                 <div
                   key={m.label}
-                  className="rounded-lg bg-white/70 px-3 py-2 text-center shadow-sm dark:bg-white/5"
+                  className="rounded-xl bg-card px-3 py-2 text-center"
                 >
-                  <div className="text-base font-semibold text-foreground">
+                  <div className="font-serif text-lg font-semibold text-foreground">
                     {m.value}
                     <span className="text-xs font-normal text-muted-foreground">{m.unit}</span>
                   </div>
@@ -201,13 +201,13 @@ export function NutritionPanel({ recipeId, nutrition, scaleFactor = 1 }: Props) 
               type="button"
               onClick={handleEstimate}
               disabled={pending}
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-orange-700 hover:underline disabled:opacity-60 dark:text-orange-300"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground hover:underline disabled:opacity-60"
             >
               {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
               {pending ? "Re-estimating…" : "Re-estimate"}
             </button>
           )}
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
         </div>
       )}
     </div>

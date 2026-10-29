@@ -1076,7 +1076,7 @@ export function RecipeForm({
           </button>
         </div>
       ) : imageGenerating ? (
-        <div className="relative w-full aspect-video overflow-hidden rounded-lg border bg-gradient-to-br from-violet-950/60 via-purple-900/40 to-fuchsia-950/60">
+        <div className="relative w-full aspect-video overflow-hidden rounded-2xl bg-ink">
           {/* sweeping shimmer */}
           <div
             className="absolute inset-0 opacity-30"
@@ -1087,22 +1087,22 @@ export function RecipeForm({
             }}
           />
           {/* floating sparkle dots */}
-          <div className="absolute top-5 left-8 h-1.5 w-1.5 rounded-full bg-violet-400 animate-ping" style={{ animationDelay: "0s", animationDuration: "1.6s" }} />
-          <div className="absolute top-10 right-10 h-1 w-1 rounded-full bg-fuchsia-400 animate-ping" style={{ animationDelay: "0.5s", animationDuration: "2s" }} />
-          <div className="absolute bottom-8 left-14 h-1.5 w-1.5 rounded-full bg-purple-300 animate-ping" style={{ animationDelay: "1s", animationDuration: "1.8s" }} />
-          <div className="absolute bottom-5 right-6 h-1 w-1 rounded-full bg-pink-400 animate-ping" style={{ animationDelay: "0.3s", animationDuration: "2.2s" }} />
-          <Star className="absolute top-4 right-4 h-3 w-3 text-violet-400/60 animate-pulse" style={{ animationDelay: "0.8s" }} />
-          <Star className="absolute bottom-6 left-5 h-2.5 w-2.5 text-fuchsia-400/60 animate-pulse" style={{ animationDelay: "0.2s" }} />
+          <div className="absolute top-5 left-8 h-1.5 w-1.5 rounded-full bg-primary animate-ping" style={{ animationDelay: "0s", animationDuration: "1.6s" }} />
+          <div className="absolute top-10 right-10 h-1 w-1 rounded-full bg-ink-foreground/70 animate-ping" style={{ animationDelay: "0.5s", animationDuration: "2s" }} />
+          <div className="absolute bottom-8 left-14 h-1.5 w-1.5 rounded-full bg-primary/70 animate-ping" style={{ animationDelay: "1s", animationDuration: "1.8s" }} />
+          <div className="absolute bottom-5 right-6 h-1 w-1 rounded-full bg-ink-foreground/70 animate-ping" style={{ animationDelay: "0.3s", animationDuration: "2.2s" }} />
+          <Star className="absolute top-4 right-4 h-3 w-3 text-primary/60 animate-pulse" style={{ animationDelay: "0.8s" }} />
+          <Star className="absolute bottom-6 left-5 h-2.5 w-2.5 text-ink-foreground/50 animate-pulse" style={{ animationDelay: "0.2s" }} />
           {/* centre content */}
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-violet-500/30 blur-lg animate-pulse scale-150" />
-              <Wand2 className="relative h-8 w-8 text-violet-300 drop-shadow-[0_0_6px_rgba(167,139,250,0.8)]" style={{ animation: "wand-rock 1.8s ease-in-out infinite" }} />
-              <Sparkles className="absolute -top-2 -right-2 h-4 w-4 text-fuchsia-300 animate-spin" style={{ animationDuration: "3s" }} />
+              <div className="absolute inset-0 rounded-full bg-primary/30 blur-lg animate-pulse scale-150" />
+              <Wand2 className="relative h-8 w-8 text-ink-foreground" style={{ animation: "wand-rock 1.8s ease-in-out infinite" }} />
+              <Sparkles className="absolute -top-2 -right-2 h-4 w-4 text-primary animate-spin" style={{ animationDuration: "3s" }} />
             </div>
             <p
               key={genMsgIdx}
-              className="text-sm font-medium text-violet-200/90 tracking-wide"
+              className="text-sm font-medium text-ink-foreground/90 tracking-wide"
               style={{ animation: "fadeSlideIn 0.4s ease-out" }}
             >
               {GEN_MESSAGES[genMsgIdx]}
@@ -1484,10 +1484,10 @@ export function RecipeForm({
                           })
                         }
                         title="Mark as optional — shown as “(optional)” on the recipe"
-                        className={`col-start-3 row-start-2 flex h-9 items-center justify-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors sm:col-start-auto sm:row-start-auto ${
+                        className={`col-start-3 row-start-2 flex h-9 items-center justify-center gap-1 rounded-full border px-2.5 text-xs font-medium transition-colors sm:col-start-auto sm:row-start-auto ${
                           row.isOptional
-                            ? "border-amber-500/60 bg-amber-500/15 text-amber-700 shadow-sm dark:text-amber-300"
-                            : "border-dashed border-border bg-muted/40 text-muted-foreground hover:border-amber-500/50 hover:text-foreground"
+                            ? "border-transparent bg-warning-tint text-warning"
+                            : "border-dashed border-input text-muted-foreground hover:bg-muted hover:text-foreground"
                         }`}
                       >
                         {row.isOptional && <Check className="h-3.5 w-3.5" />}
@@ -1977,7 +1977,7 @@ export function RecipeForm({
           </div>
           {aiError && <p className="text-sm text-destructive">{aiError}</p>}
           {aiApplied && (
-            <p className="flex items-start gap-1.5 text-sm text-green-600 dark:text-green-400">
+            <p className="flex items-start gap-1.5 text-sm text-success">
               <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
               {aiSummary ?? "Recipe updated — review the changes below and save when ready."}
             </p>

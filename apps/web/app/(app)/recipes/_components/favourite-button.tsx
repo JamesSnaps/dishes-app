@@ -52,7 +52,7 @@ export function FavouriteButton({ recipeId, isFavourite, size = "md" }: Props) {
     >
       <Heart
         className={`${iconSize} transition-colors ${
-          isFavourite ? "fill-rose-500 text-rose-500" : "text-muted-foreground"
+          isFavourite ? "fill-primary text-primary" : "text-muted-foreground"
         }`}
       />
     </button>

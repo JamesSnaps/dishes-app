@@ -78,12 +78,8 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext, image
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="lg"
-            className="w-full border-violet-300 bg-gradient-to-r from-violet-50 to-orange-50 text-violet-700 hover:from-violet-100 hover:to-orange-100 dark:border-violet-800 dark:from-violet-950/60 dark:to-orange-950/40 dark:text-violet-300 sm:w-auto"
-          >
-            <Sparkles className="mr-2 h-5 w-5" />
+          <Button variant="ink" size="lg" className="w-full sm:w-auto">
+            <Sparkles />
             Ask AI
             <ChevronDown className="ml-1.5 h-4 w-4 opacity-70" />
           </Button>
@@ -95,7 +91,7 @@ export function RecipeAiMenu({ recipeId, recipeTitle, recipe, cookContext, image
               onSelect={onSelect}
               className="flex items-start gap-2.5 py-2.5"
             >
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium leading-none">{label}</span>
                 <span className="text-xs text-muted-foreground">{hint}</span>

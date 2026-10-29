@@ -1,5 +1,5 @@
 // Nutrition, as the web's panel (recipes/[id]/_components/nutrition-panel.tsx):
-// the orange-to-amber callout, collapsed to its kcal line until tapped (the
+// a muted panel, collapsed to its kcal line until tapped (the
 // open/closed choice is remembered on the device), then protein, carbs, fat,
 // saturated fat, fibre, sugar and sodium in a grid — per serving, so the
 // servings stepper doesn't change them — an "AI estimate" tag, and the heart-healthy badge
@@ -27,7 +27,7 @@ struct NutritionPanel: View {
                     Text("Nutrition").font(.system(size: 15, weight: .semibold))
                     Spacer()
                 }
-                .foregroundStyle(Color(hex: 0x9A3412))
+                .foregroundStyle(Theme.foreground)
             }
 
             if recipe.hasNutrition, open {
@@ -37,8 +37,8 @@ struct NutritionPanel: View {
                         .font(.system(size: 11, weight: .medium))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
-                        .background(Color(hex: 0xFFEDD5), in: Capsule())
-                        .foregroundStyle(Color(hex: 0xC2410C))
+                        .background(Theme.secondary, in: Capsule())
+                        .foregroundStyle(Theme.secondaryForeground)
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], spacing: 8) {
                     macro("Protein", recipe.proteinG, "g")
@@ -61,21 +61,14 @@ struct NutritionPanel: View {
                     }
                 } label: {
                     Label(estimating ? "Estimating…" : "Estimate with AI", systemImage: "sparkles")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .frame(height: 36)
-                        .background(LinearGradient(colors: [Color(hex: 0xF97316), Color(hex: 0xF59E0B)],
-                                                   startPoint: .leading, endPoint: .trailing),
-                                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PillButtonStyle(kind: .ink, height: 38))
                 .disabled(estimating)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, recipe.hasNutrition && !open ? 12 : 16)
-        .callout(Theme.orange50, Theme.amber50, border: Color(hex: 0xFED7AA).opacity(0.7))
+        .panel()
     }
 
     /// 🔥 520 kcal per serving · Heart-healthy · Nutrition ⌄ — the always-visible line.
@@ -90,9 +83,9 @@ struct NutritionPanel: View {
 
     private func summaryRow(compactBadge: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: "flame").foregroundStyle(Color(hex: 0x9A3412))
+            Image(systemName: "flame").foregroundStyle(Theme.brand)
             if let kcal = recipe.calories {
-                Text("\(Int(kcal.rounded()))").font(.system(size: 20, weight: .bold)).foregroundStyle(Color(hex: 0x7C2D12))
+                Text("\(Int(kcal.rounded()))").font(Theme.serif(22)).foregroundStyle(Theme.foreground)
                 Text("kcal").font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
             }
             Text("per serving").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
@@ -111,17 +104,16 @@ struct NutritionPanel: View {
                     }
                 }
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.success)
                 .lineLimit(1)
-                .background(LinearGradient(colors: [Color(hex: 0xF43F5E), Color(hex: 0xEC4899)],
-                                           startPoint: .leading, endPoint: .trailing), in: Capsule())
+                .background(Theme.successTint, in: Capsule())
             }
             if !open {
-                Text("Nutrition").font(.system(size: 13, weight: .medium)).foregroundStyle(Color(hex: 0x9A3412))
+                Text("Nutrition").font(.system(size: 13, weight: .medium)).foregroundStyle(Theme.mutedForeground)
             }
             Image(systemName: "chevron.down")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color(hex: 0x9A3412))
+                .foregroundStyle(Theme.mutedForeground)
                 .rotationEffect(.degrees(open ? 180 : 0))
         }
     }
@@ -133,12 +125,12 @@ struct NutritionPanel: View {
                 Text(label).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.mutedForeground)
                 Text("\(value.formatted(.number.precision(.fractionLength(0...digits)))) \(unit)")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(warn ? Color(hex: 0xBE123C) : Theme.foreground)
+                    .foregroundStyle(warn ? Theme.destructive : Theme.foreground)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(Theme.card.opacity(0.75), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 }

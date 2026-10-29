@@ -158,7 +158,7 @@ export function GenerateFromRecipeButton({ recipes }: Props) {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleOverride(item.ingredientName)}
-                        className="h-4 w-4 rounded border-gray-300 accent-primary"
+                        className="h-4 w-4 rounded border-input accent-primary"
                       />
                       <div className="flex-1 min-w-0">
                         <span className={`text-sm ${checked ? "text-foreground" : "text-muted-foreground line-through"}`}>

@@ -137,7 +137,7 @@ export function ShareRecipeSheet({ recipeId, recipeTitle, hasSmtp }: Props) {
                     onClick={() => copyToClipboard(t.url, t.id)}
                   >
                     {copied === t.id ? (
-                      <Check className="h-3.5 w-3.5 text-green-600" />
+                      <Check className="h-3.5 w-3.5 text-success" />
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
@@ -197,7 +197,7 @@ export function ShareRecipeSheet({ recipeId, recipeTitle, hasSmtp }: Props) {
                 </Button>
               </div>
               {emailSent && (
-                <p className="text-sm text-green-600">Email sent!</p>
+                <p className="text-sm text-success">Email sent!</p>
               )}
             </div>
           )}

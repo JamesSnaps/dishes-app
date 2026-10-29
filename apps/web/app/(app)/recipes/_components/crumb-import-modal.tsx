@@ -268,8 +268,8 @@ export function CrumbImportModal({ trigger }: { trigger?: React.ReactNode } = {}
         {phase === "done" && result && (
           <div className="space-y-4">
             {result.imported.length > 0 && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40 p-4 space-y-2">
-                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+              <div className="rounded-2xl bg-success-tint p-4 space-y-2">
+                <div className="flex items-center gap-2 text-success">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span className="text-sm font-medium">
                     {result.imported.length} recipe{result.imported.length !== 1 ? "s" : ""} imported
@@ -277,7 +277,7 @@ export function CrumbImportModal({ trigger }: { trigger?: React.ReactNode } = {}
                 </div>
                 <ul className="space-y-1 pl-6">
                   {result.imported.map((r) => (
-                    <li key={r.id} className="text-xs text-emerald-700 dark:text-emerald-400">
+                    <li key={r.id} className="text-xs text-success">
                       {r.title}
                     </li>
                   ))}

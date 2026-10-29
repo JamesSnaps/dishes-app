@@ -2,8 +2,8 @@
 
 import { isMealRole, MEAL_ROLE_LABELS } from "@dishes/shared";
 import Link from "next/link";
-import { Check, Clock, Flame, HeartPulse, UtensilsCrossed } from "lucide-react";
-import { Badge, Card, cn } from "@dishes/ui";
+import { Check, Flame, HeartPulse, Sparkles } from "lucide-react";
+import { Plate, cn } from "@dishes/ui";
 import { FavouriteButton } from "./favourite-button";
 import { StarRating } from "../[id]/_components/star-rating";
 
@@ -50,7 +50,6 @@ function totalTime(prep: number | null, cook: number | null): string | null {
 export function RecipeCard({
   id,
   title,
-  description,
   cuisine,
   mealRole,
   prepTimeMinutes,
@@ -72,30 +71,31 @@ export function RecipeCard({
 }: RecipeCardProps) {
   const time = totalTime(prepTimeMinutes, cookTimeMinutes);
 
+  // Per DESIGN.md → Recipe card: the photo on a plate, a serif title and one
+  // line of meta. No card box.
+  const meta = [time, cuisine, isMealRole(mealRole) ? MEAL_ROLE_LABELS[mealRole] : null]
+    .filter(Boolean)
+    .join(" · ");
+  const rated = (cookCount ?? 0) > 0;
+
   const cardContent = (
-    <Card className={cn(
-      "overflow-hidden transition-all hover:shadow-md h-full",
-      selectable && selected && "ring-2 ring-primary ring-offset-2"
-    )}>
-      {/* Image / placeholder */}
-      <div className="relative aspect-[4/3] bg-muted flex items-center justify-center">
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={thumbnailUrl ?? imageUrl}
-            alt={title}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30" />
-        )}
+    <div className="h-full">
+      <div className="relative">
+        <Plate
+          src={imageUrl ? thumbnailUrl ?? imageUrl : null}
+          alt={title}
+          className={cn(
+            "aspect-square w-full rounded-2xl transition-[transform,box-shadow] duration-200 group-hover:shadow-md",
+            selectable && selected && "ring-[3px] ring-primary ring-offset-2 ring-offset-background"
+          )}
+        />
 
         {selectable ? (
           <div className={cn(
             "absolute top-2 left-2 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all shadow-sm",
             selected
               ? "bg-primary border-primary text-primary-foreground"
-              : "bg-white/90 border-gray-300"
+              : "bg-card/90 border-input"
           )}>
             {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
           </div>
@@ -104,73 +104,50 @@ export function RecipeCard({
             <FavouriteButton recipeId={id} isFavourite={isFavourite} size="sm" />
           </div>
         )}
-      </div>
 
-      {/* Content */}
-      <div className="p-3">
-        <h3 className="font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-          {title}
-        </h3>
-
-        {description && (
-          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-            {description}
-          </p>
-        )}
-
-        {/* Rating row */}
-        {(cookCount ?? 0) > 0 && (
-          <div className="mt-2 flex items-center gap-1.5">
-            <StarRating value={averageRating ?? null} readonly size="sm" />
-            {averageRating != null && (
-              <span className="text-xs text-muted-foreground">{averageRating / 2}/5</span>
-            )}
-          </div>
-        )}
-
-        {(cuisine || mealRole || isAiGenerated || heartHealthy) && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {isMealRole(mealRole) && <Badge variant="secondary" className="text-xs">{MEAL_ROLE_LABELS[mealRole]}</Badge>}
-            {cuisine && (
-              <Badge variant="secondary" className="text-xs">
-                {cuisine}
-              </Badge>
-            )}
-            {isAiGenerated && (
-              <Badge variant="outline" className="text-xs">
-                AI
-              </Badge>
-            )}
+        {(heartHealthy || isAiGenerated) && (
+          <div className="absolute bottom-2 left-2 flex gap-1">
             {heartHealthy && (
               <span
                 title="Heart-healthy: low saturated fat, good fibre"
-                className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-2 py-0.5 text-xs font-medium text-white shadow-sm"
+                aria-label="Heart-healthy"
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-success text-card shadow-sm"
               >
-                <HeartPulse className="h-3 w-3" />
-                Heart-healthy
+                <HeartPulse className="h-3.5 w-3.5" />
+              </span>
+            )}
+            {isAiGenerated && (
+              <span
+                title="Made with AI"
+                className="flex h-6 items-center gap-0.5 rounded-full bg-ink px-2 text-[11px] font-semibold text-ink-foreground shadow-sm"
+              >
+                <Sparkles className="h-3 w-3" />
+                AI
               </span>
             )}
           </div>
         )}
+      </div>
 
-        {(calories != null || time) && (
-          <div className="mt-2 flex items-center text-xs text-muted-foreground">
+      <div className="px-0.5 pt-2">
+        <h3 className="font-serif text-[15px] font-semibold leading-snug line-clamp-2 transition-colors group-hover:text-primary sm:text-base">
+          {title}
+        </h3>
+        {meta && <p className="mt-0.5 truncate text-xs text-muted-foreground">{meta}</p>}
+
+        {(rated || calories != null) && (
+          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+            {rated && <StarRating value={averageRating ?? null} readonly size="sm" />}
             {calories != null && (
-              <span className="flex items-center gap-1">
+              <span className={cn("flex items-center gap-1", rated && "ml-auto")}>
                 <Flame className="h-3 w-3" />
                 {calories} kcal
               </span>
             )}
-            {time && (
-              <span className="ml-auto flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {time}
-              </span>
-            )}
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 
   if (selectable) {

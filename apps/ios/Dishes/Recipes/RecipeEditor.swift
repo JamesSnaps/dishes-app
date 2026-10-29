@@ -90,7 +90,7 @@ struct RecipeEditor: View {
                             Image(systemName: draft.engine == .device ? "apple.intelligence" : "sparkles").foregroundStyle(Theme.brand)
                         }
                     }
-                    .listRowBackground(Theme.orange50)
+                    .listRowBackground(Theme.highlight)
                 }
                 Section("Recipe") {
                     TextField("Title", text: $title)
@@ -156,10 +156,10 @@ struct RecipeEditor: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(alignment: .top, spacing: 10) {
                                 Text("\(index + 1)")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(Theme.brandDeep)
-                                    .frame(width: 24, height: 24)
-                                    .background(Theme.orange50, in: Circle())
+                                    .font(Theme.serif(14))
+                                    .foregroundStyle(Theme.brand)
+                                    .frame(width: 26, height: 26)
+                                    .background(Theme.highlight, in: Circle())
                                 TextField("What to do", text: $step.instruction, axis: .vertical).lineLimit(2...8)
                             }
                             // The step's timer: minutes turn it on; cooking mode offers it as a button.

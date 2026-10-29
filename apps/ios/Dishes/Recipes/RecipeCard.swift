@@ -1,16 +1,15 @@
-// The web's recipe card (app/(app)/recipes/_components/recipe-card.tsx), line
-// for line: a 4:3 photo or the muted utensils placeholder with the favourite
-// heart in the corner, then title, two lines of description, role and cuisine
-// badges, and kcal on the left with the total time on the right.
+// The web's recipe card (app/(app)/recipes/_components/recipe-card.tsx), per
+// DESIGN.md → Recipe card: a square photo on a plate with the favourite heart
+// on it, a serif title under it and one line of meta ("45m · Japanese · Main").
+// No card box.
 //
-// Cards in a row are stretched to the tallest, with the time line pinned to the
-// bottom — the web gets that from `h-full` on a CSS grid (RecipeGrid here).
+// Cards in a row are stretched to the tallest (RecipeGrid), as the web's CSS grid does.
 
 import DishesCore
 import SwiftUI
 
 extension EnvironmentValues {
-    /// The photo height for the card's column width (4:3), set by RecipeGrid. An
+    /// The photo's side for the card's column width (square), set by RecipeGrid. An
     /// aspect-ratio frame would shrink when the row stretches cards to equal height.
     @Entry var recipeCardImageHeight: CGFloat?
 }
@@ -20,17 +19,23 @@ struct RecipeCard: View {
     @Environment(\.recipeCardImageHeight) private var imageHeight
     let recipe: Recipe
 
+    private var meta: String {
+        [Format.shortMinutes(recipe.totalMinutes), recipe.cuisine, recipe.mealRole.flatMap { Self.roleLabels[$0] }]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Group {
                 if let imageHeight {
                     Color.clear.frame(maxWidth: .infinity).frame(height: imageHeight)
                 } else {
-                    Color.clear.aspectRatio(4.0 / 3.0, contentMode: .fit)
+                    Color.clear.aspectRatio(1, contentMode: .fit)
                 }
             }
                 .overlay { RecipeImage(recipe: recipe) }
-                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     HeartButton(isFavourite: recipe.isFavourite) {
                         Task { await app.toggleFavourite(recipe) }
@@ -38,52 +43,32 @@ struct RecipeCard: View {
                     .padding(8)
                 }
 
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(recipe.title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(Theme.serif(16))
                     .foregroundStyle(Theme.foreground)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
-                if let description = recipe.description, !description.isEmpty {
-                    Text(description)
+                if !meta.isEmpty {
+                    Text(meta)
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.mutedForeground)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 4)
+                        .lineLimit(1)
                 }
-                if recipe.mealRole != nil || recipe.cuisine != nil {
-                    HStack(spacing: 6) {
-                        if let role = recipe.mealRole, let label = Self.roleLabels[role] { BadgeView(text: label) }
-                        if let cuisine = recipe.cuisine { BadgeView(text: cuisine) }
-                    }
-                    .padding(.top, 8)
+                if let kcal = recipe.calories {
+                    Label("\(Int(kcal)) kcal", systemImage: "flame")
+                        .labelStyle(TightLabel())
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.mutedForeground)
                 }
-                Spacer(minLength: 0)
-
-                HStack(spacing: 4) {
-                    if let kcal = recipe.calories {
-                        Label("\(Int(kcal)) kcal", systemImage: "flame")
-                    }
-                    Spacer(minLength: 4)
-                    if let time = Format.shortMinutes(recipe.totalMinutes) {
-                        Label(time, systemImage: "clock")
-                    }
-                }
-                .labelStyle(TightLabel())
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.mutedForeground)
-                .frame(height: 16)
-                .padding(.top, 8)
             }
-            .padding(12)
+            .padding(.horizontal, 2)
+            .padding(.top, 8)
             .frame(maxHeight: .infinity, alignment: .top)
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .card()
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
     }
 
     /// MEAL_ROLE_LABELS in @dishes/shared ("other" shows as Extra).
@@ -113,6 +98,8 @@ struct RecipeGrid<Card: View>: View {
     @State private var width: CGFloat = 0
 
     private var spacing: CGFloat { sizeClass == .regular ? 18 : 12 }
+    /// Rows sit further apart than columns: the titles under the photos need the room.
+    private var rowSpacing: CGFloat { sizeClass == .regular ? 24 : 20 }
     private var columns: Int {
         sizeClass == .regular ? max(2, min(7, Int((width + spacing) / (200 + spacing)))) : 2
     }
@@ -122,7 +109,7 @@ struct RecipeGrid<Card: View>: View {
         let columnWidth = (width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
         let shown = maxRows.map { Array(recipes.prefix($0 * columns)) } ?? recipes
         let rows = stride(from: 0, to: shown.count, by: columns).map { Array(shown[$0..<min($0 + columns, shown.count)]) }
-        LazyVStack(spacing: spacing) {
+        LazyVStack(spacing: rowSpacing) {
             ForEach(Array(rows.enumerated()), id: \.element.first?.id) { n, row in
                 HStack(alignment: .top, spacing: spacing) {
                     ForEach(row) { card($0).frame(maxWidth: .infinity, maxHeight: .infinity) }
@@ -133,7 +120,7 @@ struct RecipeGrid<Card: View>: View {
                 .onAppear { ImageCache.shared.prefetch(rows.dropFirst(n + 1).prefix(2).flatMap { $0 }.compactMap(\.thumbnailURL)) }
             }
         }
-        .environment(\.recipeCardImageHeight, width > 0 ? (columnWidth * 3 / 4).rounded() : nil)
+        .environment(\.recipeCardImageHeight, width > 0 ? columnWidth.rounded() : nil)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
