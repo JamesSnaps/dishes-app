@@ -1642,5 +1642,5 @@ renders. Not checked: a real set of picks. The dev database was down (Docker stu
 AI key locally.
 
 Uploaded to TestFlight as 1.70.0 (build 202610290758) from main, after PR #75 merged. Server
-deployed the day before (migration 0049 applied by hand first). Help me choose has worked on the
-server from the web and from ChatGPT and Claude.
+deployed the day before (migration 0049 applied by hand first); James had the ChatGPT setup
+working against it. Help me choose itself is still to try on a device.
