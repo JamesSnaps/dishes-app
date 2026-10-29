@@ -107,6 +107,7 @@ The family profile picker (Phase 2) is a household-level UX feature — switchin
 - Server Actions or API route handlers for all AI, import, and write operations — never client-side in the web app (the iOS app's on-device model is the exception; anything using the household key stays on the server)
 - Tailwind for all styling — no CSS modules or styled-components
 - All database queries scoped to household — this is not optional
+- Logic that's easy to get subtly wrong has a `check:*` script in `apps/web/scripts/` (`pnpm --filter @dishes/web check:<name>`, run with `tsx`). The `Checks` workflow runs them all on every PR except `check:share-scope`, which needs the dev database (it reads `DATABASE_URL` from `.env.local`). Add a new one to that workflow too.
 - **Design system: `DESIGN.md` ("Cookbook").** Follow its colour rules, tokens and components for all UI, web and iOS. Every colour has one job: terracotta `primary` for the main action, `ink` for AI, `success`/`warning`/`destructive` for state. Use the theme tokens (`bg-primary`, `bg-muted`, `text-muted-foreground`, `bg-highlight`…) and never raw palette classes (`bg-orange-500`), `bg-white`, arbitrary hex or gradients; on iOS use `Theme` and `.buttonStyle(.primary / .secondary / .ink)`. `pnpm --filter @dishes/web check:colours` enforces this in CI with a baseline of zero. Interactive elements must look obviously clickable: filled pill buttons, never bare text or ghost-only styling for a primary action.
 
 ## iOS App (`apps/ios`)
