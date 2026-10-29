@@ -89,8 +89,8 @@ struct OutsideMealSheet: View {
             }
             .background(Theme.background)
             .navigationDestination(isPresented: $choosing) {
-                MenuChooserView(date: dayKey, initialDiners: ate) { picks, chosen, photo in
-                    apply(picks, chosen, menuPhoto: photo)
+                MenuChooserView(date: dayKey, initialDiners: ate) { restaurant, chosen, photo in
+                    apply(restaurant, chosen, menuPhoto: photo)
                 }
             }
             .navigationTitle(meal.map { $0.kind.label } ?? (isPlan ? "Not cooking" : "Log a meal out"))
@@ -580,9 +580,9 @@ struct OutsideMealSheet: View {
     /// as the web sheet): one dish fills in the dish and its menu line, several
     /// become courses; a plan keeps only the names. The menu photo is kept for
     /// the estimate, unless the meal has one already.
-    private func apply(_ picks: MenuPicks, _ chosen: [MenuPicks.Chosen], menuPhoto photo: UIImage?) {
-        let a = picks.apply(chosen, everyone: app.members.map(\.displayName), isPlan: isPlan,
-                            placeIsEmpty: trimmed(place) == nil)
+    private func apply(_ restaurant: MenuPicks.Restaurant?, _ chosen: [MenuPicks.Chosen], menuPhoto photo: UIImage?) {
+        let a = MenuPicks.apply(chosen, restaurant: restaurant, everyone: app.members.map(\.displayName), isPlan: isPlan,
+                                placeIsEmpty: trimmed(place) == nil)
         if let p = a.place { place = p }
         ate = Set(a.eatenBy)
         if isPlan {

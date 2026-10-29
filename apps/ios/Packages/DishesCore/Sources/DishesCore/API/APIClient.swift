@@ -459,8 +459,10 @@ public final class APIClient: SyncTransport, Sendable {
         try await slowPost("/outside-meals/\(id)/estimate", json: [String: String](), timeout: 90, as: JSONValue.self)
     }
 
-    /// What "Help me choose" is given: the menu, any of photos (up to 4), a
-    /// PDF, a link or its text, and who's eating (none means everyone).
+    /// What "Help me choose" is given: the menu (photos, up to 4; a PDF; a
+    /// link; its text) — or, for a swap, the menu the first answer read — who's
+    /// eating (none means everyone), the courses and moods wanted, and for
+    /// "Something else" whose course to change and what they've seen.
     public struct MenuPicksRequest: Sendable {
         public var date: String
         public var members: [String]
@@ -469,29 +471,73 @@ public final class APIClient: SyncTransport, Sendable {
         public var pdf: Data?
         public var link: String?
         public var text: String?
+        public var courses: [String]
+        public var moods: [String]
+        public var note: String?
+        public var menu: MenuPicks.Menu?
+        public var swapDiner: String?
+        public var swapCourse: String?
+        public var exclude: [Int]
+        public var hint: String?
 
-        public init(date: String, members: [String], photos: [Data] = [], pdf: Data? = nil, link: String? = nil, text: String? = nil) {
-            self.date = date; self.members = members; self.photos = photos; self.pdf = pdf; self.link = link; self.text = text
+        public init(date: String, members: [String], photos: [Data] = [], pdf: Data? = nil, link: String? = nil,
+                    text: String? = nil, courses: [String] = [], moods: [String] = [], note: String? = nil,
+                    menu: MenuPicks.Menu? = nil, swapDiner: String? = nil, swapCourse: String? = nil,
+                    exclude: [Int] = [], hint: String? = nil) {
+            self.date = date; self.members = members; self.photos = photos; self.pdf = pdf; self.link = link
+            self.text = text; self.courses = courses; self.moods = moods; self.note = note; self.menu = menu
+            self.swapDiner = swapDiner; self.swapCourse = swapCourse; self.exclude = exclude; self.hint = hint
         }
     }
 
-    /// Suggestions from a menu for each person eating, from the diner brief.
-    /// Waits for the AI (10–30 s); nothing is saved. A 400 says why there are
-    /// none (no AI key, a link that won't load, a menu it couldn't read).
-    public func menuPicks(_ request: MenuPicksRequest) async throws -> MenuPicks {
-        let boundary = "dishes-\(UUID().uuidString)"
-        let body = Self.menuPicksBody(request, boundary: boundary)
-        let data = try await send { token in
-            var r = authorisedRequest(url("/outside-meals/menu-picks"), method: "POST", token: token)
-            r.timeoutInterval = 90
-            r.httpBody = body
-            r.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-            return r
+    /// Suggestions from a menu, streamed as the AI works (10–30 s in all): the
+    /// brief's facts, each dish as it's read, the menu, each pick, then done.
+    /// A refusal before it starts (no AI key, an unknown name) throws
+    /// `APIError.http` with the server's message; a failure while working
+    /// arrives as an `.error` event. Nothing is saved.
+    public func menuPicksStream(_ request: MenuPicksRequest) -> AsyncThrowingStream<MenuPicks.Event, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let boundary = "dishes-\(UUID().uuidString)"
+                    let body = Self.menuPicksBody(request, boundary: boundary)
+                    func make(_ token: String?) -> URLRequest {
+                        var r = authorisedRequest(url("/outside-meals/menu-picks"), method: "POST", token: token)
+                        r.timeoutInterval = 120
+                        r.httpBody = body
+                        r.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+                        // JSON too, so a lapsed sign-in answers 401 rather than a login page.
+                        r.setValue("application/x-ndjson, application/json", forHTTPHeaderField: "Accept")
+                        return r
+                    }
+                    let token = try await tokens?.accessToken()
+                    if tokens != nil && token == nil { throw APIError.signedOut }
+                    var (bytes, response) = try await session.bytes(for: make(token))
+                    if (response as? HTTPURLResponse)?.statusCode == 401, let token {
+                        guard let fresh = try await tokens?.refresh(after: token) else { throw APIError.signedOut }
+                        (bytes, response) = try await session.bytes(for: make(fresh))
+                    }
+                    let http = response as? HTTPURLResponse
+                    if let http, !(200..<300).contains(http.statusCode) || !(http.value(forHTTPHeaderField: "Content-Type") ?? "").contains("ndjson") {
+                        var data = Data()
+                        for try await byte in bytes { data.append(byte) }
+                        _ = try Self.check((data, response))
+                        throw APIError.http(status: http.statusCode, code: "bad_response", message: "Couldn’t read the menu — please try again.")
+                    }
+                    let decoder = JSONDecoder()
+                    for try await line in bytes.lines where !line.isEmpty {
+                        continuation.yield(try decoder.decode(MenuPicks.Event.self, from: Data(line.utf8)))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
         }
-        return try JSONDecoder().decode(MenuPicks.self, from: data)
     }
 
-    /// multipart/form-data for `menuPicks`, the fields as the route reads them.
+    /// multipart/form-data for `menuPicksStream`, the fields as the route reads them.
     static func menuPicksBody(_ m: MenuPicksRequest, boundary: String) -> Data {
         var body = Data()
         func add(_ s: String) { body.append(Data(s.utf8)) }
@@ -504,12 +550,21 @@ public final class APIClient: SyncTransport, Sendable {
             body.append(data)
             add("\r\n")
         }
+        let present = { (s: String?) in s.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 } }
         field("date", m.date)
         for member in m.members { field("member", member) }
+        for course in m.courses { field("course", course) }
+        for mood in m.moods { field("mood", mood) }
+        if let note = present(m.note) { field("note", note) }
         for (i, photo) in m.photos.enumerated() { file("photo", "menu-\(i + 1).jpg", "image/jpeg", photo) }
         if let pdf = m.pdf { file("pdf", "menu.pdf", "application/pdf", pdf) }
-        if let link = m.link?.trimmingCharacters(in: .whitespacesAndNewlines), !link.isEmpty { field("url", link) }
-        if let text = m.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { field("text", text) }
+        if let link = present(m.link) { field("url", link.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        if let text = present(m.text) { field("text", text) }
+        if let menu = m.menu, let json = try? JSONEncoder().encode(menu) { field("menu", String(decoding: json, as: UTF8.self)) }
+        if let diner = m.swapDiner { field("swapDiner", diner) }
+        if let course = m.swapCourse { field("swapCourse", course) }
+        for item in m.exclude { field("exclude", String(item)) }
+        if let hint = present(m.hint) { field("hint", hint) }
         add("--\(boundary)--\r\n")
         return body
     }

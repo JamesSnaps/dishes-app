@@ -334,6 +334,12 @@ Scope decisions (28 Oct 2026):
 - [x] B5 — iOS: `MenuChooserView`, pushed from the sheet. Vision reads the photos on the device; the
   text goes up when it read enough, the photos only when it didn't. The PDF comes from Files.
   *`MenuPicks.apply` in DishesCore mirrors the web's `applyChoice`, with tests*
+- [x] More control and a better wait (29 Oct 2026, James on the iOS app): course chips (starter, main,
+  side, dessert, drink) and mood chips plus a note; streamed progress (`application/x-ndjson`): the
+  brief's facts, each dish as the menu is read, each pick as it's made; results by person and course,
+  the best chosen; "Something else" per course with reason chips; "See the whole menu" to choose any
+  dish. Two AI calls now, read then choose by item number (`lib/ai/menu-reader.ts`, `menu-picks.ts`),
+  so a swap only re-runs the second, from the menu already read. Web and iOS (v1.73.0)
 - Not planned: storing past picks, comparing what was ordered with what was suggested, exposing
   the in-app chooser over the integrations API (Claude and ChatGPT do their own choosing in Part A)
 

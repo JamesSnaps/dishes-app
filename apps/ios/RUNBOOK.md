@@ -1718,3 +1718,24 @@ dark mode. The watch app builds; not run. Widgets not looked at on a Home Screen
 Uploaded to TestFlight as 1.72.0 (build 202610291452) from main, after PR #81 merged — carries
 Cookbook phases 1–9 (the first upload since 1.70.0): the new look everywhere, the planner's three
 layouts by width, widgets/watch/share in Cookbook colours. Server deployed the same day.
+
+### 2026-10-29 — Help me choose: more control, a better wait (v1.73.0, branch `feat/menu-chooser-control`)
+
+- **Ask**: course chips (starter, main, side, dessert, drink; main by default), mood chips (light,
+  hearty, healthy, something new, treat) and an optional note.
+- **Wait**: `APIClient.menuPicksStream` reads the NDJSON stream (`URLSession.bytes`, one token
+  refresh on a 401, as `send()`). The panel shows the brief's facts and each dish as it's read: the
+  lines Vision read on the device straight away, then the server's reading replaces them. Picks
+  arrive into their courses as they're made.
+- **Results**: per person (tabs when more than one) and course; the best option chosen
+  automatically, tap to change. "Something else" per course, with reason chips and a text field,
+  sends the menu back with the options already shown excluded. "See the whole menu" chooses any dish,
+  as its section's course (`MenuPicks.course(ofSection:)`).
+- DishesCore: `MenuPicks` is now a namespace (`Event`, `Menu`, `Item`, `Pick`, `Mood`, `apply`).
+  Tests cover decoding every event (an unknown one is ignored), `apply`, the section mapping, and the
+  request body, including a swap.
+
+Built for the iPhone 18 Pro simulator; not yet seen running in one. The iPhone 18 Pro simulator was
+in use by another app, and access to a second one wasn't granted in time. The web chooser was checked
+in the browser against a stubbed stream (ask, live progress, a swap, a dish from the whole menu, "Use
+these 3" into the log).

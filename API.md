@@ -1776,55 +1776,57 @@ Typed-in figures come back untouched.
 ### `POST /api/v1/outside-meals/menu-picks`
 
 "Help me choose": the household's AI reads a menu and suggests dishes for each
-person eating, from the diner brief (`GET /api/integrations/preferences` has the
-same brief). It waits for the AI (10–30 s), and **nothing is saved**: picking a
-dish fills in the log sheet, which saves through the routes above. The web
-reaches it as `/api/web/outside-meals/menu-picks`.
+person eating, for the courses they want and in the mood they're in, from the
+diner brief (`GET /api/integrations/preferences` has the same brief). Two AI
+calls: one reads the menu into numbered dishes, the next chooses from them by
+number, so a pick's dish, line and printed calories are the menu's, word for
+word. **Nothing is saved**: choosing dishes fills in the log sheet, which saves
+through the routes above. The web reaches it as `/api/web/outside-meals/menu-picks`.
 
-`multipart/form-data`. Give the menu as any mix of:
+`multipart/form-data`:
 
 | Field | Description |
 |---|---|
 | `photo` | A photo of the menu. Up to 4 (one per page). |
 | `pdf` | A PDF of the menu. The model reads it as it is, so a scanned one works too. |
-| `url` | A link to the menu: a web page (its text is used), a PDF or an image. Fetched with `safeFetch`, so private addresses are refused. A page with too little text to be the menu (built by script) is a `400` that says so. |
+| `url` | A link to the menu: a web page (its text is used), a PDF or an image. Fetched with `safeFetch`, so private addresses are refused. A page with too little text to be the menu is an `error` that says so. |
 | `text` | The menu, typed or pasted. The iOS app sends what Vision read from its photos here, and sends the photos as well only when Vision read little. |
+| `menu` | Instead of the four above: the `menu` JSON a previous answer returned, so it isn't read again. Required for a swap. |
+| `member` | Repeat for each person eating; leave it out for everyone. |
+| `date` | `YYYY-MM-DD`; default today, for the brief's week. |
+| `course` | Repeat: `starter`, `main`, `side`, `dessert`, `drink`. Default `main`. Three options for a main, two for anything else. |
+| `mood` | Repeat: `light`, `hearty`, `healthy`, `new`, `treat`. |
+| `note` | Anything else they said ("sharing plates", "no fish tonight"). |
+| `swapDiner`, `swapCourse` | "Something else": two different options for one person's course, with `menu`. |
+| `exclude` | Repeat: item numbers already shown for that course, never offered again. |
+| `hint` | Why ("No fish; lighter"): the reason chips and any words, joined. |
 
-Plus `member` (repeat for each person eating; leave it out for everyone) and
-`date` (`YYYY-MM-DD`; default today, for the brief's week). Files are 15 MB at
-most.
+Files are 15 MB at most.
+
+**Streamed** with `Accept: application/x-ndjson`: one JSON event per line as
+the AI works. A refusal before it starts (no menu, an unknown `member`, no AI
+key, a swap without `menu`) is still a `400` with the usual error envelope.
 
 ```json
-{
-  "date": "2026-10-28",
-  "restaurant": { "name": "Côte", "cuisine": "French" },
-  "diners": [
-    {
-      "name": "James",
-      "picks": [
-        {
-          "dish": "Sea bass",
-          "course": "main",
-          "menuLine": "Sea bass, crushed potatoes, beurre blanc",
-          "menuKcal": 720,
-          "estimatedKcal": null,
-          "why": "Oily fish would help: you're short this week.",
-          "lighterTweak": "Beurre blanc on the side"
-        }
-      ],
-      "avoid": [{ "dish": "Steak frites", "why": "Red meat's at its limit this week." }]
-    }
-  ],
-  "note": null
-}
+{"type":"fact","text":"Red meat's at its limit this week"}
+{"type":"stage","text":"Reading the menu"}
+{"type":"dish","name":"French onion soup"}
+{"type":"menu","menu":{"restaurant":{"name":"Côte","cuisine":"French"},"items":[{"id":1,"section":"Starters","name":"French onion soup","line":"French onion soup, gruyère croûte","kcal":null}]}}
+{"type":"stage","text":"Choosing for you"}
+{"type":"pick","pick":{"item":4,"diner":"James","course":"main","dish":"Sea bass","menuLine":"Sea bass, crushed potatoes, beurre blanc","menuKcal":720,"estimatedKcal":null,"why":"White fish, and lighter than the steak.","lighterTweak":"Beurre blanc on the side"}}
+{"type":"avoid","avoid":{"diner":"James","item":5,"dish":"Steak frites","why":"Red meat's at its limit this week."}}
+{"type":"done","date":"2026-10-29","note":null}
 ```
 
-- `diners` follows the brief: one entry per person, in its order, with up to 3 `picks` and up to 3 dishes to `avoid` each.
-- `menuLine` is the dish's line from the menu, word for word, and `menuKcal` is only ever a figure printed on the menu. `estimatedKcal` is the AI's rough figure when nothing is printed.
-- A menu the AI couldn't read gives no picks, and `note` says why.
+- `fact`: a few things the brief says it's weighing; not sent for a swap.
+- `dish`: each name as the menu is read.
+- `menu`: the whole menu, with items numbered from 1. Send it back as `menu` for a swap.
+- `pick`: sent as soon as each is complete. It's grouped by person and then course, best first. `menuKcal` is only ever printed on the menu; `estimatedKcal` is the AI's rough figure otherwise.
+- `done` closes the stream. `error` (with `message`) replaces it if the menu couldn't be read, a link wouldn't load, or the AI failed.
 
-`400` for no menu, an unknown `member`, a file or link it can't use, no AI key,
-or the AI failing, each with a message to show.
+**Without** that header it waits and answers one JSON object, the shape the
+iOS app before 1.73.0 reads: `{ date, restaurant, diners: [{ name, picks,
+avoid }], note, menu }`.
 
 ### `POST /api/v1/upload`
 

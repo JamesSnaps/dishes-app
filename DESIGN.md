@@ -279,6 +279,16 @@ with a `SectionLabel`. A grouped meal shows its name in italic ("Katsu night"),
 the main dish with a large thumbnail and time, and sides smaller beneath. Eating
 out shows a fork-and-knife tile and an italic place name.
 
+**AI at work** (Help me choose): a slow AI answer shows its work instead
+of a spinner. A `muted` panel holds the stage ("Reading the menu…") with a
+small spinner, a short list of what it's weighing (muted text, each with a
+`success` tick), and the items it reads as small `card` pills, each arriving
+with the `rise-in` animation (iOS: a scale-and-fade transition); the panel
+settles into a one-line summary when it's done. Results arrive into their final
+places as they come, not all at the end. The best option in a group is chosen
+for you (terracotta tick on a `highlight` row), and the AI's own actions on
+the results ("Find another main") are `ink`.
+
 **Empty states**: one italic serif sentence plus a dashed-outline "add"
 button. Make it a suggestion where there's a reason ("No oily fish this week,
 so it's a good night for it").
