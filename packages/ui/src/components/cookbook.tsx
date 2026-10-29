@@ -59,8 +59,12 @@ export const Plate = React.forwardRef<HTMLDivElement, PlateProps>(
 );
 Plate.displayName = "Plate";
 
-/** The one way AI features are marked: an ink pill with the sparkle. */
-export const AiButton = React.forwardRef<HTMLButtonElement, Omit<ButtonProps, "variant">>(
+/**
+ * The one way AI features are marked: an ink pill with the sparkle. No
+ * `asChild`: the icon plus children can't go into Radix's single-child Slot.
+ * For a link, use `<Button asChild variant="ink">` with the Sparkles icon inside.
+ */
+export const AiButton = React.forwardRef<HTMLButtonElement, Omit<ButtonProps, "variant" | "asChild">>(
   ({ children, ...props }, ref) => (
     <Button ref={ref} variant="ink" {...props}>
       <Sparkles aria-hidden="true" />
