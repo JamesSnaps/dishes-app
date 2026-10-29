@@ -373,7 +373,7 @@ ChatGPT calls the API from OpenAI's servers, so the domain must be reachable fro
     }
   }
   ```
-- **claude.ai and the Claude apps:** a custom connector signs in with OAuth, not a pasted token. See [Claude custom connector via Authelia](#claude-custom-connector-via-authelia-untested). Not yet tried end to end.
+- **claude.ai and the Claude apps:** a custom connector signs in with OAuth, not a pasted token. See [Claude custom connector via Authelia](#claude-custom-connector-via-authelia). Set up on the server; not yet tried from claude.ai.
 
 Use a token with `read:preferences`, `read:meal_plan` and `write:outside_meals`, acting as you, as for the GPT.
 
@@ -592,7 +592,7 @@ Empty output means it didn't arrive — the Compose file maps environment
 variables explicitly, so a new variable in `.env` also has to be added there.
 
 
-### Claude custom connector via Authelia (untested)
+### Claude custom connector via Authelia
 
 A custom connector on claude.ai (which the Claude apps share) signs in with OAuth. The server side is in place:
 
@@ -610,6 +610,10 @@ Authelia has no dynamic client registration, so register Claude as a confidentia
         authorization_policy: one_factor
         redirect_uris:
           - https://claude.ai/api/mcp/auth_callback
+        # Claude names the MCP server in an RFC 8707 `resource` parameter;
+        # without this Authelia refuses it with invalid_target.
+        audience:
+          - https://dishes.yourdomain.com/api/integrations/mcp
         scopes: [openid, profile, email, groups, offline_access]
         grant_types: [authorization_code, refresh_token]
         response_types: [code]
@@ -625,10 +629,14 @@ Add the `/.well-known/oauth-protected-resource` bypass rule shown in step 3. The
 - URL: `https://dishes.yourdomain.com/api/integrations/mcp`
 - Under **Advanced settings**: client ID `dishes-claude` and the plain secret
 
-This hasn't been tried against claude.ai yet. If it fails, these are the likely causes:
+Checked against Authelia 4.39 (28 Oct 2026), short of signing in from claude.ai itself:
+- the discovery metadata comes through the bypass
+- the client reaches the login page with Claude's `resource` parameter, which needs the `audience` above
+- the token endpoint accepts the secret in the request body
 
-- **The token exchange is rejected as `invalid_client`.** Claude may send the secret in the `Authorization` header rather than the body. Switch `token_endpoint_auth_method` to `client_secret_basic`.
-- **Authelia rejects the authorization request.** Claude sends an RFC 8707 `resource` parameter (the MCP URL), and Authelia may not accept it for this client. Its logs will say which parameter it refused.
+If claude.ai still fails:
+
+- **The token exchange is rejected as `invalid_client`.** Claude is sending the secret in the `Authorization` header: switch `token_endpoint_auth_method` to `client_secret_basic`.
 - **The connector signs in but every call is `401`.** Check that `/api/integrations/mcp` is still bypassed, and that Dishes can reach the issuer's userinfo endpoint.
 
 If it won't work, Claude Desktop with a token (above) is the Claude route.
