@@ -14,7 +14,7 @@
  * refused.
  *
  * Usage (from apps/web, against the dev stack):
- *   npx tsx scripts/check-share-scope.ts
+ *   pnpm check:share-scope   (reads DATABASE_URL from .env.local)
  *
  * Creates and then deletes its own households; it does not touch existing data.
  */

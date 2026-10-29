@@ -22,3 +22,34 @@ jobs:
       # Built-ins only, so no install: Node runs the TypeScript directly.
       - name: Check colours against the baseline
         run: node --experimental-strip-types --no-warnings apps/web/scripts/check-colours.ts
+
+  logic:
+    name: Logic checks (apps/web/scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # check:share-scope needs a database, so it runs against the dev stack only.
+      - name: Run the checks
+        working-directory: apps/web
+        run: |
+          pnpm check:meal-timeline
+          pnpm check:recipe-web-import
+          pnpm check:ai-context
+          pnpm check:outside-meals
+          pnpm check:diner-brief
+          pnpm check:integrations-spec
+          pnpm check:menu-picks
