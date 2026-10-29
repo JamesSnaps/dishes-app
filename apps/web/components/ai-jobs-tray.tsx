@@ -156,10 +156,8 @@ export function AiJobsTray() {
             key={job.jobId}
             role="status"
             className={cn(
-              "pointer-events-auto w-full max-w-sm rounded-2xl border p-3 shadow-xl backdrop-blur",
-              status === "failed"
-                ? "border-destructive/30 bg-gradient-to-br from-red-50/95 to-orange-50/95 dark:from-red-950/90 dark:to-orange-950/80"
-                : "border-violet-200 bg-gradient-to-br from-violet-50/95 to-orange-50/95 dark:border-violet-800 dark:from-violet-950/90 dark:to-orange-950/80"
+              "pointer-events-auto w-full max-w-sm rounded-2xl bg-card p-3 shadow-xl ring-1",
+              status === "failed" ? "ring-destructive/30" : "ring-border"
             )}
           >
             <div className="flex items-start gap-3">
@@ -168,7 +166,7 @@ export function AiJobsTray() {
                   "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                   status === "failed"
                     ? "bg-destructive/15 text-destructive"
-                    : "bg-violet-600/15 text-violet-700 dark:text-violet-300"
+                    : "bg-ink text-ink-foreground"
                 )}
               >
                 {status === "running" ? (
@@ -187,11 +185,7 @@ export function AiJobsTray() {
                 <p className="text-sm font-semibold leading-snug">{title}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
                 {action && (
-                  <Button
-                    size="sm"
-                    onClick={action.onClick}
-                    className="mt-2 h-8 bg-gradient-to-r from-violet-600 to-orange-500 text-white shadow-sm hover:from-violet-700 hover:to-orange-600"
-                  >
+                  <Button size="sm" variant="ink" onClick={action.onClick} className="mt-2 h-8">
                     {action.label}
                   </Button>
                 )}
@@ -199,7 +193,7 @@ export function AiJobsTray() {
               <button
                 type="button"
                 onClick={() => untrackAiJob(job.jobId)}
-                className="-mr-1 -mt-1 rounded-lg p-1.5 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+                className="-mr-1 -mt-1 rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label={status === "running" ? "Hide" : "Dismiss"}
               >
                 <X className="h-4 w-4" />

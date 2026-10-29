@@ -20,17 +20,17 @@ export default function GlobalError({ error, reset }: Props) {
   return (
     <html lang="en">
       <body className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-8 text-center antialiased">
-        <p className="text-5xl font-bold text-gray-300">!</p>
-        <h1 className="text-2xl font-semibold">Something went wrong</h1>
-        <p className="max-w-sm text-gray-500">
+        <p className="font-serif text-5xl font-semibold text-primary">!</p>
+        <h1 className="font-serif text-2xl font-semibold">Something went wrong</h1>
+        <p className="max-w-sm text-muted-foreground">
           {error.message || "A critical error occurred."}
         </p>
         {error.digest && (
-          <p className="font-mono text-xs text-gray-400">reference {error.digest}</p>
+          <p className="font-mono text-xs text-muted-foreground">reference {error.digest}</p>
         )}
         <button
           onClick={reset}
-          className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
+          className="h-11 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground"
         >
           Try again
         </button>

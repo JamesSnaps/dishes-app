@@ -1,7 +1,8 @@
 # Dishes — Design System ("Cookbook")
 
-Status: **adopted 29 Oct 2026. Phases 0–1 done (v1.71.0): the guardrail,
-tokens, Fraunces and the kit below. Screens move over from phase 2.** The checklist lives in
+Status: **adopted 29 Oct 2026. Phases 0–2 done (v1.71.0): the guardrail,
+tokens, Fraunces, the kit below and the app shell. Screens move over from
+phase 3.** The checklist lives in
 `TODO.md` → *Design refresh (Cookbook)*. Mockups (phone, iPad landscape, iPad
 portrait, planner by width): <https://claude.ai/artifact/1P1nVaCQ4yLGWuxSmkGBzy>,
 row B.
@@ -320,7 +321,7 @@ mode and at phone, iPad portrait and iPad landscape widths.
 |---|---|---|---|
 | 0 | **Guardrail**: colour check + baseline, CLAUDE.md rule | small | Stops the count growing before anything else changes |
 | 1 | **Foundations**: tokens (light + dark), Tailwind config, Fraunces, `Button`/`Card`/`Badge` variants, `SectionLabel`/`Plate`/`AiButton`; iOS `Theme.swift` tokens + bundled Fraunces | medium | Every token-based screen turns cream and terracotta at once; raw-class screens lag until their phase. Ship with phase 2 straight after so the frame changes together. Minor version bump. |
-| 2 | **App shell**: bottom nav, side nav, page headers, AI concierge button, cooking mini-bar, offline/sync indicators | small (~40) | |
+| 2 | **App shell**: bottom nav, side nav, page headers, AI concierge button, cooking mini-bar, offline/sync indicators | small (~60) | Done. Every page title in the app shell is Fraunces via `[&_h1]:font-serif` on `<main>`; screens refine their headers in their own phase. |
 | 3 | **Recipes**: list, card, filters, detail, form, imports | 363 | |
 | 4 | **Cooking mode** (`app/(cook)/recipes`) | 238 | Keeps large sans type; colours only |
 | 5 | **Planner**: new layouts by width, `DayRow`/`DayMenu`, meal-type colours removed | 532 | The biggest one and the only one that changes behaviour. iOS gets the same three layouts. |

@@ -1,5 +1,5 @@
 {
-  "total": 2610,
+  "total": 2550,
   "files": {
     "apps/web/app/(app)/ai-concierge/_components/concierge-client.tsx": 447,
     "apps/web/app/(app)/library-invite/[code]/page.tsx": 1,
@@ -88,21 +88,15 @@
     "apps/web/app/(cook)/recipes/[id]/cook/_components/meal-cooking.tsx": 67,
     "apps/web/app/(cook)/recipes/[id]/cook/_components/meal-debrief.tsx": 15,
     "apps/web/app/(cook)/recipes/[id]/cook/_components/meal-start-dialog.tsx": 29,
-    "apps/web/app/global-error.tsx": 3,
     "apps/web/app/share/[token]/page.tsx": 9,
-    "apps/web/components/ai-jobs-tray.tsx": 21,
-    "apps/web/components/cook-mini-bar.tsx": 19,
     "apps/web/components/cook-review/cook-review-form.tsx": 21,
     "apps/web/components/cook-review/cook-review-sheet.tsx": 9,
-    "apps/web/components/cook-switcher.tsx": 9,
     "apps/web/components/deliveries/next-delivery-card.tsx": 38,
     "apps/web/components/deliveries/order-details-dialog.tsx": 6,
     "apps/web/components/meals/generate-side-sheet.tsx": 29,
-    "apps/web/components/offline-indicator.tsx": 6,
     "apps/web/components/onboarding/welcome-wizard.tsx": 20,
     "apps/web/components/outside-meals/menu-chooser.tsx": 44,
     "apps/web/components/outside-meals/outside-meal-sheet.tsx": 95,
-    "apps/web/components/sync-status.tsx": 2,
     "packages/ui/src/components/toast.tsx": 4
   }
 }

@@ -97,7 +97,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       />
 
       {/* Main content */}
-      <main id="main-scroll" className="flex-1 overflow-y-auto pb-nav-safe lg:pb-0">
+      {/* Page titles are Fraunces (DESIGN.md → Type) */}
+      <main id="main-scroll" className="flex-1 overflow-y-auto pb-nav-safe lg:pb-0 [&_h1]:font-serif [&_h1]:tracking-normal">
         <ScrollReset targetSelector="#main-scroll" />
         {children}
       </main>

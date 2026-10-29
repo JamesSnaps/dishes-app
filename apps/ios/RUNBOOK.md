@@ -1666,3 +1666,10 @@ reading the brief and logging meals out against it. Help me choose is still to t
 Checked in the iPhone 18 Pro simulator: the launch screen is cream, and the planner shows the cream
 background with the terracotta accent; its violet "Add meal" and orange day ring are phase 5. Not
 checked: dark mode and iPad on iOS (the web was checked in both).
+
+Same branch, phase 2 (app shell): `PageHeader` titles are Fraunces 30 and `SectionHeader` 20, so
+every screen using them changes now. The cooking bar's pan icon, the Cook tonight pill, `Avatar`
+initials and `RoundAddButton` (now 44pt) are terracotta with `brandForeground` text, and the
+timer/due times use `Theme.brand`. Checked in the iPhone 18 Pro simulator on Settings (serif title,
+terracotta avatar, borderless raised cards). The Fraunces title renders heavier than the web's;
+worth comparing on a device before phase 3. Not checked: iPad, dark mode, the cooking bar live.

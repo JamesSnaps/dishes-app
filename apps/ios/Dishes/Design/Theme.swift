@@ -379,7 +379,7 @@ extension ButtonStyle where Self == OutlineButtonStyle {
     static var outline: OutlineButtonStyle { OutlineButtonStyle() }
 }
 
-/// The round orange "+" in page headers (h-9 w-9 rounded-full bg-orange-500 shadow-md).
+/// The round terracotta "+" in page headers.
 struct RoundAddButton: View {
     let action: () -> Void
 
@@ -387,8 +387,8 @@ struct RoundAddButton: View {
         Button(action: action) {
             Image(systemName: "plus")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 38, height: 38)
+                .foregroundStyle(Theme.brandForeground)
+                .frame(width: 44, height: 44)
                 .background(Theme.brand, in: Circle())
                 .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
         }
@@ -399,7 +399,7 @@ struct RoundAddButton: View {
 
 // MARK: Page furniture
 
-/// Page header as the web draws it: a bold title with a muted line under it.
+/// Page header as the web draws it: a Fraunces title with a muted line under it.
 struct PageHeader<Trailing: View>: View {
     let title: String
     var subtitle: String?
@@ -409,7 +409,7 @@ struct PageHeader<Trailing: View>: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 26, weight: .bold))
+                    .font(Theme.serif(30))
                     .foregroundStyle(Theme.foreground)
                 if let subtitle {
                     Text(subtitle).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
@@ -437,7 +437,7 @@ struct SectionHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             if let icon { Image(systemName: icon).foregroundStyle(iconColor) }
-            Text(title).font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.foreground)
+            Text(title).font(Theme.serif(20)).foregroundStyle(Theme.foreground)
             Spacer()
             if let action {
                 Button("See all", action: action)

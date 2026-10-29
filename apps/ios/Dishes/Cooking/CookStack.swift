@@ -158,16 +158,16 @@ private struct CookIcon: View {
             }
             Image(systemName: "frying.pan.fill")
                 .font(.system(size: size * 0.46))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.brandForeground)
                 .frame(width: size, height: size)
-                .background(Theme.brandGradient, in: Circle())
+                .background(Theme.brand, in: Circle())
         }
         .frame(width: size + CGFloat(behind) * 5, alignment: .leading)
         .overlay(alignment: .topTrailing) {
             if stacked > 0 {
                 Text("\(stacked + 1)")
                     .font(.system(size: 10, weight: .heavy).monospacedDigit())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.background)
                     .padding(.horizontal, 4)
                     .frame(minWidth: 16, minHeight: 16)
                     .background(Theme.foreground, in: Capsule())
@@ -185,11 +185,11 @@ private struct CookStatus: View {
         if let end = session.nextTimer?.endsAt, end > .now {
             Label { Text(timerInterval: Date.now...end, countsDown: true).monospacedDigit() } icon: { Image(systemName: "timer") }
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.brandDeep)
+                .foregroundStyle(Theme.brand)
         } else if let due = session.dueAt {
             Label(MealStartSheet.hhmm(due), systemImage: "alarm")
                 .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                .foregroundStyle(Color(hex: 0x9A3412))
+                .foregroundStyle(Theme.brand)
         }
     }
 }
