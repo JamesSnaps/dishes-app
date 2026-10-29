@@ -432,6 +432,20 @@ themselves still to try on the real server.*
 - [x] Fix a finished shop reappearing when a meal is added — ticked and amount-less rows were excluded from merge matching and re-added as new lines (v1.2.1)
 - [x] Resolve the active shopping list deterministically everywhere — five queries used `LIMIT 1` with no `ORDER BY` (v1.2.1)
 
+## Design refresh (Cookbook)
+Adopted 29 Oct 2026. Rules, tokens and the full plan: [DESIGN.md](DESIGN.md). Each phase is one PR covering web and the matching iOS screens, checked in light and dark mode at phone, iPad portrait and iPad landscape widths.
+- [x] Audit colour usage and choose a direction (mockups linked in DESIGN.md)
+- [x] Phase 0 — Guardrail: `check:colours` (per-file baseline in `apps/web/colour-baseline.json`, can only go down) run by the `Checks` workflow on every PR; CLAUDE.md rule
+- [ ] Phase 1 — Foundations: light/dark tokens, Tailwind config, Fraunces, `Button`/`Card`/`Badge` variants, `SectionLabel`/`Plate`/`AiButton`; iOS `Theme.swift` + bundled Fraunces
+- [ ] Phase 2 — App shell: bottom nav, side nav, page headers, AI button, cooking mini-bar
+- [ ] Phase 3 — Recipes: list, card, filters, detail, form, imports
+- [ ] Phase 4 — Cooking mode (colours only; keeps large sans type)
+- [ ] Phase 5 — Planner: layouts by width (fold-up < 700pt, list + day 700–1100pt, week grid ≥ 1100pt); drop meal-type colours
+- [ ] Phase 6 — AI concierge: violet → ink
+- [ ] Phase 7 — Settings
+- [ ] Phase 8 — The rest: meals eaten out, meals, stats (chart tokens), memories, deliveries, shopping, cook review, onboarding, shared, pantry
+- [ ] Phase 9 — Clean-up: remove legacy colours/gradients from `Theme.swift`, colour check to zero, watch app and widgets
+
 ---
 
 ## Mobile App

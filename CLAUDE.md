@@ -107,7 +107,7 @@ The family profile picker (Phase 2) is a household-level UX feature — switchin
 - Server Actions or API route handlers for all AI, import, and write operations — never client-side in the web app (the iOS app's on-device model is the exception; anything using the household key stays on the server)
 - Tailwind for all styling — no CSS modules or styled-components
 - All database queries scoped to household — this is not optional
-- **No wireframe/white-box UI.** Avoid flat white cards with just a border. Use gradient backgrounds, coloured tints, shadows, and visual weight to make the UI feel alive. Interactive elements (buttons, cards) must look obviously clickable — solid fills, gradients, or strong outlines, never bare text or ghost-only styling for primary actions.
+- **Design system: `DESIGN.md` ("Cookbook").** Follow its colour rules, tokens and components for all UI, web and iOS. Every colour has one job: terracotta `primary` for the main action, `ink` for AI, `success`/`warning`/`destructive` for state. Until its Phase 1 lands, use the existing theme tokens (`bg-primary`, `bg-muted`, `text-muted-foreground`…) and add no new raw palette classes (`bg-orange-500`), `bg-white` or gradients. `pnpm --filter @dishes/web check:colours` enforces this in CI; after moving a screen onto the tokens, run it with `--update` to lower the baseline and commit `apps/web/colour-baseline.json`. Interactive elements must look obviously clickable: filled pill buttons, never bare text or ghost-only styling for a primary action.
 
 ## iOS App (`apps/ios`)
 
@@ -132,6 +132,7 @@ Whenever you add, change, or remove something user-facing, update these files as
 - **`README.md`** — update if you: add a new feature to the app, add or change environment variables, change deployment steps, or fix anything in the MinIO/S3 setup section. The env var reference table and the Features list must stay accurate.
 - **`TODO.md`** — tick items off as they are completed. Add new items if scope expands.
 - **`API.md`** — update if you add, change, or remove any integration API endpoints or token scopes.
+- **`DESIGN.md`** — update if you add or change a colour token, component variant or UI pattern.
 - **Version number** — bump the patch version (`x.y.Z`) in `apps/web/package.json` whenever you make any user-facing change or deploy-relevant fix. Use minor (`x.Y.0`) for new features, patch (`x.y.Z`) for fixes and small changes.
 
 Do not leave docs stale. A one-line feature entry or a new row in the env var table takes seconds and saves confusion later.

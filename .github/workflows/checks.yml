@@ -1,0 +1,24 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  colours:
+    name: No new hard-coded colours (DESIGN.md)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Built-ins only, so no install: Node runs the TypeScript directly.
+      - name: Check colours against the baseline
+        run: node --experimental-strip-types --no-warnings apps/web/scripts/check-colours.ts
