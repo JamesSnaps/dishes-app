@@ -57,6 +57,10 @@ struct MoreScreen: View {
                         }
                     }
 
+                    section("Shopping", footer: "Where the trolley button on a shopping list item searches Sainsbury’s. The app keeps you signed in and opens quicker; in Dishes it stays beside the list on an iPad. Just this device.") {
+                        SupermarketSetting()
+                    }
+
                     section("Sync", footer: "Everything here works offline. Changes are sent when there’s a connection.") {
                         row("Status") { SyncLine() }
                         if let last = app.status.lastSyncedAt {
@@ -185,6 +189,24 @@ struct MoreScreen: View {
             Text(label).foregroundStyle(Theme.foreground)
             Spacer()
             value()
+        }
+        .padding(14)
+    }
+}
+
+/// Settings → Shopping: the Sainsbury's app or the web view in Dishes, for this device.
+private struct SupermarketSetting: View {
+    @AppStorage(Supermarket.openingKey) private var opening = Supermarket.defaultOpening
+
+    var body: some View {
+        HStack {
+            Label("Open Sainsbury’s in", systemImage: "cart")
+            Spacer()
+            Picker("Open Sainsbury’s in", selection: $opening) {
+                ForEach(Supermarket.Opening.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .labelsHidden()
+            .tint(Theme.brand)
         }
         .padding(14)
     }

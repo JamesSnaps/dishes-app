@@ -5,6 +5,10 @@
 //
 // The web view uses the default website data store, so a Sainsbury's sign-in
 // made here is remembered between searches and launches.
+//
+// Or, chosen per device in Settings → Shopping, the cart button skips the web
+// view and opens the Sainsbury's app (Safari when it isn't installed), which
+// keeps its own session and doesn't reload the site on every search.
 
 import SwiftUI
 import WebKit
@@ -14,6 +18,32 @@ enum Supermarket {
         let query = item.trimmingCharacters(in: .whitespaces)
             .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? ""
         return URL(string: "https://www.sainsburys.co.uk/gol-ui/SearchResults/\(query)")
+    }
+
+    /// Where the cart button on an item goes.
+    enum Opening: String, CaseIterable {
+        case app, inDishes
+
+        var title: String {
+            switch self {
+            case .app: "Sainsbury’s app"
+            case .inDishes: "In Dishes"
+            }
+        }
+    }
+
+    static let openingKey = "supermarket.opening"
+    /// The iPad keeps the side panel beside the list; the iPhone goes to the app.
+    static var defaultOpening: Opening { UIDevice.current.userInterfaceIdiom == .pad ? .inDishes : .app }
+    static var opening: Opening {
+        UserDefaults.standard.string(forKey: openingKey).flatMap(Opening.init(rawValue:)) ?? defaultOpening
+    }
+
+    /// The Sainsbury's app through its universal link, or Safari when it isn't installed.
+    @MainActor static func openOutside(_ url: URL) {
+        UIApplication.shared.open(url, options: [.universalLinksOnly: true]) { opened in
+            if !opened { UIApplication.shared.open(url) }
+        }
     }
 }
 

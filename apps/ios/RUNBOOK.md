@@ -1773,3 +1773,16 @@ Not checked in the simulator: the dev household has one member (no tabs) and no 
 
 Uploaded to TestFlight as 1.73.2 (build 202610291905) from main after PR #85 merged. The server was
 deployed at 1.73.1 just before (no migrations), so Help me choose has its streaming endpoint.
+
+### 2026-10-30 — Sainsbury's opens in its app again (v1.74.0, branch `feat/ios-shopping-list`)
+
+- Settings → Shopping → "Open Sainsbury’s in": **Sainsbury’s app** or **In Dishes**, per device
+  (`supermarket.opening` in UserDefaults). The app option opens the search URL with
+  `universalLinksOnly`, so the Sainsbury's app takes it when installed and Safari otherwise.
+  Default: the app on iPhone (the in-app web view reloaded the whole site on every search), In Dishes
+  on iPad (the side panel beside the list).
+- Motion ideas for ticking and deleting list items are mocked up on a design canvas (tick-and-settle
+  with Undo, swipe actions, aisle progress); not built yet.
+
+Built for the iPhone 17 simulator; not seen running (simulator access wasn't granted in time, and
+no dev server was up).

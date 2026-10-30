@@ -6,7 +6,8 @@
 //
 // Wide screens use the width: the categories flow into two columns, and the
 // cart button on an item opens Sainsbury's in a side panel beside the list
-// (SupermarketPanel) instead of on top of it.
+// (SupermarketPanel) instead of on top of it — or in the Sainsbury's app, if
+// that's what Settings → Shopping says.
 //
 // The screen used in a supermarket with no signal, so every change is an
 // outbox mutation applied to the local copy first (`shopping_item.add /
@@ -55,9 +56,10 @@ struct ShoppingScreen: View {
         .task { await data.follow(app.store, ShoppingData.load) }
     }
 
-    /// Opens Sainsbury's for an item: in the side panel when there's room.
+    /// Opens Sainsbury's for an item: in its app, or in the side panel when there's room.
     private func openShop(_ item: ShoppingItem) {
         guard let url = Supermarket.searchURL(for: item.name) else { return }
+        if Supermarket.opening == .app { Supermarket.openOutside(url); return }
         if wide { withAnimation(.snappy) { shop = url } } else { shopSheet = WebDestination(url: url) }
     }
 
