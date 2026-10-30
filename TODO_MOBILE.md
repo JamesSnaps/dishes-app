@@ -980,6 +980,7 @@ for themselves.
 | Improve / refine a recipe | Server (the evaluation said so) | The device's edits read badly (6 of 13 fail the checks); heart-healthy rests on nutrition targets and stays on the server |
 | Concierge — 5 concepts | Server (the evaluation said so) | 0.64–0.68: the request got lost under the household's preferences, and the guardrails stop some |
 | Concierge — full recipe | Server first; device if the evaluation passes | Long, quality matters most |
+| Shopping item → aisle (add field, "Sort into aisles") | Rules first; device only for names they don't know; nothing sent anywhere | Picking one of ten aisles or "not sure". **Not evaluated yet** — add a set (v1.74.0) |
 | Meal-plan draft from saved recipes | Device, the library chosen by code from the local store | Picking, not writing (0.917) |
 | Meal-plan apply, new recipes written out | Server | Writes several recipes and saves them |
 | Web-grounded generation, recipe images, nutrition estimate, Wrapped, meal timeline | Server | Need the web, image models or server data |

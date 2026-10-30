@@ -117,6 +117,12 @@ public struct ShoppingSuggestionIndex: Sendable {
         entries = Array(byKey.values)
     }
 
+    /// The aisle an item was last filed under, if the household has had it before.
+    public func category(for name: String) -> String? {
+        let key = Self.key(name)
+        return entries.first { $0.key == key }?.suggestion.category
+    }
+
     /// Where the query matched: the start of the name, the start of a word, anywhere.
     static func tier(_ text: String, _ query: String) -> Int? {
         if text.hasPrefix(query) { return 0 }

@@ -1781,8 +1781,21 @@ deployed at 1.73.1 just before (no migrations), so Help me choose has its stream
   `universalLinksOnly`, so the Sainsbury's app takes it when installed and Safari otherwise.
   Default: the app on iPhone (the in-app web view reloaded the whole site on every search), In Dishes
   on iPad (the side panel beside the list).
-- Motion ideas for ticking and deleting list items are mocked up on a design canvas (tick-and-settle
-  with Undo, swipe actions, aisle progress); not built yet.
+- The list, from the design canvas's ideas A and B: ticking settles (box fills, a line draws across,
+  ~0.65s to tap again) before the row folds away, then an Undo bar (4s). Rows swipe right to tick and
+  left to delete (`HorizontalPan`, a UIPanGestureRecognizer that only begins sideways, so the
+  ScrollView keeps vertical drags). The pencil and bin are gone: tap the name to edit; Delete is in
+  the edit sheet. Deletions wait for their Undo to go (or the screen to go, or the app to background).
+  `Observed.follow(animation:)` makes store changes animate on this screen.
+- The add card is one field. The amount and unit were already read out of the name
+  (IngredientLineReader); the Qty, Unit and Category fields are gone. The aisle comes from
+  `ShoppingSuggestionIndex.category(for:)` (the household's last aisle for it), then
+  `ShoppingAisles` — rules, then the on-device model (`AITask.shoppingAisle`). "Sort into aisles"
+  on the Uncategorised group runs the same over items already there.
+- `AITask.shoppingAisle` starts on the device without an evaluation (needs macOS 27 with Apple
+  Intelligence): it only sees names the rules don't know and can only answer an aisle or "not sure".
+  Add an evaluation set before trusting it more widely.
+- The list header has no subtitle (list name, date, counts).
 
-Built for the iPhone 17 simulator; not seen running (simulator access wasn't granted in time, and
-no dev server was up).
+Built for the iPhone 17 simulator and `swift test` passes; not seen running (simulator access
+wasn't granted).
