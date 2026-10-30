@@ -185,6 +185,11 @@ export interface DeliveryChecklist {
   unticked: number;
   /** Unticked items added after the order was marked placed: they need an amend. */
   addedSinceOrder: string[];
+  /**
+   * Once ordered: unticked items already on the list when the order was placed.
+   * Maybe left out on purpose, maybe forgotten — the last reminder asks.
+   */
+  untickedBeforeOrder: string[];
 }
 
 async function checklistFor(
@@ -244,6 +249,9 @@ async function checklistFor(
     unticked: items.length,
     addedSinceOrder: orderedAt
       ? items.filter((i) => i.createdAt > orderedAt).map((i) => i.name)
+      : [],
+    untickedBeforeOrder: orderedAt
+      ? items.filter((i) => i.createdAt <= orderedAt).map((i) => i.name)
       : [],
   };
 }

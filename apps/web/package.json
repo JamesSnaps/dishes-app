@@ -1,6 +1,6 @@
 {
   "name": "@dishes/web",
-  "version": "1.75.0",
+  "version": "1.75.1",
   "private": true,
   "scripts": {
     "check:share-scope": "tsx --env-file-if-exists=.env.local scripts/check-share-scope.ts",
@@ -12,6 +12,7 @@
     "check:integrations-spec": "tsx scripts/check-integrations-spec.ts",
     "check:menu-picks": "tsx scripts/check-menu-picks.ts",
     "check:generation-progress": "tsx scripts/check-generation-progress.ts",
+    "check:delivery-reminders": "tsx scripts/check-delivery-reminders.ts",
     "check:colours": "node --experimental-strip-types --no-warnings scripts/check-colours.ts",
     "dev": "next dev --turbopack",
     "build": "next build",

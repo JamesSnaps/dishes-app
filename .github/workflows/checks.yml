@@ -54,3 +54,4 @@ jobs:
           pnpm check:integrations-spec
           pnpm check:menu-picks
           pnpm check:generation-progress
+          pnpm check:delivery-reminders
