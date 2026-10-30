@@ -93,7 +93,8 @@ struct ShoppingScreen: View {
                 VStack(alignment: .leading, spacing: 16) {
                     let hidden = removed.union(pendingDeletes)
                     let open = data.value.all.filter { !$0.isChecked && !hidden.contains($0.id) }.count
-                    let checked = data.value.checked.count
+                    let ticked = data.value.checked.filter { !hidden.contains($0.id) }
+                    let checked = ticked.count
                     PageHeader(title: "Shopping List") {
                         if onTrip {
                             Button { toggleTrip() } label: { Label("End trip", systemImage: "lock.slash") }
@@ -140,7 +141,7 @@ struct ShoppingScreen: View {
                     let groups = data.value.groups
                         .map { ($0.name, $0.items.filter { !hidden.contains($0.id) }) }
                         .filter { !$0.1.isEmpty }
-                        + (showChecked && checked > 0 ? [(Self.checkedAisle, data.value.checked)] : [])
+                        + (showChecked && checked > 0 ? [(Self.checkedAisle, ticked)] : [])
                     Group {
                         if twoColumns {
                             let (left, right) = balanced(groups)
@@ -345,6 +346,8 @@ struct ShoppingScreen: View {
         let ids = pendingDeletes
         removed.formUnion(ids)
         pendingDeletes = []
+        // Waiting deletes mean the bar is theirs (only the latest is undoable), and they've gone.
+        undo = nil
         Task {
             for id in ids {
                 await app.mutate("shopping_item.delete", payload: .object(["itemId": .string(id)]),
