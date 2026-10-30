@@ -179,11 +179,14 @@ struct PlanData: Sendable {
 // MARK: Shopping
 
 /// The web's CATEGORY_ORDER (shopping-list-client.tsx); anything else after, then uncategorised.
-let shoppingCategories = ["Produce", "Dairy", "Meat", "Fish", "Bakery", "Pantry", "Frozen", "Drinks", "Cleaning", "Other"]
+let shoppingCategories = ShoppingAisles.all
 
 /// The active list and its items, grouped for display.
 struct ShoppingData: Sendable {
     struct Group: Sendable { var name: String; var items: [ShoppingItem] }
+
+    /// The group of items with no aisle.
+    static let uncategorised = "Uncategorised"
 
     var list: ShoppingList?
     var all: [ShoppingItem] = []
@@ -208,7 +211,7 @@ struct ShoppingData: Sendable {
             return (1, name)
         }
         data.groups = byCategory.keys.sorted { rank($0) < rank($1) }
-            .map { Group(name: $0.isEmpty ? "Uncategorised" : $0, items: byCategory[$0]!) }
+            .map { Group(name: $0.isEmpty ? Self.uncategorised : $0, items: byCategory[$0]!) }
         data.checked = items.filter(\.isChecked)
         let ids = Set(items.compactMap(\.recipeId))
         if !ids.isEmpty {

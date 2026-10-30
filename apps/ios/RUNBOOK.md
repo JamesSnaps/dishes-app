@@ -1773,3 +1773,29 @@ Not checked in the simulator: the dev household has one member (no tabs) and no 
 
 Uploaded to TestFlight as 1.73.2 (build 202610291905) from main after PR #85 merged. The server was
 deployed at 1.73.1 just before (no migrations), so Help me choose has its streaming endpoint.
+
+### 2026-10-30 — Sainsbury's opens in its app again (v1.74.0, branch `feat/ios-shopping-list`)
+
+- Settings → Shopping → "Open Sainsbury’s in": **Sainsbury’s app** or **In Dishes**, per device
+  (`supermarket.opening` in UserDefaults). The app option opens the search URL with
+  `universalLinksOnly`, so the Sainsbury's app takes it when installed and Safari otherwise.
+  Default: the app on iPhone (the in-app web view reloaded the whole site on every search), In Dishes
+  on iPad (the side panel beside the list).
+- The list, from the design canvas's ideas A and B: ticking settles (box fills, a line draws across,
+  ~0.65s to tap again) before the row folds away, then an Undo bar (4s). Rows swipe right to tick and
+  left to delete (`HorizontalPan`, a UIPanGestureRecognizer that only begins sideways, so the
+  ScrollView keeps vertical drags). The pencil and bin are gone: tap the name to edit; Delete is in
+  the edit sheet. Deletions wait for their Undo to go (or the screen to go, or the app to background).
+  `Observed.follow(animation:)` makes store changes animate on this screen.
+- The add card is one field. The amount and unit were already read out of the name
+  (IngredientLineReader); the Qty, Unit and Category fields are gone. The aisle comes from
+  `ShoppingSuggestionIndex.category(for:)` (the household's last aisle for it), then
+  `ShoppingAisles` — rules, then the on-device model (`AITask.shoppingAisle`). "Sort into aisles"
+  on the Uncategorised group runs the same over items already there.
+- `AITask.shoppingAisle` starts on the device without an evaluation (needs macOS 27 with Apple
+  Intelligence): it only sees names the rules don't know and can only answer an aisle or "not sure".
+  Add an evaluation set before trusting it more widely.
+- The list header has no subtitle (list name, date, counts).
+
+Built for the iPhone 17 simulator and `swift test` passes; not seen running (simulator access
+wasn't granted).

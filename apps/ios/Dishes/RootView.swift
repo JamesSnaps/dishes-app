@@ -552,10 +552,12 @@ final class Observed<Value: Sendable> {
 
     init(_ initial: Value) { value = initial }
 
-    func follow(_ store: LocalStore, _ fetch: @Sendable @escaping (StoreReader) throws -> Value) async {
+    /// `animation`: how a change after the first load lands (the shopping list's
+    /// rows slide when sync moves them).
+    func follow(_ store: LocalStore, animation: Animation? = nil, _ fetch: @Sendable @escaping (StoreReader) throws -> Value) async {
         do {
             for try await next in store.observe(fetch) {
-                value = next
+                if loaded, let animation { withAnimation(animation) { value = next } } else { value = next }
                 loaded = true
             }
         } catch {
