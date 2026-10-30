@@ -41,7 +41,9 @@ import {
 // import them from `@/lib/ai/recipe-generation` directly.
 import type { ConceptCard, GeneratedRecipe, RecipeNutrition } from "@/lib/ai/recipe-generation";
 import { groundRecipeConcept, groundingPromptSuffix, type RecipeGrounding } from "@/lib/ai/web-grounding";
-import type { BatchJobItem, BatchJobProgress, ConceptsJobResult, MealPlanJobResult, RecipeJobResult } from "@/lib/ai/job-types";
+import type { BatchJobItem, BatchJobProgress, ConceptsJobProgress, ConceptsJobResult, MealPlanJobResult, MealPlanProgress, MealPlanUpdate, RecipeJobResult, RecipeProgress } from "@/lib/ai/job-types";
+import { planFacts, planPhotos } from "@/lib/ai/plan-progress";
+import { completedItems, streamStructured } from "@/lib/ai/stream-structured";
 import { startAiJob } from "@/lib/ai-jobs";
 import { requireSession } from "@/lib/session";
 import * as recipeService from "@/lib/services/recipes";
@@ -225,24 +227,27 @@ export async function generateConcepts(
   memberIds?: string[],
   mealType?: string,
   targetCalories?: number,
-  options?: ConceptOptions
+  options?: ConceptOptions,
+  onConcept?: (concept: ConceptCard) => void
 ): Promise<{ concepts?: ConceptCard[]; error?: string }> {
   try {
     const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
-    return await conceptsFor(householdId, prompt, memberIds, mealType, targetCalories, options);
+    return await conceptsFor(householdId, prompt, memberIds, mealType, targetCalories, options, onConcept);
   } catch (err) {
     return { error: classifyError(err) };
   }
 }
 
+/** `onConcept` hears each idea the moment it's written, before the rest. */
 async function conceptsFor(
   householdId: string,
   prompt: string,
   memberIds?: string[],
   mealType?: string,
   targetCalories?: number,
-  options?: ConceptOptions
+  options?: ConceptOptions,
+  onConcept?: (concept: ConceptCard) => void
 ): Promise<{ concepts?: ConceptCard[]; error?: string }> {
   if (!prompt.trim())
     return { error: "Please describe what you'd like to cook." };
@@ -281,7 +286,15 @@ async function conceptsFor(
               ? `\nIMPORTANT: Every concept must be a main dish, not a side, sauce or extra.`
               : "";
 
-    const completion = await client.chat.completions.create({
+    // Streamed, so each idea can take its place on the wait screen as it's written.
+    const isWritten = (c: Partial<ConceptCard> | null | undefined): c is ConceptCard =>
+      !!c && typeof c.title === "string" && c.title.trim() !== "" && typeof c.description === "string";
+    const written = completedItems<Partial<ConceptCard>>("concepts", (c, i) => {
+      if (i < 5 && isWritten(c)) onConcept?.(c);
+    });
+    const parsed = (await streamStructured(
+      client,
+      {
       model,
       response_format: { type: "json_object" },
       ...maxTokensParam(model, 1200),
@@ -294,12 +307,12 @@ Make the 5 concepts meaningfully different from each other in style or cuisine, 
         },
         { role: "user", content: prompt },
       ],
-    });
-
-    const raw = completion.choices[0]?.message?.content ?? "";
-    const parsed = JSON.parse(raw) as { concepts: ConceptCard[] };
+      },
+      written.partial
+    )) as { concepts: ConceptCard[] };
     if (!Array.isArray(parsed.concepts) || parsed.concepts.length === 0)
       throw new Error("Unexpected response format from AI.");
+    written.done(parsed);
 
     return { concepts: parsed.concepts.slice(0, 5) };
   } catch (err) {
@@ -903,24 +916,27 @@ export async function generateFullRecipe(
   memberIds?: string[],
   mealType?: string,
   targetCalories?: number,
-  options?: FullRecipeOptions
+  options?: FullRecipeOptions,
+  onProgress?: (progress: RecipeProgress) => void
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
     const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
-    return await fullRecipeFor(householdId, concept, memberIds, mealType, targetCalories, options);
+    return await fullRecipeFor(householdId, concept, memberIds, mealType, targetCalories, options, onProgress);
   } catch (err) {
     return { error: classifyError(err) };
   }
 }
 
+/** `onProgress` hears how far the writing has got (lib/ai/job-types RecipeProgress). */
 async function fullRecipeFor(
   householdId: string,
   concept: ConceptCard,
   memberIds?: string[],
   mealType?: string,
   targetCalories?: number,
-  options?: FullRecipeOptions
+  options?: FullRecipeOptions,
+  onProgress?: (progress: RecipeProgress) => void
 ): Promise<{ recipe?: GeneratedRecipe; error?: string }> {
   try {
     const [{ client, model, defaultPrompt, kitchenEquipment, measurementSystem, webGrounding }, memberConstraints, tasteAddendum] = await Promise.all([
@@ -933,6 +949,7 @@ async function fullRecipeFor(
 
     let grounding: RecipeGrounding | null = null;
     if (webGrounding) {
+      onProgress?.({ stage: "grounding", ingredients: [], steps: 0 });
       try {
         grounding = await groundRecipeConcept(client, model, concept);
         log.info(
@@ -965,8 +982,8 @@ async function fullRecipeFor(
     ];
 
     const recipe = options?.heartHealthy
-      ? (await createHeartHealthyRecipe(client, model, messages)).recipe
-      : await createStructuredRecipe(client, model, messages);
+      ? (await createHeartHealthyRecipe(client, model, messages, onProgress)).recipe
+      : await createStructuredRecipe(client, model, messages, onProgress);
 
     if (grounding) recipe.references = grounding.references;
     if (options?.mealRole) recipe.mealRole = options.mealRole;
@@ -997,10 +1014,16 @@ export async function startConceptsJob(
   try {
     const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
-    const jobId = await startAiJob<ConceptsJobResult>(
+    const jobId = await startAiJob<ConceptsJobResult, ConceptsJobProgress>(
       { householdId, kind: "concepts", label: "Recipe ideas" },
-      async () => {
-        const { concepts } = unwrap(await conceptsFor(householdId, prompt, memberIds, mealType, targetCalories, options));
+      async (report) => {
+        const sofar: ConceptCard[] = [];
+        const { concepts } = unwrap(
+          await conceptsFor(householdId, prompt, memberIds, mealType, targetCalories, options, (c) => {
+            sofar.push(c);
+            void report({ concepts: [...sofar] });
+          })
+        );
         return { concepts: concepts! };
       }
     );
@@ -1020,10 +1043,12 @@ export async function startRecipeJob(
   try {
     const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
-    const jobId = await startAiJob<RecipeJobResult>(
+    const jobId = await startAiJob<RecipeJobResult, RecipeProgress>(
       { householdId, kind: "recipe", label: concept.title },
-      async () => {
-        const { recipe } = unwrap(await fullRecipeFor(householdId, concept, memberIds, mealType, targetCalories, options));
+      async (report) => {
+        const { recipe } = unwrap(
+          await fullRecipeFor(householdId, concept, memberIds, mealType, targetCalories, options, (p) => void report(p))
+        );
         if (!options?.suggestCollection) return { recipe: recipe! };
         const collection = await collectionSuggestionFor(householdId, {
           title: recipe!.title,
@@ -1063,7 +1088,12 @@ export async function startRecipeBatchJob(
           items[i]!.status = "generating";
           await publish();
           try {
-            const { recipe } = unwrap(await fullRecipeFor(householdId, concepts[i]!, memberIds, mealType, targetCalories, options));
+            const { recipe } = unwrap(
+              await fullRecipeFor(householdId, concepts[i]!, memberIds, mealType, targetCalories, options, (p) => {
+                items[i]!.progress = p;
+                void publish();
+              })
+            );
             const suggestion = await collectionSuggestionFor(householdId, {
               title: recipe!.title,
               description: recipe!.description,
@@ -1082,7 +1112,7 @@ export async function startRecipeBatchJob(
               collectionName: linkedCollectionId ? suggestion.collectionName : undefined,
             };
           } catch (err) {
-            items[i] = { ...items[i]!, status: "error", error: err instanceof Error ? err.message : "Failed to save recipe." };
+            items[i] = { title: items[i]!.title, status: "error", error: err instanceof Error ? err.message : "Failed to save recipe." };
           }
           await publish();
         }
@@ -1107,10 +1137,17 @@ export async function startMealPlanJob(params: MealPlanParams): Promise<{ jobId?
   try {
     const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
-    const jobId = await startAiJob<MealPlanJobResult>(
+    const jobId = await startAiJob<MealPlanJobResult, MealPlanProgress>(
       { householdId, kind: "meal-plan", label: "Week plan" },
-      async () => {
-        const { slots } = unwrap(await mealPlanFor(householdId, params));
+      async (report) => {
+        const progress: MealPlanProgress = { facts: [], photos: [], slots: [] };
+        const { slots } = unwrap(
+          await mealPlanFor(householdId, params, (update) => {
+            if (update.type === "facts") Object.assign(progress, { facts: update.facts, photos: update.photos });
+            else progress.slots = [...progress.slots, update.slot];
+            void report({ ...progress });
+          })
+        );
         return { slots: slots! };
       }
     );
@@ -1198,6 +1235,8 @@ export type MealPlanSlot = {
   heartStatus?: "yes" | "no" | "unknown" | "new";
   /** Household average rating (0–10) for library picks; null when unrated. */
   avgRating?: number | null;
+  /** A library pick's photo (thumbnail when there is one), for the draft. */
+  imageUrl?: string | null;
 };
 
 export type MealPlanParams = {
@@ -1226,20 +1265,27 @@ export type MealPlanParams = {
 };
 
 export async function generateMealPlanConcepts(
-  params: MealPlanParams
+  params: MealPlanParams,
+  onUpdate?: (update: MealPlanUpdate) => void
 ): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
   try {
     const user = await resolveIdentity();
     const { householdId } = await requireHousehold(user);
-    return await mealPlanFor(householdId, params);
+    return await mealPlanFor(householdId, params, onUpdate);
   } catch (err) {
     return { error: classifyError(err) };
   }
 }
 
+/**
+ * `onUpdate` hears what the planner is weighing once the library is narrowed
+ * (facts and photos for the wait screen), then each meal as the AI writes it —
+ * the same meals, resolved the same way, as the answer returns at the end.
+ */
 async function mealPlanFor(
   householdId: string,
-  params: MealPlanParams
+  params: MealPlanParams,
+  onUpdate?: (update: MealPlanUpdate) => void
 ): Promise<{ slots?: MealPlanSlot[]; error?: string }> {
   const { slots: requestedSlots, preferences, cuisineFilter, tagFilter, unusedOnly, favouritesOnly, frequentsOnly, ratedOnly, memberIds, maxCaloriesPerMeal, heartHealthy, weekStartDate, keptSlots, replacingTitles } = params;
   if (!requestedSlots.length)
@@ -1290,6 +1336,8 @@ async function mealPlanFor(
             mealRole: recipes.mealRole,
             mealTypes: recipes.mealTypes,
             isFavourite: recipes.isFavourite,
+            imageUrl: recipes.imageUrl,
+            thumbnailUrl: recipes.thumbnailUrl,
           })
           .from(recipes)
           .where(
@@ -1744,38 +1792,9 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
       .map((s) => `${DAY_NAMES[s.dayOfWeek]} ${s.mealType}`)
       .join(", ");
 
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: "json_object" },
-      ...maxTokensParam(model, 2000),
-      messages: [
-        {
-          role: "system",
-          content: `You are a meal planning chef helping a family plan their week. Return meal suggestions as JSON.
-Format: {"slots": [{"dayOfWeek": number, "mealType": string, "title": string, "description": "1-2 sentences", "cuisine": string, "difficulty": "easy"|"medium"|"hard", "libraryIndex": number}]}
-Make meals varied across the week.
-CRITICAL — each suggestion MUST genuinely suit its slot's meal type:
-- breakfast: breakfast-appropriate food only (eggs, pancakes, porridge, pastries, granola, fruit, breakfast wraps, etc.). Never put rich dinner-style dishes (pasta, curries, roasts, stews) in a breakfast slot.
-- lunch: light, quick, midday food — salads, sandwiches, wraps, soups, grain bowls, leftovers-style plates. Keep portions and richness modest; do NOT assign full dinner-style mains to lunch.
-- dinner: the main heartier meal of the day.
-- snack: small, simple bites. dessert: sweet courses only.
-If a slot's meal type can't be satisfied by a sensible dish, suggest a new one (libraryIndex 0) rather than forcing an ill-fitting recipe.
-dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.${libraryContext}${fullAddendum}`,
-        },
-        {
-          role: "user",
-          content: `Plan these meals: ${slotsDesc}.${safePreferences ? ` Preferences: ${safePreferences}` : ""} Return exactly ${slots.length} suggestions.`,
-        },
-      ],
-    });
-
-    const raw = completion.choices[0]?.message?.content ?? "";
-    const parsed = JSON.parse(raw) as { slots: (Omit<MealPlanSlot, "recipeId"> & { libraryIndex?: number })[] };
-    if (!Array.isArray(parsed.slots) || parsed.slots.length === 0)
-      throw new Error("Unexpected AI response format.");
-
+    type RawSlot = Omit<MealPlanSlot, "recipeId"> & { libraryIndex?: number };
     // Resolve libraryIndex → recipeId
-    const resolvedSlots: MealPlanSlot[] = parsed.slots.map((slot) => {
+    const resolveSlot = (slot: RawSlot): MealPlanSlot => {
       const idx = slot.libraryIndex;
       if (idx && idx > 0 && idx <= libraryRecipes.length) {
         const lib = libraryRecipes[idx - 1]!;
@@ -1800,10 +1819,78 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
           difficulty: (lib.difficulty ?? slot.difficulty) as MealPlanSlot["difficulty"],
           recipeId: lib.id,
           avgRating: lib.avgRating != null ? Math.round(parseFloat(lib.avgRating) * 10) / 10 : null,
+          imageUrl: lib.thumbnailUrl || lib.imageUrl || null,
         };
       }
       return { ...slot, recipeId: null, heartStatus: heartHealthy ? ("new" as const) : undefined };
+    };
+
+    if (onUpdate) {
+      const target = weekStartDate ? new Date(weekStartDate + "T00:00:00") : new Date();
+      onUpdate({
+        type: "facts",
+        facts: planFacts({
+          scanned: rawLibrary.length,
+          eligible: filteredLibrary.length,
+          favouritesOnly: !!favouritesOnly,
+          resting: recentlyCookedTitles.length,
+          restingWeeks: cooldownUsed,
+          disliked: dislikedTitles.length,
+          eaters: eaterNames,
+          heartHealthy: !!heartHealthy,
+          alreadyPlanned: alreadyPlanned.length,
+          notCookingDays: notCooking
+            .filter((m) => requestedSlots.some((sl) => sl.dayOfWeek === dayOfWeekOf(m.date) && sl.mealType === m.mealType))
+            .map((m) => DAY_NAMES[dayOfWeekOf(m.date)]!),
+          keeping: keptSlots?.length ?? 0,
+          month: Number.isNaN(target.getTime()) ? null : target.toLocaleString("en-GB", { month: "long" }),
+          mealTypes: slots.map((sl) => sl.mealType),
+        }),
+        photos: planPhotos(libraryRecipes, rawLibrary),
+      });
+    }
+
+    // Streamed, so each meal reaches the wait screen as soon as it's written.
+    // A slot is finished once the next one starts (or the answer ends); only
+    // complete, well-formed ones are passed on.
+    const isWritten = (slot: Partial<RawSlot> | null | undefined): slot is RawSlot =>
+      !!slot && typeof slot.dayOfWeek === "number" && typeof slot.mealType === "string" && typeof slot.title === "string";
+    const written = completedItems<Partial<RawSlot>>("slots", (slot) => {
+      if (isWritten(slot)) onUpdate?.({ type: "slot", slot: resolveSlot(slot) });
     });
+    const parsed = (await streamStructured(
+      client,
+      {
+      model,
+      response_format: { type: "json_object" },
+      ...maxTokensParam(model, 2000),
+      messages: [
+        {
+          role: "system",
+          content: `You are a meal planning chef helping a family plan their week. Return meal suggestions as JSON.
+Format: {"slots": [{"dayOfWeek": number, "mealType": string, "title": string, "description": "1-2 sentences", "cuisine": string, "difficulty": "easy"|"medium"|"hard", "libraryIndex": number}]}
+Make meals varied across the week.
+CRITICAL — each suggestion MUST genuinely suit its slot's meal type:
+- breakfast: breakfast-appropriate food only (eggs, pancakes, porridge, pastries, granola, fruit, breakfast wraps, etc.). Never put rich dinner-style dishes (pasta, curries, roasts, stews) in a breakfast slot.
+- lunch: light, quick, midday food — salads, sandwiches, wraps, soups, grain bowls, leftovers-style plates. Keep portions and richness modest; do NOT assign full dinner-style mains to lunch.
+- dinner: the main heartier meal of the day.
+- snack: small, simple bites. dessert: sweet courses only.
+If a slot's meal type can't be satisfied by a sensible dish, suggest a new one (libraryIndex 0) rather than forcing an ill-fitting recipe.
+dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.${libraryContext}${fullAddendum}`,
+        },
+        {
+          role: "user",
+          content: `Plan these meals: ${slotsDesc}.${safePreferences ? ` Preferences: ${safePreferences}` : ""} Return exactly ${slots.length} suggestions.`,
+        },
+      ],
+      },
+      written.partial
+    )) as { slots: RawSlot[] };
+    if (!Array.isArray(parsed.slots) || parsed.slots.length === 0)
+      throw new Error("Unexpected AI response format.");
+    written.done(parsed);
+
+    const resolvedSlots = parsed.slots.map(resolveSlot);
 
     return { slots: resolvedSlots };
   } catch (err) {

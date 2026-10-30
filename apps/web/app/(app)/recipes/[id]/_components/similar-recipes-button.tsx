@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { Sparkles, RefreshCw } from "lucide-react";
 import { AiButton, Button, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea } from "@dishes/ui";
 import { generateSimilarConcepts, startRecipeJob } from "@/app/actions/ai";
 import { useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
-import type { RecipeJobResult } from "@/lib/ai/job-types";
+import type { RecipeJobResult, RecipeProgress } from "@/lib/ai/job-types";
+import { IdeaPlaces, PlateSpinner, recipeStageLabel } from "@/components/ai-wait";
 import { recipeJobToDefaults, stashAiDraft } from "@/lib/ai/recipe-defaults";
 import type { ConceptCard } from "@/lib/ai/recipe-generation";
 
@@ -36,11 +37,13 @@ function difficultyClass(d: string) {
 // ── Concept card ──────────────────────────────────────────────────────────────
 
 function SimilarConceptCard({
-  concept, onSelect, isGenerating, disabled,
+  concept, onSelect, isGenerating, progress, disabled,
 }: {
   concept: ConceptCard;
   onSelect: () => void;
   isGenerating: boolean;
+  /** How far the recipe being written has got. */
+  progress: RecipeProgress | null;
   disabled: boolean;
 }) {
   const emoji = cuisineEmoji(concept.cuisine);
@@ -72,7 +75,7 @@ function SimilarConceptCard({
           disabled={disabled}
         >
           {isGenerating ? (
-            <><Loader2 className="h-3 w-3 animate-spin" />Creating…</>
+            <><PlateSpinner />{recipeStageLabel(progress)}</>
           ) : (
             <><Sparkles className="h-3 w-3" />Create recipe</>
           )}
@@ -123,6 +126,7 @@ export function SimilarRecipesButton({
   const [concepts, setConcepts] = useState<ConceptCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
+  const [progress, setProgress] = useState<RecipeProgress | null>(null);
   const [, startTransition] = useAsyncBusy();
   const { run } = useAiJobRunner();
 
@@ -160,10 +164,15 @@ export function SimilarRecipesButton({
   function handleSelectConcept(concept: ConceptCard, idx: number) {
     setError(null);
     setGeneratingIdx(idx);
+    setProgress(null);
     setPhase("loading-recipe");
     startTransition(async () => {
       // A background job: leave the page and the app-wide tray offers the recipe.
-      const out = await run<RecipeJobResult>(startRecipeJob(concept), { kind: "recipe", label: concept.title });
+      const out = await run<RecipeJobResult, RecipeProgress>(
+        startRecipeJob(concept),
+        { kind: "recipe", label: concept.title },
+        setProgress
+      );
       if (!out) return;
       if ("error" in out) {
         setError(out.error);
@@ -234,9 +243,8 @@ export function SimilarRecipesButton({
 
           {/* Loading concepts */}
           {phase === "loading-concepts" && (
-            <div className="flex flex-1 items-center justify-center gap-3 text-muted-foreground">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              <span className="text-sm">Finding similar recipes…</span>
+            <div className="flex-1 overflow-y-auto p-4">
+              <IdeaPlaces ideas={[]} title="Finding similar recipes…" asked={note.trim() ? [`“${note.trim()}”`] : undefined} />
             </div>
           )}
 
@@ -265,6 +273,7 @@ export function SimilarRecipesButton({
                     concept={concept}
                     onSelect={() => handleSelectConcept(concept, i)}
                     isGenerating={generatingIdx === i}
+                    progress={generatingIdx === i ? progress : null}
                     disabled={phase === "loading-recipe"}
                   />
                 ))}

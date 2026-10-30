@@ -13,6 +13,7 @@ import {
 } from "@/lib/services/meal-plan";
 import { generateFullRecipe } from "./ai";
 import type { MealPlanSlot } from "./ai";
+import type { MealPlanApplyUpdate } from "@/lib/ai/job-types";
 import * as recipeService from "@/lib/services/recipes";
 import type { MealRole, MealType } from "@dishes/shared";
 
@@ -236,13 +237,14 @@ const NEW_RECIPE_CONCURRENCY = 3;
  * cuisine, difficulty — with no recipeId. Generate the full recipe and save it,
  * then hand the planner the resulting id. A slot whose generation fails is left
  * untouched, so the planner still creates its stub and the week is never lost
- * over one bad response.
+ * over one bad response. `onUpdate` hears each one start, progress and finish.
  */
 async function fillNewSlots(
   session: Session,
   slots: MealPlanSlot[],
   memberIds: string[],
-  heartHealthy: boolean
+  heartHealthy: boolean,
+  onUpdate?: (update: MealPlanApplyUpdate) => void
 ): Promise<MealPlanSlot[]> {
   const filled = [...slots];
   const pending = slots
@@ -254,6 +256,7 @@ async function fillNewSlots(
     await Promise.all(
       batch.map(async ({ slot, index }) => {
         try {
+          onUpdate?.({ type: "writing", index, progress: null });
           const { recipe, error } = await generateFullRecipe(
             {
               title: slot.title,
@@ -265,7 +268,8 @@ async function fillNewSlots(
             memberIds,
             slot.mealType,
             undefined,
-            { heartHealthy }
+            { heartHealthy },
+            onUpdate ? (progress) => onUpdate({ type: "writing", index, progress }) : undefined
           );
           if (error || !recipe) throw new Error(error ?? "No recipe returned.");
 
@@ -274,7 +278,9 @@ async function fillNewSlots(
             recipeService.generatedToWriteInput(recipe)
           );
           filled[index] = { ...slot, recipeId };
+          onUpdate?.({ type: "written", index, recipeId });
         } catch (err) {
+          onUpdate?.({ type: "failed", index });
           console.error(
             `[addAiGeneratedMealPlan] could not write "${slot.title}":`,
             err instanceof Error ? err.message : err
@@ -291,7 +297,7 @@ export async function addAiGeneratedMealPlan(
   weekStartDate: string,
   slots: MealPlanSlot[],
   memberIds: string[] = [],
-  options: { heartHealthy?: boolean } = {}
+  options: { heartHealthy?: boolean; onUpdate?: (update: MealPlanApplyUpdate) => void } = {}
 ): Promise<{ success?: boolean; error?: string; debug?: Record<string, unknown> }> {
   const debug: Record<string, unknown> = {
     weekStartDate,
@@ -307,7 +313,7 @@ export async function addAiGeneratedMealPlan(
     // Slots the AI invented (no recipeId) are only a title and a one-line
     // description. Write them out in full before they reach the planner —
     // otherwise the plan links to an empty recipe with no ingredients or steps.
-    const filledSlots = await fillNewSlots(session, slots, memberIds, !!options.heartHealthy);
+    const filledSlots = await fillNewSlots(session, slots, memberIds, !!options.heartHealthy, options.onUpdate);
     debug.recipesGenerated = filledSlots.filter(
       (s, i) => !slots[i]!.recipeId && s.recipeId
     ).length;

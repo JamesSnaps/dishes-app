@@ -11,6 +11,7 @@
     "check:diner-brief": "tsx scripts/check-diner-brief.ts",
     "check:integrations-spec": "tsx scripts/check-integrations-spec.ts",
     "check:menu-picks": "tsx scripts/check-menu-picks.ts",
+    "check:generation-progress": "tsx scripts/check-generation-progress.ts",
     "check:colours": "node --experimental-strip-types --no-warnings scripts/check-colours.ts",
     "dev": "next dev --turbopack",
     "build": "next build",

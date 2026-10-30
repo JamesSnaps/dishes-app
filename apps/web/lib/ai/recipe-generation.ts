@@ -10,7 +10,10 @@
 
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
+import { ContentFilterFinishReasonError } from "openai/error";
 import { z } from "zod";
+import type { RecipeProgress } from "./job-types";
+import { streamCompletion } from "./stream-structured";
 import {
   HEART_HEALTHY_MAX_SATURATED_FAT_G,
   HEART_HEALTHY_MIN_FIBER_G,
@@ -251,20 +254,67 @@ export function maxTokensParam(
     : { max_tokens: tokens };
 }
 
+/**
+ * Where a recipe being written has got, from a partial parse of the answer:
+ * the schema writes ingredients, then steps, then nutrition, so whichever of
+ * those has started is the stage. Null before the ingredients begin.
+ */
+export function recipeProgressOf(parsed: unknown): RecipeProgress | null {
+  const r = parsed as Partial<Record<"ingredients" | "steps" | "nutrition", unknown>> | null;
+  if (!r || typeof r !== "object") return null;
+  const ingredients = Array.isArray(r.ingredients)
+    ? r.ingredients
+        .map((i) => (i as { ingredientName?: unknown } | null)?.ingredientName)
+        .filter((n): n is string => typeof n === "string" && n.trim() !== "")
+        .map((n) => n.trim())
+    : [];
+  const steps = Array.isArray(r.steps) ? r.steps.length : 0;
+  if (r.nutrition !== undefined) return { stage: "nutrition", ingredients, steps };
+  if (Array.isArray(r.steps)) return { stage: "method", ingredients, steps };
+  if (Array.isArray(r.ingredients)) return { stage: "ingredients", ingredients, steps: 0 };
+  return null;
+}
+
+/** Calls `onProgress` only when the stage, an ingredient or a step is new. */
+function progressReporter(onProgress: (p: RecipeProgress) => void, revising?: boolean) {
+  let last = "";
+  return (parsed: unknown) => {
+    const p = recipeProgressOf(parsed);
+    if (!p) return;
+    const key = `${p.stage}|${p.ingredients.length}|${p.steps}`;
+    if (key === last) return;
+    last = key;
+    onProgress(revising ? { ...p, revising } : p);
+  };
+}
+
 export async function createStructuredRecipe(
   client: OpenAI,
   model: string,
-  messages: OpenAI.ChatCompletionMessageParam[]
+  messages: OpenAI.ChatCompletionMessageParam[],
+  onProgress?: (progress: RecipeProgress) => void,
+  revising?: boolean
 ): Promise<GeneratedRecipe> {
   // A detailed recipe can exceed the old 2,500-token ceiling. Start with enough
   // room for a complete response, then retry once if the model still hits it.
   for (const tokenBudget of [6000, 10000]) {
-    const completion = await client.chat.completions.create({
+    const params = {
       model,
       response_format: zodResponseFormat(generatedRecipeSchema, "generated_recipe"),
       ...maxTokensParam(model, tokenBudget),
       messages,
-    });
+    };
+    // Streamed when someone is watching, so the wait can say how far it's got.
+    let completion: OpenAI.ChatCompletion;
+    try {
+      completion = onProgress
+        ? await streamCompletion(client, params, progressReporter(onProgress, revising))
+        : await client.chat.completions.create(params);
+    } catch (err) {
+      if (err instanceof ContentFilterFinishReasonError)
+        throw new Error("The AI response was blocked by its content filter.");
+      throw err;
+    }
 
     const choice = completion.choices[0];
     if (choice?.finish_reason === "length") continue;
@@ -293,9 +343,10 @@ export async function createStructuredRecipe(
 export async function createHeartHealthyRecipe(
   client: OpenAI,
   model: string,
-  messages: OpenAI.ChatCompletionMessageParam[]
+  messages: OpenAI.ChatCompletionMessageParam[],
+  onProgress?: (progress: RecipeProgress) => void
 ): Promise<{ recipe: GeneratedRecipe; heartHealthy: boolean }> {
-  const first = await createStructuredRecipe(client, model, messages);
+  const first = await createStructuredRecipe(client, model, messages, onProgress);
   if (isHeartHealthy(first.nutrition ?? {})) return { recipe: first, heartHealthy: true };
 
   const satFat = first.nutrition?.saturatedFatG;
@@ -307,7 +358,7 @@ export async function createHeartHealthyRecipe(
       role: "user",
       content: `That recipe comes to ${satFat ?? "?"}g saturated fat and ${fiber ?? "?"}g fibre per serving. The target is at most ${HEART_HEALTHY_MAX_SATURATED_FAT_G}g saturated fat and at least ${HEART_HEALTHY_MIN_FIBER_G}g fibre. Revise the ingredients (swap the high saturated fat ones, add pulses, wholegrains or vegetables) and return the complete recipe again in the same schema. Recalculate the nutrition honestly from the new ingredients — do not just lower the numbers.`,
     },
-  ]);
+  ], onProgress, true);
 
   return { recipe: revised, heartHealthy: isHeartHealthy(revised.nutrition ?? {}) };
 }

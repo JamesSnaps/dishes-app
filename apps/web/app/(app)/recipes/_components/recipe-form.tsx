@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback, type ReactNode } from "react";
-import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Star, Loader2, Layers, GripVertical, FolderPlus, Check } from "lucide-react";
+import { Plus, Trash2, ImagePlus, X, Sparkles, CheckCircle2, Wand2, Tag, Loader2, Layers, GripVertical, FolderPlus, Check, Camera } from "lucide-react";
+import { DevelopingPhoto } from "@/components/ai-wait";
 import {
   DndContext,
   DragOverlay,
@@ -490,24 +491,6 @@ export function RecipeForm({
   const [imageUploading, setImageUploading] = useState(false);
   const [imageGenerating, setImageGenerating] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
-  const [genMsgIdx, setGenMsgIdx] = useState(0);
-
-  const GEN_MESSAGES = [
-    "Conjuring your image…",
-    "Painting with pixels…",
-    "Adding a pinch of magic…",
-    "Almost ready…",
-  ];
-
-  useEffect(() => {
-    if (!imageGenerating) return;
-    setGenMsgIdx(0);
-    const id = setInterval(() => {
-      setGenMsgIdx((i) => (i + 1) % GEN_MESSAGES.length);
-    }, 2200);
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageGenerating]);
 
   // ── Submit state ────────────────────────────────────────────────────────────
 
@@ -1076,43 +1059,18 @@ export function RecipeForm({
           </button>
         </div>
       ) : imageGenerating ? (
-        <div className="relative w-full aspect-video overflow-hidden rounded-2xl bg-ink">
-          {/* sweeping shimmer */}
-          <div
-            className="absolute inset-0 opacity-30"
-            style={{
-              background: "linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%)",
-              animation: "shimmer 2s linear infinite",
-              backgroundSize: "200% 100%",
-            }}
-          />
-          {/* floating sparkle dots */}
-          <div className="absolute top-5 left-8 h-1.5 w-1.5 rounded-full bg-primary animate-ping" style={{ animationDelay: "0s", animationDuration: "1.6s" }} />
-          <div className="absolute top-10 right-10 h-1 w-1 rounded-full bg-ink-foreground/70 animate-ping" style={{ animationDelay: "0.5s", animationDuration: "2s" }} />
-          <div className="absolute bottom-8 left-14 h-1.5 w-1.5 rounded-full bg-primary/70 animate-ping" style={{ animationDelay: "1s", animationDuration: "1.8s" }} />
-          <div className="absolute bottom-5 right-6 h-1 w-1 rounded-full bg-ink-foreground/70 animate-ping" style={{ animationDelay: "0.3s", animationDuration: "2.2s" }} />
-          <Star className="absolute top-4 right-4 h-3 w-3 text-primary/60 animate-pulse" style={{ animationDelay: "0.8s" }} />
-          <Star className="absolute bottom-6 left-5 h-2.5 w-2.5 text-ink-foreground/50 animate-pulse" style={{ animationDelay: "0.2s" }} />
-          {/* centre content */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-primary/30 blur-lg animate-pulse scale-150" />
-              <Wand2 className="relative h-8 w-8 text-ink-foreground" style={{ animation: "wand-rock 1.8s ease-in-out infinite" }} />
-              <Sparkles className="absolute -top-2 -right-2 h-4 w-4 text-primary animate-spin" style={{ animationDuration: "3s" }} />
-            </div>
-            <p
-              key={genMsgIdx}
-              className="text-sm font-medium text-ink-foreground/90 tracking-wide"
-              style={{ animation: "fadeSlideIn 0.4s ease-out" }}
-            >
-              {GEN_MESSAGES[genMsgIdx]}
-            </p>
+        // The photo developing where it'll appear (components/ai-wait).
+        <div className="relative w-full aspect-video overflow-hidden rounded-2xl">
+          <DevelopingPhoto className="absolute inset-0" />
+          <div role="status" className="absolute inset-x-3 bottom-3 flex items-center gap-3 rounded-2xl bg-card px-3.5 py-3 shadow-lg sm:right-auto">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-ink text-ink-foreground">
+              <Camera className="size-[18px]" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Plating up a photo…</span>
+              <span className="block text-xs text-muted-foreground">Usually about 30 seconds.</span>
+            </span>
           </div>
-          <style>{`
-            @keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
-            @keyframes wand-rock { 0%, 100% { transform: rotate(-12deg) } 50% { transform: rotate(12deg) } }
-            @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
-          `}</style>
         </div>
       ) : (
         <div className="flex flex-col gap-2">

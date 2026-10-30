@@ -10,11 +10,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, Salad, Sparkles } from "lucide-react";
+import { RefreshCw, Salad, Sparkles } from "lucide-react";
 import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Textarea } from "@dishes/ui";
 import { startRecipeJob, generateSideConcepts } from "@/app/actions/ai";
 import { useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
-import type { RecipeJobResult } from "@/lib/ai/job-types";
+import type { RecipeJobResult, RecipeProgress } from "@/lib/ai/job-types";
+import { IdeaPlaces, PlateSpinner, recipeStageLabel } from "@/components/ai-wait";
 import { recipeJobToDefaults, stashAiDraft } from "@/lib/ai/recipe-defaults";
 import type { ConceptCard } from "@/lib/ai/recipe-generation";
 
@@ -36,6 +37,7 @@ function SideFlow({
   const [withDishes, setWithDishes] = useState(accompanies);
   const [error, setError] = useState<string | null>(null);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
+  const [progress, setProgress] = useState<RecipeProgress | null>(null);
   const [, startTransition] = useAsyncBusy();
   const { run } = useAiJobRunner();
 
@@ -60,12 +62,14 @@ function SideFlow({
   function handleSelectConcept(concept: ConceptCard, idx: number) {
     setError(null);
     setGeneratingIdx(idx);
+    setProgress(null);
     setPhase("loading-recipe");
     startTransition(async () => {
       // A background job: leave the page and the app-wide tray offers the recipe.
-      const out = await run<RecipeJobResult>(
+      const out = await run<RecipeJobResult, RecipeProgress>(
         startRecipeJob(concept, undefined, undefined, undefined, { mealRole: "side", accompanies: withDishes }),
-        { kind: "recipe", label: concept.title }
+        { kind: "recipe", label: concept.title },
+        setProgress
       );
       if (!out) return;
       if ("error" in out) {
@@ -82,10 +86,7 @@ function SideFlow({
 
   if (phase === "loading-concepts") {
     return (
-      <div className="flex items-center justify-center gap-3 py-10 text-muted-foreground">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        <span className="text-sm">Thinking of sides…</span>
-      </div>
+      <IdeaPlaces ideas={[]} title="Thinking of sides…" asked={accompanies ? [`With ${accompanies}`] : undefined} className="py-2" />
     );
   }
 
@@ -124,11 +125,13 @@ function SideFlow({
                   className="flex w-full items-start gap-3 rounded-xl border border-transparent bg-success-tint p-3 text-left shadow-sm transition-colors disabled:opacity-60"
                 >
                   <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success-tint text-success">
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Salad className="h-4 w-4" />}
+                    {busy ? <PlateSpinner className="w-6" /> : <Salad className="h-4 w-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold leading-snug">{concept.title}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">{concept.description}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {busy ? recipeStageLabel(progress) : concept.description}
+                    </span>
                   </span>
                 </button>
               </li>

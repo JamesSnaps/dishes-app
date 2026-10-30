@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles, Loader2, SlidersHorizontal, ImagePlus } from "lucide-react";
+import { Camera, Sparkles, SlidersHorizontal, ImagePlus } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -15,6 +15,7 @@ import {
 import { addPendingImageJob, IMAGE_FAILED_EVENT, IMAGE_READY_EVENT, type ImageReadyDetail } from "@/components/providers/jobs-provider";
 import { toast } from "@/hooks/use-toast";
 import { IMAGE_STYLES } from "@/lib/image-styles";
+import { DevelopingPhoto, DevelopingVeil, PlateSpinner } from "@/components/ai-wait";
 import type { ImageStyleValue } from "@/lib/image-styles";
 
 interface Props {
@@ -92,7 +93,7 @@ function GenerateImageForm({
           onClick={() => void handleClick()}
           disabled={starting}
         >
-          {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {starting ? <PlateSpinner /> : <Sparkles className="h-4 w-4" />}
           {starting ? "Starting…" : replacing ? "Generate new photo" : "Generate image with AI"}
         </Button>
 
@@ -142,14 +143,31 @@ function useImagePending(recipeId: string) {
   return [pending, () => setPending(true)] as const;
 }
 
+/** The caption on a photo being made. */
+function PlatingUp({ replacing = false }: { replacing?: boolean }) {
+  return (
+    <div role="status" className="flex items-center gap-3 rounded-2xl bg-card px-3.5 py-3 shadow-lg">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-ink text-ink-foreground">
+        <Camera className="size-[18px]" aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-foreground">
+          {replacing ? "Plating up a new photo…" : "Plating up a photo…"}
+        </span>
+        <span className="block text-xs text-muted-foreground">About 30 seconds. You can leave, we&apos;ll let you know.</span>
+      </span>
+    </div>
+  );
+}
+
+/** Where the photo will be, developing until it arrives. */
 function GeneratingNotice() {
   return (
-    <div className="mb-6 flex items-center gap-2 rounded-2xl bg-highlight px-4 py-3 text-sm text-primary">
-      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-      <span>
-        Generating image &mdash; you can navigate away and we&apos;ll notify you when
-        it&apos;s ready.
-      </span>
+    <div className="relative mb-6 overflow-hidden rounded-2xl">
+      <DevelopingPhoto className="h-56 w-full" />
+      <div className="absolute inset-x-3 bottom-3 sm:right-auto">
+        <PlatingUp />
+      </div>
     </div>
   );
 }
@@ -207,14 +225,23 @@ export function RegenerateImageButton(props: Props) {
   const [pending, markPending] = useImagePending(props.recipeId);
   return (
     <>
+      {pending && (
+        <>
+          <DevelopingVeil />
+          <div className="absolute inset-x-3 bottom-3 sm:right-auto print:hidden">
+            <PlatingUp replacing />
+          </div>
+        </>
+      )}
       <button
         type="button"
         onClick={() => setOpen(true)}
         disabled={pending}
+        hidden={pending}
         className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur transition-colors hover:bg-black/75 disabled:cursor-default print:hidden"
       >
-        {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
-        {pending ? "Generating…" : "New photo"}
+        <ImagePlus className="h-3.5 w-3.5" />
+        New photo
       </button>
       <GenerateImageDialog {...props} open={open} onOpenChange={setOpen} onQueued={markPending} />
     </>

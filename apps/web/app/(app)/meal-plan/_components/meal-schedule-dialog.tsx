@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  cn,
 } from "@dishes/ui";
 import {
   clearMealTimeline,
@@ -18,6 +19,7 @@ import {
 } from "@/app/actions/meal-timeline";
 import type { MealSchedule } from "@/lib/services/meal-timeline";
 import { cueClock } from "@/lib/meal-timeline";
+import { PlateSpinner } from "@/components/ai-wait";
 import { useToast } from "@/hooks/use-toast";
 
 function formatLead(minutes: number): string {
@@ -167,11 +169,11 @@ export function MealScheduleDialog({
                   className="ml-auto bg-ink text-ink-foreground border-0 shadow-sm"
                 >
                   {planning ? (
-                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    <PlateSpinner className="mr-1.5" />
                   ) : (
                     <Sparkles className="mr-1 h-3.5 w-3.5" />
                   )}
-                  {schedule.timeline.source === "ai" ? "Replan with AI" : "Plan with AI"}
+                  {planning ? "Planning…" : schedule.timeline.source === "ai" ? "Replan with AI" : "Plan with AI"}
                 </Button>
               )}
               {schedule.timeline.source === "ai" && (
@@ -206,7 +208,14 @@ export function MealScheduleDialog({
             )}
 
             {/* The schedule */}
-            <ol className="relative space-y-1 before:absolute before:left-[3.6rem] before:top-2 before:bottom-2 before:w-px before:bg-highlight">
+            <ol
+              aria-busy={planning}
+              className={cn(
+                "relative space-y-1 before:absolute before:left-[3.6rem] before:top-2 before:bottom-2 before:w-px before:bg-highlight",
+                // Being replanned: the current timings stay, gently pulsing, until the new ones arrive.
+                planning && "animate-soft-pulse motion-reduce:animate-none"
+              )}
+            >
               {cues.map((cue) => {
                 const serve = cue.id === "serve";
                 return (

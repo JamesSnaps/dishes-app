@@ -50,7 +50,16 @@ import {
 } from "@dishes/ui";
 import { startConceptsJob, startRecipeJob, startRecipeBatchJob, startMealPlanJob, type MealPlanSlot } from "@/app/actions/ai";
 import { listTrackedAiJobs, useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
-import type { BatchJobProgress, ConceptsJobResult, MealPlanJobResult, RecipeJobResult } from "@/lib/ai/job-types";
+import type {
+  BatchJobProgress,
+  ConceptsJobProgress,
+  ConceptsJobResult,
+  MealPlanJobResult,
+  MealPlanProgress,
+  RecipeJobResult,
+  RecipeProgress,
+} from "@/lib/ai/job-types";
+import { BatchWriting, DishPlate, IdeaPlaces, PlanReels, PlateReel, PlateSpinner, RecipeWriting, SteamPlate } from "@/components/ai-wait";
 import { recipeJobToDefaults, stashAiDraft } from "@/lib/ai/recipe-defaults";
 import type { ConceptCard } from "@/lib/ai/recipe-generation";
 import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
@@ -414,8 +423,8 @@ function ConceptCardItem({
 
         {isGenerating && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Creating recipe…
+            <PlateSpinner />
+            Writing the recipe…
           </div>
         )}
       </div>
@@ -512,6 +521,7 @@ type Member = {
 type BatchItem = {
   concept: ConceptCard;
   status: "pending" | "generating" | "done" | "error";
+  progress?: RecipeProgress;
   recipeId?: string;
   collectionName?: string;
   error?: string;
@@ -1088,6 +1098,10 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, startGenTransition] = useAsyncBusy();
   const { run, resume } = useAiJobRunner();
+  // The week as it's being drafted: facts, photos and each meal as it's written.
+  const [planProgress, setPlanProgress] = useState<MealPlanProgress | null>(null);
+  // The photos from the last draft, for the reels on a slot being swapped.
+  const [reelPhotos, setReelPhotos] = useState<string[]>([]);
   const [isAdding, startAddTransition] = useTransition();
   const [added, setAdded] = useState(false);
   const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
@@ -1136,12 +1150,16 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
       }
     }
     const redo = ctx?.redo;
+    if (!redo) setPlanProgress({ facts: [], photos: [], slots: [] });
     startGenTransition(async () => {
-      const out = await resume<MealPlanJobResult>(job.jobId);
+      const out = await resume<MealPlanJobResult, MealPlanProgress>(job.jobId, (p) => {
+        if (!redo) setPlanProgress(p);
+        if (p.photos.length) setReelPhotos(p.photos);
+      });
       if (!out) return;
       setRedoingSlots(new Set());
-      if ("error" in out) { setError(out.error); return; }
-      if (!redo) { setGeneratedSlots(out.result.slots); return; }
+      if ("error" in out) { setPlanProgress(null); setError(out.error); return; }
+      if (!redo) { await landLastMeals(out.result.slots); setPlanProgress(null); setGeneratedSlots(out.result.slots); return; }
       setGeneratedSlots(mergeRedoneSlots(redo.draft, redo.indices, out.result.slots));
       setRejectedSlots(new Set(redo.rejected.filter((i) => !redo.indices.includes(i))));
     });
@@ -1224,7 +1242,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
     setRedoingSlots(redo);
     const context = buildContext({ draft: current, rejected: Array.from(rejectedSlots), indices });
     startGenTransition(async () => {
-      const out = await run<MealPlanJobResult>(
+      const out = await run<MealPlanJobResult, MealPlanProgress>(
         startMealPlanJob({
           ...buildGenerateParams(),
           slots: indices.map((i) => ({ dayOfWeek: current[i]!.dayOfWeek, mealType: current[i]!.mealType })),
@@ -1233,7 +1251,8 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
             .map((s) => ({ dayOfWeek: s.dayOfWeek, mealType: s.mealType, title: s.title, cuisine: s.cuisine })),
           replacingTitles: indices.map((i) => current[i]!.title),
         }),
-        { kind: "meal-plan", label: "Week plan", href: PLAN_HREF, context }
+        { kind: "meal-plan", label: "Week plan", href: PLAN_HREF, context },
+        (p) => { if (p.photos.length) setReelPhotos(p.photos); }
       );
       if (!out) return;
       setRedoingSlots(new Set());
@@ -1258,15 +1277,35 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
       return { dayOfWeek: parseInt(key.slice(0, colon), 10), mealType: key.slice(colon + 1) };
     });
     const context = buildContext();
+    setPlanProgress({ facts: [], photos: [], slots: [] });
+    setTimeout(() => {
+      document.getElementById("plan-reels")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
     startGenTransition(async () => {
-      const out = await run<MealPlanJobResult>(
+      const out = await run<MealPlanJobResult, MealPlanProgress>(
         startMealPlanJob({ ...buildGenerateParams(), slots }),
-        { kind: "meal-plan", label: "Week plan", href: PLAN_HREF, context }
+        { kind: "meal-plan", label: "Week plan", href: PLAN_HREF, context },
+        (p) => {
+          setPlanProgress(p);
+          if (p.photos.length) setReelPhotos(p.photos);
+        }
       );
       if (!out) return;
-      if ("error" in out) { setError(out.error); return; }
+      if ("error" in out) { setPlanProgress(null); setError(out.error); return; }
+      await landLastMeals(out.result.slots);
+      setPlanProgress(null);
       setGeneratedSlots(out.result.slots);
     });
+  }
+
+  /**
+   * Fill every reel with the finished draft (the last poll can bring the
+   * final meals and the answer together) and give them a moment to land
+   * before the draft list takes over.
+   */
+  async function landLastMeals(slots: MealPlanSlot[]) {
+    setPlanProgress((p) => (p ? { ...p, slots } : p));
+    await new Promise((r) => setTimeout(r, 900));
   }
 
   function toggleRejection(idx: number) {
@@ -1316,6 +1355,17 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const newRecipeCount = generatedSlots
     ? generatedSlots.filter((slot, idx) => !rejectedSlots.has(idx) && !slot.recipeId).length
     : 0;
+  // The slots asked for, in week order, for the reels while it drafts.
+  const reelRows = Array.from(selectedSlots)
+    .map((key) => {
+      const colon = key.indexOf(":");
+      return { dayOfWeek: parseInt(key.slice(0, colon), 10), mealType: key.slice(colon + 1) };
+    })
+    .sort(
+      (a, b) =>
+        a.dayOfWeek - b.dayOfWeek ||
+        MEAL_TYPES.indexOf(a.mealType as (typeof MEAL_TYPES)[number]) - MEAL_TYPES.indexOf(b.mealType as (typeof MEAL_TYPES)[number])
+    );
 
   return (
     <div className="space-y-5">
@@ -1576,12 +1626,19 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
           size="lg"
         >
           {isGenerating ? (
-            <><Loader2 className="h-4 w-4 animate-spin" />Planning your week…</>
+            <><PlateSpinner />Planning your week…</>
           ) : (
             <><CalendarDays className="h-4 w-4" />Generate Meal Plan</>
           )}
         </Button>
       </div>
+
+      {/* The draft arriving: a reel per slot, landing as each meal is written */}
+      {planProgress && !generatedSlots && (
+        <div id="plan-reels" className="scroll-mt-4 rounded-xl border bg-card p-5">
+          <PlanReels rows={reelRows} photos={planProgress.photos} slots={planProgress.slots} facts={planProgress.facts} />
+        </div>
+      )}
 
       {/* Generated plan preview */}
       {generatedSlots && (
@@ -1674,7 +1731,14 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                             disabled={isAdding}
                             className="flex-1 min-w-0 flex items-start gap-3 py-1 text-left"
                           >
-                            <span className="text-lg shrink-0 leading-none mt-0.5">{cuisineEmoji(slot.cuisine)}</span>
+                            {redoing ? (
+                              <PlateReel photos={reelPhotos} offset={globalIdx} className="size-10 shrink-0" />
+                            ) : isAdding && !slot.recipeId && !rejected ? (
+                              // Being written out as a full recipe on the way in.
+                              <SteamPlate delay={globalIdx * 0.4} className="size-10" />
+                            ) : (
+                              <DishPlate src={slot.imageUrl} alt="" isNew={!slot.recipeId} className="size-10" />
+                            )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className={cn("text-sm font-medium truncate", rejected && "line-through text-muted-foreground")}>
@@ -1721,7 +1785,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
               >
                 {isAdding ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <PlateSpinner />
                     {newRecipeCount > 0
                       ? `Writing ${newRecipeCount} new recipe${newRecipeCount !== 1 ? "s" : ""}…`
                       : "Adding to planner…"}
@@ -1781,6 +1845,10 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
   const [isPending, startTransition] = useAsyncBusy();
   const { run, resume } = useAiJobRunner();
+  // Ideas as they're written, while the five are on their way.
+  const [ideasSoFar, setIdeasSoFar] = useState<ConceptCard[] | null>(null);
+  // The one recipe being written, and how far it's got.
+  const [writing, setWriting] = useState<{ concept: ConceptCard; progress: RecipeProgress | null } | null>(null);
 
   function switchMode(next: "inspire" | "direct") {
     setMode(next);
@@ -1841,9 +1909,11 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       setCuisine(ctx.cuisine); setDietary(ctx.dietary); setCookTime(ctx.cookTime);
       setSpiceLevel(ctx.spiceLevel); setBudget(ctx.budget); setServings(ctx.servings);
     }
+    setIdeasSoFar([]);
     startTransition(async () => {
-      const out = await resume<ConceptsJobResult>(job.jobId);
+      const out = await resume<ConceptsJobResult, ConceptsJobProgress>(job.jobId, (p) => setIdeasSoFar(p.concepts));
       if (!out) return;
+      setIdeasSoFar(null);
       if ("error" in out) { setError(out.error); return; }
       showConcepts(out.result.concepts);
     });
@@ -1863,12 +1933,18 @@ function FindRecipeTab({ members }: { members: Member[] }) {
       prefs: Array.from(selectedPrefs), memberIds: Array.from(selectedMemberIds),
       cuisine, dietary, cookTime, spiceLevel, budget, servings,
     };
+    setIdeasSoFar([]);
+    setTimeout(() => {
+      document.getElementById("concierge-ideas")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
     startTransition(async () => {
-      const out = await run<ConceptsJobResult>(
+      const out = await run<ConceptsJobResult, ConceptsJobProgress>(
         startConceptsJob(full, Array.from(selectedMemberIds), mealType || undefined, undefined, recipeOptions(role)),
-        { kind: "concepts", label: "Recipe ideas", href: CONCIERGE_HREF, context }
+        { kind: "concepts", label: "Recipe ideas", href: CONCIERGE_HREF, context },
+        (p) => setIdeasSoFar(p.concepts)
       );
       if (!out) return;
+      setIdeasSoFar(null);
       if ("error" in out) { setError(out.error); return; }
       showConcepts(out.result.concepts);
     });
@@ -1876,12 +1952,18 @@ function FindRecipeTab({ members }: { members: Member[] }) {
 
   /** Writes one recipe, then opens it in the editor to review and save. */
   function writeRecipe(concept: ConceptCard, onError: () => void) {
+    setWriting({ concept, progress: null });
+    setTimeout(() => {
+      document.getElementById("concierge-writing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
     startTransition(async () => {
-      const out = await run<RecipeJobResult>(
+      const out = await run<RecipeJobResult, RecipeProgress>(
         startRecipeJob(concept, Array.from(selectedMemberIds), mealType || undefined, undefined, { ...recipeOptions(), suggestCollection: true }),
-        { kind: "recipe", label: concept.title }
+        { kind: "recipe", label: concept.title },
+        (progress) => setWriting({ concept, progress })
       );
       if (!out) return;
+      setWriting(null);
       if ("error" in out) { setError(out.error); onError(); return; }
       stashAiDraft(recipeJobToDefaults(out.result));
       router.push("/recipes/new");
@@ -1969,6 +2051,13 @@ function FindRecipeTab({ members }: { members: Member[] }) {
   }
 
   const hasFilter = !!(cuisine || dietary || cookTime || spiceLevel || budget || servings);
+  // What was asked for, shown back while the ideas are written.
+  const askedChips = [
+    promptText.trim() ? `“${promptText.trim().length > 60 ? `${promptText.trim().slice(0, 57)}…` : promptText.trim()}”` : "",
+    ...Array.from(selectedPrefs),
+    cuisine, dietary, cookTime, spiceLevel, budget,
+    mealRole ? MEAL_ROLE_LABELS[mealRole] : "",
+  ].filter(Boolean);
   const canGenerate = promptText.trim().length > 0 || selectedPrefs.size > 0 || hasFilter || mealRole !== null;
   const isConceptLoading = isPending && generatingIdx === null;
   const isRecipeLoading = isPending && generatingIdx !== null;
@@ -2173,7 +2262,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                 size="lg"
               >
                 {isConceptLoading ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />Thinking…</>
+                  <><PlateSpinner />Thinking…</>
                 ) : (
                   <><Sparkles className="h-4 w-4" />Generate Ideas</>
                 )}
@@ -2291,7 +2380,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                 size="lg"
               >
                 {isPending ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />Writing your recipe…</>
+                  <><PlateSpinner />Writing your recipe…</>
                 ) : (
                   <><Sparkles className="h-4 w-4" />Create Recipe</>
                 )}
@@ -2300,16 +2389,25 @@ function FindRecipeTab({ members }: { members: Member[] }) {
           )}
         </div>
 
-        {/* Recipe generation overlay banner (inspire mode) */}
-        {mode === "inspire" && isRecipeLoading && (
-          <div className="flex items-center gap-3 rounded-xl border bg-muted border-transparent px-4 py-3">
-            <Loader2 className="h-5 w-5 animate-spin text-foreground shrink-0" />
-            <div>
-              <p className="text-sm font-medium">Writing your recipe…</p>
-              <p className="text-xs text-muted-foreground">
-                Building out ingredients and steps. Usually takes 10–20 seconds.
-              </p>
-            </div>
+        {/* A recipe being written: ingredients → method → nutrition, as the AI gets there */}
+        {isRecipeLoading && writing && (
+          <div id="concierge-writing" className="scroll-mt-4 rounded-xl border bg-card p-5">
+            <RecipeWriting
+              title={writing.concept.title}
+              description={writing.concept.description !== writing.concept.title ? writing.concept.description : undefined}
+              progress={writing.progress}
+            />
+          </div>
+        )}
+
+        {/* Five ideas on their way, each taking its place as it's written */}
+        {mode === "inspire" && isConceptLoading && ideasSoFar && (
+          <div id="concierge-ideas" className="scroll-mt-4 rounded-xl border bg-card p-5">
+            <IdeaPlaces
+              ideas={ideasSoFar}
+              asked={askedChips}
+              note="Usually 10–20 seconds. Ideas drop into place as they’re written."
+            />
           </div>
         )}
 
@@ -2374,7 +2472,7 @@ function FindRecipeTab({ members }: { members: Member[] }) {
                   className="gap-2 bg-ink border-0 text-ink-foreground"
                 >
                   {isPending ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Generating…</>
+                    <><PlateSpinner />Generating…</>
                   ) : selectedIndices.size > 1 ? (
                     <><Sparkles className="h-4 w-4" />Generate {selectedIndices.size} recipes</>
                   ) : (
@@ -2398,41 +2496,10 @@ function FindRecipeTab({ members }: { members: Member[] }) {
               <p className="text-xs text-muted-foreground mt-0.5">
                 {batchDone
                   ? "Head to your recipe library to view them."
-                  : "Generating each recipe in turn — this may take a minute."}
+                  : "Writing each recipe in turn, about a minute each."}
               </p>
             </div>
-            <div className="space-y-3">
-              {batchItems.map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-xs font-medium",
-                      item.status === "done" && "bg-success-tint text-success",
-                      item.status === "generating" && "bg-primary/10 text-primary",
-                      item.status === "error" && "bg-destructive/10 text-destructive",
-                      item.status === "pending" && "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {item.status === "done" && <Check className="h-3.5 w-3.5" />}
-                    {item.status === "generating" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    {item.status === "error" && <AlertCircle className="h-3.5 w-3.5" />}
-                    {item.status === "pending" && <span>{i + 1}</span>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium leading-tight">{item.concept.title}</p>
-                    {item.status === "generating" && (
-                      <p className="text-xs text-muted-foreground">Writing ingredients and steps…</p>
-                    )}
-                    {item.status === "done" && item.collectionName && (
-                      <p className="text-xs text-muted-foreground">Filed in {item.collectionName}</p>
-                    )}
-                    {item.status === "error" && (
-                      <p className="text-xs text-destructive">{item.error}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <BatchWriting items={batchItems.map((item) => ({ ...item, title: item.concept.title }))} />
             {batchDone && (
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={() => setBatchItems(null)}>

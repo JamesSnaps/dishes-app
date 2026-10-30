@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/session";
 import { withApiErrors } from "@/lib/api/respond";
+import { ndjsonResponse, wantsNdjson } from "@/lib/api/ndjson";
 import { addAiGeneratedMealPlan } from "@/app/actions/meal-plan";
+import type { MealPlanApplyEvent } from "@/lib/ai/job-types";
 import { fromAction } from "../../respond";
 
 const schema = z.object({
@@ -25,12 +27,25 @@ const schema = z.object({
 /**
  * POST — add a draft week to the plan. New ideas are written out as full
  * recipes first (slow: one AI call each). → `{ success: true }`
+ *
+ * With `Accept: application/x-ndjson` it streams each new idea being written
+ * (`writing`, with the recipe's progress as it goes; `written` or `failed`, by
+ * the slot's index in `slots`), then `done` — or `error`.
  */
 export const POST = withApiErrors(async (req: NextRequest) => {
   await requireSession();
   const input = schema.parse(await req.json());
-  const result = await addAiGeneratedMealPlan(input.weekStartDate, input.slots, input.memberIds ?? [], {
-    heartHealthy: input.heartHealthy,
+  if (!wantsNdjson(req)) {
+    const result = await addAiGeneratedMealPlan(input.weekStartDate, input.slots, input.memberIds ?? [], {
+      heartHealthy: input.heartHealthy,
+    });
+    return fromAction({ success: result.success, error: result.error });
+  }
+  return ndjsonResponse<MealPlanApplyEvent>(async (emit) => {
+    const result = await addAiGeneratedMealPlan(input.weekStartDate, input.slots, input.memberIds ?? [], {
+      heartHealthy: input.heartHealthy,
+      onUpdate: emit,
+    });
+    emit(result.success ? { type: "done" } : { type: "error", message: result.error ?? "Couldn’t add the plan." });
   });
-  return fromAction({ success: result.success, error: result.error });
 });

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Globe, Loader2 } from "lucide-react";
+import { AlertCircle, Globe } from "lucide-react";
+import { ReadingLink } from "@/components/ai-wait";
 import {
   Button,
   Dialog,
@@ -25,13 +26,6 @@ interface WebImportModalProps {
 
 type Phase = "idle" | "importing" | "error";
 
-const IMPORT_MESSAGES = [
-  "Fetching the page…",
-  "Reading the recipe…",
-  "Copying the photo…",
-  "Almost there…",
-];
-
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export function WebImportModal({ onImport, initialUrl }: WebImportModalProps) {
@@ -39,28 +33,12 @@ export function WebImportModal({ onImport, initialUrl }: WebImportModalProps) {
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [msgIdx, setMsgIdx] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Incremented on close, so a slow import can't fill the form after a cancel.
   const epochRef = useRef(0);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  function stopMessageCycle() {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }
 
   function handleOpenChange(v: boolean) {
     if (!v) {
       epochRef.current += 1;
-      stopMessageCycle();
       setPhase("idle");
       setError(null);
     }
@@ -71,12 +49,6 @@ export function WebImportModal({ onImport, initialUrl }: WebImportModalProps) {
     const myEpoch = ++epochRef.current;
     setPhase("importing");
     setError(null);
-    setMsgIdx(0);
-    stopMessageCycle();
-    timerRef.current = setInterval(
-      () => setMsgIdx((i) => Math.min(i + 1, IMPORT_MESSAGES.length - 1)),
-      3000
-    );
 
     let result: WebImportResult;
     try {
@@ -85,7 +57,6 @@ export function WebImportModal({ onImport, initialUrl }: WebImportModalProps) {
       result = { error: "Something went wrong importing that page." };
     }
     if (epochRef.current !== myEpoch) return;
-    stopMessageCycle();
 
     if (result.error || !result.draft) {
       setError(result.error ?? "Couldn't import that page.");
@@ -137,12 +108,10 @@ export function WebImportModal({ onImport, initialUrl }: WebImportModalProps) {
 
         {phase === "importing" ? (
           <div className="flex flex-col items-center justify-center gap-4 py-10">
-            <div className="h-16 w-16 rounded-full bg-highlight flex items-center justify-center">
-              <Loader2 className="h-7 w-7 animate-spin text-primary" />
-            </div>
-            <div className="text-center space-y-1">
-              <p className="text-sm font-medium">{IMPORT_MESSAGES[msgIdx]}</p>
-              <p className="text-xs text-muted-foreground break-all line-clamp-2 px-4">{url}</p>
+            <ReadingLink url={url} />
+            <div role="status" className="text-center space-y-1">
+              <p className="text-sm font-medium">Reading the page…</p>
+              <p className="text-xs text-muted-foreground">Finding the ingredients, method and photo.</p>
             </div>
           </div>
         ) : (
