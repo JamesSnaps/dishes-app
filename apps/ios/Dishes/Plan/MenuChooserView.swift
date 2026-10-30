@@ -332,7 +332,7 @@ struct MenuChooserView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 if working {
-                    ProgressView().controlSize(.small)
+                    PlateSpinner()
                     Text("\(stage ?? "Working")…")
                 } else {
                     Image(systemName: "checkmark").foregroundStyle(Theme.success)
@@ -413,8 +413,10 @@ struct MenuChooserView: View {
                         swapReasons = []
                         swapText = ""
                     } label: {
-                        Label(busy ? "Finding another…" : "Something else", systemImage: busy ? "hourglass" : "arrow.triangle.2.circlepath")
-                            .font(.system(size: 13, weight: .medium))
+                        Group {
+                            if busy { AIBusyLabel("Finding another…") } else { Label("Something else", systemImage: "arrow.triangle.2.circlepath") }
+                        }
+                        .font(.system(size: 13, weight: .medium))
                     }
                     .buttonStyle(.secondary)
                     .disabled(swapping != nil)

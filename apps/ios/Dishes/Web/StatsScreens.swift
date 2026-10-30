@@ -289,7 +289,7 @@ struct WrappedScreen: View {
                 if let recap {
                     Text(recap).font(.system(size: 15))
                 } else {
-                    Button(writing ? "Writing…" : "Write our recap") {
+                    Button {
                         Task {
                             writing = true; defer { writing = false }
                             if let r = try? await AppModel.shared.api.action("wrapped.recap", [.number(Double(w.year))], as: RecapReply.self) {
@@ -298,6 +298,8 @@ struct WrappedScreen: View {
                                 AppModel.shared.toast = "Couldn’t write the recap — is AI set up?"
                             }
                         }
+                    } label: {
+                        if writing { AIBusyLabel("Writing…") } else { Text("Write our recap") }
                     }
                     .buttonStyle(.wide(.ink))
                     .disabled(writing)

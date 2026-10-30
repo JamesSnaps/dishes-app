@@ -23,6 +23,17 @@ struct PlanGeneratorSheet: View {
     @State private var eating: Set<String> = []
     @State private var heartHealthy = false
     @State private var draft: [APIClient.PlanSlot] = []
+    // While it drafts (Components/AIWait PlanReels): the planner's facts, photos
+    // to spin through, and the meals written so far.
+    @State private var facts: [String] = []
+    @State private var reelPhotos: [URL] = []
+    @State private var landed: [APIClient.PlanSlot] = []
+    /// Library recipes' photos by id, for library picks the server sent no photo for.
+    @State private var libraryPhotos: [String: URL] = [:]
+    /// While it adds: how each new idea's writing is going, by its index in `draft`.
+    @State private var writing: [Int: Writing] = [:]
+
+    enum Writing: Equatable { case writing(RecipeProgress?), written, failed }
 
     private static let dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -44,9 +55,11 @@ struct PlanGeneratorSheet: View {
                     }
                     switch stage {
                     case .asking: form
-                    case .drafting: working("Planning your week…", "Choosing from your recipes and thinking up new ones.")
+                    case .drafting:
+                        PlanReels(rows: days.sorted().map { .init(dayOfWeek: $0, mealType: mealType) }, photos: reelPhotos,
+                                  slots: landed, facts: facts, photo: photo)
                     case .draft: draftList
-                    case .adding: working("Adding to the plan…", "New ideas are written out as full recipes first, which can take a few minutes.")
+                    case .adding: addingList
                     case .failed(let message): failed(message)
                     }
                 }
@@ -122,10 +135,11 @@ struct PlanGeneratorSheet: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Theme.brand)
                         .frame(width: 40, alignment: .leading)
+                    DishPlate(url: photo(slot), isNew: slot.recipeId == nil, size: 44)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(slot.title).font(.system(size: 16, weight: .semibold))
                         Text(slot.description).font(.system(size: 13)).foregroundStyle(Theme.mutedForeground).lineLimit(2)
-                        HStack(spacing: 6) {
+                        FlowLayout(spacing: 6) {
                             BadgeView(text: slot.recipeId == nil ? "New idea" : "From your recipes",
                                       style: slot.recipeId == nil ? .secondary : .outline)
                             BadgeView(text: slot.cuisine, style: .outline)
@@ -159,14 +173,72 @@ struct PlanGeneratorSheet: View {
         }
     }
 
-    private func working(_ title: String, _ detail: String) -> some View {
-        VStack(spacing: 14) {
-            ProgressView().controlSize(.large).tint(Theme.brand)
-            Text(title).font(.system(size: 17, weight: .semibold))
-            Text(detail).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground).multilineTextAlignment(.center)
+    /// A slot's photo: the one the server sent, or the local recipe's.
+    private func photo(_ slot: APIClient.PlanSlot) -> URL? {
+        app.imageURL(slot.imageUrl) ?? slot.recipeId.flatMap { libraryPhotos[$0] }
+    }
+
+    /// Adding the draft: library dishes go straight in; each new idea is
+    /// written out as a recipe first, its ring filling as the server says
+    /// how far it's got.
+    private var addingList: some View {
+        let fresh = draft.filter { $0.recipeId == nil }.count
+        let written = writing.values.filter { $0 == .written }.count
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(fresh == 0 ? "Adding to the plan…" : "Writing \(fresh) new \(fresh == 1 ? "recipe" : "recipes")…")
+                .font(Theme.serif(20))
+            Text(fresh == 0 ? "Putting the week in the plan."
+                 : "\(written) of \(fresh) done. New ideas are written out in full before they go in the plan, about a minute each.")
+                .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
+                .contentTransition(.numericText())
+            VStack(spacing: 0) {
+                ForEach(Array(draft.enumerated()), id: \.element.id) { i, slot in
+                    HStack(spacing: 12) {
+                        Text(Self.dayNames[slot.dayOfWeek]).font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.brand)
+                            .frame(width: 40, alignment: .leading)
+                        Group {
+                            if slot.recipeId != nil {
+                                DishPlate(url: photo(slot), size: 48)
+                            } else {
+                                switch writing[i] {
+                                case .writing(let progress): WritingRing(progress: progress, size: 48)
+                                case .written: DishPlate(url: nil, size: 48).overlay(alignment: .bottomTrailing) { tick(Theme.success, "checkmark") }
+                                case .failed: DishPlate(url: nil, size: 48).overlay(alignment: .bottomTrailing) { tick(Theme.destructive, "exclamationmark") }
+                                case nil: EmptyPlate(size: 48, delay: Double(i) * 0.3)
+                                }
+                            }
+                        }
+                        .frame(width: 52, height: 52)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(slot.title).font(Theme.serif(16)).lineLimit(1)
+                            Text(addingStatus(slot, writing[i])).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 8)
+                    .accessibilityElement(children: .combine)
+                    if i < draft.count - 1 { Divider().overlay(Theme.border) }
+                }
+            }
+            .padding(.top, 6)
+            .animation(.easeOut(duration: 0.3), value: writing)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 50)
+    }
+
+    private func tick(_ colour: Color, _ symbol: String) -> some View {
+        Image(systemName: symbol).font(.system(size: 9, weight: .heavy)).foregroundStyle(Theme.card)
+            .frame(width: 20, height: 20).background(colour, in: Circle())
+            .overlay(Circle().strokeBorder(Theme.background, lineWidth: 2))
+    }
+
+    private func addingStatus(_ slot: APIClient.PlanSlot, _ state: Writing?) -> String {
+        if slot.recipeId != nil { return "From your recipes" }
+        switch state {
+        case .writing(let progress): return progress?.label ?? "Starting on the ingredients"
+        case .written: return "Written and saved"
+        case .failed: return "Couldn’t write this one; it goes in as a title"
+        case nil: return "Waiting its turn"
+        }
     }
 
     private func failed(_ message: String) -> some View {
@@ -208,8 +280,17 @@ struct PlanGeneratorSheet: View {
     }
 
     private func makeDraft() async {
+        facts = []
+        landed = []
         stage = .drafting
         let (api, store) = (app.api, app.store)
+        // The household's own photos to spin through while it works (the server
+        // may send the ones it's actually choosing from), and each recipe's photo.
+        if let recipes = try? await store.read({ r in try r.records(.recipes).compactMap(Recipe.init) }) {
+            let withPhotos = recipes.compactMap { r in r.thumbnailURL.map { (r.id, $0) } }
+            libraryPhotos = Dictionary(withPhotos, uniquingKeysWith: { a, _ in a })
+            reelPhotos = Array(withPhotos.map(\.1).shuffled().prefix(16))
+        }
         let context = AIContext.cached
         let ask = MealPlanDrafter.Ask(weekStartDate: week.key, slots: days.sorted().map { .init(dayOfWeek: $0, mealType: mealType) },
                                       preferences: preferences, memberIds: Array(eating), favouritesOnly: favouritesOnly,
@@ -235,23 +316,63 @@ struct PlanGeneratorSheet: View {
                 },
                 check: { $0.problems },
                 fallback: {
-                    (try await api.draftMealPlan(.init(
+                    // Streamed: the facts it's weighing, then each meal as it's written.
+                    let events = api.draftMealPlanStream(.init(
                         weekStartDate: ask.weekStartDate, slots: ask.slots.map { ($0.dayOfWeek, $0.mealType) },
                         preferences: ask.preferences, memberIds: ask.memberIds.isEmpty ? nil : ask.memberIds,
-                        favouritesOnly: ask.favouritesOnly ? true : nil, heartHealthy: ask.heartHealthy ? true : nil)), [])
+                        favouritesOnly: ask.favouritesOnly ? true : nil, heartHealthy: ask.heartHealthy ? true : nil))
+                    for try await event in events {
+                        switch event {
+                        case .facts(let said, let photos):
+                            withAnimation { facts = said }
+                            let urls = photos.compactMap { app.imageURL($0) }
+                            if !urls.isEmpty { reelPhotos = urls }
+                        case .slot(let slot):
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { landed.append(slot) }
+                        case .done(let slots):
+                            return (slots, [])
+                        case .error(let message):
+                            throw APIError.http(status: 422, code: "ai_error", message: message)
+                        case .unknown:
+                            break
+                        }
+                    }
+                    throw APIError.http(status: 502, code: "bad_response", message: "The plan stopped part way. Please try again.")
                 })
             draft = run.value.slots.sorted { $0.dayOfWeek < $1.dayOfWeek }
-            stage = draft.isEmpty ? .failed("No meals came back. Try fewer constraints.") : .draft
+            guard !draft.isEmpty else { stage = .failed("No meals came back. Try fewer constraints."); return }
+            // Whatever hasn't landed yet (all of it, when it was drafted on the
+            // device) comes down a day at a time, then the draft takes over.
+            for slot in draft where !landed.contains(where: { $0.id == slot.id }) {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { landed.append(slot) }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            try? await Task.sleep(for: .milliseconds(800))
+            stage = .draft
         } catch {
             stage = .failed(ConciergeSheet.explain(error))
         }
     }
 
     private func add() async {
+        writing = [:]
         stage = .adding
         do {
-            try await app.api.applyMealPlan(weekStartDate: week.key, slots: draft, memberIds: eating.isEmpty ? nil : Array(eating),
-                                            heartHealthy: heartHealthy ? true : nil)
+            // Streamed, so each new idea's ring fills as it's written.
+            let events = app.api.applyMealPlanStream(weekStartDate: week.key, slots: draft, memberIds: eating.isEmpty ? nil : Array(eating),
+                                                     heartHealthy: heartHealthy ? true : nil)
+            var finished = false
+            for try await event in events {
+                switch event {
+                case .writing(let index, let progress): writing[index] = .writing(progress)
+                case .written(let index, _): writing[index] = .written
+                case .failed(let index): writing[index] = .failed
+                case .done: finished = true
+                case .error(let message): throw APIError.http(status: 422, code: "ai_error", message: message)
+                case .unknown: break
+                }
+            }
+            guard finished else { throw APIError.http(status: 502, code: "bad_response", message: "Adding stopped part way. Check the plan, then try again.") }
             await app.syncNow()
             app.toast = "Added \(draft.count) meals to the plan"
             dismiss()

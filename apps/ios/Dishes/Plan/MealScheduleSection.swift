@@ -45,6 +45,7 @@ struct MealScheduleSection: View {
                             .buttonStyle(.secondary).fixedSize()
                     }
                     if s.serveAt != nil {
+                        // Being replanned: the current timings stay, gently faded, until the new ones arrive.
                         ForEach(s.timeline.cues) { cue in
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Text(clock(s.serveAt, cue.offsetMinutes)).font(.system(size: 14, weight: .bold).monospacedDigit())
@@ -57,13 +58,19 @@ struct MealScheduleSection: View {
                                 }
                             }
                         }
+                        .opacity(working == "Planning…" ? 0.45 : 1)
+                        .animation(.easeInOut(duration: 0.3), value: working)
                         ForEach(s.timeline.warnings, id: \.self) { w in
                             Label(w, systemImage: "exclamationmark.triangle").font(.system(size: 13)).foregroundStyle(Theme.brand)
                         }
                         HStack(spacing: 10) {
                             if s.aiConfigured {
                                 Button { Task { await act("timeline.planWithAi", "Planning…") } } label: {
-                                    Label(working == "Planning…" ? "Planning…" : s.timeline.source == "ai" && s.aiStale != true ? "Replan with AI" : "Plan with AI", systemImage: "sparkles")
+                                    if working == "Planning…" {
+                                        AIBusyLabel("Planning…")
+                                    } else {
+                                        Label(s.timeline.source == "ai" && s.aiStale != true ? "Replan with AI" : "Plan with AI", systemImage: "sparkles")
+                                    }
                                 }
                                 .buttonStyle(.wide(.ink))
                             }

@@ -1773,3 +1773,28 @@ Not checked in the simulator: the dev household has one member (no tabs) and no 
 
 Uploaded to TestFlight as 1.73.2 (build 202610291905) from main after PR #85 merged. The server was
 deployed at 1.73.1 just before (no migrations), so Help me choose has its streaming endpoint.
+
+### 2026-10-30 — Waiting on the AI shows real progress (v1.74.0, branch `feat/generation-waits`)
+
+- `Design/AIWait.swift`: the wait pieces (DESIGN.md → Waiting on the AI) — `PlanReels` (a reel of
+  the household's photos per slot, landing as each meal is written), `IdeaPlaces`/`SteamPlate`,
+  `RecipeWriting` (ingredients → method → nutrition), `WritingRing`, `DevelopingPhoto` with
+  `PlatingUpCaption`, `ReadingLink`, `TypingPlates`, `PlateSpinner`/`AIBusyLabel`. All driven by
+  `TimelineView`, all still under Reduce Motion.
+- DishesCore: `ndjsonPost` reads the server's NDJSON streams; `draftMealPlanStream`,
+  `applyMealPlanStream`, `recipeConceptsStream`, `createRecipeStream` and the event types in
+  `Models/GenerationEvents.swift`. A server from before 1.74.0 answers with plain JSON, which
+  arrives as a single `done` — the app still works against it, just without live progress.
+- Plan the week drafts with reels (on the device first: local photos, then the slots land one by
+  one; from the server: its facts and photos, then each meal as it's written) and adds with a
+  ring per new idea. The concierge streams ideas into steaming plates and writes with the
+  checklist; a batch has rings. Similar/sides, the schedule, the recap, web import, Help me
+  choose and the cooking assistant use the small pieces. An AI photo develops on the recipe page
+  (`AppModel.photosInTheMaking`) until the new one syncs down.
+
+Checked in the simulator (iPhone 18 Pro, light) against the dev server with `/ai/meal-plan` and
+`/ai/meal-plan/apply` temporarily replaced by scripted streams of real dev recipes (the dev
+household has no AI key): the reels land in the order slots arrive, the draft shows each dish's
+photo, and adding fills each new idea's ring by stage. The unscripted path was checked to the
+point of the server's "AI not configured" error, which arrives through the stream. Not checked:
+the concierge, recipe tools and photo developing screens (they need a key).

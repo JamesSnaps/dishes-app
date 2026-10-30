@@ -45,6 +45,9 @@ final class AppModel {
     var signInError: String?
     /// A one-line message at the bottom of the screen.
     var toast: String?
+    /// Recipes whose AI photo is being made, with the photo they had when it
+    /// started: the recipe page shows it developing until a different one syncs down.
+    var photosInTheMaking: [String: String?] = [:]
     /// Ticks when the server may have news the sync log doesn't carry (a push
     /// arrived, the app came back to the front): screens that load straight
     /// from the server (WebPage, the planner's delivery chips) reload on it.

@@ -123,11 +123,8 @@ struct WebImportSheet: View {
 
     private var importing: some View {
         VStack(spacing: 14) {
-            ProgressView().controlSize(.large).tint(Theme.brand)
+            ReadingLink(url: trimmed)
             Text("Reading the recipe…").font(.system(size: 17, weight: .semibold))
-            Text(trimmed)
-                .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
-                .lineLimit(2).truncationMode(.middle).multilineTextAlignment(.center)
             Text("Usually a few seconds; up to a minute when the AI tidies it up.")
                 .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground).multilineTextAlignment(.center)
         }

@@ -537,6 +537,58 @@ public final class APIClient: SyncTransport, Sendable {
         }
     }
 
+    /// A JSON POST answered a line at a time (`Accept: application/x-ndjson`),
+    /// each line one event. A refusal before streaming starts — no AI key, a
+    /// bad request — throws `APIError.http` with the server's message, as
+    /// `slowPost` would. Cancelling the stream stops reading; the server
+    /// finishes the work regardless (a recipe half-written is still saved).
+    /// A server from before streaming answers the whole thing as JSON at the
+    /// end: `whole` turns that into the events it would have streamed.
+    func ndjsonPost<E: Decodable & Sendable>(_ path: String, json body: some Encodable, timeout seconds: TimeInterval,
+                                              whole: @escaping @Sendable (Data) throws -> [E]) -> AsyncThrowingStream<E, Error> {
+        let encoded = Result { try JSONEncoder().encode(body) }
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let data = try encoded.get()
+                    func make(_ token: String?) -> URLRequest {
+                        var r = authorisedRequest(url(path), method: "POST", token: token)
+                        r.timeoutInterval = seconds
+                        r.httpBody = data
+                        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        // JSON too, so a lapsed sign-in answers 401 rather than a login page.
+                        r.setValue("application/x-ndjson, application/json", forHTTPHeaderField: "Accept")
+                        return r
+                    }
+                    let token = try await tokens?.accessToken()
+                    if tokens != nil && token == nil { throw APIError.signedOut }
+                    var (bytes, response) = try await session.bytes(for: make(token))
+                    if (response as? HTTPURLResponse)?.statusCode == 401, let token {
+                        guard let fresh = try await tokens?.refresh(after: token) else { throw APIError.signedOut }
+                        (bytes, response) = try await session.bytes(for: make(fresh))
+                    }
+                    let http = response as? HTTPURLResponse
+                    if let http, !(200..<300).contains(http.statusCode) || !(http.value(forHTTPHeaderField: "Content-Type") ?? "").contains("ndjson") {
+                        var reply = Data()
+                        for try await byte in bytes { reply.append(byte) }
+                        // An error throws here; a success is an older server's whole answer.
+                        for event in try whole(Self.check((reply, response))) { continuation.yield(event) }
+                        continuation.finish()
+                        return
+                    }
+                    let decoder = JSONDecoder()
+                    for try await line in bytes.lines where !line.isEmpty {
+                        continuation.yield(try decoder.decode(E.self, from: Data(line.utf8)))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     /// multipart/form-data for `menuPicksStream`, the fields as the route reads them.
     static func menuPicksBody(_ m: MenuPicksRequest, boundary: String) -> Data {
         var body = Data()
@@ -946,6 +998,20 @@ public final class APIClient: SyncTransport, Sendable {
         public var collectionName: String?
     }
 
+    /// Step one, as each idea is written.
+    public func recipeConceptsStream(_ ask: ConceptRequest) -> AsyncThrowingStream<ConceptsEvent, Error> {
+        struct Reply: Decodable { var concepts: [Concept] }
+        return ndjsonPost("/ai/concepts", json: ask, timeout: 90) { [.done(try JSONDecoder().decode(Reply.self, from: $0).concepts)] }
+    }
+
+    /// Step two, saying how far the writing has got (ingredients, method, nutrition).
+    public func createRecipeStream(from concept: Concept, memberIds: [String]?, mealType: String?,
+                                   heartHealthy: Bool?) -> AsyncThrowingStream<RecipeEvent, Error> {
+        struct Body: Encodable { var concept: Concept; var memberIds: [String]?; var mealType: String?; var heartHealthy: Bool? }
+        return ndjsonPost("/ai/recipes", json: Body(concept: concept, memberIds: memberIds, mealType: mealType, heartHealthy: heartHealthy),
+                          timeout: 150) { [.done(try JSONDecoder().decode(CreatedRecipe.self, from: $0))] }
+    }
+
     /// Step two: the chosen idea written out in full and saved; it syncs down next.
     public func createRecipe(from concept: Concept, memberIds: [String]?, mealType: String?, heartHealthy: Bool?) async throws -> CreatedRecipe {
         struct Body: Encodable { var concept: Concept; var memberIds: [String]?; var mealType: String?; var heartHealthy: Bool? }
@@ -994,6 +1060,8 @@ public final class APIClient: SyncTransport, Sendable {
         public var cuisine: String
         public var difficulty: String
         public var recipeId: String?
+        /// A library pick's photo (the thumbnail when there is one), for the draft.
+        public var imageUrl: String?
         public var id: String { "\(dayOfWeek)-\(mealType)" }
     }
 
@@ -1020,6 +1088,23 @@ public final class APIClient: SyncTransport, Sendable {
     public func draftMealPlan(_ ask: PlanRequest) async throws -> [PlanSlot] {
         struct Reply: Decodable { var slots: [PlanSlot] }
         return try await slowPost("/ai/meal-plan", json: ask, timeout: 120, as: Reply.self).slots
+    }
+
+    /// The draft week as it's worked out: what the planner is weighing and some
+    /// of the library's photos, each meal as the AI writes it, then the draft.
+    /// A refusal before it starts (no AI key) throws `APIError.http`.
+    public func draftMealPlanStream(_ ask: PlanRequest) -> AsyncThrowingStream<PlanEvent, Error> {
+        struct Reply: Decodable { var slots: [PlanSlot] }
+        return ndjsonPost("/ai/meal-plan", json: ask, timeout: 120) { [.done(try JSONDecoder().decode(Reply.self, from: $0).slots)] }
+    }
+
+    /// Adds the draft as `applyMealPlan` does, saying as it writes each new idea out.
+    public func applyMealPlanStream(weekStartDate: String, slots: [PlanSlot], memberIds: [String]?,
+                                    heartHealthy: Bool? = nil) -> AsyncThrowingStream<PlanApplyEvent, Error> {
+        struct Body: Encodable { var weekStartDate: String; var slots: [PlanSlot]; var memberIds: [String]?; var heartHealthy: Bool? }
+        return ndjsonPost("/ai/meal-plan/apply",
+                          json: Body(weekStartDate: weekStartDate, slots: slots, memberIds: memberIds, heartHealthy: heartHealthy),
+                          timeout: 600) { _ in [.done] }
     }
 
     /// Adds the draft; new ideas are written out as recipes first, so it's slow.
