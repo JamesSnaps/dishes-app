@@ -47,6 +47,9 @@ public enum AITask: String, CaseIterable, Sendable {
     case recipeIdeas
     /// A draft week from the library on the device (adding it stays on the server).
     case mealPlan
+    /// Which aisle a shopping item goes in, for a name the rules don't know.
+    /// The "server" here is the rules too: nothing is sent anywhere for this.
+    case shoppingAisle
 
     public var firstTry: AIEngine {
         switch self {
@@ -65,13 +68,16 @@ public enum AITask: String, CaseIterable, Sendable {
         // stopped a child's breakfast. Restating the request made it worse.
         case .recipeIdeas: .server
         case .mealPlan: .device
+        // Not evaluated yet (needs macOS 27): it only sees names the rules
+        // don't know, and can only answer one of the aisles or "not sure".
+        case .shoppingAisle: .device
         }
     }
 
     /// Where it goes when the device doesn't answer.
     public var fallback: AIEngine {
         switch self {
-        case .ingredientLine: .rules
+        case .ingredientLine, .shoppingAisle: .rules
         case .scanRecipe, .fileRecipe, .readText, .cookAssist, .improveRecipe, .recipeIdeas, .mealPlan: .server
         }
     }

@@ -86,6 +86,16 @@ public enum Prompts {
 
     /// Copy of `collectionSuggestionFor`'s system prompt (apps/web/app/actions/ai.ts),
     /// less its JSON format: the schema allows only the listed names or none.
+    /// ShoppingAisles: one shopping list item → the aisle of a UK supermarket it's in.
+    public static let fileShoppingItem = """
+        You sort a family's shopping list into the aisles of a UK supermarket. You are given one item as they typed \
+        it. Answer the aisle it is sold in: Produce (fresh fruit, vegetables and herbs), Dairy (milk, cheese, eggs, \
+        yoghurt, butter), Meat, Fish, Bakery (bread and baked goods), Pantry (tins, jars, dried food, sauces, spices, \
+        snacks), Frozen, Drinks, Cleaning (household cleaning and paper goods), or Other (toiletries, pets, anything \
+        else). If you don't recognise the item, answer “\(ShoppingAisles.notSure)” — leaving it unsorted is better than \
+        a wrong aisle.
+        """
+
     public static let fileRecipe = """
         You file new recipes into a family's existing recipe collections. Choose a collection ONLY when the recipe \
         clearly and obviously belongs in it, judging by the collection's name and description. If no collection is a \

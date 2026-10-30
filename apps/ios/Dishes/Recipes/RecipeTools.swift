@@ -470,8 +470,9 @@ struct RecipePhotoSheet: View {
                                      [.string(recipe.id), .string(style), trimmed.isEmpty ? .null : .string(String(trimmed.prefix(500)))])
         guard ok else { return }
         // The recipe page shows the photo developing until the new one syncs down.
-        let (id, before) = (recipe.id, recipe.imageUrl)
-        app.photosInTheMaking[id] = .some(before)
+        let id = recipe.id
+        let making = AppModel.PhotoInTheMaking(before: recipe.imageUrl)
+        app.photosInTheMaking[id] = making
         dismiss()
         // The job finishes on the server; pull the new photo down when it's likely done.
         Task {
@@ -479,8 +480,9 @@ struct RecipePhotoSheet: View {
                 try? await Task.sleep(for: .seconds(delay))
                 await app.syncNow()
             }
-            // Gave up waiting (it failed, or it's very slow): stop developing.
-            app.photosInTheMaking[id] = nil
+            // Gave up waiting (it failed, or it's very slow): stop developing —
+            // unless a newer photo for this recipe has been asked for since.
+            if app.photosInTheMaking[id] == making { app.photosInTheMaking[id] = nil }
         }
     }
 }

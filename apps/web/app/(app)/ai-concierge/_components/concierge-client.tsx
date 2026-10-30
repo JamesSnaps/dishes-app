@@ -1425,7 +1425,9 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const newRecipeCount = generatedSlots
     ? generatedSlots.filter((slot, idx) => !rejectedSlots.has(idx) && !slot.recipeId).length
     : 0;
-  const writtenCount = Array.from(writing.values()).filter((w) => w.status !== "writing").length;
+  // Only recipes actually written count as done; ones that couldn't be are said separately.
+  const writtenCount = Array.from(writing.values()).filter((w) => w.status === "written").length;
+  const failedCount = Array.from(writing.values()).filter((w) => w.status === "failed").length;
   // The slots asked for, in week order, for the reels while it drafts.
   const reelRows = Array.from(selectedSlots)
     .map((key) => {
@@ -1860,7 +1862,9 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                   <>
                     <PlateSpinner />
                     {newRecipeCount > 0
-                      ? `Writing ${newRecipeCount} new recipe${newRecipeCount !== 1 ? "s" : ""}… ${writtenCount} of ${newRecipeCount} done`
+                      ? `Writing ${newRecipeCount} new recipe${newRecipeCount !== 1 ? "s" : ""}… ${writtenCount} of ${newRecipeCount} done${
+                          failedCount ? `, ${failedCount} couldn't be written` : ""
+                        }`
                       : "Adding to planner…"}
                   </>
                 ) : (

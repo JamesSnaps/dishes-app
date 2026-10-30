@@ -197,7 +197,7 @@ struct RecipeDetailView: View {
     @ViewBuilder
     private func summary(_ recipe: Recipe) -> some View {
         // An AI photo on its way: the current one (or an empty plate) develops until the new one syncs down.
-        let developing = app.photosInTheMaking[recipe.id].map { $0 == recipe.imageUrl } ?? false
+        let developing = app.photosInTheMaking[recipe.id].map { $0.before == recipe.imageUrl } ?? false
         if recipe.imageUrl != nil || developing {
             Color.clear
                 .aspectRatio(twoColumn ? 1.4 : width == .regular ? 2.4 : 1.6, contentMode: .fit)

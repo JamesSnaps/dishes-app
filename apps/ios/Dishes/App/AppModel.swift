@@ -47,7 +47,14 @@ final class AppModel {
     var toast: String?
     /// Recipes whose AI photo is being made, with the photo they had when it
     /// started: the recipe page shows it developing until a different one syncs down.
-    var photosInTheMaking: [String: String?] = [:]
+    var photosInTheMaking: [String: PhotoInTheMaking] = [:]
+
+    /// One AI photo on its way. `id` tells a newer request for the same recipe
+    /// from an older one, so the older one's give-up can't end the newer wait.
+    struct PhotoInTheMaking: Equatable {
+        let id = UUID()
+        let before: String?
+    }
     /// Ticks when the server may have news the sync log doesn't carry (a push
     /// arrived, the app came back to the front): screens that load straight
     /// from the server (WebPage, the planner's delivery chips) reload on it.

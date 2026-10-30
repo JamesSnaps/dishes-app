@@ -316,6 +316,15 @@ is a menu whose current value is a `card` pill with an up-down chevron
 as starter ideas go behind one small `secondary` pill ("Need an idea?").
 (iOS `ConciergeSheet` first.)
 
+**Checklist rows** (shopping list): ticking settles. The box fills
+(terracotta) and a line draws across the name, and only after ~0.6s does the
+row fold away, so a second tap can change your mind; then an `ink` Undo bar
+shows for 4s. Swipe right to tick (`success` underneath, "Got it"), left to
+delete (`destructive`, "Delete"); the colour firms up and the phone taps past
+the line. Rows carry only the box, the name (tap to edit) and one icon action;
+delete lives in the swipe and the edit sheet, not as a bin on every row.
+Deletions are sent when their Undo goes. (iOS `ShoppingScreen` first.)
+
 **Empty states**: one italic serif sentence plus a dashed-outline "add"
 button. Make it a suggestion where there's a reason ("No oily fish this week,
 so it's a good night for it").
