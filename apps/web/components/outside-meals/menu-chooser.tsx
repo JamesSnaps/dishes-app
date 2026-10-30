@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Check, ChevronRight, FileText, ImagePlus, Link2, Loader2, RefreshCw, TriangleAlert, X } from "lucide-react";
+import { BookOpen, Check, ChevronRight, FileText, ImagePlus, Link2, RefreshCw, TriangleAlert, X } from "lucide-react";
 import { AiButton, Button, Input, SectionLabel, Textarea, cn } from "@dishes/ui";
 import { OUTSIDE_MEAL_COURSE_LABELS, OUTSIDE_MEAL_COURSES, type OutsideMealCourseType } from "@dishes/shared";
 import {
@@ -31,6 +31,7 @@ import {
   type MenuPickEvent,
   type ReadMenu,
 } from "@/lib/menu-choice";
+import { PlateSpinner } from "@/components/ai-wait";
 
 const MAX_PHOTOS = 4;
 const ENDPOINT = "/api/web/outside-meals/menu-picks";
@@ -321,7 +322,7 @@ export function MenuChooser({
         {/* What it's doing: the brief, the menu as it's read, the stage. */}
         <div className="space-y-3 rounded-2xl bg-muted p-4">
           <div className="flex items-center gap-2 text-sm font-semibold">
-            {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-success" />}
+            {working ? <PlateSpinner /> : <Check className="h-4 w-4 text-success" />}
             {working ? `${stage ?? "Working"}…` : `Read ${menu?.items.length ?? dishes.length} dishes${menu?.restaurant.name ? ` from ${menu.restaurant.name}` : ""}`}
           </div>
           {facts.length > 0 && (
@@ -440,7 +441,7 @@ export function MenuChooser({
                         }}
                         className="flex h-9 items-center gap-1.5 rounded-full bg-secondary px-3 text-xs font-medium text-secondary-foreground disabled:opacity-50"
                       >
-                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        {busy ? <PlateSpinner /> : <RefreshCw className="h-3.5 w-3.5" />}
                         {busy ? "Finding another…" : "Something else"}
                       </button>
                     )

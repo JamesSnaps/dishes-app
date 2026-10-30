@@ -30,8 +30,11 @@ struct ConciergeSheet: View {
 
     enum Stage: Equatable {
         case asking
-        case thinking
+        /// Five ideas on their way; the ones written so far (when the server streams them).
+        case thinking([APIClient.Concept])
         case ideas([APIClient.Concept])
+        /// An idea being written out, and how far it's got (the server streams it).
+        case composing(APIClient.Concept, RecipeProgress?)
         case writing(String)
         /// A photo being read on the device.
         case reading
@@ -41,10 +44,13 @@ struct ConciergeSheet: View {
     }
 
     struct BatchItem: Equatable, Identifiable {
-        enum Status: Equatable { case waiting, writing, done(APIClient.CreatedRecipe), failed(String) }
+        enum Status: Equatable { case waiting, writing(RecipeProgress?), done(APIClient.CreatedRecipe), failed(String) }
         let concept: APIClient.Concept
         var status: Status = .waiting
         var id: String { concept.title }
+        var inProgress: Bool {
+            switch status { case .waiting, .writing: true; case .done, .failed: false }
+        }
     }
 
     enum Mode: String { case inspire, direct }
@@ -80,7 +86,12 @@ struct ConciergeSheet: View {
                     } else {
                         switch stage {
                         case .asking: askForm
-                        case .thinking: working("Thinking up five ideas…", detail: "Usually 10–20 seconds.")
+                        case .thinking(let sofar):
+                            IdeaPlaces(ideas: sofar, title: "Thinking up five ideas…", asked: askedChips,
+                                       note: "Usually 10–20 seconds.")
+                        case .composing(let concept, let progress):
+                            RecipeWriting(title: concept.title, description: concept.description == concept.title ? nil : concept.description,
+                                          progress: progress)
                         case .ideas(let concepts): ideas(concepts)
                         case .writing(let what): working(what, detail: "Writing ingredients, steps and nutrition takes about a minute.")
                         case .reading: working("Reading the recipe on this device…", detail: "Usually under half a minute. You check it before it’s saved.")
@@ -137,8 +148,8 @@ struct ConciergeSheet: View {
 
     private var isBusy: Bool {
         switch stage {
-        case .thinking, .writing, .reading: true
-        case .batch(let items): items.contains { $0.status == .waiting || $0.status == .writing }
+        case .thinking, .composing, .writing, .reading: true
+        case .batch(let items): items.contains(where: \.inProgress)
         default: false
         }
     }
@@ -384,20 +395,32 @@ struct ConciergeSheet: View {
 
     /// Several recipes being written, one at a time, each saved as it's done.
     private func batch(_ items: [BatchItem]) -> some View {
-        let finished = !items.contains { $0.status == .waiting || $0.status == .writing }
+        let finished = !items.contains(where: \.inProgress)
         return VStack(alignment: .leading, spacing: 12) {
             Text(finished ? "Done" : "Writing \(items.count) recipes — about a minute each")
                 .font(.system(size: 15, weight: .semibold))
             ForEach(items) { item in
                 HStack(spacing: 12) {
-                    switch item.status {
-                    case .waiting: Image(systemName: "clock").foregroundStyle(Theme.mutedForeground)
-                    case .writing: ProgressView().tint(Theme.brand)
-                    case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
-                    case .failed: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.destructive)
+                    Group {
+                        switch item.status {
+                        case .waiting: EmptyPlate(size: 48)
+                        case .writing(let progress): WritingRing(progress: progress, size: 48)
+                        case .done:
+                            Circle().fill(Theme.plate).frame(width: 44, height: 44).overlay(alignment: .bottomTrailing) {
+                                Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundStyle(Theme.card)
+                                    .frame(width: 20, height: 20).background(Theme.success, in: Circle())
+                            }
+                        case .failed: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.destructive)
+                        }
                     }
+                    .frame(width: 52, height: 52)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(item.concept.title).font(.system(size: 15, weight: .semibold))
+                        Text(item.concept.title).font(Theme.serif(15))
+                        if case .writing(let progress) = item.status {
+                            Text(progress?.label ?? "Starting on the ingredients").font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                        } else if item.status == .waiting {
+                            Text("Next").font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                        }
                         if case .failed(let why) = item.status {
                             Text(why).font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
                         } else if case .done(let made) = item.status, let collection = made.collectionName {
@@ -420,7 +443,7 @@ struct ConciergeSheet: View {
 
     private func working(_ title: String, detail: String) -> some View {
         VStack(spacing: 14) {
-            ProgressView().controlSize(.large).tint(Theme.brand)
+            SteamPlate(size: 72)
             Text(title).font(.system(size: 17, weight: .semibold)).multilineTextAlignment(.center)
             Text(detail).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground).multilineTextAlignment(.center)
         }
@@ -455,7 +478,7 @@ struct ConciergeSheet: View {
     private var members: [String]? { eating.isEmpty ? nil : Array(eating) }
 
     private func askForIdeas() async {
-        stage = .thinking
+        withAnimation { stage = .thinking([]) }
         chosen = []
         let (api, prompt, members, mealType, heartHealthy) = (app.api, prompt, members, mealType, heartHealthy)
         let context = AIContext.cached
@@ -473,8 +496,21 @@ struct ConciergeSheet: View {
                     ConceptChecks.problems(ideas, eating: (context?.members ?? []).filter { (members ?? []).contains($0.id) })
                 },
                 fallback: {
-                    try await api.recipeConcepts(.init(prompt: prompt, memberIds: members, mealType: mealType,
-                                                       heartHealthy: heartHealthy ? true : nil))
+                    // Streamed: each idea takes its place as it's written.
+                    var sofar: [APIClient.Concept] = []
+                    let events = api.recipeConceptsStream(.init(prompt: prompt, memberIds: members, mealType: mealType,
+                                                                heartHealthy: heartHealthy ? true : nil))
+                    for try await event in events {
+                        switch event {
+                        case .concept(let idea):
+                            sofar.append(idea)
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { stage = .thinking(sofar) }
+                        case .done(let all): return all
+                        case .error(let message): throw APIError.http(status: 422, code: "ai_error", message: message)
+                        case .unknown: break
+                        }
+                    }
+                    throw APIError.http(status: 502, code: "bad_response", message: "The ideas stopped part way. Please try again.")
                 }).value
             stage = concepts.isEmpty ? .failed("No ideas came back. Try describing it differently.") : .ideas(concepts)
         } catch {
@@ -483,14 +519,35 @@ struct ConciergeSheet: View {
     }
 
     private func write(_ concept: APIClient.Concept) async {
-        stage = .writing("Writing \(concept.title)…")
+        stage = .composing(concept, nil)
         do {
-            let made = try await app.api.createRecipe(from: concept, memberIds: members, mealType: mealType,
-                                                      heartHealthy: heartHealthy ? true : nil)
+            let made = try await writeOut(concept) { progress in stage = .composing(concept, progress) }
             await open(made)
         } catch {
             stage = .failed(Self.explain(error))
         }
+    }
+
+    /// Writes one idea out and saves it, hearing how far it's got as the server streams it.
+    private func writeOut(_ concept: APIClient.Concept, progress: (RecipeProgress) -> Void) async throws -> APIClient.CreatedRecipe {
+        let events = app.api.createRecipeStream(from: concept, memberIds: members, mealType: mealType,
+                                                heartHealthy: heartHealthy ? true : nil)
+        for try await event in events {
+            switch event {
+            case .progress(let p): withAnimation(.easeOut(duration: 0.3)) { progress(p) }
+            case .done(let made): return made
+            case .error(let message): throw APIError.http(status: 422, code: "ai_error", message: message)
+            case .unknown: break
+            }
+        }
+        throw APIError.http(status: 502, code: "bad_response", message: "The recipe stopped part way. Please try again.")
+    }
+
+    /// What was asked for, shown back while the ideas are written.
+    private var askedChips: [String] {
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [text.isEmpty ? nil : "“\(text.count > 60 ? text.prefix(57) + "…" : Substring(text))”",
+                mealType.capitalized, heartHealthy ? "Heart-healthy" : nil].compactMap { $0 }
     }
 
     /// One idea goes straight to its recipe; several are written in turn,
@@ -503,11 +560,14 @@ struct ConciergeSheet: View {
         var items = concepts.map { BatchItem(concept: $0) }
         stage = .batch(items)
         for i in items.indices {
-            items[i].status = .writing
+            items[i].status = .writing(nil)
             stage = .batch(items)
             do {
-                items[i].status = .done(try await app.api.createRecipe(from: items[i].concept, memberIds: members,
-                                                                        mealType: mealType, heartHealthy: heartHealthy ? true : nil))
+                let made = try await writeOut(items[i].concept) { progress in
+                    items[i].status = .writing(progress)
+                    stage = .batch(items)
+                }
+                items[i].status = .done(made)
             } catch {
                 items[i].status = .failed(Self.explain(error))
             }

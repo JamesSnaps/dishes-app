@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MessageCircleQuestion,
   Send,
-  Loader2,
   Plus,
   Trash2,
   History,
@@ -26,6 +25,7 @@ import {
   type RecipeAssistMessage as Message,
   type RecipeAssistThread,
 } from "@/app/actions/recipe-assist-threads";
+import { TypingPlates } from "@/components/ai-wait";
 
 interface Props {
   recipeId: string;
@@ -322,9 +322,8 @@ export function AskRecipeSheet({ recipeId, recipeTitle, open, onOpenChange }: Pr
           {streaming && <MarkdownContent text={streaming} />}
 
           {loading && !streaming && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Thinking…
+            <div className="w-fit rounded-2xl rounded-bl-sm bg-muted px-3.5 py-3">
+              <TypingPlates />
             </div>
           )}
 

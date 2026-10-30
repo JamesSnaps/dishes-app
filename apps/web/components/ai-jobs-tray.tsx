@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2, X, AlertCircle, ChefHat, CalendarDays } from "lucide-react";
+import { Sparkles, X, AlertCircle, ChefHat, CalendarDays } from "lucide-react";
 import { Button, cn } from "@dishes/ui";
 import {
   AI_JOBS_CHANGED,
@@ -15,6 +15,7 @@ import {
 } from "@/lib/ai-jobs-client";
 import type { BatchJobProgress, RecipeJobResult } from "@/lib/ai/job-types";
 import { recipeJobToDefaults, stashAiDraft } from "@/lib/ai/recipe-defaults";
+import { PlateSpinner } from "@/components/ai-wait";
 
 const POLL_MS = 2500;
 
@@ -170,7 +171,7 @@ export function AiJobsTray() {
                 )}
               >
                 {status === "running" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <PlateSpinner className="w-7" />
                 ) : status === "failed" ? (
                   <AlertCircle className="h-4 w-4" />
                 ) : job.kind === "concepts" ? (

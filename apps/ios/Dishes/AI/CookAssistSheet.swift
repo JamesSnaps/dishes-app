@@ -155,13 +155,19 @@ struct CookAssistSheet: View {
         let mine = message.role == "user"
         return HStack {
             if mine { Spacer(minLength: 40) }
-            Text(LocalizedStringKey(message.content.isEmpty ? "…" : message.content))
-                .font(.system(size: 15))
-                .padding(12)
-                .foregroundStyle(mine ? .white : Theme.foreground)
-                .background(mine ? AnyShapeStyle(Theme.brand) : AnyShapeStyle(Theme.muted),
-                            in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .textSelection(.enabled)
+            Group {
+                // The reply hasn't started yet: plates hop while it thinks.
+                if !mine && message.content.isEmpty {
+                    TypingPlates().padding(.vertical, 2)
+                } else {
+                    Text(LocalizedStringKey(message.content)).textSelection(.enabled)
+                }
+            }
+            .font(.system(size: 15))
+            .padding(12)
+            .foregroundStyle(mine ? .white : Theme.foreground)
+            .background(mine ? AnyShapeStyle(Theme.brand) : AnyShapeStyle(Theme.muted),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             if !mine { Spacer(minLength: 40) }
         }
     }

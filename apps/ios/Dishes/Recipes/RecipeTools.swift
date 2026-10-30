@@ -83,14 +83,23 @@ struct RecipeTweakSheet: View {
                                 }
                             }
                             Button { Task { await ask() } } label: {
-                                Label(working ? "Thinking…" : draft == nil ? "Suggest changes" : "Refine", systemImage: "sparkles")
+                                if working {
+                                    AIBusyLabel("Thinking…")
+                                } else {
+                                    Label(draft == nil ? "Suggest changes" : "Refine", systemImage: "sparkles")
+                                }
                             }
                             .buttonStyle(.ink)
                             .disabled(working || instruction.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                     }
                     if working && draft == nil {
-                        ProgressView("Rewriting the recipe…").frame(maxWidth: .infinity).padding(30)
+                        VStack(spacing: 12) {
+                            SteamPlate(size: 72)
+                            Text("Rewriting the recipe…").font(.system(size: 15, weight: .semibold))
+                            Text("Usually under a minute.").font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                        }
+                        .frame(maxWidth: .infinity).padding(30)
                     }
                     if let draft { preview(draft) }
                 }
@@ -242,6 +251,8 @@ struct RecipeIdeasSheet: View {
     @State private var note = ""
     @State private var ideas: [APIClient.Concept]?
     @State private var working: String?
+    /// How far the recipe being written has got.
+    @State private var progress: RecipeProgress?
 
     var body: some View {
         NavigationStack {
@@ -251,10 +262,17 @@ struct RecipeIdeasSheet: View {
                     TextField(kind == .similar ? "Any twist? (optional — e.g. but vegetarian)" : "Anything in particular? (optional)", text: $note)
                         .padding(12).overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border))
                     Button { Task { await suggest() } } label: {
-                        Label(working == "ideas" ? "Thinking…" : ideas == nil ? "Get ideas" : "Five more", systemImage: "sparkles")
+                        if working == "ideas" {
+                            AIBusyLabel("Thinking…")
+                        } else {
+                            Label(ideas == nil ? "Get ideas" : "Five more", systemImage: "sparkles")
+                        }
                     }
                     .buttonStyle(.ink).disabled(working != nil)
-                    if let ideas {
+                    if working == "ideas" {
+                        IdeaPlaces(ideas: [], title: kind == .similar ? "Finding similar recipes…" : "Thinking of sides…",
+                                   asked: note.isEmpty ? [] : ["“\(note)”"])
+                    } else if let ideas {
                         ForEach(ideas) { concept in
                             Button { Task { await write(concept) } } label: {
                                 VStack(alignment: .leading, spacing: 6) {
@@ -263,7 +281,12 @@ struct RecipeIdeasSheet: View {
                                     HStack {
                                         BadgeView(text: concept.cuisine)
                                         Spacer()
-                                        if working == concept.title { ProgressView() } else { Image(systemName: "chevron.right").foregroundStyle(Theme.mutedForeground) }
+                                        if working == concept.title {
+                                            AIBusyLabel(progress?.label ?? "Starting on the ingredients")
+                                                .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
+                                        } else {
+                                            Image(systemName: "chevron.right").foregroundStyle(Theme.mutedForeground)
+                                        }
                                     }
                                 }
                                 .padding(14).frame(maxWidth: .infinity, alignment: .leading).card()
@@ -294,9 +317,20 @@ struct RecipeIdeasSheet: View {
 
     private func write(_ concept: APIClient.Concept) async {
         working = concept.title
+        progress = nil
         defer { working = nil }
         do {
-            let made = try await app.api.createRecipe(from: concept, memberIds: nil, mealType: nil, heartHealthy: nil)
+            var made: APIClient.CreatedRecipe?
+            // Streamed, so the card can say how far it's got.
+            for try await event in app.api.createRecipeStream(from: concept, memberIds: nil, mealType: nil, heartHealthy: nil) {
+                switch event {
+                case .progress(let p): withAnimation { progress = p }
+                case .done(let saved): made = saved
+                case .error(let message): throw APIError.http(status: 422, code: "ai_error", message: message)
+                case .unknown: break
+                }
+            }
+            guard let made else { throw APIError.http(status: 502, code: "bad_response", message: "The recipe stopped part way. Please try again.") }
             await app.syncNow()
             app.toast = "Saved \(made.title)."
             dismiss()
@@ -433,9 +467,12 @@ struct RecipePhotoSheet: View {
         defer { starting = false }
         let trimmed = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         let ok = await WebAction.run("ai.recipeImageJob",
-                                     [.string(recipe.id), .string(style), trimmed.isEmpty ? .null : .string(String(trimmed.prefix(500)))],
-                                     done: "Generating a photo — it’ll appear in about 30 seconds.")
+                                     [.string(recipe.id), .string(style), trimmed.isEmpty ? .null : .string(String(trimmed.prefix(500)))])
         guard ok else { return }
+        // The recipe page shows the photo developing until the new one syncs down.
+        let id = recipe.id
+        let making = AppModel.PhotoInTheMaking(before: recipe.imageUrl)
+        app.photosInTheMaking[id] = making
         dismiss()
         // The job finishes on the server; pull the new photo down when it's likely done.
         Task {
@@ -443,6 +480,9 @@ struct RecipePhotoSheet: View {
                 try? await Task.sleep(for: .seconds(delay))
                 await app.syncNow()
             }
+            // Gave up waiting (it failed, or it's very slow): stop developing —
+            // unless a newer photo for this recipe has been asked for since.
+            if app.photosInTheMaking[id] == making { app.photosInTheMaking[id] = nil }
         }
     }
 }

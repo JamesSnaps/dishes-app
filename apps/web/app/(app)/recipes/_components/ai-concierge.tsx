@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2, AlertCircle, Target, Check, ChevronDown, ChevronUp, HeartPulse } from "lucide-react";
+import { Sparkles, AlertCircle, Target, Check, ChevronDown, ChevronUp, HeartPulse } from "lucide-react";
 import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
 import { cn } from "@dishes/ui";
 import {
@@ -18,7 +18,8 @@ import {
 
 import { generateConcepts, startRecipeJob, startRecipeBatchJob } from "@/app/actions/ai";
 import type { ConceptCard } from "@/lib/ai/recipe-generation";
-import type { BatchJobProgress, RecipeJobResult } from "@/lib/ai/job-types";
+import type { BatchJobProgress, RecipeJobResult, RecipeProgress } from "@/lib/ai/job-types";
+import { BatchWriting, IdeaPlaces, PlateSpinner, RecipeWriting } from "@/components/ai-wait";
 import { recipeJobToDefaults } from "@/lib/ai/recipe-defaults";
 import { useAiJobRunner, useAsyncBusy } from "@/lib/ai-jobs-client";
 import type { RecipeFormDefaults } from "./recipe-form";
@@ -148,11 +149,12 @@ interface AiConciergeProps {
   onRecipeGenerated: (defaults: RecipeFormDefaults) => void;
 }
 
-type Step = "prompt" | "concepts" | "generating" | "batch-generating";
+type Step = "prompt" | "thinking" | "concepts" | "generating" | "batch-generating";
 
 type BatchItem = {
   concept: ConceptCard;
   status: "pending" | "generating" | "done" | "error";
+  progress?: RecipeProgress;
   recipeId?: string;
   collectionName?: string;
   error?: string;
@@ -182,6 +184,8 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useAsyncBusy();
   const { run } = useAiJobRunner();
+  // The recipe being written, and how far it's got.
+  const [writing, setWriting] = useState<{ concept: ConceptCard; progress: RecipeProgress | null } | null>(null);
 
   const parsedTargetCalories = (() => {
     const n = parseInt(targetCalories, 10);
@@ -216,6 +220,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
 
   function handleGenerateConcepts() {
     setError(null);
+    setStep("thinking");
     startTransition(async () => {
       const result = await generateConcepts(promptText, undefined, mealType || undefined, parsedTargetCalories, {
         heartHealthy,
@@ -223,6 +228,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
       });
       if (result.error) {
         setError(result.error);
+        setStep("prompt");
         return;
       }
       setConcepts(result.concepts!);
@@ -249,16 +255,19 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
   // Runs as a background job: close the page mid-way and the app-wide tray
   // offers the finished recipe instead of it being lost.
   function writeRecipe(concept: ConceptCard, backTo: Step) {
+    setWriting({ concept, progress: null });
     startTransition(async () => {
-      const out = await run<RecipeJobResult>(
+      const out = await run<RecipeJobResult, RecipeProgress>(
         startRecipeJob(concept, undefined, mealType || undefined, parsedTargetCalories, {
           heartHealthy,
           ...(mealRole ? { mealRole } : {}),
           suggestCollection: true,
         }),
-        { kind: "recipe", label: concept.title }
+        { kind: "recipe", label: concept.title },
+        (progress) => setWriting({ concept, progress })
       );
       if (!out) return;
+      setWriting(null);
       if ("error" in out) {
         setError(out.error);
         setStep(backTo);
@@ -493,7 +502,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                   >
                     {isPending ? (
                       <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <PlateSpinner />
                         {mode === "inspire" ? "Thinking…" : "Writing recipe…"}
                       </>
                     ) : mode === "inspire" ? (
@@ -574,7 +583,7 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                     >
                       {isPending ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <PlateSpinner />
                           Generating…
                         </>
                       ) : selected.size > 1 ? (
@@ -595,20 +604,41 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
             </>
           )}
 
+          {/* ── Step: five ideas on their way ── */}
+          {step === "thinking" && (
+            <>
+              <DialogHeader className="sr-only">
+                <DialogTitle>Thinking up ideas</DialogTitle>
+                <DialogDescription>Five ideas for what you asked for.</DialogDescription>
+              </DialogHeader>
+              <IdeaPlaces
+                ideas={[]}
+                asked={[
+                  `“${promptText.trim().length > 60 ? `${promptText.trim().slice(0, 57)}…` : promptText.trim()}”`,
+                  ...(mealType ? [mealType] : []),
+                  ...(heartHealthy ? ["Heart-healthy"] : []),
+                ]}
+                className="py-2"
+              />
+            </>
+          )}
+
           {/* ── Step: generating single ── */}
           {step === "generating" && (
             <>
-              <DialogHeader>
-                <DialogTitle>Generating your recipe…</DialogTitle>
-                <DialogDescription>
-                  Writing out ingredients and steps. This usually takes 10–20 seconds.
-                </DialogDescription>
+              <DialogHeader className="sr-only">
+                <DialogTitle>Writing your recipe</DialogTitle>
+                <DialogDescription>Ingredients, then the method, then nutrition.</DialogDescription>
               </DialogHeader>
 
-              <div className="flex flex-col items-center gap-4 py-8">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Hang tight, the chef is at work.</p>
-              </div>
+              {writing && (
+                <RecipeWriting
+                  title={writing.concept.title}
+                  description={writing.concept.description !== writing.concept.title ? writing.concept.description : undefined}
+                  progress={writing.progress}
+                  className="py-2"
+                />
+              )}
             </>
           )}
 
@@ -624,49 +654,11 @@ export function AiConcierge({ onRecipeGenerated }: AiConciergeProps) {
                 <DialogDescription>
                   {batchDone
                     ? "Head to your recipe library to view them."
-                    : "Generating each recipe in turn — this may take a minute."}
+                    : "Writing each recipe in turn, about a minute each."}
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-3 py-4">
-                {batchItems.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-xs font-medium",
-                        item.status === "done" &&
-                          "bg-success-tint text-success",
-                        item.status === "generating" && "bg-primary/10 text-primary",
-                        item.status === "error" && "bg-destructive/10 text-destructive",
-                        item.status === "pending" && "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {item.status === "done" && <Check className="h-3.5 w-3.5" />}
-                      {item.status === "generating" && (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      )}
-                      {item.status === "error" && <AlertCircle className="h-3.5 w-3.5" />}
-                      {item.status === "pending" && <span>{i + 1}</span>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium leading-tight">{item.concept.title}</p>
-                      {item.status === "generating" && (
-                        <p className="text-xs text-muted-foreground">
-                          Writing ingredients and steps…
-                        </p>
-                      )}
-                      {item.status === "done" && item.collectionName && (
-                        <p className="text-xs text-muted-foreground">
-                          Filed in {item.collectionName}
-                        </p>
-                      )}
-                      {item.status === "error" && (
-                        <p className="text-xs text-destructive">{item.error}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <BatchWriting items={batchItems.map((item) => ({ ...item, title: item.concept.title }))} className="py-2" />
 
               {batchDone && (
                 <div className="flex justify-end gap-2">

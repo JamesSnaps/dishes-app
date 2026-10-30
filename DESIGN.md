@@ -289,6 +289,25 @@ places as they come, not all at the end. The best option in a group is chosen
 for you (terracotta tick on a `highlight` row), and the AI's own actions on
 the results ("Find another main") are `ink`.
 
+**Waiting on the AI**: never a spinner and a line of text. The pieces live in
+`components/ai-wait.tsx` (web) and `Design/AIWait.swift` (iOS); food is the
+colourful part, and every word is true — a fact the server sent or what the
+person asked for, never "Adding a pinch of magic…".
+
+| Wait | Shows |
+|---|---|
+| Planning a week | A row per slot with a **reel** of the household's own recipe photos spinning in a round plate; each day **lands** (scale-and-settle) the moment the AI writes it — the library dish's photo, or an empty plate with the sparkle for a new idea. Above: "3 of 5 planned…" and the planner's facts, one at a time |
+| Ideas (concierge, similar, sides, swaps) | Empty dashed plates with **steam** rising, one per idea, with skeleton lines; streamed ideas drop into their places |
+| Writing a recipe | The dish's title, then Ingredients → Method → Nutrition ticked off as the AI reaches each (ingredient names appear as they're written); a batch has a **ring** per recipe that fills by stage |
+| Adding a plan | Library dishes with their photo; each new idea's ring fills as it's written |
+| A photo being made | The current photo (or an empty plate) **develops** — blurring in and out of focus — with a "Plating up a photo…" card |
+| A link being read | The site's name, dots travelling to a plate that fills |
+| Ask / the cooking assistant | Three plates **hop** in the reply bubble until the first words arrive |
+| Any busy AI button | The **plate spinner**: a tiny conveyor of plates in place of the spinner |
+
+Everything stops under Reduce Motion. Rows are hairline-divided on a `card`
+panel; the empty plates are dashed `input` on `highlight`.
+
 **Form options**: settings that sit beside a main input (meal, who's eating,
 heart-healthy) are rows in one `muted` panel, hairline-divided: label left
 (with a muted line of detail if needed), control right. A choice from a list

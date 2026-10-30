@@ -12,7 +12,6 @@ import {
   ArrowRight,
   Sparkles,
   Star,
-  Loader2,
   ShoppingBag,
   Repeat2,
 } from "lucide-react";
@@ -32,6 +31,7 @@ import { swapMealEntryRecipe } from "@/app/actions/meal-plan";
 import { useSync } from "@/components/providers/sync-provider";
 import { useToast } from "@/hooks/use-toast";
 import type { MealPlanMutations, TopIngredient } from "./week-planner";
+import { IdeaPlaces, PlateSpinner } from "@/components/ai-wait";
 
 const TARGET_KINDS = Object.keys(WEEKLY_PROTEIN_TARGETS) as ProteinKind[];
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -435,9 +435,7 @@ function SuggestionRow({
           )}
 
           {ai.status === "loading" && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Thinking up ideas…
-            </p>
+            <IdeaPlaces ideas={[]} count={3} title="Thinking up ideas…" asked={[`Instead of ${s.fromTitle}`]} />
           )}
 
           {ai.status === "error" && (
@@ -470,7 +468,7 @@ function SuggestionRow({
                     >
                       {creatingThis ? (
                         <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Writing…
+                          <PlateSpinner /> Writing…
                         </>
                       ) : (
                         "Create & swap"

@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/session";
 import { withApiErrors } from "@/lib/api/respond";
+import { ndjsonResponse, wantsNdjson } from "@/lib/api/ndjson";
 import { generateMealPlanConcepts } from "@/app/actions/ai";
+import type { MealPlanEvent } from "@/lib/ai/job-types";
 import { fromAction } from "../respond";
 
 const schema = z.object({
@@ -17,10 +19,20 @@ const schema = z.object({
 /**
  * POST — a draft week: for each slot, a recipe from the library or a new idea.
  * Nothing is saved; `POST /api/v1/ai/meal-plan/apply` adds the draft.
- * → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId? }] }`
+ * → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId?, imageUrl? }] }`
+ *
+ * With `Accept: application/x-ndjson` it streams one event per line as it
+ * works: `facts` (what it's weighing, and library photos for the wait), a
+ * `slot` for each meal as the AI writes it, then `done` with the whole draft —
+ * or `error`.
  */
 export const POST = withApiErrors(async (req: NextRequest) => {
   await requireSession();
   const input = schema.parse(await req.json());
-  return fromAction(await generateMealPlanConcepts(input));
+  if (!wantsNdjson(req)) return fromAction(await generateMealPlanConcepts(input));
+
+  return ndjsonResponse<MealPlanEvent>(async (emit) => {
+    const result = await generateMealPlanConcepts(input, emit);
+    emit(result.error || !result.slots ? { type: "error", message: result.error ?? "Couldn’t plan the week." } : { type: "done", slots: result.slots });
+  });
 });

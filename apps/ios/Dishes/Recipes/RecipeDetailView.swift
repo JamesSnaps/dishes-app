@@ -196,11 +196,23 @@ struct RecipeDetailView: View {
     /// Photo, title, badges, rating, servings and Start Cooking, then nutrition.
     @ViewBuilder
     private func summary(_ recipe: Recipe) -> some View {
-        if recipe.imageUrl != nil {
+        // An AI photo on its way: the current one (or an empty plate) develops until the new one syncs down.
+        let developing = app.photosInTheMaking[recipe.id].map { $0.before == recipe.imageUrl } ?? false
+        if recipe.imageUrl != nil || developing {
             Color.clear
                 .aspectRatio(twoColumn ? 1.4 : width == .regular ? 2.4 : 1.6, contentMode: .fit)
-                .overlay { RecipeImage(recipe: recipe, thumbnail: false) }
+                .overlay {
+                    if developing {
+                        DevelopingPhoto(url: app.imageURL(recipe.imageUrl))
+                            .overlay(alignment: .bottomLeading) {
+                                PlatingUpCaption(replacing: recipe.imageUrl != nil).padding(12).frame(maxWidth: 420, alignment: .leading)
+                            }
+                    } else {
+                        RecipeImage(recipe: recipe, thumbnail: false)
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .animation(.easeInOut(duration: 0.4), value: developing)
         }
         header(recipe)
         ratingRow(recipe)

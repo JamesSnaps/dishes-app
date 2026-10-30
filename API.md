@@ -1129,16 +1129,33 @@ All use the household's own AI key (Settings → AI, on the web or in the app) a
 422 with the reason when it isn't set up or the call fails. They take tens of
 seconds, so clients should allow a long timeout.
 
+Concepts, recipes, meal-plan and meal-plan/apply can also **stream** their progress: send
+`Accept: application/x-ndjson` and they answer one JSON event per line as the AI works,
+ending with `done` (the same answer the plain call gives) or `error` (`{ type: "error", message }`).
+A refusal before any work starts (bad input, signed out) is still an ordinary error response.
+The work carries on to the end if the client goes away. Shapes: `lib/ai/job-types.ts`.
+
 - `GET /api/v1/ai/status` → `{ configured }`
 - `POST /api/v1/ai/concepts` `{ prompt, mealType?, memberIds?, heartHealthy?, mealRole? }`
-  → `{ concepts: [{ title, description, cuisine, tags, difficulty }] }` — five ideas
+  → `{ concepts: [{ title, description, cuisine, tags, difficulty }] }` — five ideas.
+  Streamed: `{ type: "concept", concept }` as each is written, then `{ type: "done", concepts }`
 - `POST /api/v1/ai/recipes` `{ concept, mealType?, memberIds?, heartHealthy? }` → 201
-  `{ recipeId, title, collectionName? }` — written out in full and saved (it syncs down)
+  `{ recipeId, title, collectionName? }` — written out in full and saved (it syncs down).
+  Streamed: `{ type: "progress", stage, ingredients, steps, revising? }` as it reaches each part
+  (`stage` is `grounding`, `ingredients`, `method` or `nutrition`; `ingredients` are the names
+  written so far; `revising` is the heart-healthy second pass), then `{ type: "done", recipeId, title, collectionName? }`
 - `POST /api/v1/ai/photo-recipe` `{ image: <base64>, mimeType }` → 201 `{ recipeId, title }`
 - `POST /api/v1/ai/text-recipe` `{ text }` (20–30,000 characters: a message, notes, a caption) → 201 `{ recipeId, title, collectionName? }` — read and saved, as photo-recipe does for a photo; 422 when there's no recipe in it
 - `POST /api/v1/ai/meal-plan` `{ weekStartDate, slots: [{ dayOfWeek, mealType }], preferences, memberIds?, favouritesOnly?, heartHealthy? }`
-  → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId? }] }` — a draft, nothing saved
-- `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes)
+  → `{ slots: [{ dayOfWeek, mealType, title, description, cuisine, difficulty, recipeId?, imageUrl? }] }` — a draft, nothing saved;
+  `imageUrl` is a library pick's photo. Streamed: `{ type: "facts", facts, photos }` once the
+  library is narrowed (`facts` are true lines from the household's data — "Resting 9 dishes
+  you've had in the last 3 weeks" — and `photos` some of the recipes it may choose from), a
+  `{ type: "slot", slot }` for each meal as the AI writes it, then `{ type: "done", slots }`
+- `POST /api/v1/ai/meal-plan/apply` `{ weekStartDate, slots, memberIds?, heartHealthy? }` → `{ success }` — new ideas are written out as recipes first (minutes).
+  Streamed, by each slot's index in `slots`: `{ type: "writing", index, progress }` (progress as
+  for recipes, null at the start), `{ type: "written", index, recipeId }` or `{ type: "failed", index }`
+  (that slot goes in as a title only), then `{ type: "done" }`
 - `POST /api/v1/ai/respond` `{ messages: [{ role: "system" | "user" | "assistant", content, images?: [{ mimeType, data: <base64> }] }], schema?: <JSON Schema>, settings?: boolean, maxTokens?: number }` → the answer as streamed plain text (JSON text when `schema` is sent: OpenAI structured outputs, non-strict). A plain model call through the household's key, for the iOS app's `DishesServerModel` — the device's own prompts and schemas run on the server, photos included (up to 4 per message, as a scanned recipe page). `settings: true` adds the household's AI settings (measurements, default prompt, equipment) to the system message. 30 calls a minute per member: past that, 429 with `Retry-After`
 - `POST /api/v1/cook-assist` — the web's "Ask about this step": `{ recipeTitle, stepNumber, stepInstruction, stepIngredients, allIngredients, allSteps, servingsSummary?, messages }`, answered as streamed plain text. The iOS app answers on the device first (iOS 27) and comes here when it can't
 
