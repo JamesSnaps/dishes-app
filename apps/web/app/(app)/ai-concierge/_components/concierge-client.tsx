@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Sparkles,
@@ -54,16 +54,18 @@ import type {
   BatchJobProgress,
   ConceptsJobProgress,
   ConceptsJobResult,
+  MealPlanApplyEvent,
   MealPlanJobResult,
   MealPlanProgress,
   RecipeJobResult,
   RecipeProgress,
 } from "@/lib/ai/job-types";
-import { BatchWriting, DishPlate, IdeaPlaces, PlanReels, PlateReel, PlateSpinner, RecipeWriting, SteamPlate } from "@/components/ai-wait";
+import { BatchWriting, DishPlate, IdeaPlaces, PlanReels, PlateReel, PlateSpinner, RecipeWriting, SteamPlate, WritingRing, recipeStageLabel } from "@/components/ai-wait";
 import { recipeJobToDefaults, stashAiDraft } from "@/lib/ai/recipe-defaults";
 import type { ConceptCard } from "@/lib/ai/recipe-generation";
 import { MEAL_ROLES, MEAL_ROLE_LABELS, type MealRole } from "@dishes/shared";
-import { addAiGeneratedMealPlan, getWeekMealSlots } from "@/app/actions/meal-plan";
+import { getWeekMealSlots } from "@/app/actions/meal-plan";
+import { postNdjson } from "@/lib/ndjson-client";
 import type { StyleBreakdown, LibraryStyle } from "@/lib/services/recipe-library";
 import { StarRating } from "@/app/(app)/recipes/[id]/_components/star-rating";
 import { useSync } from "@/components/providers/sync-provider";
@@ -517,6 +519,38 @@ type Member = {
   /** Their dietary notes mention cholesterol — ticking them pre-selects Heart-healthy. */
   cholesterolDiet?: boolean;
 };
+
+/** A new idea being written out as the draft is added (the apply stream's events). */
+type WritingState =
+  | { status: "writing"; progress: RecipeProgress | null }
+  | { status: "written" }
+  | { status: "failed" };
+
+/** A new idea's plate while the draft is added: waiting, its ring filling, or done. */
+function AddingPlate({ state, delay }: { state?: WritingState; delay: number }) {
+  if (!state) return <SteamPlate delay={delay} className="size-10" />;
+  if (state.status === "writing") return <WritingRing progress={state.progress} className="size-10" />;
+  return (
+    <div className="relative size-10 shrink-0" aria-hidden="true">
+      <div className="absolute inset-0.5 rounded-full bg-plate" />
+      <span
+        className={cn(
+          "absolute -bottom-0.5 -right-0.5 flex size-[18px] items-center justify-center rounded-full border-2 border-card text-card",
+          state.status === "written" ? "bg-success" : "bg-destructive"
+        )}
+      >
+        {state.status === "written" ? <Check className="size-2.5" strokeWidth={3.5} /> : <AlertCircle className="size-2.5" />}
+      </span>
+    </div>
+  );
+}
+
+/** What a new idea's row says while the draft is added. */
+function addingLine(state?: WritingState): string {
+  if (!state) return "Waiting its turn";
+  if (state.status === "writing") return recipeStageLabel(state.progress);
+  return state.status === "written" ? "Written and saved" : "Couldn't write this one; it goes in as a title";
+}
 
 type BatchItem = {
   concept: ConceptCard;
@@ -1102,9 +1136,10 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const [planProgress, setPlanProgress] = useState<MealPlanProgress | null>(null);
   // The photos from the last draft, for the reels on a slot being swapped.
   const [reelPhotos, setReelPhotos] = useState<string[]>([]);
-  const [isAdding, startAddTransition] = useTransition();
+  // Adding streams (POST /api/web/ai/meal-plan/apply): each new idea's writing, by draft index.
+  const [isAdding, startAdding] = useAsyncBusy();
+  const [writing, setWriting] = useState<Map<number, WritingState>>(() => new Map());
   const [added, setAdded] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
 
   // Load coverage for the chosen week; auto-remove newly-covered slots from selection
   useEffect(() => {
@@ -1318,22 +1353,57 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
 
   function handleAddToMealPlan() {
     if (!generatedSlots) return;
-    const slotsToAdd = generatedSlots.filter((_, idx) => !rejectedSlots.has(idx));
-    if (!slotsToAdd.length) return;
+    // Draft indices of the slots going in; the stream reports by position in this list.
+    const adding = generatedSlots.map((_, idx) => idx).filter((idx) => !rejectedSlots.has(idx));
+    if (!adding.length) return;
     const weekStart = getMondayOf(weekOffset);
-    startAddTransition(async () => {
-      const result = await addAiGeneratedMealPlan(
-        weekStart,
-        slotsToAdd,
-        selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : [],
-        { heartHealthy }
-      );
-      if (result.debug) setDebugInfo(result.debug);
-      if (result.error) { setError(result.error); return; }
+    setError(null);
+    setWriting(new Map());
+    startAdding(async () => {
+      const mark = (index: number, state: WritingState) =>
+        setWriting((prev) => new Map(prev).set(adding[index]!, state));
+      let finished = false;
+      try {
+        await postNdjson<MealPlanApplyEvent>(
+          "/api/web/ai/meal-plan/apply",
+          {
+            weekStartDate: weekStart,
+            slots: adding.map((idx) => {
+              const s = generatedSlots[idx]!;
+              // Held to the route's shapes: an AI draft can leave these loose.
+              const difficulty = ["easy", "medium", "hard"].includes(s.difficulty?.toLowerCase?.() ?? "")
+                ? s.difficulty.toLowerCase()
+                : "medium";
+              return {
+                dayOfWeek: s.dayOfWeek,
+                mealType: s.mealType,
+                title: s.title,
+                description: s.description ?? "",
+                cuisine: s.cuisine ?? "",
+                difficulty,
+                recipeId: s.recipeId ?? null,
+              };
+            }),
+            memberIds: selectedMemberIds.size > 0 ? Array.from(selectedMemberIds) : undefined,
+            heartHealthy: heartHealthy || undefined,
+          },
+          (e) => {
+            if (e.type === "writing") mark(e.index, { status: "writing", progress: e.progress });
+            else if (e.type === "written") mark(e.index, { status: "written" });
+            else if (e.type === "failed") mark(e.index, { status: "failed" });
+            else if (e.type === "done") finished = true;
+            else if (e.type === "error") throw new Error(e.message);
+          }
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Couldn't add the plan.");
+        return;
+      }
+      if (!finished) { setError("Adding stopped part way. Check the planner, then try again."); return; }
 
-      // Pull before navigating. `addAiGeneratedMealPlan` writes straight to the
-      // database, and /meal-plan renders from the local store — without this the
-      // week arrives empty and stays empty until something else triggers a sync.
+      // Pull before navigating. The route writes straight to the database,
+      // and /meal-plan renders from the local store — without this the week
+      // arrives empty and stays empty until something else triggers a sync.
       // Awaited, not fired-and-forgotten: the navigation must not win the race.
       try {
         await sync?.engine?.sync();
@@ -1355,6 +1425,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const newRecipeCount = generatedSlots
     ? generatedSlots.filter((slot, idx) => !rejectedSlots.has(idx) && !slot.recipeId).length
     : 0;
+  const writtenCount = Array.from(writing.values()).filter((w) => w.status !== "writing").length;
   // The slots asked for, in week order, for the reels while it drafts.
   const reelRows = Array.from(selectedSlots)
     .map((key) => {
@@ -1735,7 +1806,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                               <PlateReel photos={reelPhotos} offset={globalIdx} className="size-10 shrink-0" />
                             ) : isAdding && !slot.recipeId && !rejected ? (
                               // Being written out as a full recipe on the way in.
-                              <SteamPlate delay={globalIdx * 0.4} className="size-10" />
+                              <AddingPlate state={writing.get(globalIdx)} delay={globalIdx * 0.4} />
                             ) : (
                               <DishPlate src={slot.imageUrl} alt="" isNew={!slot.recipeId} className="size-10" />
                             )}
@@ -1747,7 +1818,9 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                                 <SlotBadges slot={slot} />
                               </div>
                               {!rejected && (
-                                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{slot.description}</p>
+                                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                                  {isAdding && !slot.recipeId ? addingLine(writing.get(globalIdx)) : slot.description}
+                                </p>
                               )}
                             </div>
                           </button>
@@ -1787,21 +1860,13 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
                   <>
                     <PlateSpinner />
                     {newRecipeCount > 0
-                      ? `Writing ${newRecipeCount} new recipe${newRecipeCount !== 1 ? "s" : ""}…`
+                      ? `Writing ${newRecipeCount} new recipe${newRecipeCount !== 1 ? "s" : ""}… ${writtenCount} of ${newRecipeCount} done`
                       : "Adding to planner…"}
                   </>
                 ) : (
                   <><CalendarDays className="h-4 w-4" />Add {includedCount} meal{includedCount !== 1 ? "s" : ""} to Meal Plan</>
                 )}
               </Button>
-            )}
-            {debugInfo && (
-              <details className="text-xs">
-                <summary className="cursor-pointer text-muted-foreground font-medium">Debug info</summary>
-                <pre className="mt-2 p-3 rounded bg-muted overflow-auto max-h-64 text-left">
-                  {JSON.stringify(debugInfo, null, 2)}
-                </pre>
-              </details>
             )}
           </div>
         </div>
