@@ -1824,3 +1824,8 @@ household has no AI key): the reels land in the order slots arrive, the draft sh
 photo, and adding fills each new idea's ring by stage. The unscripted path was checked to the
 point of the server's "AI not configured" error, which arrives through the stream. Not checked:
 the concierge, recipe tools and photo developing screens (they need a key).
+
+Uploaded to TestFlight as 1.75.0 (build 202610300939) from main after PR #87 merged — carries the
+AI waits (plan reels, streamed ideas and recipe progress, rings when adding a plan, the developing
+photo) and PR #86's shopping list. The server needs 1.75.0 for live progress; against an older one
+the waits fall back to the whole answer at the end. No migrations.
