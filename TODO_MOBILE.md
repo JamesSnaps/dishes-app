@@ -981,7 +981,7 @@ for themselves.
 | Concierge — 5 concepts | Server (the evaluation said so) | 0.64–0.68: the request got lost under the household's preferences, and the guardrails stop some |
 | Concierge — full recipe | Server first; device if the evaluation passes | Long, quality matters most |
 | Shopping item → aisle (add field, "Sort into aisles") | Rules first; device only for names they don't know; nothing sent anywhere | Picking one of ten aisles or "not sure". **Not evaluated yet** — add a set (v1.74.0) |
-| Meal-plan draft from saved recipes | Device, the library chosen by code from the local store | Picking, not writing (0.917) |
+| Meal-plan draft from saved recipes | Device, the library chosen by code from the local store; server when there's a request typed in | Picking, not writing (0.917); a typed request got lost on the device ("pasta, no tomato sauce" → oven cod) |
 | Meal-plan apply, new recipes written out | Server | Writes several recipes and saves them |
 | Web-grounded generation, recipe images, nutrition estimate, Wrapped, meal timeline | Server | Need the web, image models or server data |
 
@@ -1075,7 +1075,12 @@ for themselves.
   salad at breakfast), and a dish picked twice is asked again with the rest
   kept. Evaluation: 6 households (`fixtures/evals/meal-plans.json`), 0.903 and
   0.917, 6/6 both runs. Still weak: a preference for one day ("pasta on
-  Friday") — the right dishes, the wrong days
+  Friday") — the right dishes, the wrong days. *v1.75.2:* in use, "pasta dish
+  but no tomato sauce" for one Saturday came back as oven cod from the library,
+  so a plan with a request typed in now goes straight to the server
+  (`AIRouter.run`'s `skipDevice`), and the request is set apart and put first
+  in both prompts (`planRequestBlock` / `Prompts.mealPlanRequest`). The evals
+  with preferences should be re-run on the device before routing them back
 - [ ] ~~**Barcode scanning for shopping**~~ — not for now (James, 20 Oct
   2026). When it comes back: a barcode needs a product database (Open Food
   Facts), so decide whether the lookup goes through the server first

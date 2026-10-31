@@ -67,6 +67,10 @@ public enum AITask: String, CaseIterable, Sendable {
         // preferences ("a risotto" → five spicy dishes), and the guardrails
         // stopped a child's breakfast. Restating the request made it worse.
         case .recipeIdeas: .server
+        // Picking from the library, 0.917 (20 Oct). But a request typed in
+        // goes to the server (`skipDevice` in `PlanGeneratorSheet`): "pasta,
+        // no tomato sauce" came back as oven cod (31 Oct), lost under the
+        // library and the rules as the recipe ideas' requests were.
         case .mealPlan: .device
         // Not evaluated yet (needs macOS 27): it only sees names the rules
         // don't know, and can only answer one of the aisles or "not sure".
@@ -103,17 +107,21 @@ public enum AIRouter {
     /// Runs `task` where it should run. `check` lists what's wrong with a
     /// device answer (empty: it's fine); `fallback` is the task's fallback
     /// engine (the server, or the rules). Runs on the caller's actor, so a
-    /// screen can pass closures that touch its state.
+    /// screen can pass closures that touch its state. `skipDevice`: why this
+    /// one goes straight to the fallback.
     public static func run<Value: Sendable>(
         _ task: AITask,
         isolation: isolated (any Actor)? = #isolation,
         onDevice: () async throws -> Value,
         check: (Value) -> [String] = { _ in [] },
-        fallback: () async throws -> Value
+        fallback: () async throws -> Value,
+        skipDevice: String? = nil
     ) async throws -> AIRun<Value> {
         var reason: String?
         if task.firstTry == .device {
-            if let unavailable = DeviceAI.unavailableReason {
+            if let skipDevice {
+                reason = skipDevice
+            } else if let unavailable = DeviceAI.unavailableReason {
                 reason = unavailable
             } else {
                 do {

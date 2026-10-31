@@ -297,7 +297,8 @@ struct PlanGeneratorSheet: View {
                                       heartHealthy: heartHealthy)
         do {
             // On the device first, from what's in the local store
-            // (MealPlanDrafter); adding the draft still goes to the server.
+            // (MealPlanDrafter), unless there's a request typed in; adding
+            // the draft still goes to the server.
             let run = try await AIRouter.run(
                 .mealPlan,
                 onDevice: { () async throws -> (slots: [APIClient.PlanSlot], problems: [String]) in
@@ -338,7 +339,11 @@ struct PlanGeneratorSheet: View {
                         }
                     }
                     throw APIError.http(status: 502, code: "bad_response", message: "The plan stopped part way. Please try again.")
-                })
+                },
+                // The device model loses a request in your own words ("pasta,
+                // no tomato sauce" → oven cod), so those go to the server.
+                skipDevice: ask.preferences.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil : "A request in your own words goes to the server")
             draft = run.value.slots.sorted { $0.dayOfWeek < $1.dayOfWeek }
             guard !draft.isEmpty else { stage = .failed("No meals came back. Try fewer constraints."); return }
             // Whatever hasn't landed yet (all of it, when it was drafted on the

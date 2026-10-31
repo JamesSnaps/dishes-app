@@ -1829,3 +1829,17 @@ Uploaded to TestFlight as 1.75.0 (build 202610300939) from main after PR #87 mer
 AI waits (plan reels, streamed ideas and recipe progress, rings when adding a plan, the developing
 photo) and PR #86's shopping list. The server needs 1.75.0 for live progress; against an older one
 the waits fall back to the whole answer at the end. No migrations.
+
+### 2026-10-31 — Plan the week follows a typed request (v1.75.2, branch `fix/meal-plan-follows-request`)
+
+- "Pasta dish but no tomato sauce" for one Saturday came back as Oven Cod from the library: the
+  on-device drafter (`AITask.mealPlan` starts on the device) lost the request under the library and
+  the rules, as the recipe ideas' requests were lost on 20 Oct. The server's logs had no AI call then.
+- `AIRouter.run` takes `skipDevice` (as `stream` already did); `PlanGeneratorSheet` passes it when
+  there's a request typed in, so those plans are drafted by the server. Plans without one still
+  start on the device.
+- The request is now set apart after the slots ("WHAT WE'VE ASKED FOR … This comes first"), with
+  a line in the system prompt, on the server (`planRequestBlock`) and in `Prompts.mealPlanRequest`.
+
+Not built here (no Swift toolchain on the Linux box): build in Xcode and run `swift test` in
+DishesCore before uploading. The web app type-checks. No migrations.
