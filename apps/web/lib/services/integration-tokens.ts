@@ -17,6 +17,7 @@ export async function listIntegrationTokens(ctx: Pick<PrivilegedContext, "househ
       id: integrationTokens.id,
       name: integrationTokens.name,
       scopes: integrationTokens.scopes,
+      memberId: integrationTokens.memberId,
       actsAs: householdMembers.displayName,
       lastUsedAt: integrationTokens.lastUsedAt,
       expiresAt: integrationTokens.expiresAt,

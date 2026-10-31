@@ -372,7 +372,7 @@ export function heartHealthyCondition() {
 }
 
 export async function listRecipes(
-  ctx: HouseholdContext,
+  ctx: Pick<HouseholdContext, "householdId">,
   filters: RecipeListFilters = {}
 ) {
   const conditions = [eq(recipes.householdId, ctx.householdId)];

@@ -51,9 +51,12 @@ For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's f
 | `write:shopping_list` | Add, tick off, rename and remove shopping list items |
 | `read:deliveries` | Read grocery delivery days and order status |
 | `write:deliveries` | Record grocery orders (e.g. from retailer emails) |
+| `write:recipes` | Add recipes to the household library |
 | `read:cooking` | See who is cooking right now: the dish, the step and the running timers |
 | `read:preferences` | Read each member's dietary requirements, dislikes and tastes, and this week's eating, to help an AI choose from a menu |
 | `write:outside_meals` | Log and update meals eaten out, as the member the token acts as |
+
+A token's name, scopes and **Acts as** can be changed after it's created (Settings → Integrations → Edit), without changing the token itself: whatever uses it gets the new permissions from its next call. Its expiry can't be changed; make a new token for that.
 
 ## Common error shape
 
@@ -281,6 +284,79 @@ Returns one recipe from the household library with ingredients, numbered steps a
 `nutrition` is `null` when the recipe has no nutrition data; individual macros may also be `null`. `steps[].ingredientIds` reference `ingredients[].id`. Amounts are strings so fractions survive.
 
 **Error `404`** — no recipe with that id in the token's household (malformed ids also return `404`).
+
+---
+
+### `GET /api/integrations/recipes`
+
+Searches the household library: recipes whose title, tags or ingredients contain `q`, most recently changed first. Leave `q` out for the latest. Use it to find a recipe for `GET /api/integrations/recipes/{id}`, or to check one isn't there before adding it.
+
+**Scope:** `read:meal_plan`
+
+| Query | Type | Description |
+|---|---|---|
+| `q` | string | Words to look for |
+| `limit` | integer | 1–100, default 20 |
+
+```json
+{
+  "recipes": [
+    { "id": "8f14e45f-ceea-4e7a-9c1b-2b6d1f0e9a11", "title": "Chicken Tikka Masala", "cuisine": "Indian", "difficulty": "medium", "prepTimeMinutes": 20, "cookTimeMinutes": 35, "calories": 650, "mealTypes": ["dinner"], "isFavourite": true }
+  ]
+}
+```
+
+**Error `400`** — `limit` isn't a whole number.
+
+---
+
+### `POST /api/integrations/recipes`
+
+Adds a recipe to the household library and returns it (`201`) in the same shape as `GET /api/integrations/recipes/{id}`. A token that acts as a member files the recipe as theirs.
+
+**Scope:** `write:recipes`
+
+**Body** — only `title` is required; send ingredients and steps for a recipe you can cook from.
+
+```json
+{
+  "title": "Creamy Pesto Pasta",
+  "cuisine": "Italian",
+  "difficulty": "easy",
+  "servings": "4",
+  "prepTimeMinutes": 5,
+  "cookTimeMinutes": 15,
+  "mealTypes": ["dinner"],
+  "tags": ["quick", "vegetarian"],
+  "ingredients": [
+    { "ingredientName": "penne", "amount": "400", "unit": "g" },
+    { "ingredientName": "green pesto", "amount": "190", "unit": "g" },
+    { "ingredientName": "crème fraîche", "amount": "150", "unit": "ml" }
+  ],
+  "steps": [
+    { "instruction": "Cook the penne in salted boiling water.", "durationMinutes": "11", "timerLabel": "Pasta", "ingredientIndexes": [0] },
+    { "instruction": "Drain, then stir through the pesto and crème fraîche.", "ingredientIndexes": [1, 2] }
+  ]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `description`, `cuisine`, `notes`, `sourceUrl` | Optional text (`sourceUrl` must be a URL) |
+| `difficulty` | `easy`, `medium` or `hard` |
+| `prepTimeMinutes`, `cookTimeMinutes` | Whole minutes |
+| `servings`, `servingsUnit` | `servings` may be a string or number; `servingsUnit` defaults to `servings` |
+| `mealRole` | `main`, `side`, `sauce` or `other`; leave out for a main course |
+| `mealTypes` | Meals it suits (`breakfast`, `lunch`, `dinner`, `snack`, `dessert`); the AI planner only puts it in these |
+| `tags` | Strings |
+| `collectionId` | A collection of this household's to file it in (ignored if it isn't one) |
+| `ingredients[]` | `ingredientName` (required), `amount`, `unit`, `preparation`, `isOptional`, `groupLabel` ("For the sauce") |
+| `steps[]` | `instruction` (required), `durationMinutes` (for a timer in cooking mode), `timerLabel`, `groupLabel`, `ingredientIndexes` — positions in `ingredients` (0 is the first) that the step uses |
+| `nutrition` | Per serving: `calories`, `proteinG`, `carbsG`, `fatG`, `saturatedFatG`, `fiberG`, `sugarG`, `sodiumMg`. Leave out to have it estimated |
+
+Amounts, servings and step minutes may be strings or numbers. Without `nutrition`, the household's AI estimates it a few seconds after the response (only when an AI key is set), so the response's `nutrition` is `null` and a later `GET` has it. Photos can't be sent: add one in the app.
+
+**Error `400`** — not a valid recipe (`issues` says which field), or a step's `ingredientIndexes` points past the end of `ingredients`.
 
 ---
 
@@ -656,11 +732,11 @@ Only `date` is required, but give at least a `title` or `description` (or `cours
 
 ### MCP — `/api/integrations/mcp`
 
-The eating-out operations as an MCP server, for Claude. It speaks Streamable HTTP, statelessly: each `POST` is answered with JSON, there's no server-to-client stream, and `GET`/`DELETE` are `405`. The tools have the operations' names and take the same fields: `getDinerBrief` (`members` as an array, `date`), `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` (`date` defaults to today) and `updateOutsideMeal` (`id` plus fields). Results are the same JSON as the REST endpoints, except that `getDinerBrief` returns the brief's `promptText`. A mistake the model can fix (an unknown name, a bad field, no meal with that id) comes back as a tool error saying what was wrong. The server's instructions are the same as the ChatGPT GPT's (`apps/web/lib/menu-assistant.ts`).
+The eating-out and recipe operations as an MCP server, for Claude and other AI agents. It speaks Streamable HTTP, statelessly: each `POST` is answered with JSON, there's no server-to-client stream, and `GET`/`DELETE` are `405`. The tools have the operations' names and take the same fields: `getDinerBrief` (`members` as an array, `date`), `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` (`date` defaults to today), `updateOutsideMeal` (`id` plus fields), `searchRecipes` (`q`, `limit`), `getRecipe` (`id`) and `createRecipe` (the `POST /api/integrations/recipes` body). Results are the same JSON as the REST endpoints, except that `getDinerBrief` returns the brief's `promptText`. A mistake the model can fix (an unknown name, a bad field, no meal with that id) comes back as a tool error saying what was wrong. The server's instructions are the same as the ChatGPT GPT's (`apps/web/lib/menu-assistant.ts`), plus a paragraph on adding recipes (search first, ingredients split into amount/unit/name/preparation, steps linked by `ingredientIndexes`, no guessed nutrition) when the caller can use `createRecipe`.
 
 **Auth:** `Authorization: Bearer <token>`, either of:
-- **An integration token.** Tools are offered by its scopes: `getDinerBrief` needs `read:preferences`; the list and get tools need `read:meal_plan`; `logOutsideMeal` and `updateOutsideMeal` need `write:outside_meals` and a token that acts as a member.
-- **An Authelia access token** (claude.ai custom connectors, when `DISHES_OIDC_ISSUER` is set). It acts as whoever signed in, with all five tools.
+- **An integration token.** Tools are offered by its scopes: `getDinerBrief` needs `read:preferences`; the list, search and get tools need `read:meal_plan`; `createRecipe` needs `write:recipes` (filed as the member the token acts as, if any); `logOutsideMeal` and `updateOutsideMeal` need `write:outside_meals` and a token that acts as a member.
+- **An Authelia access token** (claude.ai custom connectors, when `DISHES_OIDC_ISSUER` is set). It acts as whoever signed in, with all eight tools.
 
 Rate-limited like the rest of the API: per token, or per member for Authelia tokens. Without a valid token the reply is `401`. When OIDC is set up, its `WWW-Authenticate` header carries `resource_metadata` pointing at `GET /.well-known/oauth-protected-resource/api/integrations/mcp`. That is the RFC 9728 metadata naming the Authelia issuer, and it's also served at `/.well-known/oauth-protected-resource`; it's `404` without OIDC. Setup for Claude Code, Claude Desktop and claude.ai is in the README.
 

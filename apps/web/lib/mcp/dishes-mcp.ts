@@ -1,7 +1,8 @@
 /**
  * The Dishes MCP server, for Claude (Desktop, Code, or a claude.ai custom
- * connector): the eating-out tools — the diner brief, and logging what was
- * ordered as a meal out. Served statelessly by `/api/integrations/mcp`, one
+ * connector) and other AI agents: the eating-out tools — the diner brief, and
+ * logging what was ordered as a meal out — and the recipe library: search it,
+ * read a recipe, add one. Served statelessly by `/api/integrations/mcp`, one
  * server per request, built for whoever called.
  *
  * Tools are named after the integration API's operation ids and described
@@ -34,6 +35,14 @@ import {
   outsideMealWriteFields,
   UnknownEaterError,
 } from "@/lib/integration-outside-meals";
+import { getRecipe, RecipeNotFoundError, RecipeValidationError } from "@/lib/services/recipes";
+import {
+  addRecipe,
+  integrationRecipeSchema,
+  recipeDetailJson,
+  RecipeInputError,
+  searchRecipes,
+} from "@/lib/integration-recipes";
 
 /** Who's calling: a token's household and scopes, or a signed-in member. */
 export type McpCaller = {
@@ -48,10 +57,21 @@ export type McpCaller = {
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");
 const optionalFields = z.object(outsideMealWriteFields).partial().shape;
 
-function describe(id: string): string {
+/** `full`: the whole description, for a tool with rules the short one leaves out. */
+function describe(id: string, full = false): string {
   const ep = INTEGRATION_ENDPOINTS.find((e) => e.id === id);
-  return ep?.shortDescription ?? ep?.description ?? id;
+  return (full ? ep?.description : ep?.shortDescription ?? ep?.description) ?? id;
 }
+
+/**
+ * Added to the server's instructions when the caller can add recipes. The
+ * search step only when searchRecipes is offered too (it needs read:meal_plan).
+ */
+const recipeInstructions = (canSearch: boolean) => `
+
+Recipes: when I ask you to save or add a recipe (from a link, a photo, a book or our conversation), ${
+  canSearch ? "call searchRecipes first to check we haven't got it already, then " : ""
+}call createRecipe with the whole recipe: every ingredient as its own line with amount, unit and preparation kept apart ("2", "tbsp", "olive oil", "" — "1", "", "onion", "finely chopped"), and the steps in order, each with ingredientIndexes for what it uses and durationMinutes when it has a time. Keep the recipe's own quantities and units. Don't send nutrition unless the recipe prints it: Dishes estimates it. Say what you added and give its title.`;
 
 const json = (value: unknown): CallToolResult => ({
   content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
@@ -67,9 +87,17 @@ function toolError(err: unknown): CallToolResult {
     err instanceof UnknownDinerError ||
     err instanceof UnknownEaterError ||
     err instanceof OutsideMealValidationError ||
-    err instanceof OutsideMealNotFoundError
+    err instanceof OutsideMealNotFoundError ||
+    err instanceof RecipeInputError ||
+    err instanceof RecipeValidationError ||
+    err instanceof RecipeNotFoundError
   ) {
-    const text = err instanceof OutsideMealNotFoundError ? "No meal out with that id in this household." : err.message;
+    const text =
+      err instanceof OutsideMealNotFoundError
+        ? "No meal out with that id in this household."
+        : err instanceof RecipeNotFoundError
+          ? "No recipe with that id in this household."
+          : err.message;
     return { isError: true, content: [{ type: "text", text }] };
   }
   throw err;
@@ -84,11 +112,11 @@ async function attempt(fn: () => Promise<CallToolResult>): Promise<CallToolResul
 }
 
 export function buildDishesMcpServer(caller: McpCaller): McpServer {
+  const can = (scope: string) => caller.scopes.includes(scope);
   const server = new McpServer(
     { name: "dishes", title: "Dishes", version: APP_VERSION },
-    { instructions: MENU_ASSISTANT_INSTRUCTIONS }
+    { instructions: MENU_ASSISTANT_INSTRUCTIONS + (can("write:recipes") ? recipeInstructions(can("read:meal_plan")) : "") }
   );
-  const can = (scope: string) => caller.scopes.includes(scope);
   const today = async () => (await householdClock(caller.householdId)).today;
 
   if (can("read:preferences")) {
@@ -136,6 +164,31 @@ export function buildDishesMcpServer(caller: McpCaller): McpServer {
     );
 
     server.registerTool(
+      "searchRecipes",
+      {
+        title: "Search recipes",
+        description: describe("searchRecipes"),
+        inputSchema: {
+          q: z.string().optional().describe("Words to look for in titles, tags and ingredients. Leave out for the latest."),
+          limit: z.number().int().min(1).max(100).optional().describe("How many, 1–100. Default 20."),
+        },
+        annotations: { readOnlyHint: true, openWorldHint: false },
+      },
+      ({ q, limit }) => attempt(async () => json({ recipes: await searchRecipes(caller.householdId, q?.trim() || undefined, limit) }))
+    );
+
+    server.registerTool(
+      "getRecipe",
+      {
+        title: "Full recipe",
+        description: describe("getRecipe"),
+        inputSchema: { id: z.string().uuid().describe("The recipe's id.") },
+        annotations: { readOnlyHint: true, openWorldHint: false },
+      },
+      ({ id }) => attempt(async () => json(recipeDetailJson(await getRecipe({ householdId: caller.householdId }, id))))
+    );
+
+    server.registerTool(
       "getOutsideMeal",
       {
         title: "One meal out",
@@ -145,6 +198,23 @@ export function buildDishesMcpServer(caller: McpCaller): McpServer {
       },
       ({ id }) =>
         attempt(async () => json(outsideMealDetailJson(await getOutsideMeal(caller, id), caller.origin)))
+    );
+  }
+
+  // Filed as the member the caller acts as, or nobody for a household token.
+  if (can("write:recipes")) {
+    server.registerTool(
+      "createRecipe",
+      {
+        title: "Add a recipe",
+        description: describe("createRecipe", true),
+        inputSchema: integrationRecipeSchema.shape,
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      },
+      (args) =>
+        attempt(async () =>
+          json(await addRecipe({ householdId: caller.householdId, memberId: caller.memberId }, integrationRecipeSchema.parse(args)))
+        )
     );
   }
 

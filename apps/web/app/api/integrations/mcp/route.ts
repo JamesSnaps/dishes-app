@@ -11,9 +11,10 @@ import { mcpResourceMetadataUrl } from "@/lib/mcp/oauth-resource";
 
 /**
  * What someone signed in through Authelia (a claude.ai connector) may do: the
- * eating-out tools, as themselves. Integration tokens keep their own scopes.
+ * eating-out and recipe tools, as themselves — no more than they can do in the
+ * app. Integration tokens keep their own scopes.
  */
-const SIGNED_IN_SCOPES = ["read:preferences", "read:meal_plan", "write:outside_meals"];
+const SIGNED_IN_SCOPES = ["read:preferences", "read:meal_plan", "write:outside_meals", "write:recipes"];
 
 /**
  * 401 that tells an MCP client where to sign in (RFC 9728 `resource_metadata`)

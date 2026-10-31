@@ -95,7 +95,7 @@ export default async function IntegrationsPage() {
         <SectionHeading>Tokens</SectionHeading>
         {isAdmin ? (
           <>
-            <TokenList tokens={tokens} />
+            <TokenList tokens={tokens} members={members} />
             <div className="mt-3">
               <CreateTokenForm members={members} />
             </div>

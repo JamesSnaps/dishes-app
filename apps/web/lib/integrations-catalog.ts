@@ -64,6 +64,7 @@ export const SCOPE_DESCRIPTIONS: Record<TokenScope, string> = {
   "write:shopping_list": "Add items to the active shopping list",
   "read:deliveries": "Read grocery delivery days and order status",
   "write:deliveries": "Record grocery orders (e.g. from retailer emails)",
+  "write:recipes": "Add recipes to the household library",
   "read:cooking": "See who is cooking right now: the dish, the step and the running timers",
   "read:preferences":
     "Read each member's dietary requirements, dislikes and tastes, and this week's eating, to help an AI choose from a menu",
@@ -455,6 +456,31 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     },
   },
   {
+    id: "searchRecipes",
+    method: "GET",
+    path: "/api/integrations/recipes",
+    scope: "read:meal_plan",
+    summary: "Search recipes",
+    description:
+      "Recipes in the household library whose title, tags or ingredients contain q, most recently changed first, as short summaries. Leave q out for the latest. Pass an id to getRecipe for the ingredients and method. Use it to check a recipe isn't already in the library before createRecipe.",
+    shortDescription:
+      "Search the household's recipes by title, tag or ingredient (q). Returns short summaries; getRecipe has the full recipe. Check here before createRecipe.",
+    params: [
+      { name: "q", in: "query", required: false, schema: { type: "string" }, description: "Words to look for in titles, tags and ingredients.", example: "pasta" },
+      { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 }, description: "How many to return." },
+    ],
+    response: {
+      status: 200,
+      description: "Matching recipes; empty when nothing matches.",
+      example: {
+        recipes: [
+          { ...RECIPE_SUMMARY_EXAMPLE, difficulty: "medium", mealTypes: ["dinner"], isFavourite: true },
+        ],
+      },
+    },
+    errors: [{ status: 400, description: "limit isn't a whole number." }],
+  },
+  {
     id: "getRecipe",
     method: "GET",
     path: "/api/integrations/recipes/{id}",
@@ -520,6 +546,131 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
       },
     },
     errors: [{ status: 404, description: "No recipe with that id in this household." }],
+  },
+  {
+    id: "createRecipe",
+    method: "POST",
+    path: "/api/integrations/recipes",
+    scope: "write:recipes",
+    summary: "Add a recipe",
+    description:
+      "Adds a recipe to the household library and returns it as getRecipe does. Only title is required; send ingredients and steps for a recipe you can cook from. A step's ingredientIndexes are positions in the ingredients array (0 is the first), which link the step to what it uses in cooking mode. Amounts, servings and step minutes may be strings or numbers. Without nutrition, the household's AI estimates it a few seconds after the response, if an AI key is set. A token that acts as a member files the recipe as theirs. Photos can't be sent here: add one in the app.",
+    shortDescription:
+      "Add a recipe to the household library: title, ingredients, steps, tags. Returns the recipe as getRecipe does. Nutrition is estimated afterwards if not sent.",
+    body: {
+      schema: {
+        type: "object",
+        required: ["title"],
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          cuisine: { type: "string", example: "Italian" },
+          difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
+          prepTimeMinutes: { type: "integer", minimum: 0 },
+          cookTimeMinutes: { type: "integer", minimum: 0 },
+          servings: { type: "string", description: "How many it serves, e.g. \"4\"." },
+          servingsUnit: { type: "string", default: "servings" },
+          mealRole: { type: "string", enum: ["main", "side", "sauce", "other"], description: "What part of a meal it is. Leave out for a main course." },
+          mealTypes: { type: "array", items: { type: "string" }, description: "Meals it suits — breakfast, lunch, dinner, snack, dessert. The AI planner only puts it in these." },
+          sourceUrl: { type: "string", format: "uri" },
+          notes: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          collectionId: { type: "string", format: "uuid", description: "A collection of this household's to file it in." },
+          ingredients: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["ingredientName"],
+              properties: {
+                ingredientName: { type: "string" },
+                amount: { type: "string", example: "600" },
+                unit: { type: "string", example: "g" },
+                preparation: { type: "string", example: "diced" },
+                isOptional: { type: "boolean", default: false },
+                groupLabel: { type: "string", description: "A heading such as \"For the sauce\"." },
+              },
+            },
+          },
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["instruction"],
+              properties: {
+                instruction: { type: "string" },
+                durationMinutes: { type: "string", description: "Minutes, for a timer in cooking mode." },
+                timerLabel: { type: "string" },
+                groupLabel: { type: "string" },
+                ingredientIndexes: { type: "array", items: { type: "integer", minimum: 0 } },
+              },
+            },
+          },
+          nutrition: {
+            type: "object",
+            description: "Per serving. Leave out to have it estimated.",
+            properties: {
+              calories: { type: "number" },
+              proteinG: { type: "number" },
+              carbsG: { type: "number" },
+              fatG: { type: "number" },
+              saturatedFatG: { type: "number" },
+              fiberG: { type: "number" },
+              sugarG: { type: "number" },
+              sodiumMg: { type: "number" },
+            },
+          },
+        },
+      },
+      example: {
+        title: "Creamy Pesto Pasta",
+        cuisine: "Italian",
+        difficulty: "easy",
+        servings: "4",
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 15,
+        mealTypes: ["dinner"],
+        tags: ["quick", "vegetarian"],
+        ingredients: [
+          { ingredientName: "penne", amount: "400", unit: "g" },
+          { ingredientName: "green pesto", amount: "190", unit: "g" },
+          { ingredientName: "crème fraîche", amount: "150", unit: "ml" },
+        ],
+        steps: [
+          { instruction: "Cook the penne in salted boiling water.", durationMinutes: "11", timerLabel: "Pasta", ingredientIndexes: [0] },
+          { instruction: "Drain, then stir through the pesto and crème fraîche.", ingredientIndexes: [1, 2] },
+        ],
+      },
+    },
+    response: {
+      status: 201,
+      description: "The new recipe, as getRecipe returns it (nutrition is null until it's estimated).",
+      example: {
+        recipe: {
+          id: "a87ff679-a2f3-471d-8181-2b3c4d5e6f70",
+          title: "Creamy Pesto Pasta",
+          description: null,
+          cuisine: "Italian",
+          difficulty: "easy",
+          servings: "4",
+          servingsUnit: "servings",
+          prepTimeMinutes: 5,
+          cookTimeMinutes: 15,
+          calories: null,
+          mealTypes: ["dinner"],
+          tags: ["quick", "vegetarian"],
+          notes: null,
+          sourceUrl: null,
+          nutrition: null,
+          ingredients: [
+            { id: "c4ca4238-a0b9-4382-8dcc-509a6f75849b", ingredientName: "penne", amount: "400", unit: "g", preparation: "", isOptional: false, groupLabel: "" },
+          ],
+          steps: [
+            { step: 1, instruction: "Cook the penne in salted boiling water.", durationMinutes: "11", timerLabel: "Pasta", groupLabel: "", ingredientIds: ["c4ca4238-a0b9-4382-8dcc-509a6f75849b"] },
+          ],
+        },
+      },
+    },
+    errors: [{ status: 400, description: "The body isn't a valid recipe (the issues say which field), or a step points past the end of ingredients." }],
   },
   {
     id: "getCooking",

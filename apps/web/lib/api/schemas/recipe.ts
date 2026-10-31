@@ -11,9 +11,12 @@ import {
  * browser artefact and is not reproduced here.
  */
 
+/** A string field that also takes a number (an amount of 600, 20 minutes). */
+const looseText = z.union([z.string(), z.number()]).default("").transform(String);
+
 const ingredientSchema = z.object({
   ingredientName: z.string().min(1),
-  amount: z.string().default(""),
+  amount: looseText,
   unit: z.string().default(""),
   preparation: z.string().default(""),
   isOptional: z.boolean().default(false),
@@ -22,11 +25,14 @@ const ingredientSchema = z.object({
 
 const stepSchema = z.object({
   instruction: z.string().min(1),
-  durationMinutes: z.string().default(""),
+  durationMinutes: looseText.describe("Minutes, for a timer in cooking mode."),
   timerLabel: z.string().default(""),
   groupLabel: z.string().default(""),
   /** The ingredients this step uses, by position in `ingredients`. */
-  ingredientIndexes: z.array(z.number().int().nonnegative()).default([]),
+  ingredientIndexes: z
+    .array(z.number().int().nonnegative())
+    .default([])
+    .describe("Positions in ingredients (0 is the first) that this step uses."),
 });
 
 const nutritionSchema = z.object({
@@ -46,20 +52,24 @@ export const recipeWriteSchema = z.object({
   cuisine: z.string().nullable().default(null),
   prepTimeMinutes: z.number().int().nonnegative().nullable().default(null),
   cookTimeMinutes: z.number().int().nonnegative().nullable().default(null),
-  servings: z.string().nullable().default(null),
+  servings: z.union([z.string(), z.number()]).nullable().default(null).transform((v) => (v == null ? null : String(v))),
   servingsUnit: z.string().default("servings"),
   difficulty: z.enum(["easy", "medium", "hard"]).nullable().default(null),
   mealRole: z.enum(["main", "side", "sauce", "other"]).nullable().optional(),
-  mealTypes: z.array(z.string()).nullable().default(null),
+  mealTypes: z
+    .array(z.string())
+    .nullable()
+    .default(null)
+    .describe("Meals it suits: breakfast, lunch, dinner, snack, dessert."),
   sourceUrl: z.string().url().nullable().default(null),
   notes: z.string().nullable().default(null),
   imageUrl: z.string().nullable().default(null),
   thumbnailUrl: z.string().nullable().default(null),
-  nutrition: nutritionSchema.nullable().default(null),
+  nutrition: nutritionSchema.nullable().default(null).describe("Per serving. Leave out to have it estimated."),
   ingredients: z.array(ingredientSchema).default([]),
   steps: z.array(stepSchema).default([]),
   tags: z.array(z.string()).default([]),
-  collectionId: z.string().uuid().nullable().default(null),
+  collectionId: z.string().uuid().nullable().default(null).describe("A collection of this household's to file it in."),
 });
 
 export type RecipeWritePayload = z.infer<typeof recipeWriteSchema>;

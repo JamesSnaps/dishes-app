@@ -5,6 +5,7 @@ export const ALL_SCOPES = [
   "write:shopping_list",
   "read:deliveries",
   "write:deliveries",
+  "write:recipes",
   "read:cooking",
   "read:preferences",
   "write:outside_meals",

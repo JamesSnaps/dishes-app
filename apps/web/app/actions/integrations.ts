@@ -11,12 +11,11 @@ import { generateToken } from "@/lib/integration-auth";
 // re-exports. Import TokenScope from "./integration-constants" directly.
 import { ALL_SCOPES, MEMBER_SCOPES } from "./integration-constants";
 
-export async function createIntegrationToken(formData: FormData) {
-  const user = await resolveIdentity();
-  const { householdId, memberId, role } = await requireHousehold(user);
-
-  if (role !== "admin") throw new Error("Only admins can create integration tokens");
-
+/**
+ * The name, scopes and member a create or edit form asks for, checked: at least
+ * one scope, and a member of this household when a scope needs one.
+ */
+async function readTokenForm(formData: FormData, householdId: string) {
   const name = (formData.get("name") as string)?.trim();
   if (!name) throw new Error("Token name is required");
 
@@ -42,6 +41,17 @@ export async function createIntegrationToken(formData: FormData) {
     throw new Error("Choose who the token acts as — logging meals out needs a member");
   }
 
+  return { name, scopes, actsAs };
+}
+
+export async function createIntegrationToken(formData: FormData) {
+  const user = await resolveIdentity();
+  const { householdId, memberId, role } = await requireHousehold(user);
+
+  if (role !== "admin") throw new Error("Only admins can create integration tokens");
+
+  const { name, scopes, actsAs } = await readTokenForm(formData, householdId);
+
   const expiresInDays = parseInt(formData.get("expiresInDays") as string, 10) || 0;
   const expiresAt = expiresInDays > 0
     ? new Date(Date.now() + expiresInDays * 86_400_000)
@@ -63,6 +73,29 @@ export async function createIntegrationToken(formData: FormData) {
 
   // Return the raw token once — it cannot be recovered after this
   return { rawToken: raw };
+}
+
+/**
+ * Change a token's name, scopes and who it acts as. The secret stays the same,
+ * so whatever uses it carries on with the new permissions from its next call.
+ * Expiry is left as it was.
+ */
+export async function updateIntegrationToken(tokenId: string, formData: FormData) {
+  const user = await resolveIdentity();
+  const { householdId, role } = await requireHousehold(user);
+
+  if (role !== "admin") throw new Error("Only admins can edit integration tokens");
+
+  const { name, scopes, actsAs } = await readTokenForm(formData, householdId);
+
+  const updated = await db
+    .update(integrationTokens)
+    .set({ name, scopes, memberId: actsAs })
+    .where(and(eq(integrationTokens.id, tokenId), eq(integrationTokens.householdId, householdId)))
+    .returning({ id: integrationTokens.id });
+  if (!updated.length) throw new Error("That token doesn't exist any more");
+
+  revalidatePath("/settings/integrations");
 }
 
 export async function revokeIntegrationToken(tokenId: string) {

@@ -401,10 +401,16 @@ export async function setOutsideMealPhoto(
 
 // --- Nutrition estimate -----------------------------------------------------
 
-/** The household's AI client and model, or null with no key set. */
-export async function aiClientFor(householdId: string): Promise<{ client: OpenAI; model: string } | null> {
+/** The household's AI client, model and units, or null with no key set. */
+export async function aiClientFor(
+  householdId: string
+): Promise<{ client: OpenAI; model: string; measurementSystem: string } | null> {
   const [config] = await db
-    .select({ encryptedApiKey: aiConfigurations.encryptedApiKey, model: aiConfigurations.model })
+    .select({
+      encryptedApiKey: aiConfigurations.encryptedApiKey,
+      model: aiConfigurations.model,
+      measurementSystem: aiConfigurations.measurementSystem,
+    })
     .from(aiConfigurations)
     .where(eq(aiConfigurations.householdId, householdId))
     .limit(1);
@@ -413,6 +419,7 @@ export async function aiClientFor(householdId: string): Promise<{ client: OpenAI
     // Native fetch, as everywhere else: node-fetch breaks on Node 22.23+.
     client: new OpenAI({ apiKey: decrypt(config.encryptedApiKey), fetch: globalThis.fetch }),
     model: config.model,
+    measurementSystem: config.measurementSystem,
   };
 }
 
