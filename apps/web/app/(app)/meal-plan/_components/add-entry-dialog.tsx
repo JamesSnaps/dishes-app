@@ -14,9 +14,11 @@ import {
   Settings2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { slotName } from "@/lib/saved-meals";
 import type { SavedMeal } from "@/lib/services/meals";
 import {
+  AiButton,
   Button,
   Dialog,
   DialogContent,
@@ -161,6 +163,7 @@ export function AddEntryDialog({
     if (openProp === undefined) setOpenState(next);
     onOpenChange?.(next);
   };
+  const router = useRouter();
   const showMealsTab = !pick && !!onAddSavedMeal;
   const [tab, setTab] = useState<"recipes" | "meals">("recipes");
   const [mealType, setMealType] = useState<MealType>("dinner");
@@ -567,6 +570,20 @@ export function AddEntryDialog({
         {/* ── Header ── */}
         <DialogHeader className="px-5 pt-5 pb-3 border-b shrink-0">
           <DialogTitle className="text-base">{pick ? pick.title : `Add meal — ${dayLabel}`}</DialogTitle>
+          {/* Nothing in mind: the planner, for just this day and meal, with
+              room to say what you fancy ("pasta, no tomato sauce"). */}
+          {!pick && tab !== "meals" && (
+            <AiButton
+              size="sm"
+              className="mt-2 w-fit"
+              onClick={() => {
+                setOpen(false);
+                router.push(`/ai-concierge?tab=plan&week=${weekStartDate}&day=${dayOfWeek}&meal=${mealType}`);
+              }}
+            >
+              Suggest with AI
+            </AiButton>
+          )}
           {showMealsTab && (
             <div className="flex items-center gap-2 pt-2">
               <div className="inline-flex rounded-lg bg-muted p-0.5">

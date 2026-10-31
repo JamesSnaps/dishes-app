@@ -1075,7 +1075,7 @@ for themselves.
   salad at breakfast), and a dish picked twice is asked again with the rest
   kept. Evaluation: 6 households (`fixtures/evals/meal-plans.json`), 0.903 and
   0.917, 6/6 both runs. Still weak: a preference for one day ("pasta on
-  Friday") — the right dishes, the wrong days. *v1.75.2:* in use, "pasta dish
+  Friday") — the right dishes, the wrong days. *v1.76.0:* in use, "pasta dish
   but no tomato sauce" for one Saturday came back as oven cod from the library,
   so a plan with a request typed in now goes straight to the server
   (`AIRouter.run`'s `skipDevice`), and the request is set apart and put first

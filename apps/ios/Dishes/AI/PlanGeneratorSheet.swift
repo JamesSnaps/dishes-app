@@ -12,6 +12,10 @@ struct PlanGeneratorSheet: View {
     let week: Week
     /// Days that already have this meal type planned, left unticked to start with.
     let planned: Set<Int>
+    /// From "Add meal" → "Suggest with AI": just this day and meal, with the
+    /// request box ready for what they fancy.
+    var day: Int? = nil
+    var meal: String? = nil
 
     enum Stage: Equatable { case asking, drafting, draft, adding, failed(String) }
 
@@ -32,6 +36,7 @@ struct PlanGeneratorSheet: View {
     @State private var libraryPhotos: [String: URL] = [:]
     /// While it adds: how each new idea's writing is going, by its index in `draft`.
     @State private var writing: [Int: Writing] = [:]
+    @FocusState private var askingFocused: Bool
 
     enum Writing: Equatable { case writing(RecipeProgress?), written, failed }
 
@@ -73,7 +78,15 @@ struct PlanGeneratorSheet: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
         }
         .interactiveDismissDisabled(stage == .drafting || stage == .adding)
-        .onAppear { days = Set((0..<7).filter { !planned.contains($0) }) }
+        .onAppear {
+            if let day {
+                days = [day]
+                mealType = meal ?? mealType
+                askingFocused = true
+            } else {
+                days = Set((0..<7).filter { !planned.contains($0) })
+            }
+        }
     }
 
     private var form: some View {
@@ -97,6 +110,7 @@ struct PlanGeneratorSheet: View {
             field("Anything in particular?") {
                 TextField("e.g. one fish night, nothing too heavy, use the slow cooker on Sunday", text: $preferences, axis: .vertical)
                     .lineLimit(2...5)
+                    .focused($askingFocused)
                     .padding(12)
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border))
             }

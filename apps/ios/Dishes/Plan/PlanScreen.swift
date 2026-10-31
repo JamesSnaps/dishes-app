@@ -27,7 +27,9 @@ struct PlanScreen: View {
     @State private var selectedDay = Week.todayIndex
     @State private var data = Observed(PlanData())
     @State private var adding = false
-    @State private var generating = false
+    @State private var generator: GeneratorTarget?
+    /// "Suggest with AI" in Add meal: the planner opens once that sheet's gone.
+    @State private var suggestNext: GeneratorTarget?
     @State private var sending = false
     @State private var pageWidth: CGFloat = 0
     /// The day column a dragged meal is over.
@@ -35,6 +37,12 @@ struct PlanScreen: View {
     @State private var extras = PlanWeekExtras()
     /// The meal-out sheet: a meal to edit, or where a new one starts.
     @State private var outsideSheet: OutsideTarget?
+
+    struct GeneratorTarget: Identifiable {
+        var id = UUID()
+        var day: Int?
+        var mealType = "dinner"
+    }
 
     struct OutsideTarget: Identifiable {
         var id = UUID()
@@ -78,16 +86,20 @@ struct PlanScreen: View {
                 }
             }
             .environment(\.planActions, planActions)
-            .sheet(isPresented: $generating) {
+            .sheet(item: $generator) { target in
                 // A night out is as good as planned: the generator leaves it.
                 PlanGeneratorSheet(week: week, planned: Set((0..<7).filter { day in
-                    data.value.meals(on: day, in: week).contains { $0.mealType == "dinner" }
-                        || data.value.notCooking("dinner", on: day, in: week) != nil
-                }))
+                    data.value.meals(on: day, in: week).contains { $0.mealType == target.mealType }
+                        || data.value.notCooking(target.mealType, on: day, in: week) != nil
+                }), day: target.day, meal: target.mealType)
                 .presentationSizing(.page)
             }
-            .sheet(isPresented: $adding) {
-                AddMealSheet(week: week, day: selectedDay, plan: data.value.plan(for: week))
+            .sheet(isPresented: $adding, onDismiss: {
+                if let next = suggestNext { suggestNext = nil; generator = next }
+            }) {
+                AddMealSheet(week: week, day: selectedDay, plan: data.value.plan(for: week)) { mealType in
+                    suggestNext = GeneratorTarget(day: selectedDay, mealType: mealType)
+                }
             }
             .sheet(item: $outsideSheet) { target in
                 OutsideMealSheet(meal: target.meal, date: target.date, mealType: target.mealType, plannedHere: target.plannedHere)
@@ -198,7 +210,7 @@ struct PlanScreen: View {
         let notOnList = data.value.entries(in: week).filter { $0.addedToShoppingListAt == nil }.count
         return Menu {
             Button("Add meal", systemImage: "plus") { adding = true }
-            Button("Generate plan…", systemImage: "sparkles") { generating = true }
+            Button("Generate plan…", systemImage: "sparkles") { generator = GeneratorTarget() }
             Button("Not cooking — eating out…", systemImage: "fork.knife") { openOutside(nil, day: selectedDay) }
             Divider()
             Button(sending ? "Adding…" : notOnList > 0 ? "Add \(notOnList) meal\(notOnList == 1 ? "" : "s") to shopping list" : "All on the shopping list",
@@ -1086,6 +1098,9 @@ struct AddMealSheet: View {
     let week: Week
     let day: Int
     let plan: MealPlan?
+    /// "Suggest with AI": hands the meal type to the planner, which opens for
+    /// this day once this sheet has gone.
+    var suggest: ((String) -> Void)? = nil
     @State private var recipes = Observed<[Recipe]>([])
     @State private var search = ""
     @State private var mealType = "dinner"
@@ -1117,6 +1132,16 @@ struct AddMealSheet: View {
                 if source == .saved {
                     savedList
                 } else {
+                if let suggest {
+                    Button {
+                        suggest(mealType)
+                        dismiss()
+                    } label: {
+                        Label("Suggest with AI", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 SearchField(prompt: "Search recipes…", text: $search)
                 List(shown) { recipe in
                     Button { add(recipe) } label: {

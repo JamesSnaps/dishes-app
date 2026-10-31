@@ -1830,7 +1830,7 @@ AI waits (plan reels, streamed ideas and recipe progress, rings when adding a pl
 photo) and PR #86's shopping list. The server needs 1.75.0 for live progress; against an older one
 the waits fall back to the whole answer at the end. No migrations.
 
-### 2026-10-31 — Plan the week follows a typed request (v1.75.2, branch `fix/meal-plan-follows-request`)
+### 2026-10-31 — Plan the week follows a typed request (v1.76.0, branch `fix/meal-plan-follows-request`)
 
 - "Pasta dish but no tomato sauce" for one Saturday came back as Oven Cod from the library: the
   on-device drafter (`AITask.mealPlan` starts on the device) lost the request under the library and
@@ -1843,3 +1843,8 @@ the waits fall back to the whole answer at the end. No migrations.
 
 Not built here (no Swift toolchain on the Linux box): build in Xcode and run `swift test` in
 DishesCore before uploading. The web app type-checks. No migrations.
+- **Suggest with AI** in Add meal (iOS `AddMealSheet`, web `AddEntryDialog`): opens the planner for
+  just that day and the chosen meal, with the request box focused. On iOS, Add meal closes and
+  `PlanGeneratorSheet(day:meal:)` opens from its `onDismiss`. On the web it links to
+  `/ai-concierge?tab=plan&week=…&day=…&meal=…`; a slot that's already planned still isn't
+  selectable there, as before.
