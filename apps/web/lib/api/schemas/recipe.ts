@@ -25,11 +25,14 @@ const ingredientSchema = z.object({
 
 const stepSchema = z.object({
   instruction: z.string().min(1),
-  durationMinutes: looseText,
+  durationMinutes: looseText.describe("Minutes, for a timer in cooking mode."),
   timerLabel: z.string().default(""),
   groupLabel: z.string().default(""),
   /** The ingredients this step uses, by position in `ingredients`. */
-  ingredientIndexes: z.array(z.number().int().nonnegative()).default([]),
+  ingredientIndexes: z
+    .array(z.number().int().nonnegative())
+    .default([])
+    .describe("Positions in ingredients (0 is the first) that this step uses."),
 });
 
 const nutritionSchema = z.object({
@@ -53,16 +56,20 @@ export const recipeWriteSchema = z.object({
   servingsUnit: z.string().default("servings"),
   difficulty: z.enum(["easy", "medium", "hard"]).nullable().default(null),
   mealRole: z.enum(["main", "side", "sauce", "other"]).nullable().optional(),
-  mealTypes: z.array(z.string()).nullable().default(null),
+  mealTypes: z
+    .array(z.string())
+    .nullable()
+    .default(null)
+    .describe("Meals it suits: breakfast, lunch, dinner, snack, dessert."),
   sourceUrl: z.string().url().nullable().default(null),
   notes: z.string().nullable().default(null),
   imageUrl: z.string().nullable().default(null),
   thumbnailUrl: z.string().nullable().default(null),
-  nutrition: nutritionSchema.nullable().default(null),
+  nutrition: nutritionSchema.nullable().default(null).describe("Per serving. Leave out to have it estimated."),
   ingredients: z.array(ingredientSchema).default([]),
   steps: z.array(stepSchema).default([]),
   tags: z.array(z.string()).default([]),
-  collectionId: z.string().uuid().nullable().default(null),
+  collectionId: z.string().uuid().nullable().default(null).describe("A collection of this household's to file it in."),
 });
 
 export type RecipeWritePayload = z.infer<typeof recipeWriteSchema>;

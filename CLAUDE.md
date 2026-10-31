@@ -197,6 +197,7 @@ Key endpoints:
 ```
 GET  /api/integrations/today
 GET  /api/integrations/meal-plan/week
+GET  /api/integrations/recipes             (search)
 GET  /api/integrations/recipes/{id}
 POST /api/integrations/recipes
 GET  /api/integrations/shopping-list

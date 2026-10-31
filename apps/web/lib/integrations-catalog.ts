@@ -456,6 +456,31 @@ export const INTEGRATION_ENDPOINTS: EndpointDoc[] = [
     },
   },
   {
+    id: "searchRecipes",
+    method: "GET",
+    path: "/api/integrations/recipes",
+    scope: "read:meal_plan",
+    summary: "Search recipes",
+    description:
+      "Recipes in the household library whose title, tags or ingredients contain q, most recently changed first, as short summaries. Leave q out for the latest. Pass an id to getRecipe for the ingredients and method. Use it to check a recipe isn't already in the library before createRecipe.",
+    shortDescription:
+      "Search the household's recipes by title, tag or ingredient (q). Returns short summaries; getRecipe has the full recipe. Check here before createRecipe.",
+    params: [
+      { name: "q", in: "query", required: false, schema: { type: "string" }, description: "Words to look for in titles, tags and ingredients.", example: "pasta" },
+      { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 }, description: "How many to return." },
+    ],
+    response: {
+      status: 200,
+      description: "Matching recipes; empty when nothing matches.",
+      example: {
+        recipes: [
+          { ...RECIPE_SUMMARY_EXAMPLE, difficulty: "medium", mealTypes: ["dinner"], isFavourite: true },
+        ],
+      },
+    },
+    errors: [{ status: 400, description: "limit isn't a whole number." }],
+  },
+  {
     id: "getRecipe",
     method: "GET",
     path: "/api/integrations/recipes/{id}",

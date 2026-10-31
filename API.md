@@ -287,6 +287,29 @@ Returns one recipe from the household library with ingredients, numbered steps a
 
 ---
 
+### `GET /api/integrations/recipes`
+
+Searches the household library: recipes whose title, tags or ingredients contain `q`, most recently changed first. Leave `q` out for the latest. Use it to find a recipe for `GET /api/integrations/recipes/{id}`, or to check one isn't there before adding it.
+
+**Scope:** `read:meal_plan`
+
+| Query | Type | Description |
+|---|---|---|
+| `q` | string | Words to look for |
+| `limit` | integer | 1–100, default 20 |
+
+```json
+{
+  "recipes": [
+    { "id": "8f14e45f-ceea-4e7a-9c1b-2b6d1f0e9a11", "title": "Chicken Tikka Masala", "cuisine": "Indian", "difficulty": "medium", "prepTimeMinutes": 20, "cookTimeMinutes": 35, "calories": 650, "mealTypes": ["dinner"], "isFavourite": true }
+  ]
+}
+```
+
+**Error `400`** — `limit` isn't a whole number.
+
+---
+
 ### `POST /api/integrations/recipes`
 
 Adds a recipe to the household library and returns it (`201`) in the same shape as `GET /api/integrations/recipes/{id}`. A token that acts as a member files the recipe as theirs.
@@ -709,11 +732,11 @@ Only `date` is required, but give at least a `title` or `description` (or `cours
 
 ### MCP — `/api/integrations/mcp`
 
-The eating-out operations as an MCP server, for Claude. It speaks Streamable HTTP, statelessly: each `POST` is answered with JSON, there's no server-to-client stream, and `GET`/`DELETE` are `405`. The tools have the operations' names and take the same fields: `getDinerBrief` (`members` as an array, `date`), `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` (`date` defaults to today) and `updateOutsideMeal` (`id` plus fields). Results are the same JSON as the REST endpoints, except that `getDinerBrief` returns the brief's `promptText`. A mistake the model can fix (an unknown name, a bad field, no meal with that id) comes back as a tool error saying what was wrong. The server's instructions are the same as the ChatGPT GPT's (`apps/web/lib/menu-assistant.ts`).
+The eating-out and recipe operations as an MCP server, for Claude and other AI agents. It speaks Streamable HTTP, statelessly: each `POST` is answered with JSON, there's no server-to-client stream, and `GET`/`DELETE` are `405`. The tools have the operations' names and take the same fields: `getDinerBrief` (`members` as an array, `date`), `listOutsideMeals`, `getOutsideMeal`, `logOutsideMeal` (`date` defaults to today), `updateOutsideMeal` (`id` plus fields), `searchRecipes` (`q`, `limit`), `getRecipe` (`id`) and `createRecipe` (the `POST /api/integrations/recipes` body). Results are the same JSON as the REST endpoints, except that `getDinerBrief` returns the brief's `promptText`. A mistake the model can fix (an unknown name, a bad field, no meal with that id) comes back as a tool error saying what was wrong. The server's instructions are the same as the ChatGPT GPT's (`apps/web/lib/menu-assistant.ts`), plus a paragraph on adding recipes (search first, ingredients split into amount/unit/name/preparation, steps linked by `ingredientIndexes`, no guessed nutrition) when the caller can use `createRecipe`.
 
 **Auth:** `Authorization: Bearer <token>`, either of:
-- **An integration token.** Tools are offered by its scopes: `getDinerBrief` needs `read:preferences`; the list and get tools need `read:meal_plan`; `logOutsideMeal` and `updateOutsideMeal` need `write:outside_meals` and a token that acts as a member.
-- **An Authelia access token** (claude.ai custom connectors, when `DISHES_OIDC_ISSUER` is set). It acts as whoever signed in, with all five tools.
+- **An integration token.** Tools are offered by its scopes: `getDinerBrief` needs `read:preferences`; the list, search and get tools need `read:meal_plan`; `createRecipe` needs `write:recipes` (filed as the member the token acts as, if any); `logOutsideMeal` and `updateOutsideMeal` need `write:outside_meals` and a token that acts as a member.
+- **An Authelia access token** (claude.ai custom connectors, when `DISHES_OIDC_ISSUER` is set). It acts as whoever signed in, with all eight tools.
 
 Rate-limited like the rest of the API: per token, or per member for Authelia tokens. Without a valid token the reply is `401`. When OIDC is set up, its `WWW-Authenticate` header carries `resource_metadata` pointing at `GET /.well-known/oauth-protected-resource/api/integrations/mcp`. That is the RFC 9728 metadata naming the Authelia issuer, and it's also served at `/.well-known/oauth-protected-resource`; it's `404` without OIDC. Setup for Claude Code, Claude Desktop and claude.ai is in the README.
 
