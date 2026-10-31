@@ -1848,3 +1848,5 @@ DishesCore before uploading. The web app type-checks. No migrations.
   `PlanGeneratorSheet(day:meal:)` opens from its `onDismiss`. On the web it links to
   `/ai-concierge?tab=plan&week=…&day=…&meal=…`; a slot that's already planned still isn't
   selectable there, as before.
+- v1.76.1 (Bugbot on #89): a snack or dessert sent from Add meal gets its own pill in the planner,
+  so it shows as chosen instead of no pill being lit.

@@ -89,6 +89,14 @@ struct PlanGeneratorSheet: View {
         }
     }
 
+    /// Breakfast, lunch and dinner, plus a snack or dessert sent from Add
+    /// meal, so the chosen one still shows as chosen.
+    private var mealTypes: [String] {
+        let usual = ["breakfast", "lunch", "dinner"]
+        guard let meal, !usual.contains(meal) else { return usual }
+        return usual + [meal]
+    }
+
     private var form: some View {
         VStack(alignment: .leading, spacing: 18) {
             field("Days") {
@@ -102,7 +110,7 @@ struct PlanGeneratorSheet: View {
             }
             field("Meal") {
                 HStack(spacing: 8) {
-                    ForEach(["breakfast", "lunch", "dinner"], id: \.self) { type in
+                    ForEach(mealTypes, id: \.self) { type in
                         pill(type.capitalized, on: mealType == type) { mealType = type }
                     }
                 }
