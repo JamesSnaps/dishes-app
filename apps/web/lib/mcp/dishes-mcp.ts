@@ -63,10 +63,15 @@ function describe(id: string, full = false): string {
   return (full ? ep?.description : ep?.shortDescription ?? ep?.description) ?? id;
 }
 
-/** Added to the server's instructions when the caller can add recipes. */
-const RECIPE_INSTRUCTIONS = `
+/**
+ * Added to the server's instructions when the caller can add recipes. The
+ * search step only when searchRecipes is offered too (it needs read:meal_plan).
+ */
+const recipeInstructions = (canSearch: boolean) => `
 
-Recipes: when I ask you to save or add a recipe (from a link, a photo, a book or our conversation), call searchRecipes first to check we haven't got it already, then createRecipe with the whole recipe: every ingredient as its own line with amount, unit and preparation kept apart ("2", "tbsp", "olive oil", "" — "1", "", "onion", "finely chopped"), and the steps in order, each with ingredientIndexes for what it uses and durationMinutes when it has a time. Keep the recipe's own quantities and units. Don't send nutrition unless the recipe prints it: Dishes estimates it. Say what you added and give its title.`;
+Recipes: when I ask you to save or add a recipe (from a link, a photo, a book or our conversation), ${
+  canSearch ? "call searchRecipes first to check we haven't got it already, then " : ""
+}call createRecipe with the whole recipe: every ingredient as its own line with amount, unit and preparation kept apart ("2", "tbsp", "olive oil", "" — "1", "", "onion", "finely chopped"), and the steps in order, each with ingredientIndexes for what it uses and durationMinutes when it has a time. Keep the recipe's own quantities and units. Don't send nutrition unless the recipe prints it: Dishes estimates it. Say what you added and give its title.`;
 
 const json = (value: unknown): CallToolResult => ({
   content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
@@ -110,7 +115,7 @@ export function buildDishesMcpServer(caller: McpCaller): McpServer {
   const can = (scope: string) => caller.scopes.includes(scope);
   const server = new McpServer(
     { name: "dishes", title: "Dishes", version: APP_VERSION },
-    { instructions: MENU_ASSISTANT_INSTRUCTIONS + (can("write:recipes") ? RECIPE_INSTRUCTIONS : "") }
+    { instructions: MENU_ASSISTANT_INSTRUCTIONS + (can("write:recipes") ? recipeInstructions(can("read:meal_plan")) : "") }
   );
   const today = async () => (await householdClock(caller.householdId)).today;
 
