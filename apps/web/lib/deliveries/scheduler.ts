@@ -32,7 +32,8 @@ import { shortDate } from "./dates";
  * basket — or, once the order is placed, items added since that need an amend
  * and a total under the household's minimum order. A placed order with nothing
  * to flag gets no push, except at the last reminder: that always goes, as a
- * "last orders" nudge with the order's slot and total.
+ * "last orders" nudge with the order's slot and total, naming any items still
+ * unticked from before the order.
  *
  * Days earlier (`bookingReminderDays` before the delivery) there's one more:
  * if no order has been logged by then, a nudge to book a slot before they go.
@@ -102,6 +103,12 @@ export function buildDeliveryReminder(
     if (added.length) {
       issues.push(`${plural(added.length, "item")} added since you ordered: ${nameList(added)}`);
     }
+    // Items already on the list when it was ordered may have been left out on
+    // purpose, so only the last reminder mentions them.
+    const before = opts.last ? checklist.untickedBeforeOrder : [];
+    const stillOnList = before.length
+      ? `${plural(before.length, "item")} still on the list: ${nameList(before)}`
+      : null;
 
     // Placed and nothing to flag: only the last reminder goes, as a nudge.
     if (!issues.length && !opts.last) return null;
@@ -109,14 +116,17 @@ export function buildDeliveryReminder(
     const details = [delivery.slot, delivery.total ? `£${delivery.total}` : null]
       .filter(Boolean)
       .join(" · ");
+    const ordered = `Ordered${details ? ` · ${details}` : ""}.`;
     return {
       title: issues.length
         ? `${opts.last ? "Last orders: amend" : "Amend"} ${day}'s order by ${closes}`
         : `Last orders soon: ${day}'s order closes ${closes}`,
       body: issues.length
-        ? issues.join(" · ")
-        : `Ordered${details ? ` · ${details}` : ""}. Nothing to change, unless you've remembered something.`,
-      url: added.length ? "/shopping" : "/settings/deliveries",
+        ? [...issues, stillOnList].filter(Boolean).join(" · ")
+        : stillOnList
+          ? `${ordered} ${stillOnList}. Amend them in, or tick them off.`
+          : `${ordered} Nothing to change, unless you've remembered something.`,
+      url: added.length || stillOnList ? "/shopping" : "/settings/deliveries",
       tag,
     };
   }
