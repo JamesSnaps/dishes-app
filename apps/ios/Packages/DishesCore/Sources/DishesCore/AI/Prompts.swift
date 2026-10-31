@@ -323,7 +323,7 @@ public enum Prompts {
         let year = Calendar(identifier: .gregorian).component(.year, from: today)
         return """
             You are a meal planning chef helping a family plan their week.
-            Make meals varied across the week.
+            Make meals varied across the week.\(ask.preferences.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : "\nThe family's own request, in the message below, comes before every guideline here except dietary requirements and allergies.")
             CRITICAL — each suggestion MUST genuinely suit its slot's meal type:
             - breakfast: breakfast-appropriate food only (eggs, pancakes, porridge, pastries, granola, fruit, breakfast wraps, etc.). Never put rich dinner-style dishes (pasta, curries, roasts, stews) in a breakfast slot.
             - lunch: light, quick, midday food — salads, sandwiches, wraps, soups, grain bowls, leftovers-style plates. Keep portions and richness modest; do NOT assign full dinner-style mains to lunch.
@@ -333,11 +333,18 @@ public enum Prompts {
             """ + lib + systemAddendum(context) + tasteProfile(context?.tasteProfile) + extra + memberConstraints(eating, year: year)
     }
 
-    /// Copy of the same function's user message.
+    /// Copy of the same function's user message, with `planRequestBlock`.
+    /// (`PlanGeneratorSheet` sends a typed request to the server, so the device
+    /// only sees one from the evaluations.)
     public static func mealPlanRequest(_ ask: MealPlanDrafter.Ask, slotNames: [String]) -> String {
         let preferences = String(ask.preferences.prefix(500)).trimmingCharacters(in: .whitespacesAndNewlines)
-        return "Plan these meals: \(slotNames.joined(separator: ", "))." + (preferences.isEmpty ? "" : " Preferences: \(preferences)")
-            + " Return exactly \(slotNames.count) suggestions."
+        return "Plan these meals: \(slotNames.joined(separator: ", ")). Return exactly \(slotNames.count) suggestions."
+            + (preferences.isEmpty ? "" : """
+
+
+                WHAT WE'VE ASKED FOR, in our own words: "\(preferences)"
+                This comes first. It overrides variety, seasonality and the recipe library, but never anyone's dietary requirements or allergies. If it asks for a kind of dish, plan that kind of dish. If it rules something out, or says we don't have something, nothing you suggest may contain it. If it's about one day or meal, apply it there. Reuse a library recipe only when its title plainly fits the request; otherwise suggest a new recipe that does.
+                """)
     }
 
     static func relativeWeeks(_ day: String, today: Date) -> String {

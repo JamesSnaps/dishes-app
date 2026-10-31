@@ -1264,6 +1264,18 @@ export type MealPlanParams = {
   replacingTitles?: string[];
 };
 
+/**
+ * What the family typed when planning, set apart and put first. It used to
+ * trail the request as "Preferences: …", where it lost out to the library
+ * and the variety rules: "pasta, but no tomato sauce" came back as oven cod.
+ * iOS has a copy (`Prompts.mealPlanRequest`).
+ */
+function planRequestBlock(preferences: string): string {
+  if (!preferences.trim()) return "";
+  return `\n\nWHAT WE'VE ASKED FOR, in our own words: "${preferences.trim()}"
+This comes first. It overrides variety, seasonality and the recipe library, but never anyone's dietary requirements or allergies. If it asks for a kind of dish, plan that kind of dish. If it rules something out, or says we don't have something, nothing you suggest may contain it. If it's about one day or meal, apply it there. Reuse a library recipe only when its title plainly fits the request; otherwise suggest a new recipe that does.`;
+}
+
 export async function generateMealPlanConcepts(
   params: MealPlanParams,
   onUpdate?: (update: MealPlanUpdate) => void
@@ -1869,7 +1881,7 @@ VARIETY IS A PRIORITY. Spread your picks right across the list rather than clust
           role: "system",
           content: `You are a meal planning chef helping a family plan their week. Return meal suggestions as JSON.
 Format: {"slots": [{"dayOfWeek": number, "mealType": string, "title": string, "description": "1-2 sentences", "cuisine": string, "difficulty": "easy"|"medium"|"hard", "libraryIndex": number}]}
-Make meals varied across the week.
+Make meals varied across the week.${safePreferences ? `\nThe family's own request, in the message below, comes before every guideline here except dietary requirements and allergies.` : ""}
 CRITICAL — each suggestion MUST genuinely suit its slot's meal type:
 - breakfast: breakfast-appropriate food only (eggs, pancakes, porridge, pastries, granola, fruit, breakfast wraps, etc.). Never put rich dinner-style dishes (pasta, curries, roasts, stews) in a breakfast slot.
 - lunch: light, quick, midday food — salads, sandwiches, wraps, soups, grain bowls, leftovers-style plates. Keep portions and richness modest; do NOT assign full dinner-style mains to lunch.
@@ -1880,7 +1892,7 @@ dayOfWeek must match: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=
         },
         {
           role: "user",
-          content: `Plan these meals: ${slotsDesc}.${safePreferences ? ` Preferences: ${safePreferences}` : ""} Return exactly ${slots.length} suggestions.`,
+          content: `Plan these meals: ${slotsDesc}. Return exactly ${slots.length} suggestions.${planRequestBlock(safePreferences)}`,
         },
       ],
       },

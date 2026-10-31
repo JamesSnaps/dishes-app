@@ -12,6 +12,10 @@ struct PlanGeneratorSheet: View {
     let week: Week
     /// Days that already have this meal type planned, left unticked to start with.
     let planned: Set<Int>
+    /// From "Add meal" → "Suggest with AI": just this day and meal, with the
+    /// request box ready for what they fancy.
+    var day: Int? = nil
+    var meal: String? = nil
 
     enum Stage: Equatable { case asking, drafting, draft, adding, failed(String) }
 
@@ -32,6 +36,7 @@ struct PlanGeneratorSheet: View {
     @State private var libraryPhotos: [String: URL] = [:]
     /// While it adds: how each new idea's writing is going, by its index in `draft`.
     @State private var writing: [Int: Writing] = [:]
+    @FocusState private var askingFocused: Bool
 
     enum Writing: Equatable { case writing(RecipeProgress?), written, failed }
 
@@ -73,7 +78,15 @@ struct PlanGeneratorSheet: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
         }
         .interactiveDismissDisabled(stage == .drafting || stage == .adding)
-        .onAppear { days = Set((0..<7).filter { !planned.contains($0) }) }
+        .onAppear {
+            if let day {
+                days = [day]
+                mealType = meal ?? mealType
+                askingFocused = true
+            } else {
+                days = Set((0..<7).filter { !planned.contains($0) })
+            }
+        }
     }
 
     private var form: some View {
@@ -97,6 +110,7 @@ struct PlanGeneratorSheet: View {
             field("Anything in particular?") {
                 TextField("e.g. one fish night, nothing too heavy, use the slow cooker on Sunday", text: $preferences, axis: .vertical)
                     .lineLimit(2...5)
+                    .focused($askingFocused)
                     .padding(12)
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.border))
             }
@@ -297,7 +311,8 @@ struct PlanGeneratorSheet: View {
                                       heartHealthy: heartHealthy)
         do {
             // On the device first, from what's in the local store
-            // (MealPlanDrafter); adding the draft still goes to the server.
+            // (MealPlanDrafter), unless there's a request typed in; adding
+            // the draft still goes to the server.
             let run = try await AIRouter.run(
                 .mealPlan,
                 onDevice: { () async throws -> (slots: [APIClient.PlanSlot], problems: [String]) in
@@ -338,7 +353,11 @@ struct PlanGeneratorSheet: View {
                         }
                     }
                     throw APIError.http(status: 502, code: "bad_response", message: "The plan stopped part way. Please try again.")
-                })
+                },
+                // The device model loses a request in your own words ("pasta,
+                // no tomato sauce" → oven cod), so those go to the server.
+                skipDevice: ask.preferences.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil : "A request in your own words goes to the server")
             draft = run.value.slots.sorted { $0.dayOfWeek < $1.dayOfWeek }
             guard !draft.isEmpty else { stage = .failed("No meals came back. Try fewer constraints."); return }
             // Whatever hasn't landed yet (all of it, when it was drafted on the

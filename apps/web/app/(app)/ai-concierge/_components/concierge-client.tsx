@@ -1093,9 +1093,20 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   // handleAddToMealPlan.
   const sync = useSync();
 
+  // From "Add meal" → "Suggest with AI" (?week=…&day=…&meal=…): just that
+  // day and meal, with the preferences box ready for what they fancy.
+  const searchParams = useSearchParams();
+  const [asked] = useState(() => {
+    const week = searchParams.get("week") ?? "";
+    const day = searchParams.get("day") ?? "";
+    const meal = searchParams.get("meal") ?? "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(week) || !/^[0-6]$/.test(day) || !(MEAL_TYPES as readonly string[]).includes(meal)) return null;
+    return { week, slot: `${day}:${meal}` };
+  });
+
   // Default: Mon–Fri dinners
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(
-    () => new Set([0, 1, 2, 3, 4].map((d) => `${d}:dinner`))
+    () => new Set(asked ? [asked.slot] : [0, 1, 2, 3, 4].map((d) => `${d}:dinner`))
   );
   const [existingCoverage, setExistingCoverage] = useState<{ dayOfWeek: number; mealType: string; recipeTitle: string }[]>([]);
   const [preferences, setPreferences] = useState("");
@@ -1121,7 +1132,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
   const [ratedOnly, setRatedOnly] = useState(false);
   const [maxCaloriesPerMeal, setMaxCaloriesPerMeal] = useState("");
   const [heartHealthy, setHeartHealthy] = useState(false);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [weekOffset, setWeekOffset] = useState(() => (asked ? weekOffsetOf(asked.week) : 0));
   const [generatedSlots, setGeneratedSlots] = useState<MealPlanSlot[] | null>(null);
   const [rejectedSlots, setRejectedSlots] = useState<Set<number>>(new Set());
   const [redoingSlots, setRedoingSlots] = useState<Set<number>>(new Set());
@@ -1685,6 +1696,7 @@ function PlanMyWeekTab({ availableCuisines, availableTags, members = [], styleBr
             onChange={(e) => setPreferences(e.target.value)}
             placeholder="e.g. Easy meals, no fish, mostly Italian, vegetarian lunches…"
             rows={2}
+            autoFocus={!!asked}
             className="resize-none"
             disabled={isGenerating || isAdding}
           />
