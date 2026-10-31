@@ -51,9 +51,12 @@ For an AI assistant, a `read:meal_plan`-only token is enough to answer "what's f
 | `write:shopping_list` | Add, tick off, rename and remove shopping list items |
 | `read:deliveries` | Read grocery delivery days and order status |
 | `write:deliveries` | Record grocery orders (e.g. from retailer emails) |
+| `write:recipes` | Add recipes to the household library |
 | `read:cooking` | See who is cooking right now: the dish, the step and the running timers |
 | `read:preferences` | Read each member's dietary requirements, dislikes and tastes, and this week's eating, to help an AI choose from a menu |
 | `write:outside_meals` | Log and update meals eaten out, as the member the token acts as |
+
+A token's name, scopes and **Acts as** can be changed after it's created (Settings → Integrations → Edit), without changing the token itself: whatever uses it gets the new permissions from its next call. Its expiry can't be changed; make a new token for that.
 
 ## Common error shape
 
@@ -281,6 +284,56 @@ Returns one recipe from the household library with ingredients, numbered steps a
 `nutrition` is `null` when the recipe has no nutrition data; individual macros may also be `null`. `steps[].ingredientIds` reference `ingredients[].id`. Amounts are strings so fractions survive.
 
 **Error `404`** — no recipe with that id in the token's household (malformed ids also return `404`).
+
+---
+
+### `POST /api/integrations/recipes`
+
+Adds a recipe to the household library and returns it (`201`) in the same shape as `GET /api/integrations/recipes/{id}`. A token that acts as a member files the recipe as theirs.
+
+**Scope:** `write:recipes`
+
+**Body** — only `title` is required; send ingredients and steps for a recipe you can cook from.
+
+```json
+{
+  "title": "Creamy Pesto Pasta",
+  "cuisine": "Italian",
+  "difficulty": "easy",
+  "servings": "4",
+  "prepTimeMinutes": 5,
+  "cookTimeMinutes": 15,
+  "mealTypes": ["dinner"],
+  "tags": ["quick", "vegetarian"],
+  "ingredients": [
+    { "ingredientName": "penne", "amount": "400", "unit": "g" },
+    { "ingredientName": "green pesto", "amount": "190", "unit": "g" },
+    { "ingredientName": "crème fraîche", "amount": "150", "unit": "ml" }
+  ],
+  "steps": [
+    { "instruction": "Cook the penne in salted boiling water.", "durationMinutes": "11", "timerLabel": "Pasta", "ingredientIndexes": [0] },
+    { "instruction": "Drain, then stir through the pesto and crème fraîche.", "ingredientIndexes": [1, 2] }
+  ]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `description`, `cuisine`, `notes`, `sourceUrl` | Optional text (`sourceUrl` must be a URL) |
+| `difficulty` | `easy`, `medium` or `hard` |
+| `prepTimeMinutes`, `cookTimeMinutes` | Whole minutes |
+| `servings`, `servingsUnit` | `servings` may be a string or number; `servingsUnit` defaults to `servings` |
+| `mealRole` | `main`, `side`, `sauce` or `other`; leave out for a main course |
+| `mealTypes` | Meals it suits (`breakfast`, `lunch`, `dinner`, `snack`, `dessert`); the AI planner only puts it in these |
+| `tags` | Strings |
+| `collectionId` | A collection of this household's to file it in (ignored if it isn't one) |
+| `ingredients[]` | `ingredientName` (required), `amount`, `unit`, `preparation`, `isOptional`, `groupLabel` ("For the sauce") |
+| `steps[]` | `instruction` (required), `durationMinutes` (for a timer in cooking mode), `timerLabel`, `groupLabel`, `ingredientIndexes` — positions in `ingredients` (0 is the first) that the step uses |
+| `nutrition` | Per serving: `calories`, `proteinG`, `carbsG`, `fatG`, `saturatedFatG`, `fiberG`, `sugarG`, `sodiumMg`. Leave out to have it estimated |
+
+Amounts, servings and step minutes may be strings or numbers. Without `nutrition`, the household's AI estimates it a few seconds after the response (only when an AI key is set), so the response's `nutrition` is `null` and a later `GET` has it. Photos can't be sent: add one in the app.
+
+**Error `400`** — not a valid recipe (`issues` says which field), or a step's `ingredientIndexes` points past the end of `ingredients`.
 
 ---
 

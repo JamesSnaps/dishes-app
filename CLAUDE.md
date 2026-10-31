@@ -198,6 +198,7 @@ Key endpoints:
 GET  /api/integrations/today
 GET  /api/integrations/meal-plan/week
 GET  /api/integrations/recipes/{id}
+POST /api/integrations/recipes
 GET  /api/integrations/shopping-list
 POST /api/integrations/shopping-list/items
 POST /api/integrations/shopping-list/quick-add

@@ -40,6 +40,7 @@ import {
 // compiler before the types are erased — which broke every dev build. Callers
 // import them from `@/lib/ai/recipe-generation` directly.
 import type { ConceptCard, GeneratedRecipe, RecipeNutrition } from "@/lib/ai/recipe-generation";
+import { estimateNutritionFor, nutritionColumns } from "@/lib/ai/recipe-nutrition";
 import { groundRecipeConcept, groundingPromptSuffix, type RecipeGrounding } from "@/lib/ai/web-grounding";
 import type { BatchJobItem, BatchJobProgress, ConceptsJobProgress, ConceptsJobResult, MealPlanJobResult, MealPlanProgress, MealPlanUpdate, RecipeJobResult, RecipeProgress } from "@/lib/ai/job-types";
 import { planFacts, planPhotos } from "@/lib/ai/plan-progress";
@@ -599,82 +600,6 @@ Start "notes" with a line beginning "Heart-healthy swaps:" listing each change a
 // ── Estimate nutrition for an existing recipe ──────────────────────────────────
 // On-demand: loads the recipe's ingredients/servings, asks the AI for a
 // per-serving estimate, persists it (nutritionSource = "ai"), and revalidates.
-
-type NutritionSubject = {
-  title: string;
-  servings: string | null;
-  servingsUnit: string | null;
-  ingredients: { ingredientName: string; amount: string | null; unit: string | null }[];
-};
-
-/** One AI call: per-serving nutrition for a recipe, or null if nothing usable came back. */
-async function estimateNutritionFor(
-  ai: AiConfig,
-  recipe: NutritionSubject
-): Promise<RecipeNutrition | null> {
-  const ingredientList = recipe.ingredients
-    .map((r) => `- ${[r.amount, r.unit, r.ingredientName].filter(Boolean).join(" ")}`)
-    .join("\n");
-  const servings = recipe.servings ? `${recipe.servings} ${recipe.servingsUnit ?? "servings"}` : "unknown (assume 4 servings)";
-
-  const completion = await ai.client.chat.completions.create({
-    model: ai.model,
-    response_format: { type: "json_object" },
-    ...maxTokensParam(ai.model, 400),
-    messages: [
-      {
-        role: "system",
-        content: `You are a nutrition estimator. Given a recipe's ingredients and the number of servings, return a best-effort PER-SERVING nutrition estimate as JSON matching exactly:
-{
-  "calories": number (kcal per serving),
-  "proteinG": number, "carbsG": number, "fatG": number,
-  "saturatedFatG": number,
-  "fiberG": number, "sugarG": number, "sodiumMg": number
-}
-Base your estimate on standard food composition data. Measurement system: ${ai.measurementSystem}. Return realistic numbers, never null.`,
-      },
-      {
-        role: "user",
-        content: `Recipe: ${recipe.title}\nServings: ${servings}\nIngredients:\n${ingredientList}`,
-      },
-    ],
-  });
-
-  const raw = completion.choices[0]?.message?.content ?? "";
-  const parsed = JSON.parse(raw) as Partial<RecipeNutrition>;
-
-  const num = (v: unknown) =>
-    typeof v === "number" && Number.isFinite(v) ? v : null;
-  const nutrition: RecipeNutrition = {
-    calories: num(parsed.calories),
-    proteinG: num(parsed.proteinG),
-    carbsG: num(parsed.carbsG),
-    fatG: num(parsed.fatG),
-    saturatedFatG: num(parsed.saturatedFatG),
-    fiberG: num(parsed.fiberG),
-    sugarG: num(parsed.sugarG),
-    sodiumMg: num(parsed.sodiumMg),
-  };
-
-  return Object.values(nutrition).some((v) => v != null) ? nutrition : null;
-}
-
-const decimalOrNull = (v: number | null) => (v == null ? null : String(v));
-
-/** Column values for a full AI nutrition estimate. */
-function nutritionColumns(n: RecipeNutrition) {
-  return {
-    calories: n.calories == null ? null : Math.round(n.calories),
-    proteinG: decimalOrNull(n.proteinG),
-    carbsG: decimalOrNull(n.carbsG),
-    fatG: decimalOrNull(n.fatG),
-    saturatedFatG: decimalOrNull(n.saturatedFatG),
-    fiberG: decimalOrNull(n.fiberG),
-    sugarG: decimalOrNull(n.sugarG),
-    sodiumMg: decimalOrNull(n.sodiumMg),
-    nutritionSource: "ai" as const,
-  };
-}
 
 export async function estimateNutrition(
   recipeId: string

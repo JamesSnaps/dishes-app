@@ -11,9 +11,12 @@ import {
  * browser artefact and is not reproduced here.
  */
 
+/** A string field that also takes a number (an amount of 600, 20 minutes). */
+const looseText = z.union([z.string(), z.number()]).default("").transform(String);
+
 const ingredientSchema = z.object({
   ingredientName: z.string().min(1),
-  amount: z.string().default(""),
+  amount: looseText,
   unit: z.string().default(""),
   preparation: z.string().default(""),
   isOptional: z.boolean().default(false),
@@ -22,7 +25,7 @@ const ingredientSchema = z.object({
 
 const stepSchema = z.object({
   instruction: z.string().min(1),
-  durationMinutes: z.string().default(""),
+  durationMinutes: looseText,
   timerLabel: z.string().default(""),
   groupLabel: z.string().default(""),
   /** The ingredients this step uses, by position in `ingredients`. */
@@ -46,7 +49,7 @@ export const recipeWriteSchema = z.object({
   cuisine: z.string().nullable().default(null),
   prepTimeMinutes: z.number().int().nonnegative().nullable().default(null),
   cookTimeMinutes: z.number().int().nonnegative().nullable().default(null),
-  servings: z.string().nullable().default(null),
+  servings: z.union([z.string(), z.number()]).nullable().default(null).transform((v) => (v == null ? null : String(v))),
   servingsUnit: z.string().default("servings"),
   difficulty: z.enum(["easy", "medium", "hard"]).nullable().default(null),
   mealRole: z.enum(["main", "side", "sauce", "other"]).nullable().optional(),

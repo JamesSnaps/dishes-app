@@ -195,6 +195,10 @@ Steps:
   values and writes a meal out from the device that logged it once the estimate arrives by sync;
   Tonight card, widgets and Siri skip a slot taken by a meal out; plan generation starts with nights
   out unticked. Server: `?estimate=false` on the v1 writes so the app asks for one estimate itself
+- [x] Integration tokens can be edited — name, scopes, who they act as — without a new secret
+  (`updateIntegrationToken`, Settings → Integrations → Edit); `POST /api/integrations/recipes` with a new
+  `write:recipes` scope adds a recipe, nutrition estimated afterwards (v1.77.0)
+- [ ] Later: a `createRecipe` tool on the MCP server, for tokens with `write:recipes`
 - [x] Integrations API: outside meals on `today`/`week` (`API.md`, `integrations-catalog.ts`); `dinner.notCooking`;
   `meal-plan/generate` skips not-cooking days and lists them (v1.66.0)
 - [x] Courses (v1.68.0): a sitting can hold several courses (`outside_meals.courses`, migration 0048) —
